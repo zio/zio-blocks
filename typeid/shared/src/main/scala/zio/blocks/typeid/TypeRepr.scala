@@ -51,7 +51,8 @@ sealed trait TypeRepr {
 
   /**
    * Returns `true` if this type expression contains a [[TypeRepr.ParamRef]] to
-   * `param`, at any depth. A [[TypeRepr.Ref]] to an id is not searched.
+   * `param`, at any depth except inside the members of a
+   * [[TypeRepr.Structural]] type. A [[TypeRepr.Ref]] to an id is not searched.
    */
   def containsParam(param: TypeParam): Boolean = this match {
     case TypeRepr.Ref(_)                          => false
@@ -141,6 +142,11 @@ object TypeRepr {
    * parents and the members it declares. The Scala 2 macro also writes an
    * intersection `A with B` this way, with `A` and `B` as parents and no
    * members.
+   *
+   * The macros do not record method parameters: Scala 2 keeps only
+   * parameterless members, as [[Member.Val]], and drops methods with
+   * parameters; Scala 3 writes a method with parameters as a [[Member.Def]]
+   * with no parameter lists.
    */
   final case class Structural(parents: List[TypeRepr], members: List[Member]) extends TypeRepr
 
@@ -228,10 +234,12 @@ object TypeRepr {
 
   /**
    * A tuple type `(A, B, C)`, as the Scala 3 macro writes it inside a type,
-   * with one element per position. It compares equal to the applied `TupleN`
-   * form that the Scala 2 macro writes. A Scala 3 named tuple is not written
-   * this way: it is an applied `NamedTuple` whose two arguments are tuples of
-   * the names (as string constants) and of the types.
+   * with one element per position. Two ids are equal when their type arguments
+   * differ only between this form and the applied `TupleN` form that the Scala
+   * 2 macro writes, although the two `TypeRepr` values are not equal. A Scala 3
+   * named tuple is not written this way: it is an applied `NamedTuple` whose
+   * two arguments are tuples of the names (as string constants) and of the
+   * types.
    *
    * @param elems
    *   the elements, in order; the macros leave their labels empty
