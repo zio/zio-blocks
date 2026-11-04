@@ -2454,16 +2454,47 @@ object Header {
     }
   }
 
+  /**
+   * The `Accept` request header: the media types the client accepts, each with
+   * a quality.
+   */
   final case class Accept(mediaRanges: Chunk[Accept.MediaRange]) extends zio.http.Header {
-    def headerName: String    = Accept.name
+
+    /** Returns the name of this header, `Accept.name`. */
+    def headerName: String = Accept.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Accept.render` returns.
+     */
     def renderedValue: String = Accept.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Accept]]: it parses and renders the
+   * `accept` header.
+   */
   object Accept extends Typed[Accept] {
+
+    /** The header name, `accept`. */
     val name: String = "accept"
 
+    /**
+     * One entry of an `Accept` header: a media type, which may contain a
+     * wildcard, and its quality, which is `1.0` unless the entry gives `q=`.
+     */
     final case class MediaRange(mediaType: MediaType, quality: Double = 1.0)
 
+    /**
+     * Parses a comma-separated list of media ranges. A blank value gives
+     * `Left("Accept header cannot be empty")`. Each non-empty item is split at
+     * its first semicolon: the part before it is parsed as a media type, and
+     * any failure gives a `Left` that joins the messages with `; `, such as
+     * `Invalid media type: must contain '/' separator`. A `q=` parameter after
+     * the semicolon sets the quality, and one that is not a number is ignored,
+     * leaving `1.0`; other parameters are ignored. Wildcard ranges such as
+     * `text` with any subtype parse.
+     */
     def parse(value: String): Either[String, Accept] = {
       if (value.trim.isEmpty) return Left("Accept header cannot be empty")
       val parts  = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -2473,6 +2504,10 @@ object Header {
       else Right(Accept(ranges.collect { case Right(mr) => mr }))
     }
 
+    /**
+     * Writes each media type, adding `;q=<quality>` unless the quality is
+     * `1.0`, joined with `, `.
+     */
     def render(h: Accept): String =
       h.mediaRanges.map { mr =>
         if (mr.quality == 1.0) mr.mediaType.fullType
@@ -2500,25 +2535,65 @@ object Header {
     }
   }
 
+  /**
+   * The `Accept-Encoding` request header: the content codings the client
+   * accepts, each with an optional weight. One coding is a case class; several,
+   * in the order listed, are a `Multiple`.
+   */
   sealed trait AcceptEncoding extends zio.http.Header {
-    def headerName: String    = AcceptEncoding.name
+
+    /** Returns the name of this header, `AcceptEncoding.name`. */
+    def headerName: String = AcceptEncoding.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AcceptEncoding.render` returns.
+     */
     def renderedValue: String = AcceptEncoding.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AcceptEncoding]]: it parses and renders
+   * the `accept-encoding` header.
+   */
   object AcceptEncoding extends Typed[AcceptEncoding] {
+
+    /** The header name, `accept-encoding`. */
     val name: String = "accept-encoding"
 
-    final case class GZip(weight: Option[Double] = None)     extends AcceptEncoding
-    final case class Deflate(weight: Option[Double] = None)  extends AcceptEncoding
-    final case class Br(weight: Option[Double] = None)       extends AcceptEncoding
-    final case class Compress(weight: Option[Double] = None) extends AcceptEncoding
-    final case class Identity(weight: Option[Double] = None) extends AcceptEncoding
-    final case class Any(weight: Option[Double] = None)      extends AcceptEncoding
+    /** The `gzip` coding, with an optional weight. */
+    final case class GZip(weight: Option[Double] = None) extends AcceptEncoding
 
+    /** The `deflate` coding, with an optional weight. */
+    final case class Deflate(weight: Option[Double] = None) extends AcceptEncoding
+
+    /** The `br` (Brotli) coding, with an optional weight. */
+    final case class Br(weight: Option[Double] = None) extends AcceptEncoding
+
+    /** The `compress` coding, with an optional weight. */
+    final case class Compress(weight: Option[Double] = None) extends AcceptEncoding
+
+    /** The `identity` coding, with an optional weight. */
+    final case class Identity(weight: Option[Double] = None) extends AcceptEncoding
+
+    /** Any coding, written with an asterisk, with an optional weight. */
+    final case class Any(weight: Option[Double] = None) extends AcceptEncoding
+
+    /** Several codings, in the order given. */
     final case class Multiple(values: Chunk[AcceptEncoding]) extends AcceptEncoding
 
+    /** Any coding with no weight: an asterisk alone. */
     val NoPreference: AcceptEncoding = Any(None)
 
+    /**
+     * Parses a comma-separated list. It trims each item and drops empty ones;
+     * none left gives `Left("Invalid accept-encoding: <value>")`. One item
+     * gives its case, several give `Multiple`. A weight written as
+     * `;q=<number>` with no space is read, and one that is not a number is
+     * dropped. A name other than `gzip`, `deflate`, `br`, `compress`,
+     * `identity` and an asterisk, matched in any letter case, becomes `GZip`
+     * with the item's weight.
+     */
     def parse(value: String): Either[String, AcceptEncoding] = {
       val parts = value.split(',').map(_.trim).filter(_.nonEmpty)
       if (parts.isEmpty) Left(s"Invalid accept-encoding: $value")
@@ -2526,6 +2601,10 @@ object Header {
       else Right(Multiple(Chunk.fromArray(parts.map(parseSingle))))
     }
 
+    /**
+     * Writes each coding name, adding `;q=<weight>` when there is a weight;
+     * `Multiple` joins them with `, `.
+     */
     def render(h: AcceptEncoding): String = h match {
       case GZip(w)     => renderWithWeight("gzip", w)
       case Deflate(w)  => renderWithWeight("deflate", w)
@@ -2564,18 +2643,46 @@ object Header {
       }
   }
 
+  /**
+   * The `Accept-Language` request header: the languages the client prefers,
+   * each with a quality.
+   */
   final case class AcceptLanguage(languages: Chunk[AcceptLanguage.LanguageRange]) extends zio.http.Header {
-    def headerName: String    = AcceptLanguage.name
+
+    /** Returns the name of this header, `AcceptLanguage.name`. */
+    def headerName: String = AcceptLanguage.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AcceptLanguage.render` returns.
+     */
     def renderedValue: String = AcceptLanguage.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AcceptLanguage]]: it parses and renders
+   * the `accept-language` header.
+   */
   object AcceptLanguage extends Typed[AcceptLanguage] {
+
+    /** The header name, `accept-language`. */
     val name: String = "accept-language"
 
+    /**
+     * One entry of an `Accept-Language` header: a language tag, which is not
+     * checked, and its quality, which is `1.0` unless the entry gives `;q=`.
+     */
     final case class LanguageRange(tag: String, quality: Double = 1.0)
 
+    /** The range that matches any language: an asterisk with quality `1.0`. */
     val Any: LanguageRange = LanguageRange("*")
 
+    /**
+     * Parses a comma-separated list of language ranges. A blank value gives
+     * `Left("Accept-Language cannot be empty")`. It trims each item and drops
+     * empty ones, reads a quality written as `;q=<number>` with no space, and
+     * falls back to `1.0` when that is not a number. Tags are not checked.
+     */
     def parse(value: String): Either[String, AcceptLanguage] = {
       if (value.trim.isEmpty) return Left("Accept-Language cannot be empty")
       val parts  = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -2583,6 +2690,10 @@ object Header {
       Right(AcceptLanguage(ranges))
     }
 
+    /**
+     * Writes each tag, adding `;q=<quality>` unless the quality is `1.0`,
+     * joined with `, `.
+     */
     def render(h: AcceptLanguage): String =
       h.languages.map { lr =>
         if (lr.quality == 1.0) lr.tag
@@ -2603,17 +2714,43 @@ object Header {
     }
   }
 
+  /**
+   * The `Accept-Ranges` response header: whether the server supports range
+   * requests.
+   */
   sealed trait AcceptRanges extends zio.http.Header {
-    def headerName: String    = AcceptRanges.name
+
+    /** Returns the name of this header, `AcceptRanges.name`. */
+    def headerName: String = AcceptRanges.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AcceptRanges.render` returns.
+     */
     def renderedValue: String = AcceptRanges.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AcceptRanges]]: it parses and renders the
+   * `accept-ranges` header.
+   */
   object AcceptRanges extends Typed[AcceptRanges] {
+
+    /** The header name, `accept-ranges`. */
     val name: String = "accept-ranges"
 
+    /** The `bytes` value: the server supports byte ranges. */
     case object Bytes extends AcceptRanges
+
+    /** The `none` value: the server supports no range requests. */
     case object None_ extends AcceptRanges
 
+    /**
+     * Trims and lower-cases the value, then maps `bytes` and `none` to their
+     * case objects. Any other value gives
+     * `Left("Invalid accept-ranges: <value>")` with the trimmed, lower-cased
+     * text.
+     */
     def parse(value: String): Either[String, AcceptRanges] =
       value.trim.toLowerCase match {
         case "bytes" => Right(Bytes)
@@ -2621,23 +2758,48 @@ object Header {
         case other   => Left(s"Invalid accept-ranges: $other")
       }
 
+    /** Writes `bytes` or `none`. */
     def render(h: AcceptRanges): String = h match {
       case Bytes => "bytes"
       case None_ => "none"
     }
   }
 
+  /**
+   * The `Accept-Patch` response header: the media types the server accepts in
+   * `PATCH` requests.
+   */
   final case class AcceptPatch(mediaTypes: Chunk[MediaType]) extends zio.http.Header {
-    def headerName: String    = AcceptPatch.name
+
+    /** Returns the name of this header, `AcceptPatch.name`. */
+    def headerName: String = AcceptPatch.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AcceptPatch.render` returns.
+     */
     def renderedValue: String = AcceptPatch.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AcceptPatch]]: it parses and renders the
+   * `accept-patch` header.
+   */
   object AcceptPatch extends Typed[AcceptPatch] {
+
+    /** The header name, `accept-patch`. */
     val name: String = "accept-patch"
 
+    /** Builds an `AcceptPatch` from one or more media types. */
     def apply(first: MediaType, rest: MediaType*): AcceptPatch =
       AcceptPatch(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses a comma-separated list of media types. A blank value gives
+     * `Left("Accept-Patch header cannot be empty")`. An item that is not a
+     * valid media type is dropped without an error; when none are left the
+     * result is `Left("Invalid accept-patch: <value>")`.
+     */
     def parse(value: String): Either[String, AcceptPatch] = {
       if (value.trim.isEmpty) return Left("Accept-Patch header cannot be empty")
       val parts  = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -2646,21 +2808,47 @@ object Header {
       else Right(AcceptPatch(Chunk.fromArray(parsed)))
     }
 
+    /** Writes the media types joined with `, `. */
     def render(h: AcceptPatch): String =
       h.mediaTypes.map(_.fullType).mkString(", ")
   }
 
+  /**
+   * The `Access-Control-Allow-Origin` response header: which origin may read
+   * the response in a cross-origin request.
+   */
   sealed trait AccessControlAllowOrigin extends zio.http.Header {
-    def headerName: String    = AccessControlAllowOrigin.name
+
+    /** Returns the name of this header, `AccessControlAllowOrigin.name`. */
+    def headerName: String = AccessControlAllowOrigin.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlAllowOrigin.render` returns.
+     */
     def renderedValue: String = AccessControlAllowOrigin.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlAllowOrigin]]: it parses and
+   * renders the `access-control-allow-origin` header.
+   */
   object AccessControlAllowOrigin extends Typed[AccessControlAllowOrigin] {
+
+    /** The header name, `access-control-allow-origin`. */
     val name: String = "access-control-allow-origin"
 
-    case object All                           extends AccessControlAllowOrigin
+    /** Any origin: the `*` value. */
+    case object All extends AccessControlAllowOrigin
+
+    /** One origin, held as the text `origin`. */
     final case class Specific(origin: String) extends AccessControlAllowOrigin
 
+    /**
+     * Trims the value and maps `*` to `All`. An empty value gives
+     * `Left("Empty access-control-allow-origin header")`; anything else becomes
+     * `Specific` with the trimmed text, which is not checked.
+     */
     def parse(value: String): Either[String, AccessControlAllowOrigin] = {
       val trimmed = value.trim
       if (trimmed == "*") Right(All)
@@ -2668,25 +2856,52 @@ object Header {
       else Right(Specific(trimmed))
     }
 
+    /** Writes `*` for `All`, or the origin text. */
     def render(h: AccessControlAllowOrigin): String = h match {
       case All         => "*"
       case Specific(o) => o
     }
   }
 
+  /**
+   * The `Access-Control-Allow-Methods` response header: the methods allowed in
+   * a cross-origin request.
+   */
   final case class AccessControlAllowMethods(methods: Chunk[Method]) extends zio.http.Header {
-    def headerName: String    = AccessControlAllowMethods.name
+
+    /** Returns the name of this header, `AccessControlAllowMethods.name`. */
+    def headerName: String = AccessControlAllowMethods.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlAllowMethods.render` returns.
+     */
     def renderedValue: String = AccessControlAllowMethods.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlAllowMethods]]: it parses and
+   * renders the `access-control-allow-methods` header.
+   */
   object AccessControlAllowMethods extends Typed[AccessControlAllowMethods] {
+
+    /** The header name, `access-control-allow-methods`. */
     val name: String = "access-control-allow-methods"
 
+    /** Every method of `Method.values`. */
     val All: AccessControlAllowMethods = AccessControlAllowMethods(Chunk.fromIterable(Method.values))
 
+    /** Builds the header from one or more methods. */
     def apply(first: Method, rest: Method*): AccessControlAllowMethods =
       AccessControlAllowMethods(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses a comma-separated list of method names. It trims the value, and an
+     * empty value gives `Left("Empty access-control-allow-methods header")`.
+     * Each item is trimmed and read with `Method.fromString`, which accepts
+     * upper-case names only; the first unknown item gives
+     * `Left("Unknown method: <item>")`.
+     */
     def parse(value: String): Either[String, AccessControlAllowMethods] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-allow-methods header")
@@ -2704,23 +2919,49 @@ object Header {
       Right(AccessControlAllowMethods(Chunk.fromArray(methods.toArray)))
     }
 
+    /** Writes the method names joined with `, `. */
     def render(h: AccessControlAllowMethods): String =
       h.methods.map(_.name).mkString(", ")
   }
 
+  /**
+   * The `Access-Control-Allow-Headers` response header: the request headers
+   * allowed in a cross-origin request.
+   */
   final case class AccessControlAllowHeaders(headers: Chunk[String]) extends zio.http.Header {
-    def headerName: String    = AccessControlAllowHeaders.name
+
+    /** Returns the name of this header, `AccessControlAllowHeaders.name`. */
+    def headerName: String = AccessControlAllowHeaders.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlAllowHeaders.render` returns.
+     */
     def renderedValue: String = AccessControlAllowHeaders.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlAllowHeaders]]: it parses and
+   * renders the `access-control-allow-headers` header.
+   */
   object AccessControlAllowHeaders extends Typed[AccessControlAllowHeaders] {
+
+    /** The header name, `access-control-allow-headers`. */
     val name: String = "access-control-allow-headers"
 
+    /** Every header name: an asterisk. */
     val All: AccessControlAllowHeaders = AccessControlAllowHeaders(Chunk("*"))
 
+    /** Builds the header from one or more header names. */
     def apply(first: String, rest: String*): AccessControlAllowHeaders =
       AccessControlAllowHeaders(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses a comma-separated list of header names. It trims the value, and an
+     * empty value gives `Left("Empty access-control-allow-headers header")`.
+     * Each item is trimmed, and empty items are dropped; the names are not
+     * checked.
+     */
     def parse(value: String): Either[String, AccessControlAllowHeaders] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-allow-headers header")
@@ -2728,22 +2969,53 @@ object Header {
       Right(AccessControlAllowHeaders(Chunk.fromArray(parts)))
     }
 
+    /** Writes the names joined with `, `. */
     def render(h: AccessControlAllowHeaders): String =
       h.headers.mkString(", ")
   }
 
+  /**
+   * The `Access-Control-Allow-Credentials` response header: whether a
+   * cross-origin page may send credentials. `allow` is `true` to allow them.
+   */
   final case class AccessControlAllowCredentials(allow: Boolean) extends zio.http.Header {
-    def headerName: String    = AccessControlAllowCredentials.name
+
+    /**
+     * Returns the name of this header, `AccessControlAllowCredentials.name`.
+     */
+    def headerName: String = AccessControlAllowCredentials.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlAllowCredentials.render` returns.
+     */
     def renderedValue: String = AccessControlAllowCredentials.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlAllowCredentials]]: it parses
+   * and renders the `access-control-allow-credentials` header.
+   */
   object AccessControlAllowCredentials extends Typed[AccessControlAllowCredentials] {
+
+    /** The header name, `access-control-allow-credentials`. */
     val name: String = "access-control-allow-credentials"
 
-    val Allow: AccessControlAllowCredentials      = AccessControlAllowCredentials(true)
-    val Deny: AccessControlAllowCredentials       = AccessControlAllowCredentials(false)
+    /** Credentials allowed: `true`. */
+    val Allow: AccessControlAllowCredentials = AccessControlAllowCredentials(true)
+
+    /** Credentials not allowed: `false`. */
+    val Deny: AccessControlAllowCredentials = AccessControlAllowCredentials(false)
+
+    /** Another name for `Deny`. */
     val DoNotAllow: AccessControlAllowCredentials = Deny
 
+    /**
+     * Trims and lower-cases the value, then maps `true` to `Allow` and `false`
+     * to `Deny`. Any other value gives
+     * `Left("Invalid access-control-allow-credentials: <value>")` with the
+     * trimmed, lower-cased text.
+     */
     def parse(value: String): Either[String, AccessControlAllowCredentials] =
       value.trim.toLowerCase match {
         case "true"  => Right(Allow)
@@ -2751,23 +3023,49 @@ object Header {
         case other   => Left(s"Invalid access-control-allow-credentials: $other")
       }
 
+    /** Writes `true` or `false`. */
     def render(h: AccessControlAllowCredentials): String =
       if (h.allow) "true" else "false"
   }
 
+  /**
+   * The `Access-Control-Expose-Headers` response header: the response headers
+   * that a cross-origin page may read.
+   */
   final case class AccessControlExposeHeaders(headers: Chunk[String]) extends zio.http.Header {
-    def headerName: String    = AccessControlExposeHeaders.name
+
+    /** Returns the name of this header, `AccessControlExposeHeaders.name`. */
+    def headerName: String = AccessControlExposeHeaders.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlExposeHeaders.render` returns.
+     */
     def renderedValue: String = AccessControlExposeHeaders.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlExposeHeaders]]: it parses
+   * and renders the `access-control-expose-headers` header.
+   */
   object AccessControlExposeHeaders extends Typed[AccessControlExposeHeaders] {
+
+    /** The header name, `access-control-expose-headers`. */
     val name: String = "access-control-expose-headers"
 
+    /** Every header name: an asterisk. */
     val All: AccessControlExposeHeaders = AccessControlExposeHeaders(Chunk("*"))
 
+    /** Builds the header from one or more header names. */
     def apply(first: String, rest: String*): AccessControlExposeHeaders =
       AccessControlExposeHeaders(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses a comma-separated list of header names. It trims the value, and an
+     * empty value gives `Left("Empty access-control-expose-headers header")`.
+     * Each item is trimmed, and empty items are dropped; the names are not
+     * checked.
+     */
     def parse(value: String): Either[String, AccessControlExposeHeaders] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-expose-headers header")
@@ -2775,18 +3073,41 @@ object Header {
       Right(AccessControlExposeHeaders(Chunk.fromArray(parts)))
     }
 
+    /** Writes the names joined with `, `. */
     def render(h: AccessControlExposeHeaders): String =
       h.headers.mkString(", ")
   }
 
+  /**
+   * The `Access-Control-Max-Age` response header: how many seconds a browser
+   * may cache the result of a preflight request.
+   */
   final case class AccessControlMaxAge(seconds: Long) extends zio.http.Header {
-    def headerName: String    = AccessControlMaxAge.name
+
+    /** Returns the name of this header, `AccessControlMaxAge.name`. */
+    def headerName: String = AccessControlMaxAge.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlMaxAge.render` returns.
+     */
     def renderedValue: String = AccessControlMaxAge.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlMaxAge]]: it parses and
+   * renders the `access-control-max-age` header.
+   */
   object AccessControlMaxAge extends Typed[AccessControlMaxAge] {
+
+    /** The header name, `access-control-max-age`. */
     val name: String = "access-control-max-age"
 
+    /**
+     * Parses the trimmed value as a `Long`. A negative number gives
+     * `Left("Invalid access-control-max-age: <number>")`, and a value that is
+     * not an integer gives `Left("Invalid access-control-max-age: <value>")`.
+     */
     def parse(value: String): Either[String, AccessControlMaxAge] =
       try {
         val s = value.trim.toLong
@@ -2796,20 +3117,45 @@ object Header {
         case _: NumberFormatException => Left(s"Invalid access-control-max-age: $value")
       }
 
+    /** Writes `seconds` in decimal. */
     def render(h: AccessControlMaxAge): String = h.seconds.toString
   }
 
+  /**
+   * The `Access-Control-Request-Headers` request header: the headers a
+   * preflight request says the real request will send.
+   */
   final case class AccessControlRequestHeaders(headers: Chunk[String]) extends zio.http.Header {
-    def headerName: String    = AccessControlRequestHeaders.name
+
+    /** Returns the name of this header, `AccessControlRequestHeaders.name`. */
+    def headerName: String = AccessControlRequestHeaders.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlRequestHeaders.render` returns.
+     */
     def renderedValue: String = AccessControlRequestHeaders.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlRequestHeaders]]: it parses
+   * and renders the `access-control-request-headers` header.
+   */
   object AccessControlRequestHeaders extends Typed[AccessControlRequestHeaders] {
+
+    /** The header name, `access-control-request-headers`. */
     val name: String = "access-control-request-headers"
 
+    /** Builds the header from one or more header names. */
     def apply(first: String, rest: String*): AccessControlRequestHeaders =
       AccessControlRequestHeaders(Chunk.fromIterable(first +: rest))
 
+    /**
+     * Parses a comma-separated list of header names. It trims the value, and an
+     * empty value gives `Left("Empty access-control-request-headers header")`.
+     * Each item is trimmed, and empty items are dropped; the names are not
+     * checked.
+     */
     def parse(value: String): Either[String, AccessControlRequestHeaders] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-request-headers header")
@@ -2817,18 +3163,41 @@ object Header {
       Right(AccessControlRequestHeaders(Chunk.fromArray(parts)))
     }
 
+    /** Writes the names joined with `, `. */
     def render(h: AccessControlRequestHeaders): String =
       h.headers.mkString(", ")
   }
 
+  /**
+   * The `Access-Control-Request-Method` request header: the method that the
+   * real request will use, sent in a preflight request.
+   */
   final case class AccessControlRequestMethod(method: Method) extends zio.http.Header {
-    def headerName: String    = AccessControlRequestMethod.name
+
+    /** Returns the name of this header, `AccessControlRequestMethod.name`. */
+    def headerName: String = AccessControlRequestMethod.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `AccessControlRequestMethod.render` returns.
+     */
     def renderedValue: String = AccessControlRequestMethod.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[AccessControlRequestMethod]]: it parses
+   * and renders the `access-control-request-method` header.
+   */
   object AccessControlRequestMethod extends Typed[AccessControlRequestMethod] {
+
+    /** The header name, `access-control-request-method`. */
     val name: String = "access-control-request-method"
 
+    /**
+     * Trims the value and reads it with `Method.fromString`, which accepts
+     * upper-case names only. An unknown name gives
+     * `Left("Unknown method: <value>")`.
+     */
     def parse(value: String): Either[String, AccessControlRequestMethod] = {
       val trimmed = value.trim
       Method.fromString(trimmed) match {
@@ -2837,6 +3206,7 @@ object Header {
       }
     }
 
+    /** Writes the method name. */
     def render(h: AccessControlRequestMethod): String = h.method.name
   }
 
