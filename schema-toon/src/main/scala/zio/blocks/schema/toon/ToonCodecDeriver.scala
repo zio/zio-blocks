@@ -830,8 +830,12 @@ class ToonCodecDeriver private (
         val configuredDelimiter = delimiter
         val isRecordElement     = element.isRecord
         val useTabular          = arrayFormat match {
-          case ArrayFormat.Tabular => isRecordElement
-          case _                   => false
+          case ArrayFormat.Tabular =>
+            isRecordElement && element.asRecord.get.fields.forall { field =>
+              val v = field.value
+              v.isPrimitive || v.optionInnerType.exists(_.isPrimitive)
+            }
+          case _ => false
         }
         new ToonCodec[Col[Elem]] {
           private[this] val deconstructor          = seqBinding.deconstructor
@@ -852,7 +856,7 @@ class ToonCodecDeriver private (
                   case m: Modifier.rename => if (name eq null) name = m.name
                   case _                  =>
                 }
-                if (name eq null) name = caseNameMapper(field.name)
+                if (name eq null) name = fieldNameMapper(field.name)
                 name
               }.toArray
             } else Array.empty[String]
@@ -876,11 +880,8 @@ class ToonCodecDeriver private (
                   in.skipBlankLinesInArray(idx == 0)
                   val values = in.readInlineArray()
                   if (values.nonEmpty) {
-                    val firstValue =
-                      if (values(0).startsWith("\"")) unescapeQuoted(values(0))
-                      else values(0)
                     try {
-                      constructor.add(builder, elementCodec.decodeValue(createReaderForValue(firstValue)))
+                      constructor.add(builder, elementCodec.decodeTabularRow(in, values, header.fields))
                       actualCount += 1
                     } catch {
                       case err if NonFatal(err) => error(DynamicOptic.Node.AtIndex(idx), err)

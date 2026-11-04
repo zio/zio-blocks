@@ -1002,6 +1002,38 @@ object ToonCodecDeriverSpec extends SchemaBaseSpec {
           """xs[3|]: 1|2|3""",
           deriveCodec[IntList](_.withDelimiter(Delimiter.Pipe))
         )
+      },
+      test("top-level ArrayFormat.Tabular encodes and decodes record list") {
+        roundTrip(
+          List(SimplePerson("Alice", 25), SimplePerson("Bob", 30)),
+          """[2]{name,age}:
+            |  Alice,25
+            |  Bob,30""".stripMargin,
+          deriveCodec[List[SimplePerson]](_.withArrayFormat(ArrayFormat.Tabular))
+        )
+      },
+      test("ArrayFormat.Tabular falls back to list format when record has non-primitive field") {
+        roundTrip(
+          List(Order("o1", List("a", "b"), BigDecimal(10)), Order("o2", List("c"), BigDecimal(20))),
+          """[2]:
+            |  - orderId: o1
+            |    items[2]: a,b
+            |    total: 10
+            |  - orderId: o2
+            |    items[1]: c
+            |    total: 20""".stripMargin,
+          deriveCodec[List[Order]](_.withArrayFormat(ArrayFormat.Tabular))
+        )
+      },
+      test("ArrayFormat.Tabular applies fieldNameMapper to tabular headers") {
+        roundTrip(
+          List(CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8)),
+          """[1]{camel_case,pascal_case,snake_case,kebab_case,camel_1,pascal_1,snake_1,kebab_1}:
+            |  1,2,3,4,5,6,7,8""".stripMargin,
+          deriveCodec[List[CamelPascalSnakeKebabCases]](
+            _.withFieldNameMapper(NameMapper.SnakeCase).withArrayFormat(ArrayFormat.Tabular)
+          )
+        )
       }
     ),
     suite("maps")(
