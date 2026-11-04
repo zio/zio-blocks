@@ -32,7 +32,7 @@ Two readers: the `/api` site, built by Scala 3 Scaladoc from the JVM projects, a
  */
 ```
 
-**Tier 2: every other public member.** One to three sentences. Add `@param`, `@tparam` and `@return` only when the name does not already say it, and `@throws` only when the member really throws.
+**Tier 2: every other public member.** One to three sentences. Add `@param`, `@tparam` and `@return` only when the name does not already say it, and `@throws` only when the member really throws. Write the exception's full name (`@throws java.lang.IllegalArgumentException`): the Scala 2 doc tool cannot link the short name and fails the `doc` task.
 
 ```scala
 /** Returns the default value of this schema's type, if its schema declares one. */

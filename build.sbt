@@ -1403,7 +1403,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`)
 // unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`).
 // `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and
-// `schema-messagepack` break the rule too and need an entry there first. Not published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
+// `schema-messagepack` break the rule too and need a `packageOverrides` entry first. Not
+// published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
 
