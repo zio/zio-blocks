@@ -155,19 +155,73 @@ object Header {
    */
   val SetCookie: Typed[SetCookieHeader] = SetCookieHeader
 
+  /**
+   * The `Authorization` request header: the credentials a client sends to
+   * authenticate. Each case is one scheme: `Authorization.Basic`,
+   * `Authorization.Bearer`, `Authorization.Digest`, or `Authorization.Unparsed`
+   * for any other.
+   */
   sealed trait Authorization extends zio.http.Header {
-    def headerName: String    = Authorization.name
+
+    /** Returns the name of this header, `Authorization.name`. */
+    def headerName: String = Authorization.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `Authorization.render` returns.
+     */
     def renderedValue: String = Authorization.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[Authorization]]: it parses and renders the
+   * `authorization` header.
+   */
   object Authorization extends Typed[Authorization] {
+
+    /** The header name, `authorization`. */
     val name: String = "authorization"
 
+    /**
+     * Credentials for the `Basic` scheme. It renders as `Basic ` followed by
+     * the Base64 encoding of `username:password` in UTF-8. Its `toString`
+     * includes the password, so keep a value out of logs (a known bug).
+     */
     final case class Basic(username: String, password: String) extends Authorization
-    final case class Bearer(token: String)                     extends Authorization
-    final case class Digest(params: Map[String, String])       extends Authorization
-    final case class Unparsed(scheme: String, params: String)  extends Authorization
 
+    /** A bearer token. It renders as `Bearer ` followed by `token`. */
+    final case class Bearer(token: String) extends Authorization
+
+    /**
+     * The parameters of the `Digest` scheme, such as `username` and `realm`. It
+     * renders as `Digest ` followed by the `key="value"` pairs joined with
+     * `, `, in the iteration order of `params`. The values are neither escaped
+     * on render nor unescaped on parse, and a comma inside a quoted value
+     * splits it (a known bug).
+     */
+    final case class Digest(params: Map[String, String]) extends Authorization
+
+    /**
+     * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
+     * scheme name and the rest of the value, unchanged. It renders as the
+     * scheme, a space and `params`.
+     */
+    final case class Unparsed(scheme: String, params: String) extends Authorization
+
+    /**
+     * Parses a `authorization` value. It trims the value and splits it at the
+     * first space into a scheme and the credentials; the scheme is matched as
+     * `basic`, `bearer` or `digest` in any letter case, and any other scheme
+     * gives `Unparsed`. An empty value gives
+     * `Left("Empty authorization header")`, and a value without a space gives
+     * `Left("Invalid authorization header: <value>")`. For `Basic`, the
+     * credentials must be Base64 text that decodes to `username:password`,
+     * split at the first colon; otherwise the result is
+     * `Left("Invalid base64 in basic authorization")` or
+     * `Left("Basic authorization missing colon separator")`. For `Digest`, the
+     * credentials are split on commas into `key=value` pairs, and a pair
+     * without `=` is dropped.
+     */
     def parse(value: String): Either[String, Authorization] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty authorization header")
@@ -183,6 +237,10 @@ object Header {
       }
     }
 
+    /**
+     * Writes `Basic <base64>`, `Bearer <token>`, `Digest key="value", ...` or
+     * `<scheme> <params>`.
+     */
     def render(h: Authorization): String = h match {
       case Basic(username, password) =>
         val encoded = java.util.Base64.getEncoder.encodeToString((username + ":" + password).getBytes("UTF-8"))
@@ -224,19 +282,72 @@ object Header {
       params.map { case (k, v) => s"""$k="$v"""" }.mkString(", ")
   }
 
+  /**
+   * The `Proxy-Authorization` request header: the credentials a client sends to
+   * authenticate with a proxy. It has the same cases as [[Authorization]], one
+   * per scheme.
+   */
   sealed trait ProxyAuthorization extends zio.http.Header {
-    def headerName: String    = ProxyAuthorization.name
+
+    /** Returns the name of this header, `ProxyAuthorization.name`. */
+    def headerName: String = ProxyAuthorization.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ProxyAuthorization.render` returns.
+     */
     def renderedValue: String = ProxyAuthorization.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ProxyAuthorization]]: it parses and
+   * renders the `proxy-authorization` header.
+   */
   object ProxyAuthorization extends Typed[ProxyAuthorization] {
+
+    /** The header name, `proxy-authorization`. */
     val name: String = "proxy-authorization"
 
+    /**
+     * Credentials for the `Basic` scheme. It renders as `Basic ` followed by
+     * the Base64 encoding of `username:password` in UTF-8. Its `toString`
+     * includes the password, so keep a value out of logs (a known bug).
+     */
     final case class Basic(username: String, password: String) extends ProxyAuthorization
-    final case class Bearer(token: String)                     extends ProxyAuthorization
-    final case class Digest(params: Map[String, String])       extends ProxyAuthorization
-    final case class Unparsed(scheme: String, params: String)  extends ProxyAuthorization
 
+    /** A bearer token. It renders as `Bearer ` followed by `token`. */
+    final case class Bearer(token: String) extends ProxyAuthorization
+
+    /**
+     * The parameters of the `Digest` scheme, such as `username` and `realm`. It
+     * renders as `Digest ` followed by the `key="value"` pairs joined with
+     * `, `, in the iteration order of `params`. The values are neither escaped
+     * on render nor unescaped on parse, and a comma inside a quoted value
+     * splits it (a known bug).
+     */
+    final case class Digest(params: Map[String, String]) extends ProxyAuthorization
+
+    /**
+     * Credentials for any scheme other than `Basic`, `Bearer` and `Digest`: the
+     * scheme name and the rest of the value, unchanged. It renders as the
+     * scheme, a space and `params`.
+     */
+    final case class Unparsed(scheme: String, params: String) extends ProxyAuthorization
+
+    /**
+     * Parses a `proxy-authorization` value. It trims the value and splits it at
+     * the first space into a scheme and the credentials; the scheme is matched
+     * as `basic`, `bearer` or `digest` in any letter case, and any other scheme
+     * gives `Unparsed`. An empty value gives
+     * `Left("Empty proxy-authorization header")`, and a value without a space
+     * gives `Left("Invalid proxy-authorization header: <value>")`. For `Basic`,
+     * the credentials must be Base64 text that decodes to `username:password`,
+     * split at the first colon; otherwise the result is
+     * `Left("Invalid base64 in basic proxy-authorization")` or
+     * `Left("Basic proxy-authorization missing colon separator")`. For
+     * `Digest`, the credentials are split on commas into `key=value` pairs, and
+     * a pair without `=` is dropped.
+     */
     def parse(value: String): Either[String, ProxyAuthorization] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty proxy-authorization header")
@@ -252,6 +363,10 @@ object Header {
       }
     }
 
+    /**
+     * Writes `Basic <base64>`, `Bearer <token>`, `Digest key="value", ...` or
+     * `<scheme> <params>`.
+     */
     def render(h: ProxyAuthorization): String = h match {
       case Basic(username, password) =>
         val encoded = java.util.Base64.getEncoder.encodeToString((username + ":" + password).getBytes("UTF-8"))
@@ -293,14 +408,40 @@ object Header {
       params.map { case (k, v) => s"""$k="$v"""" }.mkString(", ")
   }
 
+  /**
+   * The `WWW-Authenticate` response header: the challenge a server sends to ask
+   * for credentials. `scheme` is the authentication scheme, such as `Basic`,
+   * and `params` holds its parameters, such as `realm`.
+   */
   final case class WWWAuthenticate(scheme: String, params: Map[String, String]) extends zio.http.Header {
-    def headerName: String    = WWWAuthenticate.name
+
+    /** Returns the name of this header, `WWWAuthenticate.name`. */
+    def headerName: String = WWWAuthenticate.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `WWWAuthenticate.render` returns.
+     */
     def renderedValue: String = WWWAuthenticate.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[WWWAuthenticate]]: it parses and renders
+   * the `www-authenticate` header.
+   */
   object WWWAuthenticate extends Typed[WWWAuthenticate] {
+
+    /** The header name, `www-authenticate`. */
     val name: String = "www-authenticate"
 
+    /**
+     * Parses a challenge. It trims the value; an empty value gives
+     * `Left("Empty www-authenticate header")`. A value without a space becomes
+     * a scheme with no parameters. Otherwise the text before the first space is
+     * the scheme, and the rest is split on commas into `key=value` pairs with
+     * surrounding double quotes removed; a pair without `=` is dropped, and a
+     * comma inside a quoted value splits it (a known bug).
+     */
     def parse(value: String): Either[String, WWWAuthenticate] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty www-authenticate header")
@@ -313,6 +454,11 @@ object Header {
       }
     }
 
+    /**
+     * Writes the scheme alone when `params` is empty, otherwise the scheme, a
+     * space and the `key="value"` pairs joined with `, `. The values are quoted
+     * without escaping (a known bug).
+     */
     def render(h: WWWAuthenticate): String =
       if (h.params.isEmpty) h.scheme
       else h.scheme + " " + h.params.map { case (k, v) => s"""$k="$v"""" }.mkString(", ")
@@ -336,14 +482,40 @@ object Header {
     }
   }
 
+  /**
+   * The `Proxy-Authenticate` response header: the challenge a proxy sends to
+   * ask for credentials. `scheme` is the authentication scheme, and `params`
+   * holds its parameters.
+   */
   final case class ProxyAuthenticate(scheme: String, params: Map[String, String]) extends zio.http.Header {
-    def headerName: String    = ProxyAuthenticate.name
+
+    /** Returns the name of this header, `ProxyAuthenticate.name`. */
+    def headerName: String = ProxyAuthenticate.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ProxyAuthenticate.render` returns.
+     */
     def renderedValue: String = ProxyAuthenticate.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ProxyAuthenticate]]: it parses and renders
+   * the `proxy-authenticate` header.
+   */
   object ProxyAuthenticate extends Typed[ProxyAuthenticate] {
+
+    /** The header name, `proxy-authenticate`. */
     val name: String = "proxy-authenticate"
 
+    /**
+     * Parses a challenge. It trims the value; an empty value gives
+     * `Left("Empty proxy-authenticate header")`. A value without a space
+     * becomes a scheme with no parameters. Otherwise the text before the first
+     * space is the scheme, and the rest is split on commas into `key=value`
+     * pairs with surrounding double quotes removed; a pair without `=` is
+     * dropped, and a comma inside a quoted value splits it (a known bug).
+     */
     def parse(value: String): Either[String, ProxyAuthenticate] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty proxy-authenticate header")
@@ -356,6 +528,11 @@ object Header {
       }
     }
 
+    /**
+     * Writes the scheme alone when `params` is empty, otherwise the scheme, a
+     * space and the `key="value"` pairs joined with `, `. The values are quoted
+     * without escaping (a known bug).
+     */
     def render(h: ProxyAuthenticate): String =
       if (h.params.isEmpty) h.scheme
       else h.scheme + " " + h.params.map { case (k, v) => s"""$k="$v"""" }.mkString(", ")
@@ -379,28 +556,71 @@ object Header {
     }
   }
 
+  /**
+   * The `Content-Type` header: the media type of the body, with its optional
+   * charset and boundary, held in `value`.
+   */
   final case class ContentType(value: zio.http.ContentType) extends zio.http.Header {
-    def headerName: String    = ContentType.name
+
+    /** Returns the name of this header, `ContentType.name`. */
+    def headerName: String = ContentType.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentType.render` returns.
+     */
     def renderedValue: String = value.render
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentType]]: it parses and renders the
+   * `content-type` header.
+   */
   object ContentType extends Typed[ContentType] {
+
+    /** The header name, `content-type`. */
     val name: String = "content-type"
 
+    /**
+     * Parses the value with the content type parser and wraps the result. A
+     * failure returns that parser's `Left`, for example
+     * `Left("Invalid media type: must contain '/' separator")`.
+     */
     def parse(value: String): Either[String, ContentType] =
       zio.http.ContentType.parse(value).map(ct => ContentType(ct))
 
+    /** Writes the content type, such as `text/html`. */
     def render(h: ContentType): String = h.renderedValue
   }
 
+  /** The `Content-Length` header: the size of the body in bytes. */
   final case class ContentLength(length: Long) extends zio.http.Header {
-    def headerName: String    = ContentLength.name
+
+    /** Returns the name of this header, `ContentLength.name`. */
+    def headerName: String = ContentLength.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentLength.render` returns.
+     */
     def renderedValue: String = length.toString
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentLength]]: it parses and renders the
+   * `content-length` header.
+   */
   object ContentLength extends Typed[ContentLength] {
+
+    /** The header name, `content-length`. */
     val name: String = "content-length"
 
+    /**
+     * Parses the value as a `Long`. It does not trim, so a value with spaces
+     * gives `Left`. A negative number gives
+     * `Left("Invalid content-length: <number>")`, and a value that is not an
+     * integer gives `Left("Invalid content-length: <value>")`.
+     */
     def parse(value: String): Either[String, ContentLength] =
       try {
         val l = value.toLong
@@ -410,23 +630,51 @@ object Header {
         case _: NumberFormatException => Left(s"Invalid content-length: $value")
       }
 
+    /** Writes `length` in decimal. */
     def render(h: ContentLength): String = h.renderedValue
   }
 
+  /**
+   * The `Content-Encoding` header: the codings applied to the body. One coding
+   * is a case object; several codings, in the order listed, are a `Multiple`.
+   */
   sealed trait ContentEncoding extends zio.http.Header {
-    def headerName: String    = ContentEncoding.name
+
+    /** Returns the name of this header, `ContentEncoding.name`. */
+    def headerName: String = ContentEncoding.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentEncoding.render` returns.
+     */
     def renderedValue: String = ContentEncoding.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentEncoding]]: it parses and renders
+   * the `content-encoding` header.
+   */
   object ContentEncoding extends Typed[ContentEncoding] {
+
+    /** The header name, `content-encoding`. */
     val name: String = "content-encoding"
 
-    case object GZip     extends ContentEncoding
-    case object Deflate  extends ContentEncoding
-    case object Br       extends ContentEncoding
+    /** The `gzip` coding. */
+    case object GZip extends ContentEncoding
+
+    /** The `deflate` coding. */
+    case object Deflate extends ContentEncoding
+
+    /** The `br` (Brotli) coding. */
+    case object Br extends ContentEncoding
+
+    /** The `compress` coding. */
     case object Compress extends ContentEncoding
+
+    /** The `identity` coding: no encoding. */
     case object Identity extends ContentEncoding
 
+    /** Several codings, in the order given. */
     final case class Multiple(values: Chunk[ContentEncoding]) extends ContentEncoding
 
     private def findEncoding(value: String): Option[ContentEncoding] =
@@ -439,6 +687,13 @@ object Header {
         case _          => None
       }
 
+    /**
+     * Parses a comma-separated list. It trims each item and matches `gzip`,
+     * `deflate`, `br`, `compress` or `identity` in any letter case; an item
+     * that matches none of them is dropped. One match gives that coding,
+     * several give `Multiple`, and none gives
+     * `Left("Invalid content-encoding: <value>")`.
+     */
     def parse(value: String): Either[String, ContentEncoding] = {
       val parts  = value.split(',')
       val parsed = Chunk.fromArray(parts.flatMap(s => findEncoding(s)))
@@ -447,6 +702,10 @@ object Header {
       else Right(Multiple(parsed))
     }
 
+    /**
+     * Writes the coding name in lower case; `Multiple` joins its names with
+     * `, `.
+     */
     def render(h: ContentEncoding): String = h match {
       case GZip        => "gzip"
       case Deflate     => "deflate"
@@ -457,24 +716,60 @@ object Header {
     }
   }
 
+  /**
+   * The `Content-Disposition` header: whether the body shows inline, downloads
+   * as an attachment, or is one part of a multipart form, with an optional file
+   * name.
+   */
   sealed trait ContentDisposition extends zio.http.Header {
-    def headerName: String    = ContentDisposition.name
+
+    /** Returns the name of this header, `ContentDisposition.name`. */
+    def headerName: String = ContentDisposition.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentDisposition.render` returns.
+     */
     def renderedValue: String = ContentDisposition.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentDisposition]]: it parses and
+   * renders the `content-disposition` header.
+   */
   object ContentDisposition extends Typed[ContentDisposition] {
+
+    /** The header name, `content-disposition`. */
     val name: String = "content-disposition"
 
-    val inline: ContentDisposition     = Inline(None)
+    /** `inline` without a file name. */
+    val inline: ContentDisposition = Inline(None)
+
+    /** `attachment` without a file name. */
     val attachment: ContentDisposition = Attachment(None)
 
-    def inline(filename: String): ContentDisposition                 = Inline(Some(filename))
-    def attachment(filename: String): ContentDisposition             = Attachment(Some(filename))
-    def formData(name: String): ContentDisposition                   = FormData(name, None)
+    /** `inline` with the given file name. */
+    def inline(filename: String): ContentDisposition = Inline(Some(filename))
+
+    /** `attachment` with the given file name. */
+    def attachment(filename: String): ContentDisposition = Attachment(Some(filename))
+
+    /** A `form-data` part for the field `name`, without a file name. */
+    def formData(name: String): ContentDisposition = FormData(name, None)
+
+    /** A `form-data` part for the field `name`, with the given file name. */
     def formData(name: String, filename: String): ContentDisposition = FormData(name, Some(filename))
 
-    final case class Attachment(filename: Option[String])             extends ContentDisposition
-    final case class Inline(filename: Option[String])                 extends ContentDisposition
+    /** A download, with an optional file name. */
+    final case class Attachment(filename: Option[String]) extends ContentDisposition
+
+    /** A body shown in place, with an optional file name. */
+    final case class Inline(filename: Option[String]) extends ContentDisposition
+
+    /**
+     * One part of a multipart form: the form field `name` and an optional file
+     * name.
+     */
     final case class FormData(name: String, filename: Option[String]) extends ContentDisposition
 
     private val AttachmentRegex         = """attachment;\s*filename="(.*)"""".r
@@ -482,6 +777,15 @@ object Header {
     private val FormDataRegex           = """form-data;\s*name="(.*)";\s*filename="(.*)"""".r
     private val FormDataNoFileNameRegex = """form-data;\s*name="(.*)"""".r
 
+    /**
+     * Parses a value by its start, after trimming: `attachment`, `inline` or
+     * `form-data` in lower case. For `attachment` and `inline`,
+     * `filename="..."` after a semicolon gives the file name; without it the
+     * file name is `None`. A `form-data` value needs `name="..."` and may add
+     * `filename="..."`; without a name it gives
+     * `Left("Invalid form-data content disposition")`. Any other value gives
+     * `Left("Invalid content-disposition: <value>")`.
+     */
     def parse(value: String): Either[String, ContentDisposition] = {
       val trimmed = value.trim
       if (trimmed.startsWith("attachment")) {
@@ -505,6 +809,11 @@ object Header {
       }
     }
 
+    /**
+     * Writes `attachment`, `inline` or `form-data; name="..."`, each with
+     * `; filename="..."` when there is a file name. The names are quoted
+     * without escaping.
+     */
     def render(h: ContentDisposition): String = h match {
       case Attachment(Some(f))  => s"""attachment; filename=\"$f\""""
       case Attachment(None)     => "attachment"
@@ -515,40 +824,107 @@ object Header {
     }
   }
 
+  /**
+   * The `Content-Language` header: the language of the body, held as the text
+   * `language`.
+   */
   final case class ContentLanguage(language: String) extends zio.http.Header {
-    def headerName: String    = ContentLanguage.name
+
+    /** Returns the name of this header, `ContentLanguage.name`. */
+    def headerName: String = ContentLanguage.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentLanguage.render` returns.
+     */
     def renderedValue: String = language
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentLanguage]]: it parses and renders
+   * the `content-language` header.
+   */
   object ContentLanguage extends Typed[ContentLanguage] {
-    val name: String                                          = "content-language"
+
+    /** The header name, `content-language`. */
+    val name: String = "content-language"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, ContentLanguage] = Right(ContentLanguage(value))
-    def render(h: ContentLanguage): String                    = h.renderedValue
+
+    /** Writes `language` unchanged. */
+    def render(h: ContentLanguage): String = h.renderedValue
   }
 
+  /**
+   * The `Content-Location` header: an alternate location for the body, held as
+   * the text `location`.
+   */
   final case class ContentLocation(location: String) extends zio.http.Header {
-    def headerName: String    = ContentLocation.name
+
+    /** Returns the name of this header, `ContentLocation.name`. */
+    def headerName: String = ContentLocation.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentLocation.render` returns.
+     */
     def renderedValue: String = location
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentLocation]]: it parses and renders
+   * the `content-location` header.
+   */
   object ContentLocation extends Typed[ContentLocation] {
-    val name: String                                          = "content-location"
+
+    /** The header name, `content-location`. */
+    val name: String = "content-location"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, ContentLocation] = Right(ContentLocation(value))
-    def render(h: ContentLocation): String                    = h.renderedValue
+
+    /** Writes `location` unchanged. */
+    def render(h: ContentLocation): String = h.renderedValue
   }
 
+  /**
+   * The `Content-Range` header: which part of a resource the body holds. `unit`
+   * is usually `bytes`, `range` is the first and last position when known, and
+   * `size` is the total length when known.
+   */
   final case class ContentRange(unit: String, range: Option[(Long, Long)], size: Option[Long]) extends zio.http.Header {
-    def headerName: String    = ContentRange.name
+
+    /** Returns the name of this header, `ContentRange.name`. */
+    def headerName: String = ContentRange.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentRange.render` returns.
+     */
     def renderedValue: String = ContentRange.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentRange]]: it parses and renders the
+   * `content-range` header.
+   */
   object ContentRange extends Typed[ContentRange] {
+
+    /** The header name, `content-range`. */
     val name: String = "content-range"
 
     private val StartEndTotalRegex = """(\w+)\s+(\d+)-(\d+)/(\d+)""".r
     private val StartEndRegex      = """(\w+)\s+(\d+)-(\d+)/\*""".r
     private val TotalOnlyRegex     = """(\w+)\s+\*/(\d+)""".r
 
+    /**
+     * Parses `unit first-last/total`, `unit first-last/` followed by an
+     * asterisk for an unknown total, or `unit ` followed by an asterisk, a
+     * slash and the total for an unknown range, such as `bytes 0-99/1000`. It
+     * trims the value. Any other form, including one with both an unknown range
+     * and an unknown total, gives `Left("Invalid content-range: <value>")`.
+     */
     def parse(value: String): Either[String, ContentRange] =
       value.trim match {
         case StartEndTotalRegex(unit, start, end, total) =>
@@ -561,6 +937,11 @@ object Header {
           Left(s"Invalid content-range: $value")
       }
 
+    /**
+     * Writes `unit first-last/total`, using an asterisk for a missing total or
+     * a missing range. With neither it writes the unit, a space, an asterisk, a
+     * slash and an asterisk, a form that `parse` does not accept.
+     */
     def render(h: ContentRange): String = (h.range, h.size) match {
       case (Some((start, end)), Some(total)) => s"${h.unit} $start-$end/$total"
       case (Some((start, end)), None)        => s"${h.unit} $start-$end/*"
@@ -569,31 +950,84 @@ object Header {
     }
   }
 
+  /**
+   * The `Content-Security-Policy` header: the policy that tells the browser
+   * which sources it may load. `directives` holds the whole policy text.
+   */
   final case class ContentSecurityPolicy(directives: String) extends zio.http.Header {
-    def headerName: String    = ContentSecurityPolicy.name
+
+    /** Returns the name of this header, `ContentSecurityPolicy.name`. */
+    def headerName: String = ContentSecurityPolicy.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentSecurityPolicy.render` returns.
+     */
     def renderedValue: String = directives
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentSecurityPolicy]]: it parses and
+   * renders the `content-security-policy` header.
+   */
   object ContentSecurityPolicy extends Typed[ContentSecurityPolicy] {
-    val name: String                                                = "content-security-policy"
+
+    /** The header name, `content-security-policy`. */
+    val name: String = "content-security-policy"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, ContentSecurityPolicy] = Right(ContentSecurityPolicy(value))
-    def render(h: ContentSecurityPolicy): String                    = h.renderedValue
+
+    /** Writes `directives` unchanged. */
+    def render(h: ContentSecurityPolicy): String = h.renderedValue
   }
 
+  /**
+   * The `Content-Transfer-Encoding` header: how the body of a multipart part is
+   * encoded for transfer.
+   */
   sealed trait ContentTransferEncoding extends zio.http.Header {
-    def headerName: String    = ContentTransferEncoding.name
+
+    /** Returns the name of this header, `ContentTransferEncoding.name`. */
+    def headerName: String = ContentTransferEncoding.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentTransferEncoding.render` returns.
+     */
     def renderedValue: String = ContentTransferEncoding.render(this)
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentTransferEncoding]]: it parses and
+   * renders the `content-transfer-encoding` header.
+   */
   object ContentTransferEncoding extends Typed[ContentTransferEncoding] {
+
+    /** The header name, `content-transfer-encoding`. */
     val name: String = "content-transfer-encoding"
 
-    case object SevenBit        extends ContentTransferEncoding
-    case object EightBit        extends ContentTransferEncoding
-    case object Binary          extends ContentTransferEncoding
-    case object QuotedPrintable extends ContentTransferEncoding
-    case object Base64          extends ContentTransferEncoding
+    /** The `7bit` encoding. */
+    case object SevenBit extends ContentTransferEncoding
 
+    /** The `8bit` encoding. */
+    case object EightBit extends ContentTransferEncoding
+
+    /** The `binary` encoding. */
+    case object Binary extends ContentTransferEncoding
+
+    /** The `quoted-printable` encoding. */
+    case object QuotedPrintable extends ContentTransferEncoding
+
+    /** The `base64` encoding. */
+    case object Base64 extends ContentTransferEncoding
+
+    /**
+     * Parses one encoding name: it trims the value, lower-cases it and matches
+     * `7bit`, `8bit`, `binary`, `quoted-printable` or `base64`. Any other value
+     * gives `Left("Invalid content-transfer-encoding: <value>")`, with the
+     * trimmed, lower-cased text.
+     */
     def parse(value: String): Either[String, ContentTransferEncoding] =
       value.trim.toLowerCase match {
         case "7bit"             => Right(SevenBit)
@@ -604,6 +1038,7 @@ object Header {
         case other              => Left(s"Invalid content-transfer-encoding: $other")
       }
 
+    /** Writes the lower-case encoding name. */
     def render(h: ContentTransferEncoding): String = h match {
       case SevenBit        => "7bit"
       case EightBit        => "8bit"
@@ -613,26 +1048,67 @@ object Header {
     }
   }
 
+  /**
+   * The `Content-MD5` header: a digest of the body, held as the text `value`.
+   */
   final case class ContentMd5(value: String) extends zio.http.Header {
-    def headerName: String    = ContentMd5.name
+
+    /** Returns the name of this header, `ContentMd5.name`. */
+    def headerName: String = ContentMd5.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentMd5.render` returns.
+     */
     def renderedValue: String = value
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentMd5]]: it parses and renders the
+   * `content-md5` header.
+   */
   object ContentMd5 extends Typed[ContentMd5] {
-    val name: String                                     = "content-md5"
+
+    /** The header name, `content-md5`. */
+    val name: String = "content-md5"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, ContentMd5] = Right(ContentMd5(value))
-    def render(h: ContentMd5): String                    = h.renderedValue
+
+    /** Writes `value` unchanged. */
+    def render(h: ContentMd5): String = h.renderedValue
   }
 
+  /**
+   * The `Content-Base` header: the base URI for relative links in the body,
+   * held as the text `uri`.
+   */
   final case class ContentBase(uri: String) extends zio.http.Header {
-    def headerName: String    = ContentBase.name
+
+    /** Returns the name of this header, `ContentBase.name`. */
+    def headerName: String = ContentBase.name
+
+    /**
+     * The value of this header as it is written on the wire, the same text
+     * `ContentBase.render` returns.
+     */
     def renderedValue: String = uri
   }
 
+  /**
+   * The [[Header.Typed]] codec for [[ContentBase]]: it parses and renders the
+   * `content-base` header.
+   */
   object ContentBase extends Typed[ContentBase] {
-    val name: String                                      = "content-base"
+
+    /** The header name, `content-base`. */
+    val name: String = "content-base"
+
+    /** Wraps the value unchanged: it is neither trimmed nor checked. */
     def parse(value: String): Either[String, ContentBase] = Right(ContentBase(value))
-    def render(h: ContentBase): String                    = h.renderedValue
+
+    /** Writes `uri` unchanged. */
+    def render(h: ContentBase): String = h.renderedValue
   }
 
   final case class Host(host: String, port: Option[Int]) extends zio.http.Header {
