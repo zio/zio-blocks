@@ -760,11 +760,9 @@ object Header {
     val attachment: ContentDisposition = Attachment(None)
 
     /** `inline` with the given file name. */
-    /** `inline` without a file name. */
     def inline(filename: String): ContentDisposition = Inline(Some(filename))
 
     /** `attachment` with the given file name. */
-    /** `attachment` without a file name. */
     def attachment(filename: String): ContentDisposition = Attachment(Some(filename))
 
     /** A `form-data` part for the field `name`, without a file name. */
@@ -792,11 +790,16 @@ object Header {
 
     /**
      * Parses a value by its start, after trimming: `attachment`, `inline` or
-     * `form-data` in lower case. For `attachment` and `inline`,
-     * `filename="..."` after a semicolon gives the file name; without it the
-     * file name is `None`. A `form-data` value needs `name="..."` and may add
-     * `filename="..."`; without a name it gives
-     * `Left("Invalid form-data content disposition")`. Any other value gives
+     * `form-data` in lower case. For `attachment` and `inline`, the file name
+     * is read only when the value is the type, `;` and `filename="..."`, ending
+     * with the closing quote; an unquoted file name, a space before the `;`, or
+     * an unquoted parameter after it, such as `filename*=`, gives a file name
+     * of `None`. A `form-data` value needs `name="..."` right after the `;` and
+     * may add `; filename="..."` after it; with `filename` first, or without a
+     * name, it gives `Left("Invalid form-data content disposition")`. A quoted
+     * parameter after the last name or file name is read as part of it, so
+     * `filename="a.pdf"; size="3"` gives the file name `a.pdf"; size="3` (a
+     * known bug). Any other value gives
      * `Left("Invalid content-disposition: <value>")`.
      */
     def parse(value: String): Either[String, ContentDisposition] = {
