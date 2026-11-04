@@ -175,6 +175,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(yamlPath, 9) == "Snippet_config_yaml_shared_scala_YamlConfigSource_L9"
       )
     },
+    test("moduleImport and objectName give a typeid example the typeid import and drop the typeid package") {
+      val typeIdPath = "typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeId.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(typeIdPath) == "zio.blocks.typeid._",
+        ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
