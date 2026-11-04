@@ -30,10 +30,11 @@ object TypeIdMacros {
    * does. It reads the definition of `A` and does not look for an existing
    * implicit `TypeId[A]` first; for an applied type, it reuses the id of the
    * type constructor when one is predefined or found implicitly. On Scala 3 it
-   * also derives opaque types, enums and their cases, and union and
-   * intersection types. On Scala 2, an applied type written with an alias from
-   * the `scala` package or `Predef`, such as `List[Int]`, gives the alias
-   * instead (a known bug).
+   * also derives opaque types, enums and their cases, and union types; an
+   * intersection type gets an id on both versions (named `"Intersection"` on
+   * Scala 3 and `"<refinement>"` on Scala 2). On Scala 2, an applied type
+   * written with an alias from the `scala` package or `Predef`, such as
+   * `List[Int]`, gives the alias instead (a known bug).
    */
   def derived[A]: TypeId[A] = macro derivedImpl[A]
 

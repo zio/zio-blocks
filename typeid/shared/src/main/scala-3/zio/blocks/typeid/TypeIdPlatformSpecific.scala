@@ -36,10 +36,11 @@ trait TypeIdPlatformSpecific { self: TypeId[?] =>
 
   /**
    * Creates a value of this type from `args`, on the JVM: some standard
-   * collections, `Option`, `Either`, tuples and `java.time` types directly, any
-   * other class by reflection with the first public constructor that fits
-   * `args`. Returns `Left` with a message when that fails. On Scala.js it
-   * returns `Left` for every type. See [[TypeId#construct]].
+   * collections, `Option`, `Some`, `None`, `Either`, `Tuple2`, `Tuple3` and
+   * several `java.time` types directly, any other class by reflection with the
+   * first public constructor that fits `args`. Returns `Left` with a message
+   * when that fails. On Scala.js it returns `Left` for every type. See
+   * [[TypeId#construct]].
    */
   def construct(args: Chunk[AnyRef]): Either[String, Any]
 }

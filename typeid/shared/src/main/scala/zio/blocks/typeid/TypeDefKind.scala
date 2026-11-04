@@ -72,9 +72,10 @@ object TypeDefKind {
    * @param isValue
    *   whether the class extends `AnyVal`
    * @param bases
-   *   its base classes and traits in linearization order, without `Any`,
-   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
-   *   `java.io.Serializable` and the `Mirror` types
+   *   for a derived id, its base classes and traits in linearization order,
+   *   without their type arguments, and without `Any`, `AnyRef`, `Object`,
+   *   `Matchable`, `Product`, `Equals`, `java.io.Serializable` and the `Mirror`
+   *   types
    */
   final case class Class(
     isFinal: Boolean = false,
@@ -92,9 +93,10 @@ object TypeDefKind {
    * @param isSealed
    *   whether the trait is sealed
    * @param bases
-   *   its base classes and traits in linearization order, without `Any`,
-   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
-   *   `java.io.Serializable` and the `Mirror` types
+   *   for a derived id, its base classes and traits in linearization order,
+   *   without their type arguments, and without `Any`, `AnyRef`, `Object`,
+   *   `Matchable`, `Product`, `Equals`, `java.io.Serializable` and the `Mirror`
+   *   types
    */
   final case class Trait(
     isSealed: Boolean = false,
@@ -107,9 +109,10 @@ object TypeDefKind {
    * A singleton object, including a case object.
    *
    * @param bases
-   *   its base classes and traits in linearization order, without `Any`,
-   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
-   *   `java.io.Serializable` and the `Mirror` types
+   *   for a derived id, its base classes and traits in linearization order,
+   *   without their type arguments, and without `Any`, `AnyRef`, `Object`,
+   *   `Matchable`, `Product`, `Equals`, `java.io.Serializable` and the `Mirror`
+   *   types
    */
   final case class Object(
     bases: List[TypeRepr] = Nil
@@ -121,10 +124,10 @@ object TypeDefKind {
    * A Scala 3 enum definition, such as `enum Color { case Red, Green }`.
    *
    * @param bases
-   *   its base classes and traits in linearization order, without `Any`,
-   *   `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
-   *   `java.io.Serializable` and the `Mirror` types, such as
-   *   `scala.reflect.Enum`
+   *   for a derived id, its base classes and traits (such as
+   *   `scala.reflect.Enum`) in linearization order, without their type
+   *   arguments, and without `Any`, `AnyRef`, `Object`, `Matchable`, `Product`,
+   *   `Equals`, `java.io.Serializable` and the `Mirror` types
    */
   final case class Enum(
     bases: List[TypeRepr] = Nil

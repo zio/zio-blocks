@@ -175,8 +175,9 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
 
   /**
    * The parents recorded in [[defKind]]. For a derived class, trait or object,
-   * they are its base classes and traits in linearization order, without `Any`,
-   * `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
+   * they are its base classes and traits in linearization order, without their
+   * type arguments (a parent `Ordered[Square]` is recorded as `Ordered`), and
+   * without `Any`, `AnyRef`, `Object`, `Matchable`, `Product`, `Equals`,
    * `java.io.Serializable` and the `Mirror` types; for a Scala 3 enum case, its
    * enum. Aliases, opaque types and the predefined ids of `Int`, `List`,
    * `Option` and most other standard library types have none.
@@ -407,11 +408,12 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   /**
    * Returns `true` when this type is known to be a subtype of `other`, judged
    * from the data in the two ids. It returns `true` when the ids are equal,
-   * when this type is `Nothing`, when `other` is `Any`, and when `other` is one
-   * of this type's parents or one of theirs, at any depth. For two applications
-   * of the same type constructor, it compares each type argument by the
-   * parameter's variance: `List[Circle]` is a subtype of `List[Shape]`, and
-   * `Set[Circle]` is not a subtype of `Set[Shape]`.
+   * when this type is `Nothing`, when `other` is `Any`, and when `other` equals
+   * one of this type's parents (for a derived class, its parents include the
+   * indirect ones). For two applications of the same type constructor, it
+   * compares each type argument by the parameter's variance: `List[Circle]` is
+   * a subtype of `List[Shape]`, and `Set[Circle]` is not a subtype of
+   * `Set[Shape]`.
    *
    * On Scala 3, it also returns `true` when `other` is a union type, or an
    * alias of one, that lists this type, and when this type is an intersection
@@ -426,6 +428,14 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
    *     `Seq[Int]`;
    *   - derived parents leave out `AnyRef`, `Product` and `Serializable`, so a
    *     case class is not a subtype of `Product`;
+   *   - parents are stored without their type arguments, so for
+   *     `final class IntBox extends Box[Int]`, `IntBox` is not a subtype of
+   *     `Box[Int]`, and a case class that extends `Ordered[Price]` is not a
+   *     subtype of `Ordered[Price]` (a known bug). On Scala 3, `IntBox` is not
+   *     a subtype of `TypeId.of[Box]` either;
+   *   - on Scala 3, an enum case is compared with its enum only, so for
+   *     `enum Planet extends HasMass`, `Planet.Earth` is not a subtype of
+   *     `HasMass` (a known bug);
    *   - an alias on the left is not resolved: for `type MyDog = Dog`, `MyDog`
    *     is not a subtype of `Dog`'s parents.
    *
@@ -507,11 +517,11 @@ sealed trait TypeId[A <: AnyKind] extends TypeIdPlatformSpecific {
   override def hashCode(): Int = TypeId.structuralHash(this)
 
   /**
-   * Renders the type as Scala source with [[TypeIdPrinter]], such as
-   * `"Map[String, Int]"`. Types print by their simple name, except types from a
-   * `java` package other than `java.lang`, which print by full name
+   * Renders the type with [[TypeIdPrinter]], such as `"Map[String, Int]"`.
+   * Types print by their simple name, except types from a `java` package
+   * outside `java.lang` and its subpackages, which print by full name
    * (`"java.util.UUID"`). A type constructor prints with its parameters
-   * (`"List[+A]"`).
+   * (`"List[+A]"`); on Scala 3, the id of a union type prints as `"Union"`.
    */
   override def toString: String = TypeIdPrinter.render(this)
 }
@@ -808,22 +818,28 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   // ========== Macro Derivation ==========
 
   /**
-   * Derives the id of `A` at compile time. The primitive types and `String`,
-   * `BigInt` and `BigDecimal` give their predefined ids, such as
-   * [[TypeId.int]]. For an applied type whose constructor has a predefined id,
-   * such as `List[Int]` or `Map[String, Int]`, it takes that id and adds the
-   * type arguments. For other types the macro reads the definition: name,
-   * owner, type parameters, kind, parents, self-type and annotations.
+   * Derives the id of `A` at compile time. The primitive types, and `String`,
+   * `BigInt` and `BigDecimal` written with those names, give their predefined
+   * ids, such as [[TypeId.int]]; `java.lang.String` or `scala.math.BigInt`
+   * written in full gives an equal id read from the definition. For an applied
+   * type whose constructor has a predefined id, such as `List[Int]` or
+   * `Map[String, Int]`, it takes that id and adds the type arguments. For other
+   * types the macro reads the definition: name, owner, type parameters, kind,
+   * parents, self-type and annotations.
    *
    * A type alias keeps its own name, with [[TypeId#aliasedTo]] set to the type
    * it stands for, so the id of `type Age = Int` is named `Age` (and equals the
    * id of `Int`). On Scala 3, `of` also derives opaque types, enums and their
-   * cases, and union and intersection types.
+   * cases, and union types; an intersection type gets an id on both versions
+   * (named `"Intersection"` on Scala 3 and `"<refinement>"` on Scala 2).
    *
    * On Scala 3, the predefined constructor is chosen by its simple name, so an
    * applied type of your own named `List`, `Option`, `Some`, `Map`, `Either`,
    * `Set`, `Vector`, `Seq` or `IndexedSeq` gets the standard library's name and
-   * owner (a known bug).
+   * owner (a known bug). On both versions, a type argument or parent of your
+   * own named `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`,
+   * `Double`, `Unit`, `String`, `List`, `Option`, `Map`, `Either`, `Set` or
+   * `Vector` is recorded as the standard library's id (a known bug).
    *
    * {{{
    * final case class Point(x: Int, y: Int)
@@ -861,8 +877,8 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * `List[Age]` equals `List[Int]` for `type Age = Int`), and, for an alias
    * that remains after normalizing, such as a union, the same target. Kind,
    * parents and annotations are not compared. An opaque type is equal only to
-   * an opaque type with the same name, parameters and arguments. `==` on ids
-   * uses this test.
+   * an opaque type with the same full name, type parameters and type arguments.
+   * `==` on ids uses this test.
    */
   def structurallyEqual(a: TypeId[?], b: TypeId[?]): Boolean = TypeIdOps.structurallyEqual(a, b)
 

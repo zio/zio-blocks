@@ -42,9 +42,10 @@ object TypeIdMacros {
   }
 
   /**
-   * Writes an `Owner` as `Owner.Root` when it is empty, and otherwise as
-   * `Owner.fromPackagePath` for its leading package segments followed by a
-   * `term`, `tpe` or `/` call for each later segment.
+   * Writes an `Owner` as `Owner.Root` when it is empty; otherwise it starts
+   * from `Owner.fromPackagePath` for its leading package segments (or
+   * `Owner.Root` when there are none) and adds a `term`, `tpe` or `/` call for
+   * each later segment.
    */
   given ToExpr[Owner] with {
     def apply(owner: Owner)(using Quotes): Expr[Owner] =
@@ -723,10 +724,11 @@ object TypeIdMacros {
    * does. It reads the definition of `A` and does not look for an existing
    * implicit `TypeId[A]` first; for an applied type, it reuses the id of the
    * type constructor when one is predefined or found implicitly. On Scala 3 it
-   * also derives opaque types, enums and their cases, and union and
-   * intersection types. On Scala 2, an applied type written with an alias from
-   * the `scala` package or `Predef`, such as `List[Int]`, gives the alias
-   * instead (a known bug).
+   * also derives opaque types, enums and their cases, and union types; an
+   * intersection type gets an id on both versions (named `"Intersection"` on
+   * Scala 3 and `"<refinement>"` on Scala 2). On Scala 2, an applied type
+   * written with an alias from the `scala` package or `Predef`, such as
+   * `List[Int]`, gives the alias instead (a known bug).
    */
   inline def derived[A <: AnyKind]: TypeId[A] = ${ derivedImpl[A] }
 
