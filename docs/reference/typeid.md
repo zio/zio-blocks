@@ -349,7 +349,7 @@ Methods for inspecting generic type information.
 
 #### `typeParams` — Formal Type Parameters
 
-The `TypeId#typeParams` method returns the list of formal type parameters declared by a type. This is what makes a type generic. For a type like `Box[+A]`, `typeParams` captures the declaration of `A` — including its name, position in the parameter list, variance (whether it's covariant `+`, contravariant `−`, or invariant), and any bounds:
+The `TypeId#typeParams` method returns the list of formal type parameters declared by a type. This is what makes a type generic. For a type like `Box[+A]`, `typeParams` captures the declaration of `A` — its name, its position in the parameter list, and its variance (whether it's covariant `+`, contravariant `−`, or invariant). Bounds are not recorded; see [`TypeParam`](#typeparam--type-parameter-details):
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1312,7 +1312,7 @@ On Scala.js, `clazz` always returns `None`. Use `classTag` instead when you need
 
 #### `construct` — Reflective Construction
 
-Constructs an instance using the primary constructor on the JVM by passing constructor arguments as a `Chunk[AnyRef]`. Returns `Left` with an error message on Scala.js or when construction fails (wrong argument count, wrong types, or abstract types). Primitive values must be explicitly boxed since the argument type is `AnyRef`:
+Creates a value of this type on the JVM from a `Chunk[AnyRef]` of arguments. `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Map`, `Option`, `Some`, `None`, `Either`, `Tuple2`, `Tuple3`, and several `java.time` types are built directly; any other type is built by reflection with the first public constructor whose parameter count and types fit the arguments. Returns `Left` with an error message on Scala.js or when construction fails (no constructor fits, the constructor throws, or the type is abstract). Primitive values must be explicitly boxed since the argument type is `AnyRef`:
 
 ```scala
 sealed trait TypeId[A <: AnyKind] {
@@ -1350,7 +1350,7 @@ TypeId.of[Vector[Int]].construct(Chunk(1: Integer, 2: Integer, 3: Integer))
 TypeId.of[Set[String]].construct(Chunk("x", "y", "z"))
 ```
 
-`Array`, `ArraySeq`, and `Chunk` are not among the types `construct` knows, so it falls back to reflection and returns `Left`:
+`Array`, `ArraySeq`, and `Chunk` are not among the types `construct` knows, so it falls back to reflection, which cannot build them. `Chunk` and `ArraySeq` give `Left`. `Array` gives `Left` too, except for a single boxed `Int`, where it returns a meaningless `scala.Array` object instead of an array (a known bug in 0.0.56):
 
 ```scala mdoc
 TypeId.of[Chunk[Int]].construct(Chunk(1: Integer, 2: Integer))
@@ -1389,7 +1389,7 @@ These concepts are essential for building type-indexed registries that recognize
 
 #### `TypeId.normalize` — Resolve Aliases
 
-Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`. An id that is not an alias comes back unchanged, and an opaque type is not unwrapped:
+Resolves chains of type aliases to the underlying type. For example, `type MyList = List[Int]` normalizes to `List[Int]`. An id that is not an alias comes back unchanged, and an opaque type is not unwrapped. An alias of a union or intersection type stays as it is, and on Scala 3 an alias of a tuple type and an applied alias with type parameters also come back unchanged (a known bug in 0.0.56):
 
 ```scala
 object TypeId {
@@ -1648,7 +1648,7 @@ Variance.Covariant.flip
 
 **Kind** describes the "type of a type"—it captures whether something is a concrete type or a type constructor, and how many type parameters it requires. A **proper type** like `Int` or `Box[String]` has kind `*` (zero parameters). A **unary type constructor** like `List` has kind `* -> *` (takes one type parameter). A **binary type constructor** like `Map` has kind `* -> * -> *` (takes two). **Higher-kinded types** like `Runnable[F[_]]` have kinds like `(* -> *) -> *` (takes a type constructor as a parameter). Kind information is essential for generic programming, enforcing API contracts, and enabling advanced patterns like monad transformers.
 
-`TypeId` reports how many type parameters a type declares through `arity`, but derivation does not compute the `Kind` of those parameters: every derived `TypeParam` has kind `Kind.Type`, even when the parameter is itself a type constructor (a known bug in 0.0.56). The `kind` values below therefore all print `Type`; the `Kind` values in the table at the end of this section are what you get when you build a `TypeParam` by hand:
+`TypeId` reports how many type parameters a type declares through `arity`, but derivation does not compute the `Kind` of those parameters: every derived `TypeParam` has kind `Kind.Type`, even when the parameter is itself a type constructor (a known bug in 0.0.56). The `kind` values below therefore all print `Type`. The table at the end of this section lists the predefined `Kind` values, which you can give to a `TypeParam` you build by hand:
 
 ```scala mdoc:silent:reset
 import zio.blocks.typeid._
@@ -1688,7 +1688,7 @@ cacheId.arity
 cacheId.typeParams.map(p => (p.name, p.kind))
 ```
 
-A higher-kinded type (`(* -> *) -> *`) — a type parameter that itself is a type constructor. `Runnable` declares `F[_]`, yet the derived parameter reports kind `Type` with arity 0:
+A higher-kinded type (`(* -> *) -> *`) — one whose type parameter is itself a type constructor. `Runnable` declares `F[_]`, yet the derived parameter reports kind `Type` with arity 0:
 
 ```scala mdoc
 val runnableId = TypeId.of[Runnable]
