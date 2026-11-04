@@ -698,7 +698,7 @@ object JdkHttp {
 
 </details>
 
-What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns an exception or a `LinkageError` thrown by the function into a 500 response, logs a failure to write the response (and answers 500 when no headers have gone out yet), and returns the JDK's `HttpServer`. To call the server, we also copy the [guide's](./serve-http-model-requests.md) tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status code, the content type and length, and the body:
+What matters for the bookstore is `JdkHttp.start(app, port)`: it starts a server on the loopback interface that sends every request to our function, turns a non-fatal exception or a `LinkageError` thrown by the function into a 500 response, logs a failure to write the response (and answers 500 when no headers have gone out yet), and returns the JDK's `HttpServer`. To call the server, we also copy the [guide's](./serve-http-model-requests.md) tiny test client. `Client.call(port, method, target, body)` sends one request with the JDK's `HttpClient` and prints the status code, the content type and length, and the body:
 
 <details>
   <summary>The test client</summary>

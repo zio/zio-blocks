@@ -64,10 +64,10 @@ object JdkHttp {
 
   /**
    * Turns an application into an `HttpHandler`. A `HEAD` request runs the `GET`
-   * route and drops the body; an exception or `LinkageError` in the application
-   * becomes a 500 response; a failure while writing the response is logged and,
-   * if no headers have gone out yet, also becomes a 500; the exchange is closed
-   * on every path.
+   * route and drops the body; a non-fatal exception or `LinkageError` in the
+   * application becomes a 500 response; a failure while writing the response is
+   * logged and, if no headers have gone out yet, also becomes a 500; the
+   * exchange is closed on every path.
    */
   def handler(app: Request => Response): HttpHandler = exchange =>
     try {
