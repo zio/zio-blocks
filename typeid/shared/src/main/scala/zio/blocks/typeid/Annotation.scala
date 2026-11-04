@@ -48,10 +48,14 @@ final case class Annotation(
 /**
  * An argument of an [[Annotation]]: a constant, an array, a named argument, a
  * nested annotation, a class literal or an enum value. Both macros record
- * constants, named arguments and nested annotations, and drop an argument
- * written as `Array(...)`. The Scala 3 macro also records the values passed to
- * a repeated parameter as one [[AnnotationArg.ArrayArg]] (Scala 2 records each
- * as a [[AnnotationArg.Const]]) and enum values, Java ones included, as
+ * constants and nested annotations, and drop an argument written as
+ * `Array(...)`. Both record the named arguments of `@deprecated` and of Java
+ * annotations as [[AnnotationArg.Named]]; for a Scala annotation class compiled
+ * together with the annotated type, Scala 2 records each argument as a
+ * [[AnnotationArg.Const]] without its name, even when it is written by name.
+ * The Scala 3 macro also records the values passed to a repeated parameter as
+ * one [[AnnotationArg.ArrayArg]] (Scala 2 records each as a
+ * [[AnnotationArg.Const]]) and enum values, Java ones included, as
  * [[AnnotationArg.EnumValue]]; it records a `classOf[T]` argument as
  * `Const(null)` (a known bug), and Scala 2 drops it.
  */
@@ -81,9 +85,12 @@ object AnnotationArg {
   /**
    * A named argument, as in
    * `@deprecated(message = "use Point", since = "1.0")`. On Scala 2, the macro
-   * also records the arguments of a Scala annotation this way when they are
-   * written by position, as in `@deprecated("use Point", "1.0")`; Scala 3
-   * records those as positional [[Const]] values.
+   * also records the arguments of `@deprecated` this way when they are written
+   * by position, as in `@deprecated("use Point", "1.0")`, and records the
+   * arguments of a Scala annotation class compiled together with the annotated
+   * type as [[Const]] values without their names, even when they are written by
+   * name. Scala 3 records named arguments as `Named` and positional ones as
+   * [[Const]].
    */
   final case class Named(name: String, value: AnnotationArg) extends AnnotationArg
 
