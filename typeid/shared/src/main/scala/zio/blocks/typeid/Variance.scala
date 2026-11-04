@@ -85,19 +85,17 @@ sealed trait Variance {
 object Variance {
 
   /**
-   * Covariant: +A Preserves subtyping: if Dog <: Animal, then F[Dog] <:
-   * F[Animal]
+   * Covariant (`+A`): if `Dog <: Animal`, then `F[Dog] <: F[Animal]`.
    */
   case object Covariant extends Variance
 
   /**
-   * Contravariant: -A Reverses subtyping: if Dog <: Animal, then F[Animal] <:
-   * F[Dog]
+   * Contravariant (`-A`): if `Dog <: Animal`, then `F[Animal] <: F[Dog]`.
    */
   case object Contravariant extends Variance
 
   /**
-   * Invariant: A No subtyping relationship between F[Dog] and F[Animal]
+   * Invariant (`A`): `F[Dog]` and `F[Animal]` are not subtypes of each other.
    */
   case object Invariant extends Variance
 }
