@@ -17,12 +17,27 @@
 package zio.http
 
 /**
- * Pure, immutable URL representation.
+ * An immutable URL, absolute (`https://shop.example.com/api/orders`) or
+ * relative (`/api/orders?page=2`), split into scheme, host, port, [[Path]],
+ * [[QueryParams]] and fragment. The path, query and fragment hold decoded text;
+ * [[encode]] percent-encodes them again on output, so read and write them
+ * without escaping by hand. Parse one with [[URL.parse]], and build on it with
+ * `/` (a path segment) and `??` (a query parameter).
  *
- * Path segments are stored in decoded form and percent-encoded on output via
- * `encode`. `parse` returns `Left` on invalid input (empty string, malformed
- * port, etc.). Use `/` to append a path segment and `??` to add a query
- * parameter. `encode` renders the full URL string with proper percent-encoding.
+ * {{{
+ * val url = URL.parse("https://shop.example.com:8443/api/orders/42?page=2&sort=price#items").toOption.get
+ *
+ * url.scheme                         // Some(https)
+ * url.host                           // Some(shop.example.com)
+ * url.port                           // Some(8443)
+ * url.path.segments                  // Chunk(api,orders,42)
+ * url.queryParams.getFirst("sort")   // Some(price)
+ * url.fragment                       // Some(items)
+ * url.relative.encode                // /api/orders/42?page=2&sort=price#items
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#url URL]]
  */
 final case class URL(
   scheme: Option[Scheme],
@@ -33,13 +48,50 @@ final case class URL(
   fragment: Option[String]
 ) {
 
+  /** Whether the URL has a scheme. */
   def isAbsolute: Boolean = scheme.isDefined
+
+  /** Whether the URL has no scheme. */
   def isRelative: Boolean = !isAbsolute
 
+  /**
+   * Appends one decoded path segment (see `Path#/`). A `/` inside `segment`
+   * stays part of the segment and is written as `%2F`.
+   *
+   * {{{
+   * val base = URL.parse("https://shop.example.com").toOption.get
+   *
+   * (base / "api" / "orders" / "42").encode         // https://shop.example.com/api/orders/42
+   * (URL.fromPath(Path.root) / "q3 plan/draft").encode // /q3%20plan%2Fdraft
+   * }}}
+   */
   def /(segment: String): URL = copy(path = path / segment)
 
+  /**
+   * Adds a query parameter, keeping existing values of the same key (see
+   * [[QueryParams#add]]).
+   *
+   * {{{
+   * val base = URL.parse("https://shop.example.com/api/orders").toOption.get
+   *
+   * base.??("include", "items").??("include", "customer").encode
+   * // https://shop.example.com/api/orders?include=items&include=customer
+   * }}}
+   */
   def ??(key: String, value: String): URL = copy(queryParams = queryParams.add(key, value))
 
+  /**
+   * Renders the URL as a string: `scheme://`, the host and `:port`, the
+   * percent-encoded path, `?` and the encoded query when there are parameters,
+   * and `#` and the encoded fragment when there is one. The host is written as
+   * given, without encoding. A URL with a host and an empty path gets the path
+   * `/`.
+   *
+   * {{{
+   * URL.parse("https://shop.example.com").toOption.get.encode       // https://shop.example.com/
+   * URL.fromPath(Path("/notes/q3 plan")).??("tag", "a&b").encode     // /notes/q3%20plan?tag=a%26b
+   * }}}
+   */
   def encode: String = {
     val sb = new StringBuilder
 
@@ -77,35 +129,112 @@ final case class URL(
     sb.toString
   }
 
+  /** Returns [[encode]]. */
   override def toString: String = encode
 
-  def host(h: String): URL     = copy(host = Some(h))
-  def port(p: Int): URL        = copy(port = Some(p))
-  def scheme(s: Scheme): URL   = copy(scheme = Some(s))
-  def path(p: Path): URL       = copy(path = p)
+  /** Returns a copy with the host set to `h`, written as given. */
+  def host(h: String): URL = copy(host = Some(h))
+
+  /** Returns a copy with the port set to `p`, which is not range-checked. */
+  def port(p: Int): URL = copy(port = Some(p))
+
+  /** Returns a copy with the scheme set to `s`. */
+  def scheme(s: Scheme): URL = copy(scheme = Some(s))
+
+  /** Returns a copy with the path replaced by `p`. */
+  def path(p: Path): URL = copy(path = p)
+
+  /** Returns a copy with the fragment set to `f`, decoded text. */
   def fragment(f: String): URL = copy(fragment = Some(f))
 
-  def addPath(segment: String): URL                         = this / segment
-  def addPath(p: Path): URL                                 = copy(path = path ++ p)
-  def addQueryParams(qp: QueryParams): URL                  = copy(queryParams = queryParams ++ qp)
+  /** Same as `/`: appends one decoded path segment. */
+  def addPath(segment: String): URL = this / segment
+
+  /**
+   * Appends the segments of `p` (see `Path#++`); the result takes its trailing
+   * slash from `p`.
+   */
+  def addPath(p: Path): URL = copy(path = path ++ p)
+
+  /**
+   * Adds every parameter of `qp`, appending values to keys that already exist
+   * (see `QueryParams#++`).
+   */
+  def addQueryParams(qp: QueryParams): URL = copy(queryParams = queryParams ++ qp)
+
+  /**
+   * Returns a copy whose query parameters are `f` applied to the current ones.
+   */
   def updateQueryParams(f: QueryParams => QueryParams): URL = copy(queryParams = f(queryParams))
 
-  def addLeadingSlash: URL   = copy(path = path.addLeadingSlash)
-  def dropLeadingSlash: URL  = copy(path = path.dropLeadingSlash)
-  def addTrailingSlash: URL  = copy(path = path.addTrailingSlash)
+  /** Returns a copy whose path starts with `/`. */
+  def addLeadingSlash: URL = copy(path = path.addLeadingSlash)
+
+  /** Returns a copy whose path does not start with `/`. */
+  def dropLeadingSlash: URL = copy(path = path.dropLeadingSlash)
+
+  /**
+   * Returns a copy whose path ends with `/`; a path with no segments is
+   * unchanged.
+   */
+  def addTrailingSlash: URL = copy(path = path.addTrailingSlash)
+
+  /** Returns a copy whose path does not end with `/`. */
   def dropTrailingSlash: URL = copy(path = path.dropTrailingSlash)
 
+  /**
+   * Returns `host:port`, or the host alone when there is no port, or `None`
+   * when there is no host. A port is not filled in from the scheme.
+   */
   def hostPort: Option[String] = host.map(h => port.fold(h)(p => s"$h:$p"))
 
+  /**
+   * Returns a copy without scheme, host and port: the path, query and fragment.
+   */
   def relative: URL = copy(scheme = None, host = None, port = None)
 }
 
+/**
+ * Parses and creates [[URL]]s.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#parsing-urls Parsing URLs]]
+ */
 object URL {
 
+  /** `http://localhost/`. */
   val root: URL = URL(Some(Scheme.HTTP), Some("localhost"), None, Path.root, QueryParams.empty, None)
 
+  /** A relative URL with `path`, no query and no fragment. */
   def fromPath(path: Path): URL = URL(None, None, None, path, QueryParams.empty, None)
 
+  /**
+   * Parses an absolute URL (`scheme://host:port/path?query#fragment`) or a
+   * relative one (`/path?query#fragment`). The path, query and fragment are
+   * percent-decoded. The scheme is lower-cased and the host is kept as written;
+   * user info before an `@` is dropped.
+   *
+   * It returns `Left` only for the empty string, a port that is not a number
+   * from 0 to 65535, and an empty host before a `:`. Anything else parses, so a
+   * `Right` does not mean the URL is well formed.
+   *
+   * {{{
+   * URL.parse("https://shop.example.com:8443/api/orders/42?page=2").map(_.port) // Right(Some(8443))
+   * URL.parse("/search?q=tea%20cups").map(_.queryParams.getFirst("q"))          // Right(Some(tea cups))
+   * URL.parse("http://shop.example.com:99999/")                                   // Left(Invalid port: 99999)
+   * URL.parse("")                                                                // Left(Empty URL string)
+   * }}}
+   *
+   * Known bugs: a `+` in the query stays a plus sign instead of becoming a
+   * space, as HTML forms that use `GET` expect (`?q=tea+cups` gives
+   * `tea+cups`). The parser also looks for `://`, `/` and `@` in the whole
+   * string, not only before the path:
+   * `/login?next=https://shop.example.com/cart` parses with the scheme
+   * `/login?next=https` and the host `shop.example.com`,
+   * `http://shop.example.com?back=/cart` with the host
+   * `shop.example.com?back=`, and `http://shop.example.com?to=a@b.com` with the
+   * host `b.com`. A URL that starts with `//` parses as a path.
+   */
   def parse(s: String): Either[String, URL] = {
     if (s.isEmpty) return Left("Empty URL string")
 
