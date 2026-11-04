@@ -818,12 +818,15 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
   /**
    * Derives the id of `A` at compile time. The primitive types, and `String`,
    * `BigInt` and `BigDecimal` written with those names, give their predefined
-   * ids, such as [[TypeId.int]]; `java.lang.String` or `scala.math.BigInt`
-   * written in full gives an equal id read from the definition. For an applied
-   * type whose constructor has a predefined id, such as `List[Int]` or
-   * `Map[String, Int]`, it takes that id and adds the type arguments. For other
-   * types the macro reads the definition: name, owner, type parameters, kind,
-   * parents, self-type and annotations.
+   * ids, such as [[TypeId.int]]. `java.lang.String` written in full gives an
+   * equal id read from the definition, while `scala.math.BigInt` and
+   * `scala.math.BigDecimal` written in full give ids named that way, which are
+   * not equal to [[TypeId.bigInt]] and [[TypeId.bigDecimal]] (named
+   * `scala.BigInt` and `scala.BigDecimal`). For an applied type whose
+   * constructor has a predefined id, such as `List[Int]` or `Map[String, Int]`,
+   * it takes that id and adds the type arguments. For other types the macro
+   * reads the definition: name, owner, type parameters, kind, parents,
+   * self-type and annotations.
    *
    * A type alias keeps its own name, with [[TypeId#aliasedTo]] set to the type
    * it stands for, so the id of `type Age = Int` is named `Age` (and equals the
