@@ -10728,6 +10728,45 @@ With `//> using scala 3.9.0` the first line is `List(List(Named(name,Const(x)), 
 
 **Suggested fix.** Match `Apply(Apply(TypeApply(Select(_, "apply"), _), elems), _)` with an `Array` module symbol check; on Scala 3, turn a `Literal(ClassOfConstant(t))` into `ClassOf`, and give the `Const` `ToExpr` a case for it; on Scala 2, add `Literal(Constant(t: Type))` → `ClassOf` and enum `Select` → `EnumValue`. Add a test with each argument kind on both versions.
 
+### typeid: `TypeId.of[Array[Int]].construct` returns a meaningless `scala.Array` object for one boxed `Int`
+
+Found 2026-11-04 in the Opus review of PR #1933 (typeid.md fixes), while checking the claim that `construct` returns `Left` for `Array`. Main at `6ee89c6b8`. Same at v0.0.56 (the reproducer runs against the published 0.0.56 on Scala 3.9.0).
+
+**Summary.** `construct` has no entry for `scala.Array` in `knownTypeConstructors`, so it falls back to `reflectiveConstruct`. `TypeId.of[Array[Int]].clazz` is `Some(class scala.Array)`, the placeholder class from the Scala library (not the JVM array class `[I`). That class has one public constructor taking an `Int`, so with a single boxed `Int` the reflection finds it, calls it, and returns `Right` of a useless `scala.Array` instance. Any other argument list gives `Left(No matching constructor ...)`. The returned value is not an array: casting it to `Array[Int]` throws `ClassCastException`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid.*
+import zio.blocks.chunk.Chunk
+
+@main def run(): Unit = {
+  val id = TypeId.of[Array[Int]]
+  println(s"clazz=${id.clazz}")
+  println(id.construct(Chunk[AnyRef](Int.box(3))))
+  println(id.construct(Chunk[AnyRef](Int.box(3), Int.box(4))))
+  println(id.construct(Chunk[AnyRef]()))
+  println(scala.util.Try(id.construct(Chunk[AnyRef](Int.box(3))).toOption.get.asInstanceOf[Array[Int]]))
+}
+// clazz=Some(class scala.Array)
+// Right(scala.Array@76f2b07d)
+// Left(No matching constructor found for scala.Array with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+// Left(No matching constructor found for scala.Array with 0 arguments of types: )
+// Failure(java.lang.ClassCastException: class scala.Array cannot be cast to class [I (scala.Array is in unnamed module of loader 'app'; [I is in module java.base of loader 'bootstrap'))
+```
+
+**Expected.** Either an array built from the elements (`Right(Array(3, 4))`, which needs the element type from `typeArgs`) or `Left` for every argument list, as for `Chunk` and `ArraySeq`. Never `Right` of an object that is not an `Array`.
+
+**Root cause.** `typeid/jvm/src/main/scala/zio/blocks/typeid/TypeIdPlatformMethods.scala:66-70` (`construct`) finds no `scala.Array` key in `knownTypeConstructors` (:72-95) and calls `reflectiveConstruct` (:221-239). It takes `id.clazz`, which resolves to the `scala.Array` class, calls `clazz.getConstructors` (:226) and `findMatchingConstructor` (:244-251), which accepts the `Array(int)` constructor for one `Integer` argument (`isAssignable`, :255-258), then `c.newInstance` (:232).
+
+**Impact.** Small: a caller who builds arrays through `construct` gets a silently wrong `Right` for a one-element `Int` list (and an exception when it uses the value). Related: `Chunk` and `ArraySeq` also have no entry and always give `Left` (a feature gap, not a bug).
+
+**Test gap.** `typeid/shared/src/test/scala/zio/blocks/typeid/TypeIdSpec.scala` has no test of `construct` on `Array` (the only `Array` test, :858, checks `clazz`).
+
+**Suggested fix.** Add an `Array` case in `construct` (build with `java.lang.reflect.Array.newInstance` from the element class in `typeArgs`, or return a clear `Left`), and make `reflectiveConstruct` refuse `scala.Array`. Add tests for `Array` with 0, 1 and 2 arguments. Optionally add `Chunk`/`ArraySeq` entries to `knownTypeConstructors` as a feature request. After the fix, reword the "known bug in 0.0.56" note on the `construct` section of `docs/reference/typeid.md` (Collection Types).
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
