@@ -17,15 +17,15 @@
 package zio.blocks.typeid
 
 /**
- * Represents the "kind" of a type - the type of a type.
+ * The kind of a type, the "type of a type":
  *
- * In Scala's type system:
- *   - Proper types like `Int`, `String` have kind `*` (Type)
- *   - Type constructors like `List`, `Option` have kind `* -> *`
- *   - Higher-kinded types like `Monad` have kind `(* -> *) -> *`
+ *   - proper types such as `Int` and `String` have kind `*` ([[Kind.Type]]);
+ *   - type constructors such as `List` and `Option` have kind `* -> *`;
+ *   - higher-kinded types such as `Functor` have kind `(* -> *) -> *`.
  *
- * This is essential for correctly representing higher-kinded types and ensuring
- * kind-correctness in type expressions.
+ * [[TypeParam#kind]] holds the kind of a type parameter. The macros do not
+ * compute kinds: every derived [[TypeParam]] has kind [[Kind.Type]] (a known
+ * bug).
  */
 sealed trait Kind {
 

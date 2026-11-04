@@ -17,18 +17,17 @@
 package zio.blocks.typeid
 
 /**
- * Represents a Scala/Java annotation on a type, method, or other declaration.
- *
- * Annotations carry metadata that can be inspected at compile-time or runtime.
- * Examples:
- *   - `@deprecated("use newMethod", "1.0")`
- *   - `@tailrec`
- *   - `@JsonProperty("field_name")`
+ * An annotation on a type definition, as [[TypeId#annotations]] lists it, such
+ * as `@deprecated("use Point", "1.0")` on a class. The macros record the
+ * arguments they can read and leave out the others. Both skip annotations from
+ * `scala.annotation.internal` and `scala.annotation.unchecked` and `@nowarn`;
+ * Scala 2 also skips `@specialized`, and Scala 3 `@targetName` and
+ * `@experimental`.
  *
  * @param typeId
- *   The TypeId of the annotation class
+ *   the id of the annotation class
  * @param args
- *   The arguments passed to the annotation constructor
+ *   the arguments passed to the annotation's constructor
  */
 final case class Annotation(
   typeId: TypeId[_],
@@ -47,15 +46,10 @@ final case class Annotation(
 }
 
 /**
- * Represents an argument to an annotation.
- *
- * Annotation arguments can be:
- *   - Constant values (strings, numbers, booleans, etc.)
- *   - Arrays of values
- *   - Named arguments
- *   - Nested annotations
- *   - Class references
- *   - Enum values
+ * An argument of an [[Annotation]]: a constant, an array, a named argument, a
+ * nested annotation, a class literal or an enum value. The Scala 2 macro
+ * records constants, arrays, named arguments and nested annotations; the Scala
+ * 3 macro also records class literals and Scala 3 enum values.
  */
 sealed trait AnnotationArg
 
@@ -78,10 +72,11 @@ object AnnotationArg {
   final case class ArrayArg(values: List[AnnotationArg]) extends AnnotationArg
 
   /**
-   * A named annotation argument.
-   *
-   * Used when arguments are specified by name:
-   * `@deprecated(message = "use newMethod", since = "1.0")`
+   * A named argument, as in
+   * `@deprecated(message = "use Point", since = "1.0")`. On Scala 2, the macro
+   * also records the arguments of a Scala annotation this way when they are
+   * written by position, as in `@deprecated("use Point", "1.0")`; Scala 3
+   * records those as positional [[Const]] values.
    */
   final case class Named(name: String, value: AnnotationArg) extends AnnotationArg
 

@@ -64,8 +64,9 @@ sealed trait Variance {
   }
 
   /**
-   * Combines two variances. Used when a type parameter appears in a nested
-   * position.
+   * Composes two variances, as for a type parameter in a nested position: two
+   * contravariant positions give covariant, a covariant and a contravariant
+   * position give contravariant, and an invariant position gives invariant.
    */
   def *(other: Variance): Variance = (this, other) match {
     case (Variance.Invariant, _)                          => Variance.Invariant

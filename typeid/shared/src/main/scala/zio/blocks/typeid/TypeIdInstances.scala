@@ -17,8 +17,17 @@
 package zio.blocks.typeid
 
 /**
- * Provides predefined TypeId instances for common types. These instances are
- * available implicitly when importing TypeId.
+ * Predefined ids for common types: the primitive types, `String`, `BigInt`,
+ * `BigDecimal`, the standard collections, `Option`, `Either`, `Chunk`, the
+ * `java.time` types, `UUID` and `Currency`. The companion of [[TypeId]] extends
+ * this trait, so the instances are found by implicit search without an import,
+ * and are reachable as `TypeId.int`, `TypeId.list` and so on. A type
+ * constructor such as `List` has an id with type parameters and no type
+ * arguments.
+ *
+ * Most of these ids record no parents and have kind [[TypeDefKind.Unknown]];
+ * `String` is a final class with `CharSequence`, `Comparable` and
+ * `java.io.Serializable` as parents.
  */
 trait TypeIdInstances {
   import TypeIdOps.Owners._
