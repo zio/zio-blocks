@@ -727,6 +727,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * ids of union and intersection types are aliases, so they do not match.
    */
   object Nominal {
+
+    /**
+     * Returns the name, owner, type parameters, kind and parents of an id that
+     * is neither an alias nor an opaque type, and `None` for the others.
+     */
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeDefKind, List[TypeRepr])] =
       if (id.aliasedTo.isEmpty && id.representation.isEmpty)
         Some((id.name, id.owner, id.typeParams, id.defKind, id.parents))
@@ -738,6 +743,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * name, owner, type parameters and that target.
    */
   object Alias {
+
+    /**
+     * Returns the name, owner, type parameters and alias target of an id with
+     * an alias target, and `None` otherwise.
+     */
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeRepr)] =
       id.aliasedTo.map(a => (id.name, id.owner, id.typeParams, a))
   }
@@ -748,6 +758,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * representation and public bounds.
    */
   object Opaque {
+
+    /**
+     * Returns the name, owner, type parameters, representation and public
+     * bounds of an opaque type id, and `None` otherwise.
+     */
     def unapply(id: TypeId[?]): Option[(String, Owner, List[TypeParam], TypeRepr, TypeBounds)] =
       (id.defKind, id.representation) match {
         case (TypeDefKind.OpaqueType(bounds), Some(repr)) =>
@@ -761,6 +776,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * class and a Scala 3 enum do not match.
    */
   object Sealed {
+
+    /**
+     * Returns the name of an id whose kind is a sealed trait, and `None`
+     * otherwise.
+     */
     def unapply(id: TypeId[?]): Option[String] =
       id.defKind match {
         case TypeDefKind.Trait(true, _) => Some(id.name)
@@ -773,6 +793,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
    * name and owner.
    */
   object Enum {
+
+    /**
+     * Returns the name and owner of an id whose kind is a Scala 3 enum, and
+     * `None` otherwise.
+     */
     def unapply(id: TypeId[?]): Option[(String, Owner)] =
       id.defKind match {
         case TypeDefKind.Enum(_) => Some((id.name, id.owner))
@@ -889,6 +914,11 @@ object TypeId extends TypeIdInstances with TypeIdLowPriority {
 
   // ========== Predefined TypeIds for Common Types ==========
 
+  /**
+   * The id of the Scala 3 type constructor `IArray`, with one covariant type
+   * parameter `T`. Its owner is the package object that defines `IArray` in the
+   * `scala` package.
+   */
   given iarray: TypeId[IArray] =
     nominal[IArray]("IArray", Owner.scala.term("IArray$package"), List(TypeParam("T", 0, Variance.Covariant)))
 
