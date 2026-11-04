@@ -112,8 +112,8 @@ final case class Request(
    * Adds `cookie` to the `cookie` header: the cookies of the first `cookie`
    * header plus `cookie` are rendered into one header that replaces every
    * existing `cookie` header. Cookies in a second `cookie` header are dropped;
-   * this is a known bug. Neither the name nor the value is checked, so a `;` or
-   * `=` in them changes how the header parses.
+   * this is a known bug. Neither the name nor the value is checked here, so a
+   * `;` or `=` in them changes how the header parses.
    *
    * {{{
    * val url = URL.parse("/api/cart").toOption.get
@@ -121,6 +121,9 @@ final case class Request(
    * Request.get(url).addCookie(RequestCookie("session", "abc123")).addCookie(RequestCookie("currency", "eur")).cookies
    * // Chunk(RequestCookie(session,abc123),RequestCookie(currency,eur))
    * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a cookie name or value contains CR or LF
    */
   def addCookie(cookie: RequestCookie): Request = {
     val updatedCookies = cookies :+ cookie
@@ -210,7 +213,7 @@ final case class Request(
  * val create = Request.post(url, Body.fromString("sku=tea-01&qty=2"))
  *
  * create.method                    // POST
- * create.headers.size               // 0
+ * create.headers.size              // 0
  * create.contentType.map(_.render) // Some(text/plain; charset=UTF-8)
  * }}}
  *
@@ -243,7 +246,7 @@ object Request {
   def head(url: URL): Request =
     Request(Method.HEAD, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
 
-  /** Creates a `OPTIONS` request for `url` with an empty body. */
+  /** Creates an `OPTIONS` request for `url` with an empty body. */
   def options(url: URL): Request =
     Request(Method.OPTIONS, url, Headers.empty, Body.empty, Version.`HTTP/1.1`)
 }

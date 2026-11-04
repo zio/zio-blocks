@@ -154,8 +154,9 @@ final case class Response(
    * }}}
    *
    * @throws java.lang.IllegalArgumentException
-   *   if the cookie's name or value is invalid, or it has `SameSite=None`
-   *   without `Secure` (see `Cookie.renderResponseEither`)
+   *   if the cookie's name or value is invalid, it has `SameSite=None` without
+   *   `Secure` (see `Cookie.renderResponseEither`), or its `expires`, `domain`
+   *   or `path` contains CR or LF
    */
   def addCookie(cookie: ResponseCookie): Response = addHeader("set-cookie", Cookie.renderResponse(cookie))
 }
@@ -166,9 +167,9 @@ final case class Response(
  * body also set a matching `content-type` header.
  *
  * {{{
- * Response.notFound.status.code                  // 404
- * Response.json("{\"id\":42}").headers.toList       // List((content-type,application/json))
- * Response.redirect("/login").status.code        // 307
+ * Response.notFound.status.code                      // 404
+ * Response.json("{\"id\":42}").headers.toList        // List((content-type,application/json))
+ * Response.redirect("/login").status.code            // 307
  * Response.seeOther("/api/orders/42").headers.toList // List((location,/api/orders/42))
  * }}}
  *
