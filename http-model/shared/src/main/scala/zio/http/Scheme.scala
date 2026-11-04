@@ -131,6 +131,10 @@ object Scheme {
    * (`http`, `https`, `ws` or `wss`), or a [[Custom]] holding the lower-cased
    * text for any other input, including the empty string. Whitespace is kept:
    * `" http"` gives `Custom(" http")`.
+   *
+   * The lower-casing uses the JVM's default locale, so under a Turkish or
+   * Azerbaijani locale `FILE` gives `Custom(fıle)`; this is a known bug. The
+   * four built-in names contain no `i`, so they are not affected.
    */
   def fromString(s: String): Scheme = s.toLowerCase match {
     case "http"  => HTTP

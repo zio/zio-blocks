@@ -224,6 +224,10 @@ object Header {
      * value that is only a double quote, as in `nonce=`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      * / /
+     *
+     * The scheme is lower-cased with the JVM's default locale, so under a
+     * Turkish or Azerbaijani locale `BASIC` and `DIGEST` give `Unparsed`; this
+     * is a known bug.
      */
     def parse(value: String): Either[String, Authorization] = {
       val trimmed = value.trim
@@ -353,6 +357,10 @@ object Header {
      * parameter value that is only a double quote, as in `nonce=`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      * /
+     *
+     * The scheme is lower-cased with the JVM's default locale, so under a
+     * Turkish or Azerbaijani locale `BASIC` and `DIGEST` give `Unparsed`; this
+     * is a known bug.
      */
     def parse(value: String): Either[String, ProxyAuthorization] = {
       val trimmed = value.trim
@@ -704,6 +712,10 @@ object Header {
      * that matches none of them is dropped. One match gives that coding,
      * several give `Multiple`, and none gives
      * `Left("Invalid content-encoding: <value>")`.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale a name with an upper-case `I`, such as `GZIP`, is not
+     * matched; this is a known bug.
      */
     def parse(value: String): Either[String, ContentEncoding] = {
       val parts  = value.split(',')
@@ -1044,6 +1056,9 @@ object Header {
      * `7bit`, `8bit`, `binary`, `quoted-printable` or `base64`. Any other value
      * gives `Left("Invalid content-transfer-encoding: <value>")`, with the
      * trimmed, lower-cased text.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale `BINARY` gives `Left`; this is a known bug.
      */
     def parse(value: String): Either[String, ContentTransferEncoding] =
       value.trim.toLowerCase match {
@@ -1589,6 +1604,10 @@ object Header {
      * Trims and lower-cases the value, then maps `close` and `keep-alive` to
      * their case objects. Every other value, including an empty one, gives
      * `Other` with the lower-cased text.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale `KEEP-ALIVE` gives `Other` instead of `KeepAlive`;
+     * this is a known bug.
      */
     def parse(value: String): Either[String, Connection] =
       value.trim.toLowerCase match {
@@ -1778,6 +1797,10 @@ object Header {
      * that matches none of them is dropped. One match gives that coding,
      * several give `Multiple`, and none gives
      * `Left("Invalid transfer-encoding: <value>")`.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale a name with an upper-case `I`, such as `IDENTITY`, is
+     * not matched; this is a known bug.
      */
     def parse(value: String): Either[String, TransferEncoding] = {
       val parts  = value.split(',')
@@ -1893,6 +1916,10 @@ object Header {
      * in `no-cache="set-cookie"`, gives
      * `Left("Invalid number in cache-control directive: <value>")`. A negative
      * number is accepted.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale a name with an upper-case `I`, such as `PRIVATE` or
+     * `MIN-FRESH`, gives `Left`; this is a known bug.
      */
     def parse(value: String): Either[String, CacheControl] = {
       val trimmed = value.trim
@@ -2623,6 +2650,10 @@ object Header {
      * weights are not range-checked. A name other than `gzip`, `deflate`, `br`,
      * `compress`, `identity` and an asterisk, matched in any letter case,
      * becomes `GZip` with the item's weight. /
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale a name with an upper-case `I`, such as `IDENTITY`,
+     * becomes `GZip`; this is a known bug.
      */
     def parse(value: String): Either[String, AcceptEncoding] = {
       val parts = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -3616,6 +3647,10 @@ object Header {
      * their case objects. Any other value gives
      * `Left("Invalid x-frame-options: <value>")` with the trimmed, lower-cased
      * text.
+     *
+     * The lower-casing uses the JVM's default locale, so under a Turkish or
+     * Azerbaijani locale `SAMEORIGIN`, the usual spelling, gives `Left`; this
+     * is a known bug.
      */
     def parse(value: String): Either[String, XFrameOptions] =
       value.trim.toLowerCase match {

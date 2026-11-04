@@ -58,6 +58,10 @@ object Charset {
    * `LATIN-1`; `UTF-16`; `UTF-16BE`; `UTF-16LE`. Any other input, including
    * names with surrounding whitespace, `UTF_8`, `ISO_8859_1`, `windows-1252`
    * and the empty string, gives `None`.
+   *
+   * The upper-casing uses the JVM's default locale, so under a Turkish or
+   * Azerbaijani locale `iso-8859-1` and `us-ascii` give `None`; this is a known
+   * bug.
    */
   def fromString(s: String): Option[Charset] = s.toUpperCase match {
     case "UTF-8" | "UTF8"                    => Some(UTF8)
