@@ -221,7 +221,7 @@ object Header {
      * `Left("Basic authorization missing colon separator")`. For `Digest`, the
      * credentials are split on commas into `key=value` pairs with surrounding
      * double quotes removed, and a pair without `=` is dropped. A parameter
-     * value that is only a double quote, as in `nonce=`, throws a
+     * value that is only a double quote, as in `nonce="`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      *
      * The scheme is lower-cased with the JVM's default locale, so under a
@@ -353,7 +353,7 @@ object Header {
      * `Left("Basic proxy-authorization missing colon separator")`. For
      * `Digest`, the credentials are split on commas into `key=value` pairs with
      * surrounding double quotes removed, and a pair without `=` is dropped. A
-     * parameter value that is only a double quote, as in `nonce=`, throws a
+     * parameter value that is only a double quote, as in `nonce="`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      *
      * The scheme is lower-cased with the JVM's default locale, so under a
@@ -452,8 +452,8 @@ object Header {
      * a scheme with no parameters. Otherwise the text before the first space is
      * the scheme, and the rest is split on commas into `key=value` pairs with
      * surrounding double quotes removed; a pair without `=` is dropped, and a
-     * comma inside a quoted value splits it (a known bug). / A parameter value
-     * that is only a double quote, as in `realm=`, throws a
+     * comma inside a quoted value splits it (a known bug). A parameter value
+     * that is only a double quote, as in `realm="`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, WWWAuthenticate] = {
@@ -528,8 +528,8 @@ object Header {
      * becomes a scheme with no parameters. Otherwise the text before the first
      * space is the scheme, and the rest is split on commas into `key=value`
      * pairs with surrounding double quotes removed; a pair without `=` is
-     * dropped, and a comma inside a quoted value splits it (a known bug). / A
-     * parameter value that is only a double quote, as in `realm=`, throws a
+     * dropped, and a comma inside a quoted value splits it (a known bug). A
+     * parameter value that is only a double quote, as in `realm="`, throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, ProxyAuthenticate] = {
@@ -635,8 +635,8 @@ object Header {
      * Parses the value as a `Long`. It does not trim, so a value with spaces
      * gives `Left`. A negative number gives
      * `Left("Invalid content-length: <number>")`, and a value that is not an
-     * integer gives `Left("Invalid content-length: <value>")`. / A leading `+`
-     * is accepted, so `+12` gives `ContentLength(12)`.
+     * integer gives `Left("Invalid content-length: <value>")`. A leading `+` is
+     * accepted, so `+12` gives `ContentLength(12)`.
      */
     def parse(value: String): Either[String, ContentLength] =
       try {
@@ -804,8 +804,8 @@ object Header {
      * is read only when the value is the type, `;` and `filename="..."`, ending
      * with the closing quote; an unquoted file name, a space before the `;`, or
      * an unquoted parameter after it, such as `filename*=`, gives a file name
-     * of `None`. A `form-data` value needs `name="..."` right after the `;` and
-     * may add `; filename="..."` after it; with `filename` first, or without a
+     * of `None`. A `form-data` value needs `name="..."` after the `;` and may
+     * add `; filename="..."` after it; with `filename` first, or without a
      * name, it gives `Left("Invalid form-data content disposition")`. A quoted
      * parameter after the last name or file name is read as part of it, so
      * `filename="a.pdf"; size="3"` gives the file name `a.pdf"; size="3` (a
@@ -1270,9 +1270,9 @@ object Header {
      * `:port` after the host, splitting at the last colon after `://`. It trims
      * the value. A value without `://` gives `Left("Invalid origin: <value>")`,
      * and a port that is not an integer from 0 to 65535 gives
-     * `Left("Invalid origin port: <text>")`. / An IPv6 literal with a port,
-     * such as `http://[::1]:80`, parses, but one without a port does not,
-     * because its last colon is read as the port separator.
+     * `Left("Invalid origin port: <text>")`. An IPv6 literal with a port, such
+     * as `http://[::1]:80`, parses, but one without a port does not, because
+     * its last colon is read as the port separator.
      */
     def parse(value: String): Either[String, Origin] = {
       val trimmed = value.trim
@@ -2088,7 +2088,7 @@ object Header {
      * Parses `*` as `Any`, or a comma-separated list of entity tags, after
      * trimming. Each item is trimmed and parsed as an `ETag`, and the first
      * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
-     * empty value gives that error too. / The value is split at every comma,
+     * empty value gives that error too. The value is split at every comma,
      * including one inside a quoted tag, so `"v1,2"` gives `Left`. An item that
      * is only a double quote makes `ETag.parse` throw a
      * `StringIndexOutOfBoundsException`, which this method does not catch (a
@@ -2155,7 +2155,7 @@ object Header {
      * Parses `*` as `Any`, or a comma-separated list of entity tags, after
      * trimming. Each item is trimmed and parsed as an `ETag`, and the first
      * failing item gives its `Left`, such as `Left("Invalid etag: <item>")`; an
-     * empty value gives that error too. / The value is split at every comma,
+     * empty value gives that error too. The value is split at every comma,
      * including one inside a quoted tag, so `"v1,2"` gives `Left`. An item that
      * is only a double quote makes `ETag.parse` throw a
      * `StringIndexOutOfBoundsException`, which this method does not catch (a
@@ -2647,7 +2647,8 @@ object Header {
      * becomes `GZip(None)`. A weight that is not a number is dropped, and
      * weights are not range-checked. A name other than `gzip`, `deflate`, `br`,
      * `compress`, `identity` and an asterisk, matched in any letter case,
-     * becomes `GZip` with the item's weight.
+     * becomes `GZip` with the item's weight. The spaced weight and the unknown
+     * name are a known bug.
      *
      * The lower-casing uses the JVM's default locale, so under a Turkish or
      * Azerbaijani locale a name with an upper-case `I`, such as `IDENTITY`,
@@ -3826,7 +3827,7 @@ object Header {
      * Splits the value on commas, trims each item, drops empty ones and removes
      * a pair of surrounding double quotes. No items gives
      * `Left("Empty clear-site-data header")`; the directive names are not
-     * checked. / An item that is only a double quote throws a
+     * checked. An item that is only a double quote throws a
      * `StringIndexOutOfBoundsException` instead of giving `Left` (a known bug).
      */
     def parse(value: String): Either[String, ClearSiteData] = {
