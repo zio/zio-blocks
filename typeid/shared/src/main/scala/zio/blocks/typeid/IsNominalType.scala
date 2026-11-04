@@ -24,18 +24,24 @@ package zio.blocks.typeid
  * abstract type members, unions, intersections, structural types and literal
  * types such as `1` are not. For those, the implicit is not found, and
  * compilation fails with a message that starts with "Cannot derive
- * IsNominalType for non-nominal type".
+ * IsNominalType for non-nominal type". On Scala 3, an intersection that the
+ * compiler reduces to one type, such as `Point & Serializable` for a case class
+ * `Point`, is accepted as that type.
  *
  * Require it in a method's signature to stop generic code from calling the
  * method with an unresolved type parameter: the call site must name a concrete
  * type. [[typeId]] then gives the id of that type; for an alias, the id of the
  * type the alias stands for.
  *
- * The singleton type `x.type` of a value is nominal when the value's type is,
- * and gives the id of that type. Two cases differ between Scala 2 and Scala 3:
- * for a value `x` of an intersection type, `x.type` is accepted on Scala 2 and
- * rejected on Scala 3; for `final val lit = 1`, `lit.type` is accepted on Scala
- * 3 (its id is `Int`) and rejected on Scala 2.
+ * The singleton type `x.type` of a value is nominal when the value's type is.
+ * Its id is the id of that type without type arguments: for
+ * `val xs: List[Int]`, `IsNominalType[xs.type].typeId` equals `TypeId.list`,
+ * not `TypeId.of[List[Int]]`. On Scala 3, when the value is declared with an
+ * alias, the id is the alias's (`scala.Predef.String` for `val s: String`). Two
+ * cases differ between Scala 2 and Scala 3: for a value `x` of an intersection
+ * type, `x.type` is accepted on Scala 2 and rejected on Scala 3; for
+ * `final val lit = 1`, `lit.type` is accepted on Scala 3 (its id is `Int`) and
+ * rejected on Scala 2.
  *
  * {{{
  * final case class Point(x: Int, y: Int)
@@ -44,7 +50,7 @@ package zio.blocks.typeid
  *
  * describe[Point]     // "Point"
  * describe[List[Int]] // "List"
- * // describe[Point with Serializable] does not compile
+ * // describe[{ def x: Int }] does not compile
  * }}}
  *
  * @tparam A
@@ -55,7 +61,8 @@ package zio.blocks.typeid
 trait IsNominalType[A] {
 
   /**
-   * The id of `A`, or of the type `A` stands for when `A` is an alias.
+   * The id of `A`, or of the type `A` stands for when `A` is an alias. For a
+   * singleton type `x.type`, see [[IsNominalType]].
    */
   def typeId: TypeId[A]
 
