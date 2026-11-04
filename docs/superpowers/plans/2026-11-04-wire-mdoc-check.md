@@ -1,6 +1,6 @@
 # Compile the code examples on the resource-management pages
 
-Plain `scala` fences are never compiled by mdoc. This plan lists every plain fence on the six pages (line numbers on main `02856d333`) and what happens to it. Totals: 63 plain fences; about 22 convert, about 41 stay plain (signatures, sbt lines, pseudocode, deliberate errors that `mdoc:fail` cannot check on these pages).
+Plain `scala` fences are never compiled by mdoc. This plan lists every plain fence on the six pages (line numbers on main `02856d333`) and what happens to it. Totals: 63 plain fences before, 48 after (wire 17 to 8, resource 19 to 18, scope 18 to 13; the other three pages unchanged). The five deliberate-error fences stay plain: `mdoc:fail` also compiles the earlier `compile-only` blocks of the page, whose repeated names clash.
 
 Rules used: a bare signature listing (`def f[A](...): B` with no body, or a `trait` stub) stays plain; an sbt `libraryDependencies` line stays plain; a runnable example becomes `mdoc:compile-only` (self-contained) or `mdoc:silent` (later blocks reuse it); a deliberate compile error becomes `mdoc:fail` when the page allows it, else stays plain with the error named in prose.
 
