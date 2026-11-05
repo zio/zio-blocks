@@ -182,6 +182,18 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport hides the sql.zio package from sql examples and keeps the default for sql-zio") {
+      val fragPath = "sql/shared/src/main/scala/zio/blocks/sql/Frag.scala"
+      val relPath  = "sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala"
+      val zioPath  = "sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(fragPath) == "zio.blocks.sql.{zio => _, _}",
+        ScaladocSnippets.objectName(fragPath, 12) == "Snippet_sql_shared_scala_Frag_L12",
+        ScaladocSnippets.objectName(relPath, 3) == "Snippet_sql_shared_scala_query_Rel_L3",
+        ScaladocSnippets.moduleImport(zioPath) == "zio.blocks.sql.zio._",
+        ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==

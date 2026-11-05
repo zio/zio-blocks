@@ -81,9 +81,18 @@ object ScaladocSnippets {
    * `schema-avro` gives `zio.blocks.schema.avro._`. This holds only for a
    * module whose package follows its directory; see the comment on
    * `scaladocCheckedModules` in `build.sbt` for the ones that don't.
+   *
+   * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
+   * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
+   * scope as `zio`, so an example's own `import zio.blocks.schema._` would
+   * fail. Its examples get `zio.blocks.sql.{zio => _, _}` and compile as for a
+   * user without `sql-zio`.
    */
   def moduleImport(sourcePath: String): String =
-    "zio.blocks." + moduleOf(sourcePath).replace('-', '.') + "._"
+    moduleOf(sourcePath) match {
+      case "sql"  => "zio.blocks.sql.{zio => _, _}"
+      case module => "zio.blocks." + module.replace('-', '.') + "._"
+    }
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
