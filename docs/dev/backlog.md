@@ -744,9 +744,21 @@ Session `schema-formats-scaladoc` (Opus), started 2026-11-05 on `main` `ff63582e
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%.
 
-## 13h. Scaladoc: schema-toon, schema-xml and schema-yaml (in progress)
+## 13h. Scaladoc: schema-toon, schema-xml, schema-yaml
 
-Session `schema-text-formats-scaladoc` (Opus), started 2026-11-05 on `main` `a7014433f`. Phase 0: 184 / 542 (toon 37/202, xml 120/223, yaml 27/117); `--drift` empty; no jvm/js-specific sources; version copies are xml `syntax.scala` (`scala-2.12-2.13/`, `scala-3/`) and yaml `package.scala` (`scala-2/`, `scala-3/`), both picked per Scala version by the checker; 2 `{{{` blocks (xml `XmlBuilder`, `XmlSelection`); packages fit `moduleImport`, so the build change is three list entries; known bugs: toon 8, yaml 16, xml 0. Milad's Phase 1 decisions: one PR (tooling plus all three modules); tier 1 = toon `ToonFormat`, `ToonCodec`, `ToonCodecDeriver`, `ReaderConfig`, `WriterConfig`; xml `Xml`, `XmlCodec`, `XmlFormat`, `syntax`, `XmlSelection`, `XmlPatch`; yaml `Yaml`, `YamlCodec`, `YamlFormat`, `YamlOptions`, the `yaml"..."` interpolator; Scala.js: the `<module>JS/doc` gate, plus scala-cli Scala.js probes only for claims about number formatting. PR #1948 opened 2026-11-05 (main with #1942–#1946 merged in): 184 → 542 / 542, `--drift` empty, comments only; 31 bug entries filed (19 library bugs, 3 usability traps, 5 docs errors, 4 amendments).
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 schema-text-formats Scaladoc). Session `schema-text-formats-scaladoc` (Opus controller; three Opus writers in parallel, one per module, for tier 1 and the existing-comment fact-check; Sonnet for tier 2/3 gaps; three fresh Opus reviewers, one per module; Sonnet scoped re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = toon `ToonFormat`, `ToonCodec`, `ToonCodecDeriver`, `ReaderConfig`, `WriterConfig`; xml `Xml`, `XmlCodec`, `XmlFormat`, `syntax`, `XmlSelection`, `XmlPatch`; yaml `Yaml`, `YamlCodec`, `YamlFormat`, `YamlOptions`, the `yaml"..."` interpolator; Scala.js = `JS/doc` gate plus Scala.js probes for number-format claims; AGENTS.md diff and style-guide sentence approved.
+
+| Item | Result |
+|---|---|
+| PR | #1948 (one PR); CI green on the first run (23 pass, 10 skipping); awaiting Milad's merge |
+| Coverage | 184 / 542 → 542 / 542 (toon 37/202, xml 120/223, yaml 27/117 → 100% each); `--drift` empty (xml `syntax.scala` and yaml `package.scala` copies identical) |
+| Examples | 94 compiled `{{{` blocks (xml 46 incl. the 2 existing ones, one of which did not compile; yaml 23, one `// scala-3-only` for `yaml"..."`; toon 17 plus later edits); outputs from real runs on 2.13.18, 3.9.0 and 3.10.0 against 0.0.56 |
+| Tooling | three `scaladocCheckedModules` entries, one extractor test (version dirs `scala-2.12-2.13`/`scala-3` keep the `syntax.scala` wrappers apart), style-guide module list, two AGENTS.md lines (bullet + downstream row) |
+| Existing comments | 199 checked: 11 false and 48 imprecise (59, 30%), all fixed (xml 128: 6 + 18; toon 44: 3 + 19; yaml 27: 2 + 11); typical: span order in `XmlCodecError`/`YamlCodecError` reversed, `@xmlAttribute`/`@xmlNamespace` "work", `ArrayFormat.List` "forces list format", TOON config said to reach every codec |
+| Review (3 Opus, fresh, one per module, in parallel) | 10 Important + 27 Minor, all applied (xml 2 + 6, toon 7 + 10, yaml 1 + 11); 5 new bugs found by reviewers (toon N1–N4, xml attribute-only records) plus 1 xml and 1 yaml AMEND; Sonnet re-reviews of the fix diffs: 2 Important + 4 Minor more (xml 1 + 1, toon 1 + 1, yaml 0 + 2), applied; xml/toon round-2 diffs (3–5 sentences) approved by the controller |
+| Sonnet tier 2/3 | 166 comments (yaml 47, toon 119 in two parallel agents by file); few probes, and they drew most of the toon findings (5 of 7 Important: number output, header parsing, quoted keys, map keys, type members) plus 3 yaml Minor |
+| Bugs | 31 entries: 19 new Library bugs, 4 AMENDs, 3 Usability traps (`library-issues.md`), 5 Documentation errors (`toon.md`, `xml.md`, `yaml.md`; `docs-issues.md`) |
+| Time | about 4 h 05 min of active work from survey to PR (two stops: a login error 13:35–15:55 and a machine shutdown), plus about 30 min of CI. Phase 0/1 + spec 45 min; parallel Opus writers 20–23 min; Sonnet gaps 2 min each; reviews 19–20 min; fix rounds 3–8 min; re-reviews 2–4 min; gates about 45 min of sbt in memory-gated chunks |
 
 ## 13i. Scaladoc: html module
 
