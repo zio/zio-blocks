@@ -450,8 +450,8 @@ final class ToonReader private[toon] (
    * empty or non-numeric length fails with `Empty array length` or
    * `Invalid array length: <text>`. Two known bugs: a tab after the length, as
    * in `[2\t]`, is trimmed away, so the header reads as comma-delimited; and on
-   * an indented line, such as the list item `- [1]: 3`, a valid header can fail
-   * with `Expected : after array header`.
+   * an indented line, such as `  k[2]:`, a valid header can fail with
+   * `Expected : after array header`.
    *
    * @param isInline
    *   when `true`, stays on the line just after the colon so that inline values

@@ -24,9 +24,11 @@ package zio.blocks.schema.toon
  * Every format writes the length in the header. A record field decodes from any
  * of the three forms whatever the setting, but a top-level sequence decodes
  * only from the form its own setting writes, a known bug. A sequence of
- * sequences, such as `List[List[Int]]`, cannot be decoded, another known bug.
- * The `DynamicValue` codec ignores this setting and picks the form from the
- * elements.
+ * sequences, such as `List[List[Int]]`, cannot be decoded with the default
+ * strict `ReaderConfig`, another known bug; with strict mode off it decodes
+ * only when every inner list is long enough (a short one, such as `[1]: 3`,
+ * fails), and never with [[ArrayFormat.List]]. The `DynamicValue` codec ignores
+ * this setting and picks the form from the elements.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
