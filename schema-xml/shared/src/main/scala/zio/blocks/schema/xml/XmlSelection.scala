@@ -37,8 +37,7 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaErro
  * The selection can contain zero, one, or multiple XML values, supporting both
  * single-value navigation and multi-value queries. Each navigation step applies
  * to every selected value. A step that finds nothing gives an empty selection,
- * not a failure; the terminal operations (`one`, `any`, `text`, ...) turn that
- * into a `Left`.
+ * not a failure; `one`, `any`, `all` and `text` turn that into a `Left`.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
