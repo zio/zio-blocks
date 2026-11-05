@@ -231,8 +231,9 @@ object MaybeValue {
 
     /**
      * Returns a present `Maybe` of `f` applied to the value, or an absent one
-     * if this `Maybe` is absent. The result is present even when `f` returns
-     * `null`.
+     * if this `Maybe` is absent; on the view that `withFilter` returns, a value
+     * that fails the view's predicate counts as absent. The result is present
+     * even when `f` returns `null`.
      *
      * {{{
      * val timeoutSeconds: Maybe[Int] = Maybe.present(5)
@@ -247,7 +248,9 @@ object MaybeValue {
 
     /**
      * Returns `f` applied to the value, or an absent `Maybe` if this `Maybe` is
-     * absent. Use it to chain steps that can each produce no value.
+     * absent; on the view that `withFilter` returns, a value that fails the
+     * view's predicate counts as absent. Use it to chain steps that can each
+     * produce no value.
      *
      * {{{
      * def parsePort(s: String): Maybe[Int] = Maybe.fromOption(s.toIntOption)
@@ -275,7 +278,8 @@ object MaybeValue {
 
     /**
      * Runs `f` on the value if this `Maybe` is present, and does nothing
-     * otherwise.
+     * otherwise; on the view that `withFilter` returns, a value that fails the
+     * view's predicate counts as absent.
      */
     @inline def foreach[U](f: A => U): Unit =
       self match {
@@ -349,9 +353,10 @@ object MaybeValue {
       }
 
     /**
-     * Returns a view of this `Maybe` filtered by `p`, so that a
-     * for-comprehension can use an `if` guard. Mapping the view gives the same
-     * result as `filter(p)` followed by the same call.
+     * Returns a view filtered by the given predicate, so that a
+     * for-comprehension can use an `if` guard; on a view, the result keeps the
+     * view's predicate too. `map`, `flatMap` and `foreach` on the view give the
+     * same result as on the `Maybe` filtered by the predicates.
      *
      * {{{
      * val port: Maybe[Int] = Maybe.present(8080)
@@ -429,16 +434,56 @@ object MaybeValue {
    */
   final class MaybeWithFilter[A](self: zio.blocks.maybe.Maybe[A], predicate: A => Boolean) {
 
-    /** Returns the filtered `Maybe` mapped with `f`. */
+    /**
+     * Returns a present `Maybe` of `f` applied to the value, or an absent one
+     * if this `Maybe` is absent; on the view that `withFilter` returns, a value
+     * that fails the view's predicate counts as absent. The result is present
+     * even when `f` returns `null`.
+     *
+     * {{{
+     * val timeoutSeconds: Maybe[Int] = Maybe.present(5)
+     * timeoutSeconds.map(_ * 1000).toOption // Some(5000)
+     * }}}
+     */
     def map[B](f: A => B): zio.blocks.maybe.Maybe[B] = self.filter(predicate).map(f)
 
-    /** Returns the filtered `Maybe` flat-mapped with `f`. */
+    /**
+     * Returns `f` applied to the value, or an absent `Maybe` if this `Maybe` is
+     * absent; on the view that `withFilter` returns, a value that fails the
+     * view's predicate counts as absent. Use it to chain steps that can each
+     * produce no value.
+     *
+     * {{{
+     * def parsePort(s: String): Maybe[Int] = Maybe.fromOption(s.toIntOption)
+     *
+     * Maybe.present("8080").flatMap(parsePort).toOption // Some(8080)
+     * Maybe.present("http").flatMap(parsePort).isAbsent // true
+     * }}}
+     */
     def flatMap[B](f: A => zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[B] = self.filter(predicate).flatMap(f)
 
-    /** Runs `f` on the value if it is present and passes the predicate. */
+    /**
+     * Runs `f` on the value if this `Maybe` is present, and does nothing
+     * otherwise; on the view that `withFilter` returns, a value that fails the
+     * view's predicate counts as absent.
+     */
     def foreach[U](f: A => U): Unit = self.filter(predicate).foreach(f)
 
-    /** Returns a view filtered by both the current predicate and `q`. */
+    /**
+     * Returns a view filtered by the given predicate, so that a
+     * for-comprehension can use an `if` guard; on a view, the result keeps the
+     * view's predicate too. `map`, `flatMap` and `foreach` on the view give the
+     * same result as on the `Maybe` filtered by the predicates.
+     *
+     * {{{
+     * val port: Maybe[Int] = Maybe.present(8080)
+     * val unprivileged = for {
+     *   p <- port
+     *   if p >= 1024
+     * } yield p
+     * unprivileged.toOption // Some(8080)
+     * }}}
+     */
     def withFilter(q: A => Boolean): MaybeWithFilter[A] = new MaybeWithFilter[A](self, x => predicate(x) && q(x))
   }
 }
