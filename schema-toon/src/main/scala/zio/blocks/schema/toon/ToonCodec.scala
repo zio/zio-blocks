@@ -510,8 +510,7 @@ object ToonCodec {
   }
 
   /**
-   * The codec for `Boolean`, written as `true` or `false`. It also writes and
-   * reads map keys.
+   * The codec for `Boolean`, written as `true` or `false`.
    */
   val booleanCodec: ToonCodec[Boolean] = new ToonCodec[Boolean] {
     def decodeValue(in: ToonReader): Boolean = {
@@ -528,7 +527,7 @@ object ToonCodec {
 
   /**
    * The codec for `Byte`, written as a decimal integer. Decoding fails for a
-   * value outside the `Byte` range.
+   * value outside the `Byte` range (`decodeKey` wraps such a value instead).
    */
   val byteCodec: ToonCodec[Byte] = new ToonCodec[Byte] {
     def decodeValue(in: ToonReader): Byte = {
@@ -586,8 +585,10 @@ object ToonCodec {
   }
 
   /**
-   * The codec for `Float`, written as a decimal number. A whole value has no
-   * fraction, and `NaN` is written as `null`.
+   * The codec for `Float`, written as a decimal number without an exponent. A
+   * whole value has no fraction; `NaN` and the infinities are written as
+   * `null`, which decodes as `NaN`. A known bug: a small negative value, such
+   * as `-1.0E-5f`, is written as `0.000-1`, which fails to decode.
    */
   val floatCodec: ToonCodec[Float] = new ToonCodec[Float] {
     def decodeValue(in: ToonReader): Float = {
@@ -603,8 +604,11 @@ object ToonCodec {
   }
 
   /**
-   * The codec for `Double`, written as a decimal number. A whole value has no
-   * fraction, so `2.0` is written as `2`, and `NaN` is written as `null`.
+   * The codec for `Double`, written as a decimal number without an exponent. A
+   * whole value has no fraction, so `2.0` is written as `2`; `NaN` and the
+   * infinities are written as `null`, which decodes as `NaN`. A known bug: a
+   * negative value closer to zero than `-0.001`, such as `-0.0004`, is written
+   * as `0.00-4`, which fails to decode.
    */
   val doubleCodec: ToonCodec[Double] = new ToonCodec[Double] {
     def decodeValue(in: ToonReader): Double = {
@@ -676,7 +680,9 @@ object ToonCodec {
 
   /**
    * The codec for `BigDecimal`, written as a decimal number without trailing
-   * zeros, so `12.50` is written as `12.5`.
+   * zeros, so `12.50` is written as `12.5`. A known bug: some negative values
+   * close to zero, such as `BigDecimal("-1E-10")`, are written as
+   * `0.00000000-1`, which fails to decode.
    */
   val bigDecimalCodec: ToonCodec[BigDecimal] = new ToonCodec[BigDecimal] {
     def decodeValue(in: ToonReader): BigDecimal = {
@@ -880,8 +886,8 @@ object ToonCodec {
   }
 
   /**
-   * The codec for `java.time.ZoneOffset`, written as a quoted offset id, such
-   * as `"+02:00"`.
+   * The codec for `java.time.ZoneOffset`, written as its offset id, such as
+   * `Z`, or `"+02:00"`, which is quoted because of the colon.
    */
   val zoneOffsetCodec: ToonCodec[ZoneOffset] = new ToonCodec[ZoneOffset] {
     def decodeValue(in: ToonReader): ZoneOffset = {
@@ -944,14 +950,16 @@ object ToonCodec {
    * Decoding infers each scalar's type: `null`, `true` and `false`; a number
    * with a whole value (`2.0` too) as `Int` or `Long`, or `BigInt` when an
    * integer is too large for `Long`; another number as a `BigDecimal` parsed
-   * through `Double`, so digits beyond its precision are lost; anything else,
-   * including numbers with leading zeros such as `007`, as a `String`. Without
-   * a discriminator field it reads every record back as a record, so a variant
-   * written with the default [[WriterConfig]] comes back as a record with one
-   * field named after the case. That is why a `DynamicSchema` written as TOON
-   * reads back as a schema that accepts any value, a known bug. Another known
-   * bug: it does not check the length in an array header, so input with fewer
-   * or more elements than the header says decodes without an error.
+   * through `Double`, so digits beyond its precision are lost (a negative
+   * number close to zero, such as `-0.0004`, comes back as the string `0.00-4`,
+   * a known bug); anything else, including numbers with leading zeros such as
+   * `007`, as a `String`. Without a discriminator field it reads every record
+   * back as a record, so a variant written with the default [[WriterConfig]]
+   * comes back as a record with one field named after the case. That is why a
+   * `DynamicSchema` written as TOON reads back as a schema that accepts any
+   * value, a known bug. Another known bug: it does not check the length in an
+   * array header, so input with fewer or more elements than the header says
+   * decodes without an error.
    */
   val dynamicValueCodec: ToonCodec[DynamicValue] = new ToonCodec[DynamicValue] {
     private[this] val falseValue = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))

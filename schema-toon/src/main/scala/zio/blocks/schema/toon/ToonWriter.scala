@@ -183,7 +183,9 @@ final class ToonWriter private (
 
   /**
    * Writes `x` in plain decimal notation without an exponent or trailing zeros.
-   * A zero is written as `0`; `NaN` and the infinities are written as `null`.
+   * A zero is written as `0`; `NaN` and the infinities are written as `null`. A
+   * known bug: a small negative value, such as `-1.0E-5f`, is written with the
+   * minus sign inside the digits (`0.000-1`), which cannot be read back.
    */
   def writeFloat(x: Float): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
@@ -192,7 +194,10 @@ final class ToonWriter private (
 
   /**
    * Writes `x` in plain decimal notation without an exponent or trailing zeros.
-   * A zero is written as `0`; `NaN` and the infinities are written as `null`.
+   * A zero is written as `0`; `NaN` and the infinities are written as `null`. A
+   * known bug: a negative value closer to zero than `-0.001`, such as
+   * `-0.0004`, is written with the minus sign inside the digits (`0.00-4`),
+   * which cannot be read back.
    */
   def writeDouble(x: Double): Unit =
     if (x.isNaN || x.isInfinite) writeNull()
@@ -201,6 +206,9 @@ final class ToonWriter private (
 
   /**
    * Writes `x` in plain decimal notation without an exponent or trailing zeros.
+   * A known bug: some negative values close to zero, such as
+   * `BigDecimal("-1E-10")`, are written with the minus sign inside the digits
+   * (`0.00000000-1`), which cannot be read back.
    */
   def writeBigDecimal(x: BigDecimal): Unit = writeDecimalString(JsonCodec.bigDecimalCodec.encodeToString(x))
 
@@ -284,8 +292,8 @@ final class ToonWriter private (
    * Writes an array header such as `key[length]{a,b}:`. A `null` key or
    * `fields` omits that part, and a delimiter other than a comma is written
    * inside the brackets after the length and between the field names. A key or
-   * field name that is not a valid unquoted key (letters, digits, underscores
-   * and dots, not starting with a digit or dot) is quoted.
+   * field name that is not a valid unquoted key (ASCII letters, digits,
+   * underscores and dots, not starting with a digit or dot) is quoted.
    *
    * @param key
    *   the key before the bracket, or `null` for none
