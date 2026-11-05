@@ -18,7 +18,10 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
-/** Typeclass for converting values to sequences of DOM elements. */
+/**
+ * Converts a value to the nodes it adds in a content position of `html"..."`:
+ * zero, one or several [[Dom]] nodes.
+ */
 trait ToElements[-A] {
 
   /**

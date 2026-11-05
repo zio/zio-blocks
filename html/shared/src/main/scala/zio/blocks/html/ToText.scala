@@ -16,13 +16,14 @@
 
 package zio.blocks.html
 
-/** Typeclass for converting values to plain text strings. */
+/**
+ * Converts a value to plain text, without escaping. Nothing else in the module
+ * uses it: the DSL takes values through [[ToModifier]] and `html"..."` through
+ * [[ToElements]].
+ */
 trait ToText[-A] {
 
-  /**
-   * Converts the value to plain text, without escaping, for the text positions
-   * of the DSL.
-   */
+  /** Converts the value to plain text, without escaping. */
   def toText(a: A): String
 }
 

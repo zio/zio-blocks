@@ -17,29 +17,13 @@
 package zio.blocks.html
 
 /**
- * Typeclass for values that can be safely interpolated into JavaScript via
- * `js"..."`.
- *
- * This is a '''templating''' typeclass, not a code generator. It converts Scala
- * values into JavaScript '''expressions''' (value literals). Every JavaScript
- * expression is also a valid statement, so `ToJs` output works in all template
- * contexts: inline event handlers, script content, and variable assignments.
- * For JavaScript control flow (`if`/`for`/`while`), use `Js("...")` directly.
- *
- * Instance behavior:
- *   - `String` is quoted with `"` and JS-escaped (including `</script>`
- *     protection)
- *   - Numeric types render as unquoted literals
- *   - `Boolean` renders as `true`/`false`
- *   - `Option` renders as the value or `null`
- *   - `List`/`Map` render as JSON arrays/objects
- *   - Types with a [[zio.blocks.schema.Schema]] auto-derive via JSON
- *     serialization
- */
-
-/**
- * Converts the value to JavaScript source text, such as a literal or a
- * JSON-like structure.
+ * Converts a value to a JavaScript expression for `js"..."`, such as a literal
+ * or a JSON-like structure. The instances quote and escape a `String` (so it
+ * cannot close a `<script>` element), write numbers and booleans as literals,
+ * `None` as `null`, `Unit` as `undefined`, a `List` as an array and a
+ * `Map[String, V]` as an object, and fall back to the JSON encoding for a type
+ * with a [[zio.blocks.schema.Schema]]. For control flow (`if`, `for`), write
+ * the code as `Js("...")` instead.
  */
 trait ToJs[-A] {
 

@@ -17,8 +17,10 @@
 package zio.blocks.html
 
 /**
- * Typeclass for converting values to HTML attribute values with proper
- * escaping.
+ * Converts a value to attribute text for the attribute positions of
+ * `html"..."`. The `String`, `Char`, [[Js]] and [[Css]] instances HTML-escape
+ * the text. The interpolator then parses the text back and rendering escapes it
+ * again, so an `&` in a value renders as `&amp;amp;`, which is a known bug.
  */
 trait ToAttrValue[-A] {
 

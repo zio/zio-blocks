@@ -229,8 +229,8 @@ object ToModifier {
   }
 
   /**
-   * Applies a sequence of DomModifiers to an element. Used by macros as runtime
-   * helper.
+   * Applies a sequence of modifiers to an element in one pass. Used by
+   * `Dom.Element#whenSome`.
    */
   private[html] def buildFromEffects(element: Dom.Element, effects: Seq[DomModifier]): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]

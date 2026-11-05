@@ -19,11 +19,11 @@ package zio.blocks.html
 import zio.blocks.chunk.Chunk
 
 /**
- * Typeclass for values that can be converted to a [[Dom]] node.
- *
- * Similar to [[ToCss]] and [[ToJs]], `ToDom` provides a uniform way to convert
- * Scala values into DOM representations. Primitive types are converted to
- * [[Dom.Text]] nodes, while [[Dom]] values pass through unchanged.
+ * Converts a value to a single [[Dom]] node: a primitive becomes a
+ * [[Dom.Text]], a [[Dom]] value is kept, `None` becomes [[Dom.Empty]], and an
+ * iterable with several items is wrapped in a `<span>`. Nothing else in the
+ * module uses it: the DSL takes values through [[ToModifier]] and `html"..."`
+ * through [[ToElements]].
  *
  * @tparam A
  *   the input type to convert

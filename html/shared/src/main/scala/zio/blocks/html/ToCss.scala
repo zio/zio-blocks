@@ -17,8 +17,8 @@
 package zio.blocks.html
 
 /**
- * Typeclass for converting values to CSS strings for use in `css"..."` and
- * `selector"..."` interpolators.
+ * Converts a value to CSS text for the values interpolated into `css"..."` and
+ * `selector"..."`, and for the value of `Css.Declaration(property, value)`.
  */
 trait ToCss[-A] {
 
@@ -173,7 +173,7 @@ object CssLength {
   }
 }
 
-/** A CSS color value (hex, RGB, HSL, or named color). */
+/** A CSS color value: hex, RGB, RGBA, HSL or a named color. */
 sealed trait CssColor extends Product with Serializable {
 
   /** Renders the color as CSS text. */
@@ -199,7 +199,9 @@ object CssColor {
 
     /**
      * Accepts three to eight hexadecimal digits, with or without a leading `#`,
-     * and lowercases them. Returns `None` for any other text.
+     * and lowercases them. Returns `None` for any other text. Five and seven
+     * digits are accepted too, although CSS accepts only three, four, six or
+     * eight, which is a known bug.
      */
     def apply(value: String): Option[CssColor] = {
       val v = if (value.startsWith("#")) value.drop(1) else value
