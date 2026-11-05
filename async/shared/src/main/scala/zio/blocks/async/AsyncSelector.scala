@@ -19,17 +19,37 @@ package zio.blocks.async
 import scala.collection.mutable.ListBuffer
 
 /**
- * A repeatable, round-robin selector for independently pending computations.
+ * A repeatable wait on a fixed number of slots, each holding a pending
+ * computation: `select` returns the next slot whose computation has completed,
+ * with its value, and disarms it; `replace` arms that slot with its next
+ * computation. It is a low-level building block for loops that keep N
+ * computations in flight; the streams operators `mapPar` and `mergeAll` build
+ * on it. Create one with `Async.selector`.
  *
- * Eligibility means that a slot is armed (initially, or by [[replace]]) and its
- * computation has completed. Among eligible slots selection scans cyclically
- * from the slot after the previous winner. Consequently a continuously eligible
- * slot wins within at most `armedCount` successful selections.
+ * A slot is eligible when it is armed and its computation has completed.
+ * Selection scans the slots cyclically from the one after the previous winner,
+ * so a slot that stays eligible wins within as many successful selections as
+ * there are armed slots. The selector keeps one waker per armed slot for as
+ * long as it stays armed, rather than registering new callbacks on every call
+ * to `select`. A winning slot is disarmed atomically and cannot win twice.
+ * `shutdown` cancels the slots still armed and completes only when their
+ * cleanup has finished.
  *
- * The selector registers one stable waker per armed slot, rather than a new
- * loser waker per call to [[select]]. A winning slot is disarmed atomically and
- * cannot win twice. [[shutdown]] is idempotent and does not finish until
- * cleanup for every still-armed loser has finished.
+ * {{{
+ * def fetchPrice(service: String): Async[Int] = Async.succeed(service.length * 10)
+ *
+ * val services = Vector("quotes-a", "quotes-bb")
+ * val selector: AsyncSelector[Int] = Async.selector(services.map(fetchPrice))
+ *
+ * val (first, price) = selector.select.block // (0,80)
+ * selector.replace(first, fetchPrice(services(first)))
+ * selector.select.block // (1,90)
+ *
+ * selector.shutdown.block // cancels the slot still armed
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#asyncselector AsyncSelector]]
  */
 final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, Async[A])]) extends Cancelable {
   private final class Slot(val index: Int) {
@@ -56,10 +76,28 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
 
   initial.foreach { case (index, value) => install(index, value) }
 
-  /** Number of slots, including currently disarmed slots. */
+  /** The number of slots, armed or not; fixed when the selector is created. */
   def size: Int = slots.length
 
-  /** Arm a disarmed slot with its next computation. */
+  /**
+   * Arms the disarmed slot `index` with its next computation. `value` is
+   * by-name and is evaluated later, on the next `select` that reaches the slot,
+   * outside the selector's lock; a `value` that returns `null` makes that
+   * `select` fail with a `NullPointerException`.
+   *
+   * {{{
+   * val selector = Async.selector(Vector(Async.succeed(1200), Async.succeed(1300)))
+   * val (slot, total) = selector.select.block // (0,1200)
+   * selector.replace(slot, Async.succeed(total + 50))
+   * selector.select.block // (1,1300)
+   * selector.select.block // (0,1250)
+   * }}}
+   *
+   * @throws java.lang.IllegalStateException
+   *   if the slot is still armed, or the selector has been shut down
+   * @throws java.lang.IndexOutOfBoundsException
+   *   if `index` is not a slot index
+   */
   def replace(index: Int, value: => Async[A]): Unit = {
     checkIndex(index)
     val wake = synchronized {
@@ -89,7 +127,19 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
     if (wake) scheduleWakeSelectors()
   }
 
-  /** Wait for and remove the next winner, returning its slot and value. */
+  /**
+   * Waits for the next eligible slot, disarms it, and returns its index and
+   * value. If that slot's computation failed, the `select` fails with the same
+   * cause, and the slot is disarmed. After `shutdown`, `select` fails with
+   * `IllegalStateException("selector is closed")`. With no slot armed, it waits
+   * until one is armed and completes.
+   *
+   * {{{
+   * val selector = Async.selector(Vector(Async.fail(new RuntimeException("quote service down")), Async.succeed(42)))
+   * selector.select.either.block // Left(java.lang.RuntimeException: quote service down)
+   * selector.select.either.block // Right((1,42))
+   * }}}
+   */
   def select: Async[(Int, A)] = new Selection[(Int, A)](() => true, null, 1)
 
   /**
@@ -124,7 +174,18 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
     selection.pollInitial()
   }
 
-  /** Cancel all armed inputs and join all cleanup. Idempotent. */
+  /**
+   * Closes the selector: cancels the computations still armed (see
+   * [[Pollable.cancel]]) and returns an `Async` that completes when their
+   * cleanup has finished, or fails with a cleanup failure. Every call returns
+   * the same `Async`. Afterwards `select` fails and `replace` throws.
+   *
+   * {{{
+   * val selector = Async.selector(Vector[Async[Int]](Async.never))
+   * selector.shutdown.block // (), after cancelling the armed slot
+   * selector.select.either.block // Left(java.lang.IllegalStateException: selector is closed)
+   * }}}
+   */
   def shutdown: Async[Unit] = {
     val claimed: (Completer[Unit], List[Async[Unit]], List[Runnable]) = synchronized {
       if (closeEffect.asInstanceOf[AnyRef] ne null) return closeEffect
@@ -183,6 +244,7 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
     claimed._1
   }
 
+  /** Starts `shutdown` and returns without waiting for its cleanup. */
   override def cancel(): Unit = { shutdown.start; () }
 
   private final class DeferredInput(thunk: () => Async[A]) extends Pollable[A] {
@@ -476,6 +538,7 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
   }
 }
 
+/** Companion of [[AsyncSelector]]; create a selector with `Async.selector`. */
 object AsyncSelector {
   private[blocks] trait ReadyHandler[-A] {
     def apply(index: Int, value: A): Boolean

@@ -17,24 +17,36 @@
 package zio.blocks.async
 
 /**
- * Failure outcome of an [[Async]]. Constructed via [[Async.fail]] (or by
- * [[Completer.fail]], or captured from thrown code by [[Async.attempt]]);
- * recovered via the `.catchAll` / `.mapError` / `.orElse` extensions or
- * surfaced as a thrown `Throwable` by `.block`.
+ * The representation of a failed [[Async]]: a [[Pollable]] that is already
+ * finished, carrying its `cause`. `Async.fail`, `Completer#fail` and a throw
+ * inside `Async.attempt` produce one. `map`, `flatMap` and `zipWith` pass it on
+ * without calling their functions; `catchAll`, `orElse`, `either` and
+ * `foldCause` recover it, `mapError` replaces its cause, and `block` throws the
+ * cause.
  *
- * A failure is terminal: once an [[Async]] has failed, it stays failed with the
- * same `cause` unless a handler such as `.catchAll` recovers it.
+ * A throw inside a function passed to `map` or `flatMap` is not caught by a
+ * later `catchAll` or `either` in the same chain. On a ready value it escapes
+ * at the call site; on a pending value it escapes from the driver: `block`
+ * throws it, and a run started with `start` fails with it. Wrap throwing code
+ * in `Async.attempt` to turn it into a failure the chain can recover.
  *
- * NOTE: errors thrown by user code inside `.map(f)` / `.flatMap(f)` are NOT
- * captured — `Async` is eager, so a `throw` in `f` escapes through the call
- * site before any later `.catchAll` runs. To convert thrown exceptions into a
- * Failure, wrap the work in [[Async.attempt]].
+ * {{{
+ * val timeout: Async[Int] = Async.fail(new java.util.concurrent.TimeoutException("quote service"))
+ * timeout.either.block // Left(java.util.concurrent.TimeoutException: quote service)
+ *
+ * val parsed: Async[Int] = Async.succeed("8o80").flatMap(s => Async.attempt(s.toInt))
+ * parsed.catchAll(_ => Async.succeed(8080)).block // 8080
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#failure Failure]]
  */
 final class Failure private (val cause: Throwable, private[async] val trusted: Boolean) extends Pollable[Nothing] {
 
   /** Public construction is deliberately an ordinary, untrusted failure. */
   def this(cause: Throwable) = this(cause, false)
 
+  /** Returns this failure; it never registers `onComplete`. */
   def poll(onComplete: Runnable): Async[Nothing] = this
 }
 
