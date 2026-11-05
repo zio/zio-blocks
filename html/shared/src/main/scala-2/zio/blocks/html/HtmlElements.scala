@@ -20,28 +20,36 @@ import zio.blocks.chunk.Chunk
 
 import scala.language.implicitConversions
 
-/** Argument accepted by the Scala 2 `script(...)` element constructor. */
+/**
+ * Argument accepted by the Scala 2 `script(...)` factory: a [[Dom.Attribute]]
+ * or [[Js]] code. Implicit conversions in the companion wrap either one, so you
+ * pass the attribute or the code directly.
+ */
 sealed trait ScriptArg
 object ScriptArg {
 
   /** Adds an HTML attribute to the `script` element. */
   final case class Attribute(value: Dom.Attribute) extends ScriptArg
 
-  /** Adds typed inline JavaScript to the `script` element body. */
+  /** Adds [[Js]] code to the `script` element body. */
   final case class Source(value: Js) extends ScriptArg
 
   implicit def fromAttribute(attribute: Dom.Attribute): ScriptArg = Attribute(attribute)
   implicit def fromJs(js: Js): ScriptArg                          = Source(js)
 }
 
-/** Argument accepted by the Scala 2 `style(...)` element constructor. */
+/**
+ * Argument accepted by the Scala 2 `style(...)` factory: a [[Dom.Attribute]] or
+ * a [[Css]] value. Implicit conversions in the companion wrap either one, so
+ * you pass the attribute or the CSS directly.
+ */
 sealed trait StyleArg
 object StyleArg {
 
   /** Adds an HTML attribute to the `style` element. */
   final case class Attribute(value: Dom.Attribute) extends StyleArg
 
-  /** Adds typed inline CSS to the `style` element body. */
+  /** Adds the rendered [[Css]] to the `style` element body. */
   final case class Source(value: Css) extends StyleArg
 
   implicit def fromAttribute(attribute: Dom.Attribute): StyleArg = Attribute(attribute)
@@ -50,7 +58,8 @@ object StyleArg {
 
 /**
  * Argument accepted by the Scala 2 `ul(...)` and `ol(...)` factories: either an
- * HTML attribute or a `<li>` list item (the only permitted element child).
+ * HTML attribute or a `<li>` item, the only element child these factories
+ * accept.
  */
 sealed trait ListArg
 object ListArg {
@@ -67,7 +76,7 @@ object ListArg {
 
 /**
  * Argument accepted by the Scala 2 `tr(...)` factory: either an HTML attribute
- * or a table cell (`<th>`/`<td>`, the only permitted children).
+ * or a `<th>` or `<td>` cell, the only element children this factory accepts.
  */
 sealed trait CellArg
 object CellArg {
@@ -118,7 +127,7 @@ object SelectArg {
 
 /**
  * Argument accepted by the Scala 2 `optgroup(...)` factory: either an HTML
- * attribute or an `<option>` (the only permitted element child).
+ * attribute or an `<option>`, the only element child this factory accepts.
  */
 sealed trait OptgroupArg
 object OptgroupArg {
@@ -133,6 +142,43 @@ object OptgroupArg {
   implicit def fromOpt(option: Dom.Element.Opt): OptgroupArg        = Option(option)
 }
 
+/**
+ * The HTML DSL: a value or factory for each HTML tag (`div`, `p`, `a`, `img`,
+ * ...), keys for common attributes (`id`, `className`, `href`, `disabled`, ...)
+ * and the helpers `attr`, `dataAttr`, `aria` and `multiAttr`. The
+ * `zio.blocks.html` package object mixes this trait in, so
+ * `import zio.blocks.html._` brings every member into scope.
+ *
+ * Most tags are [[Dom.Element]] values. Apply one to modifiers to add
+ * attributes and children: attributes, strings (escaped when rendered), other
+ * nodes, numbers, and `Option` values or collections of them. Void tags (`br`,
+ * `hr`, `img`, `input`, `link`, `meta`, ...) are [[Dom.Element.Void]] values
+ * and accept attributes only. `script` takes attributes and [[Js]] code, and
+ * `style` takes attributes and [[Css]].
+ *
+ * Some factories check their children against the HTML content model: `ul` and
+ * `ol` take `li(...)` items, `tr` takes `th(...)` and `td(...)` cells, `table`
+ * takes `tr(...)` rows, `select` takes `option(...)` and `optgroup(...)`, and
+ * `optgroup` takes `option(...)`. The check covers the factory call only:
+ * applying the result to more modifiers, as in `ul(li("Tea"))(div("Ad"))`,
+ * compiles and adds any child.
+ *
+ * {{{
+ * val nav = div(className := "nav", ul(li(a(href := "/", "Home")), li(a(href := "/cart", "Cart (2)"))))
+ * nav.render
+ * // <div class="nav"><ul><li><a href="/">Home</a></li><li><a href="/cart">Cart (2)</a></li></ul></div>
+ * }}}
+ *
+ * The names are short, so some clash with other imports: `span` with
+ * `scala.concurrent.duration._`, `main` with a `def main` method in the same
+ * object, and tag values such as `search`, `title`, `select` or `label` with
+ * your own helpers of the same name. Import such helpers by name, or qualify
+ * the tag (`zio.blocks.html.main`). On Scala 3, `p(...)` is ambiguous when
+ * `zio.blocks.schema._` is imported too, which is a known bug.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/html/#the-html-dsl HTML DSL]]
+ */
 trait HtmlElements {
 
   // --- Element constructors ---
@@ -332,16 +378,22 @@ trait HtmlElements {
   val s: Dom.Element          = Dom.Element.Generic("s", Chunk.empty, Chunk.empty)
   val samp: Dom.Element       = Dom.Element.Generic("samp", Chunk.empty, Chunk.empty)
 
-  /** Creates an empty `script` element. */
+  /**
+   * Creates an empty `script` element. Add code with
+   * [[Dom.Element.Script#inlineJs]] or a source URL with
+   * [[Dom.Element.Script#externalJs]].
+   */
   def script(): Dom.Element.Script = elScript(Seq.empty)
 
   /**
-   * Creates a `script` element from attributes and typed JavaScript fragments.
+   * Creates a `script` element from attributes and [[Js]] code. Each [[Js]]
+   * value becomes a text child that is not HTML-escaped when rendered;
+   * rendering only rewrites `</` as `<\/`, so the code cannot close the element
+   * early.
    *
-   * Plain strings are intentionally not accepted. Use [[Js]] values for inline
-   * JavaScript so script content is explicit and cannot be confused with normal
-   * child text or other DOM modifiers. `Js.Raw` content is emitted verbatim, so
-   * only trusted JavaScript should be passed to it.
+   * A plain `String` does not compile here. Build code with `js"..."`, which
+   * quotes and escapes interpolated values, and pass only trusted text to
+   * `Js(...)`.
    */
   def script(effect: ScriptArg, effects: ScriptArg*): Dom.Element.Script = elScript(effect +: effects)
   val search: Dom.Element                                                = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
@@ -351,17 +403,19 @@ trait HtmlElements {
   val source: Dom.Element.Void                                           = Dom.Element.VoidGeneric("source", Chunk.empty)
   val strong: Dom.Element                                                = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
 
-  /** Creates an empty `style` element. */
+  /**
+   * Creates an empty `style` element. Add a stylesheet with
+   * [[Dom.Element.Style#inlineCss]].
+   */
   def style(): Dom.Element.Style = elStyle(Seq.empty)
 
   /**
-   * Creates a `style` element from attributes and typed CSS fragments.
+   * Creates a `style` element from attributes and [[Css]] values. Each [[Css]]
+   * value is rendered with `render` and added as a text child that is not
+   * HTML-escaped when rendered; rendering only rewrites `</` as `<\/`.
    *
-   * Plain strings are intentionally not accepted. Use [[Css]] values for inline
-   * stylesheets so CSS content is explicit and cannot be confused with normal
-   * child text or other DOM modifiers. Raw CSS is emitted according to the
-   * chosen [[Css]] constructor, so untrusted input must not be passed to raw
-   * CSS.
+   * A plain `String` does not compile here. `Css.Raw` text is used as written,
+   * so pass only trusted CSS to it.
    */
   def style(effect: StyleArg, effects: StyleArg*): Dom.Element.Style = elStyle(effect +: effects)
   val sub: Dom.Element                                               = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
@@ -383,14 +437,13 @@ trait HtmlElements {
   val wbr: Dom.Element.Void                                          = Dom.Element.VoidGeneric("wbr", Chunk.empty)
   def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
-  /** Creates an empty `<li>` element, returning `Li`. */
+  /** Creates an empty `<li>` element, typed [[Dom.Element.Li]]. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<li>` element from attributes and children, returning `Li`.
-   *
-   * The HTML content model of `<li>` permits flow content, so any modifier
-   * values are accepted.
+   * Creates a `<li>` element from attributes and children, typed
+   * [[Dom.Element.Li]] so that `ul(...)` and `ol(...)` accept it. Any modifier
+   * is accepted.
    */
   def li(effect: DomModifier, effects: DomModifier*): Dom.Element.Li =
     Dom.Element.LiElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
@@ -399,16 +452,14 @@ trait HtmlElements {
   def ul(): Dom.Element = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<ul>` element from attributes and `<li>` children.
-   *
-   * The HTML content model of `<ul>` permits only `<li>` element children, so
-   * the child arguments are restricted to [[Dom.Element.Li]] at compile time;
-   * [[Dom.Attribute]] values are accepted alongside them.
+   * Creates a `<ul>` element from attributes and `<li>` items. Child arguments
+   * must be `li(...)` values ([[Dom.Element.Li]]); any other element does not
+   * compile.
    */
   def ul(effect: ListArg, effects: ListArg*): Dom.Element =
     elFromListArgs(effect +: effects, "ul")
 
-  /** Creates a `<ul>` element from an iterable of `<li>` children. */
+  /** Creates a `<ul>` element from a collection of `<li>` items, in order. */
   def ul(children: Iterable[Dom.Element.Li]): Dom.Element =
     Dom.Element.Generic("ul", Chunk.empty, Chunk.from(children))
 
@@ -416,57 +467,53 @@ trait HtmlElements {
   def ol(): Dom.Element = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
 
   /**
-   * Creates an `<ol>` element from attributes and `<li>` children.
-   *
-   * The HTML content model of `<ol>` permits only `<li>` element children, so
-   * the child arguments are restricted to [[Dom.Element.Li]] at compile time;
-   * [[Dom.Attribute]] values are accepted alongside them.
+   * Creates an `<ol>` element from attributes and `<li>` items. Child arguments
+   * must be `li(...)` values ([[Dom.Element.Li]]); any other element does not
+   * compile.
    */
   def ol(effect: ListArg, effects: ListArg*): Dom.Element =
     elFromListArgs(effect +: effects, "ol")
 
-  /** Creates an `<ol>` element from an iterable of `<li>` children. */
+  /** Creates an `<ol>` element from a collection of `<li>` items, in order. */
   def ol(children: Iterable[Dom.Element.Li]): Dom.Element =
     Dom.Element.Generic("ol", Chunk.empty, Chunk.from(children))
 
-  /** Creates an empty `<th>` element, returning `Th`. */
+  /** Creates an empty `<th>` header cell, typed [[Dom.Element.Th]]. */
   def th(): Dom.Element.Th = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<th>` element from attributes and children, returning `Th`.
-   *
-   * The HTML content model of `<th>` permits flow content, so any modifier
-   * values are accepted.
+   * Creates a `<th>` header cell from attributes and children, typed
+   * [[Dom.Element.Th]] so that `tr(...)` accepts it. Any modifier is accepted.
    */
   def th(effect: DomModifier, effects: DomModifier*): Dom.Element.Th =
     Dom.Element.ThElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
-  /** Creates an empty `<td>` element, returning `Td`. */
+  /** Creates an empty `<td>` data cell, typed [[Dom.Element.Td]]. */
   def td(): Dom.Element.Td = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<td>` element from attributes and children, returning `Td`.
-   *
-   * The HTML content model of `<td>` permits flow content, so any modifier
-   * values are accepted.
+   * Creates a `<td>` data cell from attributes and children, typed
+   * [[Dom.Element.Td]] so that `tr(...)` accepts it. Any modifier is accepted.
    */
   def td(effect: DomModifier, effects: DomModifier*): Dom.Element.Td =
     Dom.Element.TdElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
-  /** Creates an empty `<tr>` element, returning `Tr`. */
+  /** Creates an empty `<tr>` row, typed [[Dom.Element.Tr]]. */
   def tr(): Dom.Element.Tr = Dom.Element.TrElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<tr>` element from attributes and table cells (`<th>`/`<td>`)
-   *
-   * The HTML content model of `<tr>` permits only `<th>` and `<td>` element
-   * children, so the child arguments are restricted to [[Dom.Element.Cell]] at
-   * compile time; [[Dom.Attribute]] values are accepted alongside them.
+   * Creates a `<tr>` row from attributes and table cells, typed
+   * [[Dom.Element.Tr]] so that `table(...)` accepts it. Child arguments must be
+   * `th(...)` or `td(...)` values ([[Dom.Element.Cell]]); any other element
+   * does not compile.
    */
   def tr(effect: CellArg, effects: CellArg*): Dom.Element.Tr =
     trFromCellArgs(effect +: effects)
 
-  /** Creates a `<tr>` element from an iterable of `<th>`/`<td>` cells. */
+  /**
+   * Creates a `<tr>` row from a collection of `<th>` and `<td>` cells, in
+   * order.
+   */
   def tr(children: Iterable[Dom.Element.Cell]): Dom.Element.Tr =
     Dom.Element.TrElement(Chunk.empty, Chunk.from(children))
 
@@ -474,49 +521,48 @@ trait HtmlElements {
   def table(): Dom.Element = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<table>` element from attributes and `<tr>` rows.
-   *
-   * The row arguments are restricted to [[Dom.Element.Tr]] at compile time;
-   * [[Dom.Attribute]] values are accepted alongside them. Other table sections
-   * (`caption`, `colgroup`, `thead`, `tbody`, `tfoot`) do not have typed
-   * markers yet — compose tables containing them with the `html""` interpolator
-   * or generic elements instead.
+   * Creates a `<table>` element from attributes and `<tr>` rows. Child
+   * arguments must be `tr(...)` values ([[Dom.Element.Tr]]); any other element
+   * does not compile. The other table parts (`caption`, `colgroup`, `thead`,
+   * `tbody`, `tfoot`) have no typed marker, so build a table that needs them
+   * with `element("table")(...)` or the `html"..."` interpolator.
    */
   def table(effect: RowArg, effects: RowArg*): Dom.Element =
     tableFromRowArgs(effect +: effects)
 
-  /** Creates a `<table>` element from an iterable of `<tr>` rows. */
+  /** Creates a `<table>` element from a collection of `<tr>` rows, in order. */
   def table(children: Iterable[Dom.Element.Tr]): Dom.Element =
     Dom.Element.Generic("table", Chunk.empty, Chunk.from(children))
 
-  /** Creates an empty `<option>` element, returning `Opt`. */
+  /**
+   * Creates an empty `<option>` element, typed [[Dom.Element.Opt]]. On Scala 3,
+   * `opt()` does the same.
+   */
   def option(): Dom.Element.Opt = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates an `<option>` element from attributes and children, returning
-   * `Opt`.
-   *
-   * The HTML content model of `<option>` permits flow content, so any modifier
-   * values are accepted.
+   * Creates an `<option>` element from attributes and children, typed
+   * [[Dom.Element.Opt]] so that `select(...)` and `optgroup(...)` accept it.
+   * Any modifier is accepted. On Scala 3, `opt(...)` does the same.
    */
   def option(effect: DomModifier, effects: DomModifier*): Dom.Element.Opt =
     Dom.Element.OptElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
-  /** Creates an empty `<optgroup>` element, returning `Optgroup`. */
+  /** Creates an empty `<optgroup>` element, typed [[Dom.Element.Optgroup]]. */
   def optgroup(): Dom.Element.Optgroup = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates an `<optgroup>` element from attributes and `<option>` children.
-   *
-   * The HTML content model of `<optgroup>` permits only `<option>` element
-   * children, so the child arguments are restricted to [[Dom.Element.Opt]] at
-   * compile time; [[Dom.Attribute]] values are accepted alongside them.
+   * Creates an `<optgroup>` element from attributes and `<option>` children,
+   * typed [[Dom.Element.Optgroup]] so that `select(...)` accepts it. Child
+   * arguments must be `option(...)` values ([[Dom.Element.Opt]]); any other
+   * element does not compile.
    */
   def optgroup(effect: OptgroupArg, effects: OptgroupArg*): Dom.Element.Optgroup =
     groupFromOptgroupArgs(effect +: effects)
 
   /**
-   * Creates an `<optgroup>` element from an iterable of `<option>` children.
+   * Creates an `<optgroup>` element from a collection of `<option>` children,
+   * in order.
    */
   def optgroup(children: Iterable[Dom.Element.Opt]): Dom.Element.Optgroup =
     Dom.Element.OptgroupElement(Chunk.empty, Chunk.from(children))
@@ -525,20 +571,16 @@ trait HtmlElements {
   def select(): Dom.Element = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<select>` element from attributes and `<option>`/`<optgroup>`
-   * children.
-   *
-   * The HTML content model of `<select>` permits only `<option>` and
-   * `<optgroup>` element children, so the child arguments are restricted to
-   * [[Dom.Element.SelectChild]] at compile time; [[Dom.Attribute]] values are
-   * accepted alongside them.
+   * Creates a `<select>` element from attributes and `<option>` or `<optgroup>`
+   * children. Child arguments must be `option(...)` or `optgroup(...)` values
+   * ([[Dom.Element.SelectChild]]); any other element does not compile.
    */
   def select(effect: SelectArg, effects: SelectArg*): Dom.Element =
     selectFromSelectArgs(effect +: effects)
 
   /**
-   * Creates a `<select>` element from an iterable of `<option>`/`<optgroup>`
-   * children.
+   * Creates a `<select>` element from a collection of `<option>` and
+   * `<optgroup>` children, in order.
    */
   def select(children: Iterable[Dom.Element.SelectChild]): Dom.Element =
     Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
