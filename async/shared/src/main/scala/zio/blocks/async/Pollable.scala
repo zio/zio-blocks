@@ -17,15 +17,32 @@
 package zio.blocks.async
 
 /**
- * The implementation point for a custom suspended [[Async]] leaf (a timer, a
- * socket read, a callback bridge, ...). A `Pollable[A]` is itself an
- * `Async[A]`, so it can be used wherever an `Async[A]` is expected.
+ * The extension point for a source of results that are not there yet: a timer,
+ * a non-blocking socket read, a job you check by asking. A `Pollable[A]` is
+ * itself an `Async[A]`, so it works with every operator. Most code never
+ * implements one: for a callback API, `Async.promise` and [[Completer]] are
+ * simpler.
  *
- * Implementors define [[poll]]: when asked for its value, a pollable either
- * returns the completed result (a value, or a failed [[Async]]) or, if it is
- * still pending, stashes the supplied [[java.lang.Runnable]] and returns a
- * pending `Async` (typically itself). When the value later becomes available it
- * must invoke `onComplete.run()` to ask the scheduler to poll again.
+ * An implementation defines [[poll]]. When the value is ready, `poll` returns
+ * it (`Async.succeed(a)`) or a failure (`Async.fail(t)`). When it is not,
+ * `poll` arranges for the supplied `onComplete` to run once there is something
+ * new to see, and returns itself. A driver polls again only after `onComplete`
+ * runs, so a `poll` that returns itself and never runs it waits forever, as
+ * `Async.never` does. Override [[cancel]] when the work can be aborted.
+ *
+ * {{{
+ * final class Countdown(ticks: Int) extends Pollable[String] {
+ *   private var remaining = ticks
+ *   def poll(onComplete: Runnable): Async[String] =
+ *     if (remaining <= 0) Async.succeed("timer expired")
+ *     else { remaining -= 1; onComplete.run(); this }
+ * }
+ *
+ * new Countdown(2).map(_.toUpperCase).block // TIMER EXPIRED
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#pollable Pollable]]
  */
 abstract class Pollable[+A] {
 
@@ -64,10 +81,28 @@ abstract class Pollable[+A] {
   def poll(onComplete: Runnable): Async[A]
 
   /**
-   * Signal cancellation of the currently pending operation. Implementations
-   * that own cancellable work override this with an idempotent, non-blocking
-   * signal; computations without such work inherit the no-op. A running driver
-   * invokes this only when cancellation wins against completion.
+   * Signals that the pending operation is no longer wanted. The default does
+   * nothing; override it, idempotent and non-blocking, when the work can be
+   * aborted. A driver calls it on its pending leaf when `cancel()` on the run
+   * wins the race against completion, and `AsyncSelector.shutdown` calls it on
+   * the inputs still armed. If it throws, the failure goes to the run's
+   * cleanup-failure reporter (see `Async.Running#cancel`).
+   *
+   * {{{
+   * import java.util.concurrent.atomic.AtomicBoolean
+   *
+   * final class PortScan(register: Runnable => Unit) extends Pollable[Int] {
+   *   val aborted = new AtomicBoolean(false)
+   *   def poll(onComplete: Runnable): Async[Int] =
+   *     if (aborted.get()) Async.fail(new java.io.IOException("scan aborted"))
+   *     else { register(onComplete); this }
+   *   override def cancel(): Unit = aborted.set(true)
+   * }
+   *
+   * val scan = new PortScan(_ => ())
+   * scan.start.cancel()
+   * scan.aborted.get() // true
+   * }}}
    */
   def cancel(): Unit = ()
 

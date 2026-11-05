@@ -17,31 +17,38 @@
 package zio.blocks.async.internal
 
 /**
- * Internal parking primitive used by `Async.slowPath.awaitSuspended`. One
- * instance is allocated per `await` call and reused across loop iterations.
+ * The parking primitive behind `Async.slowPath.awaitSuspended`, which `block`
+ * uses. Each `awaitSuspended` call obtains one parker and reuses it for every
+ * poll: it calls [[reset]], polls with [[onComplete]] and, when the pollable
+ * stays pending, calls [[park]].
  *
- *   - [[reset]] is called before each `poll`, under the same exclusion the
- *     onComplete uses, so a wake that races with the poll cannot be lost.
- *   - [[onComplete]] is the single, stable [[Runnable]] handed to every poll.
- *   - [[park]] blocks until the onComplete fires (JVM) or throws if the
- *     suspension did not complete synchronously (Scala.js — no thread to park).
- *
- * A `trait` (not an abstract class) so the JVM impl can additionally extend
- * `java.util.concurrent.locks.ReentrantLock` and act as its own waker,
- * collapsing the lock, parker, and `Runnable` into a single object (one
- * allocation per `await`). Purely internal (`private[async]`).
+ * On the JVM the parker is its own waker and blocks with
+ * `java.util.concurrent.locks.LockSupport`, and each thread keeps one parker
+ * for reuse. On Scala.js [[park]] cannot wait, so it throws unless the wake
+ * already happened.
  */
 private[async] trait Parker {
+
+  /** The waker handed to every poll; running it releases [[park]]. */
   def onComplete: Runnable
+
+  /** Clears an earlier wake before the next poll. */
   def reset(): Unit
+
+  /**
+   * Waits until [[onComplete]] has run since the last [[reset]]. On the JVM it
+   * blocks the thread and throws `InterruptedException` when the thread is
+   * interrupted; on Scala.js it returns only when the wake already happened and
+   * otherwise throws `IllegalStateException`.
+   */
   def park(): Unit
 
   /**
-   * Return this parker for reuse after `await` finishes. Called exactly once,
-   * from `awaitSuspended`'s `finally`, after the last `park`/`poll`. The
-   * default is a no-op (the parker is simply discarded); the JVM impl uses it
-   * to return a thread-local parker to its per-thread slot so the next
-   * non-nested `await` on the same thread allocates nothing.
+   * Returns this parker for reuse. `awaitSuspended` calls it once, from its
+   * `finally`, after the last `park` or poll. The default does nothing (the
+   * parker is discarded); the JVM parker marks itself idle, so the parker kept
+   * in a thread's slot serves that thread's next non-nested `block` without an
+   * allocation.
    */
   def release(): Unit = ()
 }
