@@ -27,35 +27,106 @@ import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
 /**
- * Abstract base class for YAML binary codecs that serialize/deserialize values
- * of type `A` to and from YAML representations.
+ * Converts values of type `A` to and from YAML text. Derive one from a schema
+ * with `Schema#derive(YamlFormat)`: it writes a record as a mapping with
+ * kebab-case keys, a collection as a sequence, a map as a mapping, and a sealed
+ * trait as a mapping with one key, the case name.
+ *
+ * Encode with `encodeToString` or `encode` (UTF-8 bytes), and decode with
+ * `decode`, which returns `Left` with the path of the failing value instead of
+ * throwing. `encodeValue` and `decodeValue` work on the [[Yaml]] tree; the text
+ * methods always write with `YamlOptions.default`, so to choose
+ * [[YamlOptions]], pass the tree from `encodeValue` to `YamlWriter.write`.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Deployment(app: String, replicas: Int, maxSurge: Option[Int])
+ * object Deployment {
+ *   implicit val schema: Schema[Deployment] = Schema.derived
+ * }
+ *
+ * val codec: YamlCodec[Deployment] = Deployment.schema.derive(YamlFormat)
+ *
+ * codec.encodeToString(Deployment("checkout", 3, Some(1)))
+ * // app: checkout
+ * // replicas: 3
+ * // max-surge: 1
+ *
+ * codec.decode("app: search\nreplicas: 2\n") // Right(Deployment(search,2,None))
+ * }}}
  *
  * @tparam A
  *   the type this codec handles
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 abstract class YamlCodec[A] extends BinaryCodec[A] {
+
+  /**
+   * Decodes a value from a [[Yaml]] tree. Throws a [[YamlCodecError]] when the
+   * tree does not match `A` (some `java.time` and enum codecs throw their own
+   * exception instead); `decode` returns an `Either`.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Limit(requests: Int, perSeconds: Int)
+   * object Limit {
+   *   implicit val schema: Schema[Limit] = Schema.derived
+   * }
+   *
+   * val tree = Yaml.Mapping.fromStringKeys(
+   *   "requests"    -> Yaml.Scalar("100"),
+   *   "per-seconds" -> Yaml.Scalar("60")
+   * )
+   *
+   * Limit.schema.derive(YamlFormat).decodeValue(tree) // Limit(100,60)
+   * }}}
+   */
   def decodeValue(in: Yaml): A
 
+  /**
+   * Encodes a value as a [[Yaml]] tree, before any formatting. Pass the tree to
+   * `YamlWriter.write` to write it with chosen [[YamlOptions]].
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Route(path: String, methods: List[String])
+   * object Route {
+   *   implicit val schema: Schema[Route] = Schema.derived
+   * }
+   *
+   * val tree: Yaml = Route.schema.derive(YamlFormat).encodeValue(Route("/orders", List("GET", "POST")))
+   *
+   * YamlWriter.write(tree, YamlOptions.flow) // {path: /orders, methods: [GET, POST]}
+   * }}}
+   */
   def encodeValue(x: A): Yaml
 
   /**
-   * Attempts to decode a value of type `A` from the string representation.
+   * Decodes a value from the YAML text `s`, as `decode` does, but throws on
+   * failure (a [[YamlCodecError]] in most cases) instead of returning `Left`.
    */
   def decodeKey(s: String): A = decodeUnsafe(s)
 
   /**
-   * Converts a value to its string representation for use as a YAML key.
+   * Returns the YAML text of a value, as `encodeToString` writes it. The
+   * `yaml"..."` interpolator uses it for a value spliced into a key or into a
+   * quoted string. The text is quoted when the writer would quote it (a
+   * `String` codec returns `"true"`, with the quotes, for `true`), and spans
+   * several lines for a record.
    */
   def encodeKey(x: A): String = encodeToString(x)
 
   /**
-   * Throws a [[YamlCodecError]] wrapping the given error and adding a span.
+   * Throws a [[YamlCodecError]] whose path starts with `span`. When `error` is
+   * already a `YamlCodecError`, adds `span` to the front of its `spans` and
+   * rethrows the same instance; otherwise throws a new one with `error`'s
+   * message.
    *
-   * @param span
-   *   the span to add to the error
-   * @param error
-   *   the error to wrap
-   * @throws YamlCodecError
+   * @throws zio.blocks.schema.yaml.YamlCodecError
    *   always
    */
   def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
@@ -66,15 +137,11 @@ abstract class YamlCodec[A] extends BinaryCodec[A] {
   }
 
   /**
-   * Throws a [[YamlCodecError]] wrapping the given error and adding two spans.
+   * Throws a [[YamlCodecError]] whose path starts with `span1` then `span2`,
+   * reusing `error` when it is already a `YamlCodecError`, as the one-span
+   * overload does.
    *
-   * @param span1
-   *   the first span to add to the error
-   * @param span2
-   *   the second span to add to the error
-   * @param error
-   *   the error to wrap
-   * @throws YamlCodecError
+   * @throws zio.blocks.schema.yaml.YamlCodecError
    *   always
    */
   def error(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
@@ -85,39 +152,126 @@ abstract class YamlCodec[A] extends BinaryCodec[A] {
   }
 
   /**
-   * Throws a [[YamlCodecError]] with the given error message.
+   * Throws a [[YamlCodecError]] with the given message and an empty path.
    *
-   * @param message
-   *   the error message
-   * @throws YamlCodecError
+   * @throws zio.blocks.schema.yaml.YamlCodecError
    *   always
    */
   def error(message: String): Nothing = throw new YamlCodecError(Nil, message)
 
+  /**
+   * Decodes a value from the remaining bytes of `input`, read as UTF-8 YAML
+   * text; consumes all of them.
+   */
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     val bytes = new Array[Byte](input.remaining())
     input.get(bytes)
     decode(bytes)
   }
 
+  /**
+   * Writes the UTF-8 YAML text of `value` into `output`.
+   *
+   * @throws java.nio.BufferOverflowException
+   *   when the text does not fit in the remaining space of `output`
+   */
   override def encode(value: A, output: ByteBuffer): Unit = output.put(encode(value))
 
+  /**
+   * Decodes a value from UTF-8 YAML bytes, as `decode` on a `String` does.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Feature(key: String, enabled: Boolean)
+   * object Feature {
+   *   implicit val schema: Schema[Feature] = Schema.derived
+   * }
+   *
+   * val bytes = "key: dark-mode\nenabled: true\n".getBytes("UTF-8")
+   *
+   * Feature.schema.derive(YamlFormat).decode(bytes) // Right(Feature(dark-mode,true))
+   * }}}
+   */
   def decode(input: Array[Byte]): Either[SchemaError, A] =
     try new Right(decodeValue(YamlReader.readFromBytes(input)))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Encodes a value as the UTF-8 bytes of its YAML text, written with
+   * `YamlOptions.default`.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Reading(sensor: String, celsius: Double)
+   * object Reading {
+   *   implicit val schema: Schema[Reading] = Schema.derived
+   * }
+   *
+   * val bytes: Array[Byte] = Reading.schema.derive(YamlFormat).encode(Reading("t-101", 21.5))
+   *
+   * new String(bytes, "UTF-8")
+   * // sensor: t-101
+   * // celsius: 21.5
+   * }}}
+   */
   def encode(value: A): Array[Byte] = YamlWriter.writeToBytes(encodeValue(value))
 
+  /**
+   * Reads `input` with `YamlReader` and decodes the tree. Returns `Left` with a
+   * [[zio.blocks.schema.SchemaError]] that names the path of the failing value;
+   * an exception from the reader or from `decodeValue` is caught and returned
+   * the same way.
+   *
+   * The reader is lenient: it reports few syntax errors and stops at the first
+   * line it cannot read, dropping the rest without an error (a known bug), so a
+   * malformed document can decode from its first lines or fail with a
+   * `Missing required field` error.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Pool(name: String, size: Int)
+   * object Pool {
+   *   implicit val schema: Schema[Pool] = Schema.derived
+   * }
+   *
+   * val codec = Pool.schema.derive(YamlFormat)
+   *
+   * codec.decode("name: primary\nsize: 10\n")  // Right(Pool(primary,10))
+   * codec.decode("name: primary\nsize: ten\n") // Left(zio.blocks.schema.SchemaError: Invalid int value: ten at: .size)
+   * }}}
+   */
   def decode(input: String): Either[SchemaError, A] =
     try new Right(decodeValue(YamlReader.read(input)))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Encodes a value as YAML text, written with `YamlOptions.default`. A
+   * record's field names are written in kebab-case.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class UserProfile(userId: Long, displayName: String, emailVerified: Boolean)
+   * object UserProfile {
+   *   implicit val schema: Schema[UserProfile] = Schema.derived
+   * }
+   *
+   * UserProfile.schema.derive(YamlFormat).encodeToString(UserProfile(42L, "Ada", emailVerified = true))
+   * // user-id: 42
+   * // display-name: Ada
+   * // email-verified: true
+   * }}}
+   */
   def encodeToString(value: A): String = YamlWriter.write(encodeValue(value))
 
+  /** Reads and decodes `input`, throwing on failure. */
   private[yaml] def decodeUnsafe(input: String): A = decodeValue(YamlReader.read(input))
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
@@ -147,10 +301,16 @@ abstract class YamlCodec[A] extends BinaryCodec[A] {
 }
 
 /**
- * Companion object providing primitive [[YamlCodec]] instances and type
- * constants.
+ * The [[YamlCodec]] instances for primitive types, which [[YamlCodecDeriver]]
+ * uses for the primitive parts of a schema. The numeric codecs trim the text
+ * before parsing it.
  */
 object YamlCodec {
+
+  /**
+   * Encodes `()` as `null`; decodes `NullValue` or a scalar `null`, `~` or
+   * empty text.
+   */
   val unitCodec: YamlCodec[Unit] = new YamlCodec[Unit] {
     def decodeValue(yaml: Yaml): Unit = yaml match {
       case Yaml.NullValue                                            => ()
@@ -159,6 +319,12 @@ object YamlCodec {
     }
     def encodeValue(x: Unit): Yaml = Yaml.NullValue
   }
+
+  /**
+   * Encodes a `Boolean` as `true` or `false` with the `Bool` tag. Decodes only
+   * lowercase `true` and `false`; `True`, which YAML 1.2 allows, fails (a known
+   * bug).
+   */
   val booleanCodec: YamlCodec[Boolean] = new YamlCodec[Boolean] {
     def decodeValue(yaml: Yaml): Boolean = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -215,6 +381,12 @@ object YamlCodec {
     }
     def encodeValue(x: Long): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
+
+  /**
+   * Encodes a `Float` as JSON does, with the `Float` tag, such as `1.5` or
+   * `1.0E10`. NaN and infinite values throw a `JsonCodecError`, and the YAML
+   * forms `.nan` and `.inf` do not decode (a known bug).
+   */
   val floatCodec: YamlCodec[Float] = new YamlCodec[Float] {
     def decodeValue(yaml: Yaml): Float = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -226,6 +398,12 @@ object YamlCodec {
     }
     def encodeValue(x: Float): Yaml = Yaml.Scalar(JsonCodec.floatCodec.encodeToString(x), tag = new Some(YamlTag.Float))
   }
+
+  /**
+   * Encodes a `Double` as JSON does, with the `Float` tag, such as `0.1` or
+   * `1.0E10`. NaN and infinite values throw a `JsonCodecError`, and the YAML
+   * forms `.nan` and `.inf` do not decode (a known bug).
+   */
   val doubleCodec: YamlCodec[Double] = new YamlCodec[Double] {
     def decodeValue(yaml: Yaml): Double = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -238,6 +416,11 @@ object YamlCodec {
     def encodeValue(x: Double): Yaml =
       Yaml.Scalar(JsonCodec.doubleCodec.encodeToString(x), tag = new Some(YamlTag.Float))
   }
+
+  /**
+   * Encodes a `Char` as a one-character scalar; decodes only a scalar of
+   * exactly one character.
+   */
   val charCodec: YamlCodec[Char] = new YamlCodec[Char] {
     def decodeValue(yaml: Yaml): Char = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -247,6 +430,12 @@ object YamlCodec {
     }
     def encodeValue(x: Char): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `String` as an untagged scalar, which the writer quotes when
+   * needed. Decodes any scalar's text, and decodes `NullValue` (an empty value,
+   * `null` or `~` in the text) as `""` instead of failing (a known bug).
+   */
   val stringCodec: YamlCodec[String] = new YamlCodec[String] {
     def decodeValue(yaml: Yaml): String = yaml match {
       case Yaml.Scalar(v, _) => v
@@ -255,6 +444,11 @@ object YamlCodec {
     }
     def encodeValue(x: String): Yaml = Yaml.Scalar(x)
   }
+
+  /**
+   * Encodes a `BigInt` as an untagged scalar, which the writer quotes, so other
+   * YAML readers see a string (a known bug). Decodes quoted or plain digits.
+   */
   val bigIntCodec: YamlCodec[BigInt] = new YamlCodec[BigInt] {
     def decodeValue(yaml: Yaml): BigInt = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -266,6 +460,12 @@ object YamlCodec {
     }
     def encodeValue(x: BigInt): Yaml = Yaml.Scalar(JsonCodec.bigIntCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `BigDecimal` as an untagged scalar, which the writer quotes, so
+   * other YAML readers see a string (a known bug). Decodes quoted or plain
+   * numbers.
+   */
   val bigDecimalCodec: YamlCodec[BigDecimal] = new YamlCodec[BigDecimal] {
     def decodeValue(yaml: Yaml): BigDecimal = yaml match {
       case Yaml.Scalar(v, _) =>
