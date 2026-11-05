@@ -1892,11 +1892,13 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
 
   /**
    * Collects the values of `as` into a `List`, in input order whatever order
-   * they complete in. It waits for the inputs one at a time, from the first;
-   * since each input is already built, work it started (a thread, a request)
-   * runs meanwhile. The first failure, in input order, fails the result, and
-   * later inputs are not polled. The traversal does not grow the call stack,
-   * however many inputs are pending.
+   * they complete in. It waits for the inputs one at a time, from the first. In
+   * a strict collection such as `List` or `Vector` every input is already
+   * built, so work it started (a thread, a request) runs meanwhile; a lazy
+   * `Iterator` or view builds each input only after the previous one has
+   * completed. The first failure, in input order, fails the result, and later
+   * inputs are not polled. The traversal does not grow the call stack, however
+   * many inputs are pending.
    *
    * {{{
    * def price(symbol: String): Async[Int] = Async.succeed(symbol.length * 100)
