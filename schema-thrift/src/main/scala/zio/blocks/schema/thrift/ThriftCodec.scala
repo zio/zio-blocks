@@ -260,7 +260,10 @@ abstract class ThriftCodec[A] extends BinaryCodec[A] {
 object ThriftCodec {
 
   /**
-   * 2147483639 (`Int.MaxValue - 8`). The derived Thrift codecs do not check it;
+   * 2147483639 (`Int.MaxValue - 8`). The derived Thrift codecs do not check it.
+   * When `decode` reads a list or map whose declared size the remaining input
+   * cannot hold, libthrift rejects it with
+   * `Thrift protocol error: Message size exceeds limit: 104857600`.
    * `AvroCodec.maxCollectionSize` is the limit that the Avro codecs check.
    */
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
@@ -388,7 +391,7 @@ object ThriftCodec {
       val precision = protocol.readI32()
       protocol.readFieldBegin()
       val roundingMode = protocol.readByte()
-      protocol.readFieldBegin() // read STOP
+      protocol.readFieldBegin() // expected to be STOP; not checked
       new BigDecimal(
         new java.math.BigDecimal(mantissa, scale, new MathContext(precision, RoundingMode.valueOf(roundingMode)))
       )
