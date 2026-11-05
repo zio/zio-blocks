@@ -1574,6 +1574,8 @@ println(signed.flatMap(t => Jwt.decode(t, secret, Algorithm.HS256, JwtDecodeOpti
 
 **Suggested fix.** Either apply all six limits on sign (parse the rendered JSON with the same limits before encoding), or document that only the size limits apply on sign. Change the `JwtDecodeOptions` Scaladoc to "mismatch yields `InvalidClaim("aud", ...)`". Add tests for both, plus an `alg: none` test in `JwtEdgeCasesSpec`.
 
+**Addition (2026-11-05, jwt Scaladoc rollout).** The two Scaladoc contradictions are fixed on branch `jwt-scaladoc`: the `JwtSignOptions.limits` and `JwtDecodeOptions` Scaladoc now say which limits apply on sign, call the missing ones a known bug, and give `InvalidClaim("aud", ...)` for an audience mismatch. The library behaviour is unchanged. The test-gap note on `alg: none` still holds; verified again on 0.0.56: a header `{"alg":"none"}` gives `UnsupportedAlgorithm("none")` from both `decode` and `decodeWithoutVerification`, and `InvalidToken("JWT signature segment must not be empty")` when the third segment is empty.
+
 ### config: Rollout buckets depend on the key alone, so every percentage rollout picks the same users
 
 **Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
@@ -13467,6 +13469,238 @@ println(Tls.schema.derive(JsonFormat).decode("""{"port": 8443}"""))
 
 **Suggested fix.** Check `fieldInfo.defaultValue` before falling back to `None` (swap the two branches), and add a test with `Option[A] = Some(...)` missing from the input.
 
+### jwt: `Jwt.decode` ignores the `crit` header parameter
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** RFC 7515 §4.1.11 says a recipient MUST reject a JWS whose `crit` header lists an extension it does not understand (or `crit` itself when it does not support it). `JwtHeader.parse` reads only `alg`, `typ` and `kid` and ignores every other header field, so `Jwt.decode` accepts a correctly signed token that marks an unknown extension as critical. An issuer that relies on a critical extension (for example `b64: false` from RFC 7797, or a private "must understand" flag) gets it silently ignored by this verifier.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
+val secret = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+def b64(s: String) = Base64Url.encode(s.getBytes("UTF-8"))
+val signingInput = b64("""{"alg":"HS256","crit":["x-must-understand"],"x-must-understand":true}""") + "." + b64("""{"sub":"user-42"}""")
+val mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(secret, "HmacSHA256"))
+val token = signingInput + "." + Base64Url.encode(mac.doFinal(signingInput.getBytes("UTF-8")))
+println(Jwt.decode(token, secret, Algorithm.HS256))
+// Right(JwtClaims(None,Some(user-42),None,None,None,None,None,Map()))
+```
+
+**Expected.** `Left(JwtError.InvalidToken(...))` (or a new case) naming the unsupported critical parameter, since the module understands no extension; also reject `crit` that is not a non-empty array of strings, as the RFC requires.
+
+**Root cause.** `JwtHeader.parse` (`jwt/shared/src/main/scala/zio/blocks/jwt/JwtHeader.scala:27-38`, lines at v0.0.56 (= 3ac1121a9)) builds the header from `alg`, `typ` and `kid` and drops the rest of the parsed field map; nothing reads `crit`. `Jwt.decode` (`Jwt.scala:321-343`) has no other header check.
+
+**Impact.** Low. The token must still carry a valid signature, so nobody without the key can use this. The risk is semantic: a critical extension the issuer meant to enforce is ignored. Not mentioned on the reference page.
+
+**Test gap.** No test sends a header with `crit` (`grep -rn crit jwt/*/src/test` finds nothing).
+
+**Suggested fix.** In `JwtHeader.parse`, if `crit` is present, return `Left(JwtError.InvalidToken("unsupported critical header parameter: ..."))` (the module supports none); add a test per shape (`["x"]`, `[]`, `"x"`). Document it in the reference page's header section.
+
+### jwt: `Jwt.decode` accepts a token at the second its `exp` names
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** RFC 7519 §4.1.4: "the current date/time MUST be before the expiration date/time listed in the `exp` claim". `Jwt.decode` treats a token as expired only when `now - clockSkewSeconds > exp`, so with no skew a token whose `exp` equals `now` is still accepted, one second longer than the RFC allows. (The `nbf` check, `now + clockSkewSeconds < nbf`, is correct: the RFC allows `now == nbf`.)
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+
+val secret = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+val token  = Jwt.sign(JwtClaims(sub = Some("user-42"), exp = Some(1000L)), secret, Algorithm.HS256).toOption.get
+for (now <- Seq(999L, 1000L, 1001L))
+  println(s"now=$now: " + Jwt.decode(token, secret, Algorithm.HS256, JwtDecodeOptions(nowSeconds = Some(now))).map(_.exp))
+// now=999: Right(Some(1000))
+// now=1000: Right(Some(1000))
+// now=1001: Left(zio.blocks.jwt.JwtError$ExpiredToken: JWT token expired at 1000 (now: 1001))
+```
+
+**Expected.** `now=1000` gives `Left(ExpiredToken(1000, 1000))`; the condition should be `now - clockSkewSeconds >= exp`.
+
+**Root cause.** `validateClaims`, `jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:422` (lines at v0.0.56 (= 3ac1121a9)): `case Some(exp) if now - clockSkewSeconds > exp`.
+
+**Impact.** Low: a one-second window. The reference page (`docs/reference/jwt.md:56`, "Decoding and Verifying") and the guide (`docs/guides/issue-and-verify-jwts.md:257`) state the `>` rule correctly, so the docs match the code but not the RFC. The new `JwtDecodeOptions.clockSkewSeconds` Scaladoc calls it a known bug.
+
+**Test gap.** The behaviour is pinned the wrong way: `JwtFeatureSpec.scala:433-435` ("fractional exp truncated toward zero (floor)") asserts that a token with `exp = 1500` decodes at `now = 1500`.
+
+**Suggested fix.** Use `>=` and update that test (expect `ExpiredToken` at `now = 1500`, success at `1499`); add a skew boundary test (`exp + skew - 1` passes, `exp + skew` fails). Update the two docs pages.
+
+### jwt: `JwtLimits.maxDepth` counts a nested object one level deeper than a nested array
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** The JSON parser checks depth per value: the top-level object is depth 1 and a value in it depth 2. A nested array at depth 2 is accepted with `maxDepth = 2` (its elements would be depth 3), but a nested object at depth 2, even an empty one, is checked as depth 3. The same holds one level down (`[[]]` passes at 3, `[{}]` needs 4). So the limit means different things for objects and arrays, and the `JwtLimits` doc ("root is depth 1") did not say which.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+
+def parse(json: String, maxDepth: Int) =
+  JwtClaims.parse(Base64Url.encode(json.getBytes("UTF-8")), JwtLimits(maxDepth = maxDepth)).map(_.extra).left.map(_.message)
+println(parse("""{"a":[]}""", 2))
+println(parse("""{"a":{}}""", 2))
+println(parse("""{"a":[[]]}""", 3))
+println(parse("""{"a":[{}]}""", 3))
+// Right(Map(a -> Arr(Chunk())))
+// Left(JWT JSON too deep: depth 3 exceeds limit 2)
+// Right(Map(a -> Arr(Chunk(Arr(Chunk())))))
+// Left(JWT JSON too deep: depth 4 exceeds limit 3)
+```
+
+**Expected.** `{"a":{}}` and `{"a":[]}` have the same depth, so both pass or both fail with `maxDepth = 2`.
+
+**Root cause.** `parseValue(depth)` checks `depth` (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:642`), then `parseObjectValue(depth)` checks `depth + 1` again (`:658`) while `parseArray(depth)` does not (`:680-703`); members of both are parsed at `depth + 1` (`:670`, `:692`). Lines at v0.0.56 (= 3ac1121a9).
+
+**Impact.** Low. A limit that is one level stricter for objects than for arrays; a `maxDepth` tuned on one shape surprises on the other. The new `JwtLimits` Scaladoc describes the behaviour and calls it a known bug.
+
+**Test gap.** `JwtFeatureSpec.scala:171-183` ("depth exceeded returns TooDeep") uses objects only, with a payload three levels deeper than the limit, so it passes under either counting; no test sits on the boundary or uses arrays.
+
+**Suggested fix.** Drop the extra check in `parseObjectValue` (the `parseValue` check already covers its position), or add the same `depth + 1` check to `parseArray`; then document the rule ("the top-level object is depth 1, each nested value one more") and add boundary tests for both shapes.
+
+### jwt: the Scala.js backend checks neither the key type, the RSA key size nor the EC curve
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** `JvmJwtCryptoBackend` rejects RSA keys under 2048 bits, a P-256/P-384/P-521 key used with the wrong `ES*` algorithm, and keys of the wrong type, with `InvalidKey`. `JsJwtCryptoBackend` passes the key straight to Node's `crypto.createSign`/`createVerify`, which pick the scheme from the key, so on Scala.js: a 1024-bit RSA key signs and verifies `RS256`; a P-256 key signs and verifies `ES384`; a P-384 key cannot sign `ES256`, but fails with `InvalidSignature` instead of `InvalidKey`; and an EC key signs and verifies a token labelled `RS256` with ECDSA. A token the Scala.js side signs this way is rejected by a JVM verifier (`InvalidKey` for the ES384/P-256 case, checked). An RSA key passed for `ES256` fails with `InvalidSignature("invalid DER ECDSA signature")`, and an Ed25519 key for `RS256`/`ES256` (sign) or `RS256` (verify) with `UnsupportedAlgorithm("Error: Unsupported crypto operation")`; `InvalidKey` is expected for both.
+
+**Reproduction** (Scala 3.9.0, Scala.js 1.22.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false --js-cli-on-jvm Repro.sc`; Node.js installed):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-jwt::0.0.56
+import zio.blocks.jwt._
+import scala.scalajs.js
+
+val crypto = js.Dynamic.global.require("crypto")
+def bytes(buf: js.Dynamic): Array[Byte] = Array.tabulate(buf.length.asInstanceOf[Int])(i => buf.selectDynamic(i.toString).asInstanceOf[Int].toByte)
+def keyPair(kind: String, opts: js.Dynamic): (Array[Byte], Array[Byte]) = {
+  val kp = crypto.generateKeyPairSync(kind, opts)
+  (bytes(kp.privateKey.`export`(js.Dynamic.literal(format = "der", `type` = "pkcs8"))),
+   bytes(kp.publicKey.`export`(js.Dynamic.literal(format = "der", `type` = "spki"))))
+}
+JsJwtCryptoBackend.install()
+val claims = JwtClaims(sub = Some("user-42"))
+val (rsa1024, rsa1024Pub) = keyPair("rsa", js.Dynamic.literal(modulusLength = 1024))
+val (p256, p256Pub)       = keyPair("ec", js.Dynamic.literal(namedCurve = "prime256v1"))
+val (p384, _)             = keyPair("ec", js.Dynamic.literal(namedCurve = "secp384r1"))
+println("RS256, 1024-bit key:  " + Jwt.sign(claims, rsa1024, Algorithm.RS256).flatMap(Jwt.decode(_, rsa1024Pub, Algorithm.RS256)).map(_.sub))
+println("ES384, P-256 key:     " + Jwt.sign(claims, p256, Algorithm.ES384).flatMap(Jwt.decode(_, p256Pub, Algorithm.ES384)).map(_.sub))
+println("ES256, P-384 key:     " + Jwt.sign(claims, p384, Algorithm.ES256).left.map(_.message))
+println("RS256, P-256 EC key:  " + Jwt.sign(claims, p256, Algorithm.RS256).flatMap(Jwt.decode(_, p256Pub, Algorithm.RS256)).map(_.sub))
+val (rsa2048, _)          = keyPair("rsa", js.Dynamic.literal(modulusLength = 2048))
+val (ed25519, ed25519Pub) = keyPair("ed25519", js.Dynamic.literal())
+println("ES256, RSA key:       " + Jwt.sign(claims, rsa2048, Algorithm.ES256).left.map(_.message))
+println("RS256, Ed25519 key:   " + Jwt.sign(claims, ed25519, Algorithm.RS256).left.map(_.message))
+println("RS256 verify, Ed25519 public key: " + Jwt.decode("eyJhbGciOiJSUzI1NiJ9.e30.AAAA", ed25519Pub, Algorithm.RS256).left.map(_.message))
+// RS256, 1024-bit key:  Right(Some(user-42))
+// ES384, P-256 key:     Right(Some(user-42))
+// ES256, P-384 key:     Left(JWT signature verification failed for algorithm DER integer exceeds expected ECDSA component size)
+// RS256, P-256 EC key:  Right(Some(user-42))
+// ES256, RSA key:       Left(JWT signature verification failed for algorithm invalid DER ECDSA signature)
+// RS256, Ed25519 key:   Left(Unsupported JWT algorithm: Error: Unsupported crypto operation)
+// RS256 verify, Ed25519 public key: Left(Unsupported JWT algorithm: Error: Unsupported crypto operation)
+```
+
+**Expected.** The same as the JVM: `InvalidKey` for a short RSA key, a key for another `ES*` curve and a wrong key type, on sign and on verify (RFC 7518 §3.3 requires RSA keys of 2048 bits or more, §3.4 fixes the curve per `ES*` algorithm).
+
+**Security triage.** Not a forgery path. The verifier, not the token, supplies the key and the algorithm, so every case above needs the private key that matches the verifier's own public key; an attacker without it gains nothing. The weakness is that a Scala.js issuer can use, and a Scala.js verifier will trust, a weaker key (1024-bit RSA, P-256 under an `ES384` label) than the algorithm promises. The reference page already says "the Node.js backend does not check RSA key size or EC curves" (`docs/reference/jwt.md`, "Supported Algorithms and Key Strength"); the key-type part is new.
+
+**Root cause.** `JsJwtCryptoBackend.sign`/`verify` (`jwt/js/src/main/scala/zio/blocks/jwt/JsJwtCryptoBackend.scala:65-94`) call `signWithAsymmetric`/`verifyWithAsymmetric` (`:98-115`) with a DER key object and no inspection of the key; compare `JvmJwtCryptoBackend.validateRsaKey` / `validateEcFieldSize` (`jwt/jvm/src/main/scala/zio/blocks/jwt/JvmJwtCryptoBackend.scala:230-259`). Lines at v0.0.56 (= 3ac1121a9).
+
+**Impact.** Medium for Scala.js users who expect parity with the JVM; tokens signed on Node may fail on JVM verifiers. Documented in the new `JsJwtCryptoBackend.sign`/`verify` and `Algorithm` Scaladoc.
+
+**Test gap.** `JwtJsSecuritySpec.scala` has no key-size, curve or key-type test (its JVM counterpart has them at `JwtJvmSecuritySpec.scala:202-251`).
+
+**Suggested fix.** Use `crypto.createPrivateKey`/`createPublicKey` and check `asymmetricKeyType` (`rsa` / `ec`), `asymmetricKeyDetails.modulusLength >= 2048` and `asymmetricKeyDetails.namedCurve` (`prime256v1`, `secp384r1`, `secp521r1`) before signing or verifying, returning `InvalidKey` with the JVM's messages; port the JVM tests.
+
+### jwt: the Scala.js backend reports an unreadable private key as `InvalidToken`
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** On Scala.js, `Jwt.sign` with an `RS*` or `ES*` private key that Node cannot parse returns `InvalidToken` with Node's ASN.1 error text, while the same bad key on verify gives `InvalidKey`, and the JVM gives `InvalidKey` for both. The reference page says "A key in the wrong format is rejected with `InvalidKey`".
+
+**Reproduction** (Scala 3.9.0, Scala.js 1.22.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false --js-cli-on-jvm Repro.sc`; Node.js installed):
+
+```scala
+//> using scala 3.9.0
+//> using platform scala-js
+//> using jsVersion 1.22.0
+//> using dep dev.zio::zio-blocks-jwt::0.0.56
+import zio.blocks.jwt._
+
+JsJwtCryptoBackend.install()
+val claims = JwtClaims(sub = Some("user-42"))
+println("sign, garbage key:   " + Jwt.sign(claims, Array[Byte](1, 2, 3), Algorithm.RS256))
+println("verify, garbage key: " + Jwt.decode("eyJhbGciOiJSUzI1NiJ9.e30.AAAA", Array[Byte](1, 2, 3), Algorithm.RS256))
+// sign, garbage key:   Left(zio.blocks.jwt.JwtError$InvalidToken: Invalid JWT token: Error: error:0680008E:asn1 encoding routines::not enough data)
+// verify, garbage key: Left(zio.blocks.jwt.JwtError$InvalidKey: Invalid JWT key: Error: Failed to read asymmetric key)
+```
+
+A public key passed to `sign` gives `InvalidToken("Error: error:068000A8:asn1 encoding routines::wrong tag")` the same way.
+
+**Expected.** `Left(JwtError.InvalidKey(...))` on both paths, as on the JVM.
+
+**Root cause.** `withNodeCrypto` classifies a `js.JavaScriptException` by words in its message (`jwt/js/src/main/scala/zio/blocks/jwt/JsJwtCryptoBackend.scala:182-195`, lines at v0.0.56 (= 3ac1121a9)); OpenSSL's "asn1 encoding routines::not enough data" contains none of "key", "der" or "signature", so it falls through to `InvalidToken`.
+
+**Impact.** Low: an application that maps `InvalidToken` to "bad request from the client" blames the client for its own key misconfiguration. Documented in the new `JwtError.InvalidToken` and `JsJwtCryptoBackend.sign` Scaladoc.
+
+**Test gap.** No Scala.js test signs with a malformed key.
+
+**Suggested fix.** Parse the key first with `crypto.createPrivateKey({key, format: "der", type: "pkcs8"})` (and `createPublicKey` for verify) inside its own `try`, mapping any failure to `InvalidKey`; then sign.
+
+### jwt: the JSON parser accepts inputs that RFC 8259 or UTF-8 forbid
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** The header and payload parser is more lenient than JSON: numbers with leading zeros (`007`), a sign inside a `\u` escape (`"\u+041"` reads as `"A"`), whitespace that JSON does not allow (vertical tab and other `Char.isWhitespace` characters), and invalid UTF-8 (replaced with U+FFFD instead of rejected). It also accepts a lone surrogate escape (`"\ud800"`), which RFC 8259 §8.2 allows but I-JSON (RFC 7493 §2.1) forbids; that one is a strictness choice, not a bug. RFC 7519 §7.2 requires the decoded segments to be valid JSON (and UTF-8).
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`; the same output with `//> using scala 2.13.18`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+
+def parse(json: String) = JwtClaims.parse(Base64Url.encode(json.getBytes("UTF-8"))).map(_.extra)
+println(parse("{\"n\":007}"))            // leading zeros: RFC 8259 forbids
+println(parse("{\"s\":\"\\u+041\"}"))    // a sign inside a \u escape
+println(parse("{\u000b\"s\":1}"))        // vertical tab is not JSON whitespace
+println(parse("{\"s\":\"\\ud800\"}"))    // lone surrogate: allowed by RFC 8259 §8.2, forbidden by I-JSON
+println(JwtClaims.parse(Base64Url.encode(Array[Byte]('{', '"', 's', '"', ':', '"', 0xff.toByte, '"', '}'))).map(_.extra)) // invalid UTF-8
+// Right(Map(n -> Num(007)))
+// Right(Map(s -> Str(A)))
+// Right(Map(s -> Num(1)))
+// Right(Map(s -> Str(?)))
+// Right(Map(s -> Str(�)))
+```
+
+(The `?` is the lone surrogate `\ud800` as the terminal prints it.)
+
+**Expected.** `Left(JwtError.InvalidToken(...))` for the leading-zero, `\u+041`, vertical-tab and invalid-UTF-8 inputs; rejecting the lone surrogate is optional (I-JSON).
+
+**Root cause.** `parseNumber`/`parseDigits` accept any digit run (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:743-767`); `parseHex` uses `Integer.parseInt(value, 16)`, which accepts a leading `+` or `-` (`:775-779`); `skipWhitespace` uses `Char.isWhitespace` (`:787-788`); `JwtText.decodeUtf8` uses `new String(bytes, "UTF-8")`, which replaces malformed input (`:466`). Lines at v0.0.56 (= 3ac1121a9).
+
+**Impact.** Low. A signed token can only contain what its issuer signed, so this is not a forgery path; the risk is that this verifier and a stricter one disagree about the same token (one accepts, one rejects, or `"\u+041"` decodes differently).
+
+**Test gap.** No test covers these inputs; `JwtEdgeCasesSpec` checks wrong types, not malformed JSON lexemes.
+
+**Suggested fix.** Reject a leading `0` followed by a digit, check each `\u` digit with `Character.digit(c, 16) >= 0`, skip only space, tab, LF and CR, and decode UTF-8 with a `CharsetDecoder` set to `CodingErrorAction.REPORT`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -17664,6 +17898,82 @@ object IgnoredModifiers {
 **Test gap.** No TOON test uses a type-level modifier (`grep -n 'fieldNaming\|caseNaming\|noExtraFields\|Modifier.discriminator' schema-toon/src/test` finds nothing).
 
 **Suggested fix.** Read the four modifiers in `ToonCodecDeriver` as `JsonCodecDeriver` does (same precedence: modifier over deriver setting, `rename` over naming strategy). Until then, the new `ToonCodecDeriver` Scaladoc states which modifiers it reads.
+
+### jwt: `InvalidSignature.alg` and `UnsupportedAlgorithm.alg` sometimes hold a backend message, not an algorithm name
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** `JwtError.InvalidSignature(alg)` and `JwtError.UnsupportedAlgorithm(alg)` name their field `alg`, and `Jwt.decode` fills it with the algorithm name. The JVM and Scala.js backends, however, put the text of a caught exception into the same field, so code that reads `alg` gets a sentence, and the message reads "JWT signature verification failed for algorithm invalid P1363 ECDSA signature length". Separately, the HMAC key-length message names the JCA algorithm (`HmacSHA256`) on the JVM backend and the JWT name (`HS256`) on the default and Scala.js backends.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+import java.security.KeyPairGenerator
+import java.security.spec.ECGenParameterSpec
+
+JvmJwtCryptoBackend.install()
+val g = KeyPairGenerator.getInstance("EC"); g.initialize(new ECGenParameterSpec("secp256r1"))
+val kp = g.generateKeyPair()
+val token = Jwt.sign(JwtClaims(sub = Some("user-42")), kp.getPrivate.getEncoded, Algorithm.ES256).toOption.get
+val Array(h, p, _) = token.split('.')
+Jwt.decode(s"$h.$p.AAAA", kp.getPublic.getEncoded, Algorithm.ES256) match {
+  case Left(e @ JwtError.InvalidSignature(alg)) => println(s"alg field = '$alg'"); println(e.message)
+  case other => println(other)
+}
+println(Jwt.sign(JwtClaims(), new Array[Byte](5), Algorithm.HS256).left.map(_.message))
+// alg field = 'invalid P1363 ECDSA signature length'
+// JWT signature verification failed for algorithm invalid P1363 ECDSA signature length
+// Left(Invalid JWT key: HMAC key too short: 5 bytes, minimum 32 bytes required for HmacSHA256)
+```
+
+Other values seen on 0.0.56: "Bad signature length: got 3 but was expecting 256" (RS256, JVM), "Signature length not correct: got 3 but was expecting 256" (PS256, JVM), "signature length invalid" (EdDSA, JVM), "DER integer exceeds expected ECDSA component size" (ES256 signing with a P-384 key, Scala.js), and "Error: Unsupported crypto operation" in `UnsupportedAlgorithm.alg` (Scala.js, `RS256` or `ES256` signing with an Ed25519 key; `JsJwtCryptoBackend.withNodeCrypto`, `jwt/js/src/main/scala/zio/blocks/jwt/JsJwtCryptoBackend.scala:191-192`, lines at v0.0.56 (= 3ac1121a9)).
+
+**Expected.** `alg` holds the algorithm name (`ES256`) and the reason goes in a separate field, or the field is renamed `reason` and the message says "JWT signature verification failed: ..."; the HMAC message uses the JWT name on every backend.
+
+**Root cause.** `JvmJwtCryptoBackend.withCrypto` maps `SignatureException` and `IllegalArgumentException`/`Exception` messages to `JwtError.InvalidSignature(msg)` and `NoSuchAlgorithmException` to `UnsupportedAlgorithm(msg)` (`jwt/jvm/src/main/scala/zio/blocks/jwt/JvmJwtCryptoBackend.scala:190-222`); `JsJwtCryptoBackend.withNodeCrypto` does the same (`jwt/js/src/main/scala/zio/blocks/jwt/JsJwtCryptoBackend.scala:169-204`). The JVM HMAC check passes the JCA name (`JvmJwtCryptoBackend.scala:33-35`, `:87`, `:224-228`). Lines at v0.0.56 (= 3ac1121a9).
+
+**Impact.** Low: logs and error mapping that read `alg` get misleading text. The new `JwtError.InvalidSignature` Scaladoc calls it a known bug.
+
+**Test gap.** `JwtJvmSecuritySpec.scala:270-286` and `JwtJsSecuritySpec.scala:209-216` assert only the case class (`case Left(_: JwtError.InvalidSignature) => true`), never the field.
+
+**Suggested fix.** Add a `reason` (or `detail`) field, or pass `alg.name` from the backends and put the cause elsewhere; use the JWT name in `validateHmacKeyOrThrow` on the JVM.
+
+### jwt: `JwtValue.Num` accepts any text, so `Jwt.sign` can produce a token that no JSON parser reads
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9`). The jwt main sources at the base are byte-identical to tag `v0.0.56`, so the behaviour is the same in the published 0.0.56, which the reproducer runs against.
+
+**Summary.** `JwtValue.Num(raw)` stores `raw` unchecked, and `JwtClaims.render` writes it as is. A claim such as `Num("10 GB")` therefore renders invalid JSON, `Jwt.sign` signs it without complaint, and `Jwt.decode` of the result fails after the signature check.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+
+val secret = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+val claims = JwtClaims(sub = Some("user-42"), extra = Map("quota" -> JwtValue.Num("10 GB")))
+println(JwtClaims.render(claims))
+val token = Jwt.sign(claims, secret, Algorithm.HS256)
+println(token.map(_ => "signed"))
+println(token.flatMap(Jwt.decode(_, secret, Algorithm.HS256)))
+// {"sub":"user-42","quota":10 GB}
+// Right(signed)
+// Left(zio.blocks.jwt.JwtError$InvalidToken: Invalid JWT token: expected ',' or '}')
+```
+
+**Expected.** Either `Num` validates its text against the JSON number grammar (a smart constructor returning `Either`, with the case-class constructor private), or `Jwt.sign` returns `Left(InvalidClaim("quota", "not a JSON number"))`.
+
+**Root cause.** `final case class Num(raw: String)` has no check (`jwt/shared/src/main/scala/zio/blocks/jwt/JwtValue.scala:40`), and `JwtJson.renderValue` writes `case Num(number) => number` (`Jwt.scala:588`). Lines at v0.0.56 (= 3ac1121a9).
+
+**Impact.** Low: a typo in a custom claim produces tokens that every verifier rejects, found only at verification time. `Num.toDouble` and `bigDecimal` also throw `NumberFormatException` on such a value. The Task 2 Scaladoc on `object Num` says the constructor does not check its argument.
+
+**Test gap.** No test builds a `Num` from non-numeric text.
+
+**Suggested fix.** Validate in `Jwt.sign` (cheapest: run the parser's number grammar on each `Num` while rendering) or make `Num.apply` checked.
 
 ## Test and CI
 

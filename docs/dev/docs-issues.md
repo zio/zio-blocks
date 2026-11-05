@@ -488,6 +488,71 @@ println(Team.schema.derive(YamlFormat).decode("name: core\nmembers:\n  - ada\n  
 
 **Suggested fix.** Edit the two lines; optionally add an mdoc example whose failure is inside a list, so the rendered output shows `.at(n)`.
 
+### `reference/jwt.md`: says no values are dropped during parsing
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9` = v0.0.56 for jwt sources), in `docs/reference/jwt.md:98` ("Extra claims"). The same sentence is at `v0.0.56` (`docs/reference/jwt.md:79`).
+
+**Summary.** `docs/reference/jwt.md`, "Extra claims": "Objects and arrays nest arbitrarily and are preserved exactly; no values are dropped during parsing." Two parts are false: an object that repeats a field name keeps only the last value (`{"role":"reader","role":"admin"}` parses as `Map(role -> Str(admin))`, reproducer below), and nesting is bounded by `JwtLimits.maxDepth` (default 32). The `JwtValue` Scaladoc said the same ("no values are silently dropped") and is fixed on this branch.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`; the same output with `//> using scala 2.13.18`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+
+println(JwtClaims.parse(Base64Url.encode("""{"role":"reader","role":"admin"}""".getBytes("UTF-8"))).map(_.extra))
+// Right(Map(role -> Str(admin)))
+```
+
+**Expected.** The page says what parsing keeps: objects and arrays nest up to `JwtLimits.maxDepth` (default 32), and a repeated field name keeps its last value.
+
+**Root cause.** The page text, not the code: the parser stores each field with `fields.update(key, value)` (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala:622` and `:671`, lines at v0.0.56 (= 3ac1121a9)), so a later duplicate replaces an earlier one, and it throws `TooDeep` past `maxDepth` (`:602`, `:642`, `:658`).
+
+**Impact.** Low. A reader who relies on "no values are dropped" may accept a payload that repeats a field and miss that one value was discarded.
+
+**Test gap.** No test parses a payload with a repeated field name (`git grep -n -i "duplicate\|repeated" 3ac1121a9 -- 'jwt/*/src/test'` finds nothing).
+
+**Suggested fix.** "Objects and arrays nest up to `JwtLimits.maxDepth` and keep their values, except that a repeated field name keeps its last value." Also, in "Limits and Options", "Resource limits are conservative and checked before allocation" is vague; the next paragraph already says what runs when, so the first sentence can go.
+
+### `reference/jwt.md`: states the JVM curve check more broadly than tested
+
+Found 2026-11-05 while fact-checking the jwt Scaladoc (branch `jwt-scaladoc`, base `3ac1121a9` = v0.0.56 for jwt sources), in `docs/reference/jwt.md:168` ("Supported Algorithms and Key Strength") and the `InvalidKey` row of the "Error Handling" table (`docs/reference/jwt.md:208`). At `v0.0.56` the line-168 claim is at `docs/reference/jwt.md:145` ("EC curve mismatches (e.g. `ES256` with `secp384r1`)"); that version has no `InvalidKey` table row.
+
+**Summary.** The page says that on the JVM "EC keys on the wrong curve (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`", and the error table lists "wrong EC curve" under `InvalidKey`. What was tested is narrower: a P-256, P-384 or P-521 key used with an `ES*` algorithm for one of the other two curves. Each of those six cases gives `InvalidKey`. The page should claim only that.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-jwt` 0.0.56, `Repro.sc`, run with `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-jwt:0.0.56
+import zio.blocks.jwt._
+import java.security.KeyPairGenerator
+import java.security.spec.ECGenParameterSpec
+
+JvmJwtCryptoBackend.install()
+def key(curve: String) = { val g = KeyPairGenerator.getInstance("EC"); g.initialize(new ECGenParameterSpec(curve)); g.generateKeyPair().getPrivate.getEncoded }
+val claims = JwtClaims(sub = Some("user-42"))
+for ((alg, curve) <- Seq(Algorithm.ES256 -> "secp384r1", Algorithm.ES256 -> "secp521r1", Algorithm.ES384 -> "secp256r1", Algorithm.ES384 -> "secp521r1", Algorithm.ES512 -> "secp256r1", Algorithm.ES512 -> "secp384r1"))
+  println(s"${alg.name} with $curve: " + Jwt.sign(claims, key(curve), alg).left.map(_.getClass.getSimpleName))
+// ES256 with secp384r1: Left(InvalidKey)
+// ES256 with secp521r1: Left(InvalidKey)
+// ES384 with secp256r1: Left(InvalidKey)
+// ES384 with secp521r1: Left(InvalidKey)
+// ES512 with secp256r1: Left(InvalidKey)
+// ES512 with secp384r1: Left(InvalidKey)
+```
+
+**Expected.** The page names the tested cases only, as the Scaladoc on this branch does.
+
+**Root cause.** The page text generalises from the tested cases.
+
+**Impact.** Low; a reader may rely on a check that the page states more broadly than tested.
+
+**Test gap.** `JwtJvmSecuritySpec.scala:228-245` covers `ES256` with P-384, `ES384` with P-256 and `ES512` with P-256 only.
+
+**Suggested fix.** Line 168: "On the JVM, RSA keys under 2048 bits and a P-256, P-384 or P-521 key used with the wrong `ES*` algorithm (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`". Error table: "on JVM, RSA under 2048 bits or a P-256/P-384/P-521 key with the wrong `ES*` algorithm".
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
@@ -641,7 +706,7 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 - `json-patch.md:608` said that converting a `JsonPatch` to RFC 6902 is a matter of encoding it with its `Schema` and reformatting. The encoded patch holds number deltas and string edits that RFC 6902 cannot express, so the conversion needs the source document to compute `replace` values and must track list indices as earlier operations shift them. No other page or Scaladoc claims RFC 6902 compatibility. The sentence now says this and links the H-07 guide's converter. Fixed in #1815 (H-07).
 - `transactor-zio.md` mentioned `JdbcTransactor.postgresLayer` without saying it is an extension that needs `import zio.blocks.sql.zio.*` (found while writing H-17). Fixed on the H-21 branch `docs/h21-sql-from-zio`.
 - `type-class-derivation.md` "Customizing Derivation with Instance and Modifier Overrides": all four examples were uncompiled plain blocks, one with a `// ... AST overrides ...` placeholder and undefined types. Each is now a self-contained `mdoc:compile-only` block with the real JSON AST overrides. Fixed in #1787.
-- `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37). The `JwtDecodeOptions` Scaladoc (`Jwt.scala:131-132`) still says `InvalidToken`; see the jwt entry above.
+- `jwt.md`: audience mismatch documented as `InvalidToken` (it is `InvalidClaim("aud", ...)`), missing `InvalidClaim`/`InvalidKey` rows, no key-format guidance, no frontmatter. Fixed in #1789 (H-37).
 - `sql-transactions.md`: the Hikari recipe, "JDK 25+" virtual-thread claim and "pool size equals database max connections" advice were replaced by a link to H-17's guide (virtual threads are final in JDK 21, JEP 444; JEP 491 shipped in JDK 24; pool sizing must keep the sum of all pools under `max_connections`). Also fixed: `.query[Int].toOne` (no such method; `queryOne[Long]`) and the unsupported "read-only avoids WAL writes" claim. Fixed in #1790 (H-17).
 - `codec.md` never mentioned `Deriver#withInstance`/`withModifier`, and its BinaryCodec/TextCodec paragraph was wrong (`CsvCodec` extends `TextCodec`; XML and YAML extend `BinaryCodec`; `BsonCodec` extends neither). New "Overriding a Type on a Deriver" subsection and fix in #1784 (merged).
 - Stale example: `schema-examples/src/main/scala/deriveroverrides/CompleteExample.scala` predated #1348 and showed no codec override. Rewritten in #1781 to demonstrate type, term-name and optic overrides with a round trip and the current run command.
