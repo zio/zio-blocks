@@ -91,8 +91,23 @@ final class ToonReader private[toon] (
     lines = null
   }
 
+  /**
+   * Decodes `length` bytes of `bytes` from `offset` as UTF-8 and loads the text
+   * as the input to read, positioned at its first line.
+   *
+   * @param bytes
+   *   the array holding the TOON text
+   * @param offset
+   *   the index of the first byte to read
+   * @param length
+   *   the number of bytes to read
+   */
   def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = reset(new String(bytes, offset, length, UTF_8))
 
+  /**
+   * Loads `content` as the input to read, split on `\n` into lines, and
+   * positions the reader at the first line.
+   */
   def reset(content: String): Unit = {
     lines = content.split('\n')
     lineIndex = 0
@@ -104,20 +119,49 @@ final class ToonReader private[toon] (
     }
   }
 
+  /**
+   * Returns whether the reader is on the first line of the input.
+   */
   def isFirstLine: Boolean = lineIndex == 0
 
+  /**
+   * Returns whether the reader has not yet moved past the last line of the
+   * input.
+   */
   def hasMoreLines: Boolean = lineIndex < lines.length
 
+  /**
+   * Returns whether unread characters remain on the current line.
+   */
   def hasMoreContent: Boolean = linePos < currentLine.length
 
+  /**
+   * Returns the indentation depth of the current line, counted in indentation
+   * levels.
+   */
   def getDepth: Int = currentDepth
 
+  /**
+   * Sets the delimiter that ends a value when the reader is reading inline
+   * values.
+   */
   def setActiveDelimiter(d: Delimiter): Unit = activeDelimiter = d
 
+  /**
+   * Returns the full text of the current line, including its indentation.
+   */
   def getCurrentLine: String = currentLine
 
+  /**
+   * Returns the unread part of the current line with surrounding whitespace
+   * removed, without consuming it.
+   */
   def peekTrimmedContent: String = currentLine.substring(linePos).trim
 
+  /**
+   * Moves to the next line. After the last line the current line is empty and
+   * at depth 0.
+   */
   def advanceLine(): Unit = {
     lineIndex += 1
     if (lineIndex < lines.length) {
@@ -131,6 +175,9 @@ final class ToonReader private[toon] (
     }
   }
 
+  /**
+   * Moves forward past lines that contain only whitespace.
+   */
   def skipBlankLines(): Unit =
     while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
       lineIndex += 1
@@ -141,6 +188,15 @@ final class ToonReader private[toon] (
       }
     }
 
+  /**
+   * Moves forward past lines that contain only whitespace, like
+   * `skipBlankLines`, but in strict mode a blank line that is not before the
+   * first item fails with
+   * `Blank lines are not allowed inside arrays/tabular blocks in strict mode`.
+   *
+   * @param isFirstItem
+   *   whether the next item is the first item of the array
+   */
   def skipBlankLinesInArray(isFirstItem: Boolean): Unit =
     while (lineIndex < lines.length && isWhitespaceOnly(lines(lineIndex))) {
       if (strict && !isFirstItem)
@@ -197,11 +253,20 @@ final class ToonReader private[toon] (
     markedCurrentLine = null
   }
 
+  /**
+   * Returns whether the unread part of the current line starts with the list
+   * item marker `- ` or is exactly `-`.
+   */
   def isListItem: Boolean = {
     val trimmed = peekTrimmedContent
     trimmed.startsWith("- ") || trimmed == "-"
   }
 
+  /**
+   * Consumes the list item marker at the start of the unread part of the
+   * current line and returns `true`, or returns `false` and consumes nothing
+   * when there is no marker.
+   */
   def consumeListItemMarker(): Boolean = {
     val trimmed = peekTrimmedContent
     if (trimmed.startsWith("- ")) {
@@ -213,11 +278,19 @@ final class ToonReader private[toon] (
     } else false
   }
 
+  /**
+   * Reads one value and checks that it is `null`; any other value fails with
+   * `Expected null, got: <value>`.
+   */
   def readNull(): Unit = {
     val value = readPrimitiveToken()
     if (value != "null") decodeError(s"Expected null, got: $value")
   }
 
+  /**
+   * Reads one value as a `Boolean`; anything other than `true` or `false` fails
+   * with `Expected boolean, got: <value>`.
+   */
   def readBoolean(): Boolean = {
     val value = readPrimitiveToken()
     if (value == "true") true
@@ -225,30 +298,50 @@ final class ToonReader private[toon] (
     else decodeError(s"Expected boolean, got: $value")
   }
 
+  /**
+   * Reads one value as a `Byte`; a value that does not parse fails with
+   * `Expected byte, got: <value>`.
+   */
   def readByte(): Byte = {
     val value = readPrimitiveToken()
     try value.toByte
     catch { case _: NumberFormatException => decodeError(s"Expected byte, got: $value") }
   }
 
+  /**
+   * Reads one value as a `Short`; a value that does not parse fails with
+   * `Expected short, got: <value>`.
+   */
   def readShort(): Short = {
     val value = readPrimitiveToken()
     try value.toShort
     catch { case _: NumberFormatException => decodeError(s"Expected short, got: $value") }
   }
 
+  /**
+   * Reads one value as an `Int`; a value that does not parse fails with
+   * `Expected int, got: <value>`.
+   */
   def readInt(): Int = {
     val value = readPrimitiveToken()
     try value.toInt
     catch { case _: NumberFormatException => decodeError(s"Expected int, got: $value") }
   }
 
+  /**
+   * Reads one value as a `Long`; a value that does not parse fails with
+   * `Expected long, got: <value>`.
+   */
   def readLong(): Long = {
     val value = readPrimitiveToken()
     try value.toLong
     catch { case _: NumberFormatException => decodeError(s"Expected long, got: $value") }
   }
 
+  /**
+   * Reads one value as a `Float`. The value `null` reads as `Float.NaN`; a
+   * value that does not parse fails with `Expected float, got: <value>`.
+   */
   def readFloat(): Float = {
     val value = readPrimitiveToken()
     if (value == "null") Float.NaN
@@ -258,6 +351,10 @@ final class ToonReader private[toon] (
     }
   }
 
+  /**
+   * Reads one value as a `Double`. The value `null` reads as `Double.NaN`; a
+   * value that does not parse fails with `Expected double, got: <value>`.
+   */
   def readDouble(): Double = {
     val value = readPrimitiveToken()
     if (value == "null") Double.NaN
@@ -267,20 +364,37 @@ final class ToonReader private[toon] (
     }
   }
 
+  /**
+   * Reads one value as a `BigDecimal`; a value that does not parse fails with
+   * `Expected BigDecimal, got: <value>`.
+   */
   def readBigDecimal(): BigDecimal = {
     val value = readPrimitiveToken()
     try BigDecimal(value)
     catch { case _: NumberFormatException => decodeError(s"Expected BigDecimal, got: $value") }
   }
 
+  /**
+   * Reads one value as a `BigInt`; a value that does not parse fails with
+   * `Expected BigInt, got: <value>`.
+   */
   def readBigInt(): BigInt = {
     val value = readPrimitiveToken()
     try BigInt(value)
     catch { case _: NumberFormatException => decodeError(s"Expected BigInt, got: $value") }
   }
 
+  /**
+   * Reads one value as a `String`. A quoted value is unescaped and returned
+   * without its quotes; an unquoted value is returned as written.
+   */
   def readString(): String = readPrimitiveToken()
 
+  /**
+   * Reads a key up to the first unquoted colon and consumes the colon. A quoted
+   * key is unescaped; a line without an unquoted colon fails with
+   * `Expected key:value, no colon found`.
+   */
   def readKey(): String = {
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
@@ -292,6 +406,12 @@ final class ToonReader private[toon] (
     key
   }
 
+  /**
+   * Reads a key like `readKey` and also returns whether it was written quoted.
+   *
+   * @return
+   *   the key and `true` if it was quoted
+   */
   def readKeyWithQuoteInfo(): (String, Boolean) = {
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
@@ -304,6 +424,12 @@ final class ToonReader private[toon] (
     (key, wasQuoted)
   }
 
+  /**
+   * Reads the text before the first unquoted colon, which can include array
+   * notation such as `[2]`, and consumes the colon. Only a text that starts
+   * with a quote is unescaped; a line without an unquoted colon fails with
+   * `Expected key:value, no colon found`.
+   */
   def readKeyWithArrayNotation(): String = {
     skipWhitespace()
     val colonIdx = findUnquotedColon(currentLine, linePos)
@@ -314,6 +440,22 @@ final class ToonReader private[toon] (
     if (keyPart.startsWith("\"")) unescapeString(keyPart) else keyPart
   }
 
+  /**
+   * Parses an array header such as `tags[2]:` or `rows[3]{id,name}:` on the
+   * current line and makes its delimiter the active delimiter.
+   *
+   * A header without a `[`, `]`, or the closing `:` fails with
+   * `Expected array header with [`, `Expected closing ] in array header` or
+   * `Expected : after array header`. An empty or non-numeric length fails with
+   * `Empty array length` or `Invalid array length: <text>`.
+   *
+   * @param isInline
+   *   when `true`, stays on the line just after the colon so that inline values
+   *   can be read; when `false`, moves to the next line
+   * @return
+   *   the key (`null` if absent), length, field names (`null` if absent) and
+   *   delimiter
+   */
   def parseArrayHeader(isInline: Boolean = false): ArrayHeader = {
     skipWhitespace()
     val bracketStart = findUnquotedChar(currentLine, '[', linePos)
@@ -344,6 +486,14 @@ final class ToonReader private[toon] (
     ArrayHeader(key, length, fields, delim)
   }
 
+  /**
+   * Reads the rest of the current line as the values of an inline array, split
+   * on the active delimiter, and moves to the next line. Returns an empty array
+   * when nothing follows.
+   *
+   * @return
+   *   the trimmed, still-quoted value texts
+   */
   def readInlineArray(): Array[String] = {
     skipWhitespace()
     val remaining = currentLine.substring(linePos).trim
@@ -352,6 +502,12 @@ final class ToonReader private[toon] (
     else splitByDelimiter(remaining, activeDelimiter)
   }
 
+  /**
+   * Converts a value token to a Scala value: `null` to `null`, `true` and
+   * `false` to `Boolean`, a token starting with a quote to its unescaped
+   * `String`, a token that looks like a number to a number, and anything else
+   * to the token itself.
+   */
   def inferType(token: String): Any =
     if (token == "null") null
     else if (token == "true") true
@@ -586,6 +742,9 @@ final class ToonReader private[toon] (
   }
 }
 
+/**
+ * The companion of `ToonReader`; creates readers from a `ReaderConfig`.
+ */
 object ToonReader {
   private val pool: ThreadLocal[ToonReader] = new ThreadLocal[ToonReader] {
     override def initialValue(): ToonReader =
@@ -639,6 +798,18 @@ object ToonReader {
   }
 }
 
+/**
+ * A parsed TOON array header.
+ *
+ * @param key
+ *   the key before the bracket, or `null` for a header without a key
+ * @param length
+ *   the declared number of items
+ * @param fields
+ *   the field names of a tabular header, or `null` when there are none
+ * @param delimiter
+ *   the delimiter the header declares
+ */
 final case class ArrayHeader(
   key: String,
   length: Int,
