@@ -31,16 +31,17 @@ import zio.blocks.schema.codec.TextCodec
  * bug). It never writes the header line: write `headerNames` yourself, for
  * example with [[CsvWriter.writeHeader]].
  *
- * `decode(input)` reads the first row of `input`, ignores anything after it,
- * and expects one cell per column in the order of `headerNames`; a header line
- * is read as data. It returns `Left` with a [[zio.blocks.schema.SchemaError]]
- * when the row does not parse, has a different number of cells, or a cell does
- * not convert to its field's type. A missing cell is an error even when the
- * field has a default value, and cells are not trimmed, so ` 42` does not
- * decode as an `Int`. The error quotes the bad value but does not name the
- * column (a known bug). When a field's schema comes from `Schema#transform` and
- * its function throws, `decode` throws that exception instead of returning
- * `Left` (a known bug).
+ * For a record, `decode(input)` reads the first row of `input`, ignores
+ * anything after it, and expects one cell per column in the order of
+ * `headerNames`; a header line is read as data. It returns `Left` with a
+ * [[zio.blocks.schema.SchemaError]] when the row does not parse, has a
+ * different number of cells, or a cell does not convert to its field's type. A
+ * missing cell is an error even when the field has a default value, and cells
+ * are not trimmed, so ` 42` does not decode as an `Int` (a `Double` or `Float`
+ * cell still does, because their parsers skip surrounding spaces). The error
+ * quotes the bad value but does not name the column (a known bug). When a
+ * field's schema comes from `Schema#transform` and its function throws,
+ * `decode` throws that exception instead of returning `Left` (a known bug).
  *
  * The derived codecs always use [[CsvConfig.default]]. To write or read another
  * delimiter, pass a [[CsvConfig]] to [[CsvWriter]] and [[CsvReader]].

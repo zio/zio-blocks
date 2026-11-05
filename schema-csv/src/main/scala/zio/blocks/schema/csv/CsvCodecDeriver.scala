@@ -30,12 +30,13 @@ import scala.util.control.NonFatal
 /**
  * The [[zio.blocks.schema.derive.Deriver]] behind [[CsvFormat]]; prefer
  * `Schema#derive(CsvFormat)`. It builds a [[CsvCodec]] for:
- *   - the 30 primitive types of [[zio.blocks.schema.PrimitiveType]], from
- *     `Unit` to `UUID`. Such a codec writes the bare value, unquoted and with
- *     no line terminator, reads the whole input as the value, and has the one
- *     column `value`. A `Boolean`, `DayOfWeek` or `Month` cell is read in any
- *     letter case; other cells go to the matching JDK or Scala parser, such as
- *     `Integer.parseInt` or `Instant.parse`, and a `Currency` is its code.
+ *   - the 30 primitive types of [[zio.blocks.schema.PrimitiveType]], such as
+ *     `Int`, `String`, `Instant` and `UUID`. Such a codec writes the bare
+ *     value, unquoted and with no line terminator, reads the whole input as the
+ *     value, and has the one column `value`. A `Boolean`, `DayOfWeek` or
+ *     `Month` cell is read in any letter case; other cells go to the matching
+ *     JDK or Scala parser, such as `Integer.parseInt` or `Instant.parse`, and a
+ *     `Currency` is its code.
  *   - records, written as one row through [[CsvWriter]] with
  *     [[CsvConfig.default]]. A field that is itself a record (an `AnyVal` case
  *     class included) becomes one quoted cell holding that record's row, line

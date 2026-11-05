@@ -23,9 +23,9 @@ package zio.blocks.schema.csv
  * `Throwable` with no stack trace and no cause, so it costs little to create.
  *
  * [[CsvCodec]]'s `decode` does not return it: it copies the text of
- * `getMessage` into a [[zio.blocks.schema.SchemaError]]. Only
- * [[CsvError.ParseError]] is ever produced; no code in the module constructs
- * [[CsvError.TypeError]] (a known bug).
+ * `getMessage` into a [[zio.blocks.schema.SchemaError]]. The module produces
+ * only [[CsvError.ParseError]]; no code in it constructs [[CsvError.TypeError]]
+ * (a known bug).
  *
  * {{{
  * val result = CsvReader.readRow("\"t-1\"x,21.5", 0, CsvConfig.default)

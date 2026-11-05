@@ -30,8 +30,8 @@ package zio.blocks.schema.csv
  *   - A row ends at `\r`, `\n` or `\r\n`, whatever [[CsvConfig#lineTerminator]]
  *     is.
  *
- * Cells are not trimmed, and rows may have different numbers of cells. Errors
- * are [[CsvError.ParseError]] values in a `Left`; nothing is thrown.
+ * Cells are not trimmed, and rows may have different numbers of cells. A
+ * malformed row gives a [[CsvError.ParseError]] in a `Left`, not an exception.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
@@ -66,7 +66,7 @@ object CsvReader {
    * @param config
    *   The delimiter and quote character to use.
    * @return
-   *   The row's cells and the index just past its line break, or a
+   *   The row's cells and the index right after its line break, or a
    *   [[CsvError.ParseError]] when the row is malformed.
    */
   def readRow(input: String, offset: Int, config: CsvConfig): Either[CsvError, (IndexedSeq[String], Int)] = {
