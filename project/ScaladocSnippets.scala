@@ -79,11 +79,29 @@ object ScaladocSnippets {
   def moduleOf(sourcePath: String): String = sourcePath.takeWhile(_ != '/')
 
   /**
-   * The import that every example of a module gets: the module directory
-   * `streams` gives `zio.blocks.streams._`, and a nested module such as
-   * `schema-avro` gives `zio.blocks.schema.avro._`. This holds only for a
-   * module whose package follows its directory; see the comment on
-   * `scaladocCheckedModules` in `build.sbt` for the ones that don't.
+   * The modules whose package does not follow their directory, from the module
+   * directory to the package. Add a module here before adding it to
+   * `scaladocCheckedModules` in `build.sbt` when its package is not
+   * `zio.blocks.<module-dir>` with `-` read as `.`.
+   */
+  val packageOverrides: Map[String, String] = Map(
+    "http-model" -> "zio.http"
+  )
+
+  /**
+   * The package of the module a source file belongs to: its entry in
+   * `packageOverrides`, or else the module directory read as a package under
+   * `zio.blocks` (`streams` gives `zio.blocks.streams`, `schema-avro` gives
+   * `zio.blocks.schema.avro`).
+   */
+  def modulePackage(sourcePath: String): String = {
+    val module = moduleOf(sourcePath)
+    packageOverrides.getOrElse(module, "zio.blocks." + module.replace('-', '.'))
+  }
+
+  /**
+   * The import that every example of a module gets: its package, from
+   * `modulePackage`, as in `zio.blocks.streams._` or `zio.http._`.
    *
    * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
    * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
@@ -93,21 +111,21 @@ object ScaladocSnippets {
    */
   def moduleImport(sourcePath: String): String =
     moduleOf(sourcePath) match {
-      case "sql"  => "zio.blocks.sql.{zio => _, _}"
-      case module => "zio.blocks." + module.replace('-', '.') + "._"
+      case "sql" => "zio.blocks.sql.{zio => _, _}"
+      case _     => modulePackage(sourcePath) + "._"
     }
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
-   * The path starts with the module directory, so modules with same-named files
-   * get different names; `generate` fails if two examples still map to one
-   * name.
+   * The path starts with the module directory, and the module's package
+   * directories are dropped, so modules with same-named files get different
+   * names; `generate` fails if two examples still map to one name.
    */
   def objectName(sourcePath: String, line: Int): String =
     "Snippet_" + sourcePath
       .stripSuffix(".scala")
       .replace("/src/main/", "/")
-      .replace("/zio/blocks/" + moduleOf(sourcePath).replace('-', '/') + "/", "/")
+      .replace("/" + modulePackage(sourcePath).replace('.', '/') + "/", "/")
       .replaceAll("[^A-Za-z0-9]", "_") + "_L" + line
 
   /** The source file that wraps `snippet` in an object. */

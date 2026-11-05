@@ -18,11 +18,25 @@ package zio.http
 
 import zio.blocks.mediatype.{MediaType, MediaTypes}
 
+/**
+ * The value of a `Content-Type` header: a media type with an optional boundary
+ * and charset.
+ *
+ * Use [[ContentType.parse]] to read one from a header value and `render` to
+ * write it back.
+ */
 final case class ContentType(
   mediaType: MediaType,
   boundary: Option[Boundary] = None,
   charset: Option[Charset] = None
 ) {
+
+  /**
+   * Renders the content type as a header value: the media type, then
+   * `; charset=<name>` if a charset is set, then `; boundary=<value>` if a
+   * boundary is set. For example, a `multipart/form-data` type with both gives
+   * `multipart/form-data; charset=UTF-8; boundary=zz`.
+   */
   def render: String = {
     val sb = new StringBuilder(mediaType.fullType)
     charset.foreach(c => sb.append("; charset=").append(c.name))
@@ -31,8 +45,20 @@ final case class ContentType(
   }
 }
 
+/** Parsing for [[ContentType]], and common predefined values. */
 object ContentType {
 
+  /**
+   * Parses a content type such as `text/html; charset=utf-8`.
+   *
+   * The text before the first `;` is parsed as a media type after trimming; a
+   * failure there is returned as `Left`, as is the empty string. The `charset`
+   * and `boundary` parameters are read after trimming, and their names match in
+   * any letter case. A `charset` that [[Charset.fromString]] does not know
+   * (such as `bogus`), a charset value in quotes, and parameters other than
+   * these two are dropped without an error. A boundary keeps its text as given,
+   * quotes included: `boundary="abc 123"` gives `"abc 123"` with the quotes.
+   */
   def parse(s: String): Either[String, ContentType] = {
     if (s.isEmpty) return Left("Invalid content type: cannot be empty")
 
@@ -72,8 +98,15 @@ object ContentType {
     }
   }
 
-  val `application/json`: ContentType         = ContentType(MediaTypes.application.`json`)
-  val `text/plain`: ContentType               = ContentType(MediaTypes.text.`plain`)
-  val `text/html`: ContentType                = ContentType(MediaTypes.text.`html`)
+  /** The `application/json` content type, without a charset. */
+  val `application/json`: ContentType = ContentType(MediaTypes.application.`json`)
+
+  /** The `text/plain` content type, without a charset. */
+  val `text/plain`: ContentType = ContentType(MediaTypes.text.`plain`)
+
+  /** The `text/html` content type, without a charset. */
+  val `text/html`: ContentType = ContentType(MediaTypes.text.`html`)
+
+  /** The `application/octet-stream` content type. */
   val `application/octet-stream`: ContentType = ContentType(MediaTypes.application.`octet-stream`)
 }

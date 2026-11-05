@@ -228,6 +228,35 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
       )
     },
+    test("moduleImport and objectName use packageOverrides for a module whose package is not its directory") {
+      val requestPath = "http-model/shared/src/main/scala/zio/http/Request.scala"
+      val statusPath  = "http-model/shared/src/main/scala-2/zio/http/Status.scala"
+      assertTrue(
+        ScaladocSnippets.packageOverrides("http-model") == "zio.http",
+        ScaladocSnippets.modulePackage(requestPath) == "zio.http",
+        ScaladocSnippets.moduleImport(requestPath) == "zio.http._",
+        ScaladocSnippets.objectName(requestPath, 12) == "Snippet_http_model_shared_scala_Request_L12",
+        ScaladocSnippets.objectName(statusPath, 5) == "Snippet_http_model_shared_scala_2_Status_L5",
+        ScaladocSnippets.modulePackage("schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala") ==
+          "zio.blocks.schema.avro"
+      )
+    },
+    test("render gives an http-model example the zio.http import") {
+      val path    = "http-model/shared/src/main/scala/zio/http/URL.scala"
+      val snippet = ScaladocSnippets.Snippet(path, 20, List("val a = 1"), None)
+      assertTrue(
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $path:20 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |import zio.http._
+             |
+             |object Snippet_http_model_shared_scala_URL_L20 {
+             |  val a = 1
+             |}
+             |""".stripMargin
+      )
+    },
     test("render gives a streams example the streams import") {
       val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       val snippet     = ScaladocSnippets.Snippet(streamsPath, 9, List("val a = 1"), None)
