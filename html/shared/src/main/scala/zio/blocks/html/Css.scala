@@ -119,8 +119,9 @@ object Css {
    * For a `String` value the result depends on the Scala version, which is a
    * known bug. On Scala 3 the string goes through `ToCss[String]`, which
    * escapes quotes, `<`, `>` and `&`, so `"\"Inter\", sans-serif"` renders as
-   * `\"Inter\", sans-serif` and the browser drops the declaration. On Scala 2
-   * the case class's own `apply` is chosen and the string is used as written.
+   * `\"Inter\", sans-serif`, which the browser reads as a font named `"Inter"`
+   * with the quotes, so the Inter font is not used. On Scala 2 the case class's
+   * own `apply` is chosen and the string is used as written.
    */
   final case class Declaration private (property: String, value: String)
 

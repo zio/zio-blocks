@@ -19,11 +19,11 @@ package zio.blocks.html
 import zio.blocks.chunk.Chunk
 
 /**
- * Converts a value to a single [[Dom]] node: a primitive becomes a
- * [[Dom.Text]], a [[Dom]] value is kept, `None` becomes [[Dom.Empty]], and an
- * iterable with several items is wrapped in a `<span>`. Nothing else in the
- * module uses it: the DSL takes values through [[ToModifier]] and `html"..."`
- * through [[ToElements]].
+ * Converts a value to a single [[Dom]] node: a `String`, `Int`, `Long`,
+ * `Double` or `Boolean` becomes a [[Dom.Text]], a [[Dom]] value is kept, `None`
+ * becomes [[Dom.Empty]], and an iterable with several items is wrapped in a
+ * `<span>`. Nothing else in the module uses it: the DSL takes values through
+ * [[ToModifier]] and `html"..."` through [[ToElements]].
  *
  * @tparam A
  *   the input type to convert
@@ -66,7 +66,9 @@ object ToDom {
   }
 
   /**
-   * Wraps the `String` in a [[Dom.Text]] node, which escapes it when rendered.
+   * Wraps the `String` in a [[Dom.Text]] node, which escapes it when rendered,
+   * except as a child of a `script` or `style` element, which writes text as
+   * is.
    */
   implicit val stringToDom: ToDom[String] = new ToDom[String] {
     def toDom(a: String): Dom = Dom.Text(a)

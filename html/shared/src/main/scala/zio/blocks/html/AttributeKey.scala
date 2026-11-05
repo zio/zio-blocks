@@ -46,7 +46,10 @@ final class AttributeKey(val attrName: String) {
   def :=(value: Long): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value.toString))
 
-  /** Sets the attribute to `value.toString`, so `1.0` renders as `1.0`. */
+  /**
+   * Sets the attribute to `value.toString`: `1.0` renders as `1.0` on the JVM
+   * and as `1` on Scala.js.
+   */
   def :=(value: Double): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value.toString))
 

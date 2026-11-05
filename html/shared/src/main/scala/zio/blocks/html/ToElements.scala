@@ -42,7 +42,8 @@ object ToElements {
 
   /**
    * Produces one [[Dom.Text]] node holding the `String`, which escapes it when
-   * rendered.
+   * rendered, except inside `<script>` or `<style>`, whose text renders without
+   * escaping, so never interpolate untrusted values there.
    */
   implicit val stringToElements: ToElements[String] = new ToElements[String] {
     def toElements(a: String): Chunk[Dom] = Chunk(Dom.Text(a))

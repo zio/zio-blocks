@@ -18,9 +18,10 @@ package zio.blocks.html
 
 /**
  * Converts a value to attribute text for the attribute positions of
- * `html"..."`. The `String`, `Char`, [[Js]] and [[Css]] instances HTML-escape
- * the text. The interpolator then parses the text back and rendering escapes it
- * again, so an `&` in a value renders as `&amp;amp;`, which is a known bug.
+ * `html"..."`. The `String`, `Char`, `Iterable[String]`, [[Js]] and [[Css]]
+ * instances HTML-escape the text. The interpolator then parses the text back
+ * and rendering escapes it again, so an `&` in a value renders as `&amp;amp;`,
+ * which is a known bug.
  */
 trait ToAttrValue[-A] {
 
@@ -58,8 +59,8 @@ object ToAttrValue {
   }
 
   /**
-   * Renders a `Double` with `Double#toString`, so `1.0` stays `1.0` and
-   * `1.5e10` becomes `1.5E10`.
+   * Renders a `Double` with `Double#toString`: `1.0` and `1.5e10` become `1.0`
+   * and `1.5E10` on the JVM, and `1` and `15000000000` on Scala.js.
    */
   implicit val doubleToAttrValue: ToAttrValue[Double] = new ToAttrValue[Double] {
     def toAttrValue(a: Double): String = a.toString

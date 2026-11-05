@@ -22,10 +22,7 @@ package zio.blocks.html
  */
 trait ToCss[-A] {
 
-  /**
-   * Converts the value to CSS text for the values interpolated into a `css` or
-   * `selector` string.
-   */
+  /** Converts the value to CSS text. */
   def toCss(a: A): String
 }
 
@@ -56,7 +53,10 @@ object ToCss {
     def toCss(a: Long): String = a.toString
   }
 
-  /** Renders a `Double` with `Double#toString`, so `1.0` stays `1.0`. */
+  /**
+   * Renders a `Double` with `Double#toString`: `1.0` on the JVM, `1` on
+   * Scala.js.
+   */
   implicit val doubleToCss: ToCss[Double] = new ToCss[Double] {
     def toCss(a: Double): String = a.toString
   }
@@ -98,15 +98,18 @@ object ToCss {
 
 /**
  * A CSS length value with a numeric value and unit (e.g., `10px`, `2em`,
- * `50%`).
+ * `50%`). The constructor throws `java.lang.IllegalArgumentException` for a
+ * unit other than `px`, `em`, `rem`, `%`, `vh`, `vw`, `ch`, `ex`, `vmin`,
+ * `vmax`, `cm`, `mm`, `in`, `pt` and `pc`.
  */
 final case class CssLength(value: Double, unit: String) {
   require(CssLength.validUnits.contains(unit), s"Invalid CSS unit: $unit")
 
   /**
-   * Renders the number followed by the unit. A whole number drops its decimal
-   * part (`10px`), a fractional one keeps it (`1.5em`), and `NaN` or an
-   * infinite value renders as `0` plus the unit.
+   * Renders the number followed by the unit. A whole number within the `Long`
+   * range drops its decimal part (`10px`), any other value uses
+   * `Double#toString` (`1.5em`), and `NaN` or an infinite value renders as `0`
+   * plus the unit.
    */
   def render: String =
     if (value.isNaN || value.isInfinite) "0" + unit
@@ -118,7 +121,7 @@ final case class CssLength(value: Double, unit: String) {
 
 /**
  * Companion of [[CssLength]] with the unit extension methods for `Int` and
- * `Double`.
+ * `Double`. Bring them into scope with `import zio.blocks.html.CssLength._`.
  */
 object CssLength {
   private[html] val validUnits: Set[String] =

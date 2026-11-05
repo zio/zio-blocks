@@ -48,7 +48,10 @@ object ToText {
     def toText(a: Long): String = a.toString
   }
 
-  /** Renders a `Double` with `Double#toString`, so `1.0` stays `1.0`. */
+  /**
+   * Renders a `Double` with `Double#toString`: `1.0` on the JVM, `1` on
+   * Scala.js.
+   */
   implicit val doubleToText: ToText[Double] = new ToText[Double] {
     def toText(a: Double): String = a.toString
   }

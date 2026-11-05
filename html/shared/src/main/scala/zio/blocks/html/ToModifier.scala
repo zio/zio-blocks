@@ -94,7 +94,11 @@ object ToModifier {
     def toModifier(a: Dom.Text): DomModifier = DomModifier.AddChild(a)
   }
 
-  /** Adds a text child holding the `String`, which escapes it when rendered. */
+  /**
+   * Adds a text child holding the `String`, which escapes it when rendered,
+   * except as a child of a `script` or `style` element, which writes text as
+   * is.
+   */
   implicit val stringToModifier: ToModifier[String] = new ToModifier[String] {
     def toModifier(a: String): DomModifier = DomModifier.AddChild(Dom.Text(a))
   }
@@ -131,7 +135,8 @@ object ToModifier {
 
   /**
    * Adds a text child holding the source text of the [[Js]] value, which
-   * escapes it when rendered.
+   * escapes it when rendered, except as a child of a `script` or `style`
+   * element, which writes text as is.
    */
   implicit val jsToModifier: ToModifier[Js] = new ToModifier[Js] {
     def toModifier(a: Js): DomModifier = DomModifier.AddChild(Dom.Text(a.value))
@@ -139,7 +144,8 @@ object ToModifier {
 
   /**
    * Adds a text child holding the `render` text of the [[Css]] value, which
-   * escapes it when rendered.
+   * escapes it when rendered, except as a child of a `script` or `style`
+   * element, which writes text as is.
    */
   implicit val cssToModifier: ToModifier[Css] = new ToModifier[Css] {
     def toModifier(a: Css): DomModifier = DomModifier.AddChild(Dom.Text(a.render))
