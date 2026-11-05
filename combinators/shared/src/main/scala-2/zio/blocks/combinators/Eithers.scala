@@ -73,8 +73,8 @@ object Eithers {
     /**
      * Moves the value of `either` to the same alternative in the left-nested
      * shape: with `R = Either[String, Boolean]`, `Left(1)` becomes
-     * `Left(Left(1))`, `Right(Left("timeout"))` becomes `Left(Right(timeout))`,
-     * and `Right(Right(true))` becomes `Right(true)`.
+     * `Left(Left(1))`, `Right(Left("timeout"))` becomes
+     * `Left(Right("timeout"))`, and `Right(Right(true))` becomes `Right(true)`.
      */
     def combine(either: Either[L, R]): Out
 

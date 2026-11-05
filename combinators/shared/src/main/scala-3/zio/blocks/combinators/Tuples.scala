@@ -32,9 +32,9 @@ import scala.util.NotGiven
  *
  * The Scala versions differ when the right side is a tuple. On Scala 3 it is
  * concatenated: `(8080, "localhost")` with `(true, 3)` is
- * `(8080, localhost, true, 3)`; `EmptyTuple` disappears like `Unit`, and the
+ * `(8080, "localhost", true, 3)`; `EmptyTuple` disappears like `Unit`, and the
  * result can be longer than 22 elements. On Scala 2 it stays one nested
- * element, `(8080, localhost, (true, 3))` (a known bug); a result longer than
+ * element, `(8080, "localhost", (true, 3))` (a known bug); a result longer than
  * 22 elements does not compile, and neither does a `Tuple1` on the left.
  *
  * {{{
@@ -84,8 +84,9 @@ object Tuples {
   /**
    * The type class behind `Tuples.combine`: `combine` merges an `L` and an `R`
    * into `Out`, and `separate` splits an `Out` back into `(L, R)`. The compiler
-   * derives an instance for any `L` and `R`; ask for one as an implicit
-   * parameter, as `Tuples.combine` does.
+   * derives an instance for the `L` and `R` of a call, except for `Unit` with
+   * `Unit` and, on Scala 2, for a `Tuple1` or a 22-element tuple on the left;
+   * ask for one as an implicit parameter, as `Tuples.combine` does.
    *
    * {{{
    * def roundTrip[L, R](l: L, r: R)(implicit t: Tuples.Tuples[L, R]): (L, R) =
@@ -171,7 +172,7 @@ object Tuples {
 
     /**
      * Appends a non-tuple `R` to a non-empty tuple: `(8080, "localhost")` with
-     * `true` is `(8080, localhost, true)`. Tuples nested in `L` stay as they
+     * `true` is `(8080, "localhost", true)`. Tuples nested in `L` stay as they
      * are.
      */
     inline given tupleValue[L <: NonEmptyTuple, R](using
@@ -181,8 +182,8 @@ object Tuples {
 
     /**
      * Prepends a non-tuple `L` to a non-empty tuple: `8080` with
-     * `("localhost", true)` is `(8080, localhost, true)`. Tuples nested in `R`
-     * stay as they are.
+     * `("localhost", true)` is `(8080, "localhost", true)`. Tuples nested in
+     * `R` stay as they are.
      */
     given valueTuple[L, R <: NonEmptyTuple](using NotGiven[L <:< Tuple]): WithOut[L, R, Tuple.Concat[Tuple1[L], R]] =
       ValueTupleInstance[L, R]()

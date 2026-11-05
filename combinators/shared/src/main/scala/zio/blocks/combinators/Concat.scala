@@ -114,7 +114,8 @@ private[combinators] trait EqualTypeConcat {
 
 /**
  * Holds the `Concat` instances: the ones for `Nothing` and for equal types, and
- * the derived instance for any other pair.
+ * the derived instance for any other pair (on Scala 2, `derive`, or the
+ * `Either` fallback `disjoint` when `derive` finds no supertype).
  */
 object Concat extends ConcatCompanionPlatform with EqualTypeConcat {
 

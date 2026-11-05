@@ -45,7 +45,8 @@ object Eithers {
    * Re-nests `Either[L, R]` to the left by peeling `Either`s off the right
    * side: `LeftNest[Int, Either[String, Boolean]]` is
    * `Either[Either[Int, String], Boolean]`. Unlike `CanonicalizeEither`, it
-   * leaves an `Either` inside `L` as it is.
+   * leaves an `Either` inside `L`, or on the left of an `Either` in `R`, as it
+   * is.
    */
   type LeftNest[L, R] <: Either[?, ?] = R match {
     case Either[x, y] => LeftNest[Either[L, x], y]
@@ -111,8 +112,8 @@ object Eithers {
     /**
      * Moves the value of `either` to the same alternative in the left-nested
      * shape: with `R = Either[String, Boolean]`, `Left(1)` becomes
-     * `Left(Left(1))`, `Right(Left("timeout"))` becomes `Left(Right(timeout))`,
-     * and `Right(Right(true))` becomes `Right(true)`.
+     * `Left(Left(1))`, `Right(Left("timeout"))` becomes
+     * `Left(Right("timeout"))`, and `Right(Right(true))` becomes `Right(true)`.
      */
     def combine(either: Either[L, R]): Out
 
