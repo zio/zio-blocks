@@ -27,10 +27,10 @@ import zio.http.Response
  * `import zio.http.schema._` adds the methods to every `Response`.
  *
  * `response.header[T](name)` does not compile, a known bug: `Response` has its
- * own `header` method, which takes a `Header.Codec`, and Scala picks a member
- * over an implicit conversion even when the arguments do not fit. Write
- * `response.headers.header[T](name)` instead. `headerAll` and `headerOrElse`
- * have no such clash.
+ * own `header` method, which takes a `Header.Codec`, and once a type argument
+ * is given the compiler commits to that member instead of trying the implicit
+ * conversion. Write `response.headers.header[T](name)` instead. `headerAll` and
+ * `headerOrElse` have no such clash.
  *
  * {{{
  * import zio.http.Response

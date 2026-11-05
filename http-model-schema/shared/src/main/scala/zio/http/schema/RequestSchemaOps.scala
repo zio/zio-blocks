@@ -29,10 +29,10 @@ import zio.http.Request
  * methods to every `Request`.
  *
  * `request.header[T](name)` does not compile, a known bug: `Request` has its
- * own `header` method, which takes a `Header.Codec`, and Scala picks a member
- * over an implicit conversion even when the arguments do not fit. Write
- * `request.headers.header[T](name)` instead. `headerAll` and `headerOrElse`
- * have no such clash.
+ * own `header` method, which takes a `Header.Codec`, and once a type argument
+ * is given the compiler commits to that member instead of trying the implicit
+ * conversion. Write `request.headers.header[T](name)` instead. `headerAll` and
+ * `headerOrElse` have no such clash.
  *
  * {{{
  * import zio.http.{Request, URL}
