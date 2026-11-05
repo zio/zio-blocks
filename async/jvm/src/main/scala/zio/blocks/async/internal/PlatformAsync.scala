@@ -20,8 +20,9 @@ import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import java.util.concurrent.locks.LockSupport
 
 /**
- * JVM hooks for the async runtime: thread-local execution context, scheduling
- * on `ForkJoinPool.commonPool()`, and the parker behind `block`.
+ * JVM hooks for the async runtime: the execution owner and cancellation batch
+ * in thread-locals, scheduling on `ForkJoinPool.commonPool()`, and the parker
+ * behind `block`.
  *
  * The parker uses [[LockSupport]] `park`/`unpark` rather than
  * `Object.synchronized` / `Object.wait` so that virtual threads (Project Loom,
@@ -191,7 +192,7 @@ private[async] object PlatformAsync {
       // from a prior round causes at most one spurious return the loop absorbs.
       while (!ready) {
         LockSupport.park()
-        // An interrupt of the parked thread (by its owner; the async runtime
+        // An interrupt of the parked thread (from user code; the async runtime
         // interrupts no thread) makes `LockSupport.park` return with the flag
         // set, so `block` ends with `InterruptedException`. Checked before
         // `ready`, so an interrupt racing a completion still surfaces as

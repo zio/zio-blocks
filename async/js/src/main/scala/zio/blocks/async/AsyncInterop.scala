@@ -72,7 +72,7 @@ private[async] object AsyncInterop {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
     // `requiresDriver` also routes a depth-1 pollable-as-value carrier through
-    // the microtask driver: delivering it drives the user pollable for
+    // the non-blocking driver: delivering it drives the user pollable for
     // effects, which may suspend — and JS cannot block for that.
     else if (AsyncEncoding.requiresDriver(any)) {
       val p = Promise[A]()
@@ -105,7 +105,7 @@ private[async] object AsyncInterop {
       // `current` holds the latest pollable; `step` advances it to the pollable
       // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
       // the *returned* pollable rather than re-polling the original. A single
-      // shared waker re-enters `step` on the next microtask, so a stale waker
+      // shared waker re-enters `step` through `ec` (or `setTimeout`), so a stale waker
       // captured by an earlier suspension still resumes the current state.
       // A depth-1 pollable-as-value carrier is driven for effects through an
       // observing pollable that settles to the user pollable itself.

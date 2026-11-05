@@ -1607,11 +1607,12 @@ private[async] object AsyncMacros {
      * completes successfully, and a failed await short-circuits the rest. We
      * drain the source iterator and accumulate into `builder` (the receiver's
      * OWN builder, supplied by the caller — `iterableFactory.newBuilder` for
-     * `Vector`/`Set`/non-pair `Map` results, `mapFactory.newBuilder` for
-     * pair-producing `Map` results), which preserves the collection family (and
-     * deduplicates a `Set`'s, or collapses a `Map`'s, *awaited* values — never
-     * an intermediate `CC[Async[…]]`). A tight `while` advances ready elements;
-     * the first suspended element switches to a `flatMap` continuation.
+     * `Vector`/`Queue`/`ArraySeq`/`Set`/non-pair `Map` results,
+     * `mapFactory.newBuilder` for pair-producing `Map` results), which
+     * preserves the collection family (and deduplicates a `Set`'s, or collapses
+     * a `Map`'s, *awaited* values — never an intermediate `CC[Async[…]]`). A
+     * tight `while` advances ready elements; the first suspended element
+     * switches to a `flatMap` continuation.
      *
      * `elemTpt` is the closure result element type `E`; when `flat` is true
      * each element yields an `IterableOnce[E]` concatenated (`++=`) into the
@@ -2391,8 +2392,9 @@ private[async] object AsyncMacros {
           // `collect(pf)` whose partial function has an awaiting case body. The
           // PF literal is an anonymous-class `Apply`, so it must precede
           // `HofAwaitCall` and the generic application-spine case. Restricted to
-          // builder-backed receivers (`List` / `Vector` / `Array` / `Set` /
-          // non-pair `Map` → `Iterable[B]`) and `Option` in the typed pass; the
+          // builder-backed receivers (`List` / `Vector` / `Queue` / `ArraySeq` /
+          // `Array` / `Set` / non-pair `Map` → `Iterable[B]`) and `Option` in
+          // the typed pass; the
           // element type `B` is the result collection's `typeArgs.head`. An
           // `Option` receiver dispatches to the single-element
           // `emitOptionCollect`; everything else to the builder-drain

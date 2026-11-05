@@ -22,7 +22,8 @@ import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
  * Scala.js implementation of `fa.start` and `Async.start(body)`.
  *
  * Ready values settle synchronously. A suspended value takes its first poll in
- * the caller; later polls run on `JSExecutionContext.queue` microtasks, with a
+ * the caller; later polls run on `JSExecutionContext.queue` microtasks, or in a
+ * caller that polls the run while a microtask resumption is queued, with a
  * `setTimeout` macrotask after `PlatformAsync.ReadyResumptionLimit` resumptions
  * in a row without a fresh wake (the same pattern as `AsyncInterop.drive`).
  * Cancellation suppresses publishing a terminal value and signals the active
@@ -88,17 +89,20 @@ private[async] object AsyncRunner {
     }
   }
 
-  /** Implements `Async.start(body)`: evaluates `body` on the next microtask. */
+  /**
+   * Implements `Async.start(body)`: evaluates `body` on a
+   * `JSExecutionContext.queue` microtask.
+   */
   def startEval[A](body: => A): Async.Running[A] = {
     val owner             = PlatformAsync.currentExecutionOwner
     val cancellationBatch = PlatformAsync.currentCancellationBatch
     val completer         = new Completer[A]
     val running           = startRegisteredOwned(completer.peek, owner)(_ => ())
-    // Evaluate `body` on the next microtask, scheduled directly onto the JS
+    // Evaluate `body` on a microtask, scheduled directly onto the JS
     // microtask queue (`execute`, which Scala.js implements as
     // `Promise.resolve().then(...)`), instead of allocating a
-    // Promise + Future + `Try` bridge per `start`. Same "evaluate on the next
-    // microtask" timing and throw -> `fail` capture.
+    // Promise + Future + `Try` bridge per `start`. Same microtask timing and
+    // throw -> `fail` capture.
     scala.scalajs.concurrent.JSExecutionContext.queue.execute(new Runnable {
       def run(): Unit =
         PlatformAsync.withExecutionOwner(owner) {
@@ -212,7 +216,7 @@ private[async] object AsyncRunner {
         if (replacement ne current) {
           current = replacement
           // The replacement has not registered `onComplete` yet and may
-          // already be ready. Give it a poll on the next microtask rather than
+          // already be ready. Give it a poll on the next scheduled step rather than
           // parking forever waiting for a wake it never promised to send.
           requestStep()
         }

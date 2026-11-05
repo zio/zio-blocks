@@ -36,7 +36,7 @@ private[async] final class CancellationCleanup {
   private var primaryCleanup: Supplied = null
   private var started                  = false
 
-  /** The joined cleanup, as the `Async` that the cancel returns. */
+  /** The joined cleanup, as the `Async` that `cancelWithCleanup` returns. */
   val effect: Async[Unit] = new Pollable[Unit] {
     def poll(onComplete: Runnable): Async[Unit] = {
       val cleanups = CancellationCleanup.this.synchronized {
@@ -75,7 +75,10 @@ private[async] final class CancellationCleanup {
    */
   def claimedReplacement(value: Async[Unit]): Unit = supplyHandoff(value)
 
-  /** Records that the in-flight poll returned no replacement to clean up. */
+  /**
+   * Records that there is no replacement to clean up: no poll was in flight, or
+   * it returned none.
+   */
   def noReplacement(): Unit = supplyHandoff(Async.succeed(()))
 
   private def claimCleanups(): (Async[Unit], Async[Unit]) =

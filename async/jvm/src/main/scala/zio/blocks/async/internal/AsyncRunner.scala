@@ -167,9 +167,10 @@ private[async] object AsyncRunner {
     private var waiters                                            = List.empty[Runnable]
     // The waiter-list critical sections (`registerOnComplete` / `wakeAll`)
     // synchronize on `this` rather than a dedicated lock object — one fewer
-    // allocation per `start`. They never block while held (only list mutation +
-    // non-blocking wakers run inside), so this does not risk Loom carrier
-    // pinning; a `ReentrantLock` would only add its `Sync` object here.
+    // allocation per `start`. They never block while held (only list mutation
+    // runs inside; the wakers run after the lock is released), so this does
+    // not risk Loom carrier pinning; a `ReentrantLock` would only add its
+    // `Sync` object here.
 
     // True once `terminal` holds a real settled outcome (not pending, not
     // cancelled).

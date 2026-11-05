@@ -19,9 +19,9 @@ package zio.blocks.async.internal
 import scala.scalajs.js.timers.setTimeout
 
 /**
- * Scala.js hooks for the async runtime: execution context held in plain fields,
- * scheduling on `JSExecutionContext.queue` (microtasks) or `setTimeout`, and
- * the parker behind `block`.
+ * Scala.js hooks for the async runtime: the execution owner and cancellation
+ * batch in plain fields, scheduling on `JSExecutionContext.queue` (microtasks)
+ * or `setTimeout`, and the parker behind `block`.
  *
  * JavaScript is single-threaded and has no blocking primitive, so the parker
  * cannot wait. Each suspension gets one chance to complete synchronously inside

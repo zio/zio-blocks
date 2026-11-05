@@ -37,8 +37,8 @@ import zio.blocks.async.*
  * cannot block.
  *
  * This is **not** a [[cps.CpsRuntimeAsyncAwait]] — providing only the plain
- * `CpsRuntimeAwait` keeps the macro rewrite as the primary path and uses
- * blocking strictly as a last resort.
+ * `CpsRuntimeAwait` keeps the macro rewrite as the primary path and would use
+ * blocking only as a last resort.
  */
 given asyncRuntimeAwait: CpsRuntimeAwait[Async] with {
   def await[A](fa: Async[A])(ctx: CpsTryMonadContext[Async]): A =
