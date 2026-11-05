@@ -1423,6 +1423,10 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `http-model`.jvm,
     html.jvm,
     async.jvm,
+    `schema-avro`,
+    `schema-bson`,
+    `schema-csv`.jvm,
+    `schema-thrift`,
     maybe.jvm,
     combinators.jvm,
     context.jvm

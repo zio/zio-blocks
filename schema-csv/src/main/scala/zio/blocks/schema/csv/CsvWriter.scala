@@ -17,26 +17,32 @@
 package zio.blocks.schema.csv
 
 /**
- * CSV row serialization utility with RFC 4180-compliant field escaping.
+ * Joins rows of cell strings into CSV text, with the delimiter, quote character
+ * and line terminator of a [[CsvConfig]]. Use it to write a header line, or a
+ * format other than the one the derived codecs use, such as TSV.
  *
- * Provides methods to serialize individual rows, headers, and complete CSV
- * documents. All field values are escaped according to RFC 4180 rules:
- *   - Fields containing the delimiter, quote character, or newlines are quoted
- *   - Quote characters within fields are escaped by doubling them
- *   - Fields not requiring escaping are written as-is
+ * Cells are escaped as RFC 4180 describes:
+ *   - A cell that holds the delimiter, the quote character, `\r` or `\n` is
+ *     enclosed in quote characters.
+ *   - A quote character inside such a cell is written twice.
+ *   - Any other cell, leading and trailing spaces included, is written as it
+ *     is.
+ *
+ * {{{
+ * val row = CsvWriter.writeRow(IndexedSeq("t-1", "hall, north", "21.5"), CsvConfig.tsv)
+ * // "t-1\thall, north\t21.5\r\n"
+ * val quoted = CsvWriter.writeRow(IndexedSeq("t-1", "hall, north"), CsvConfig.default)
+ * // "t-1,\"hall, north\"\r\n"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
  */
 object CsvWriter {
 
   /**
-   * Serializes a single row of fields as a CSV line.
-   *
-   * @param fields
-   *   the field values to serialize
-   * @param config
-   *   the CSV configuration controlling delimiter, quoting, and line
-   *   termination
-   * @return
-   *   a CSV-formatted row string terminated by `config.lineTerminator`
+   * Writes one row: the escaped cells separated by `config.delimiter`, then
+   * `config.lineTerminator`. An empty `fields` gives the line terminator alone.
    */
   def writeRow(fields: IndexedSeq[String], config: CsvConfig): String = {
     val sb = new java.lang.StringBuilder
@@ -51,30 +57,17 @@ object CsvWriter {
   }
 
   /**
-   * Serializes a header row. Semantically identical to `writeRow` but
-   * communicates intent that the output represents column names.
-   *
-   * @param names
-   *   the column header names
-   * @param config
-   *   the CSV configuration
-   * @return
-   *   a CSV-formatted header row string terminated by `config.lineTerminator`
+   * Writes a header row; it does the same as `writeRow` and names the intent.
+   * Pass a [[CsvCodec]]'s `headerNames` to get the header line its rows match.
    */
   def writeHeader(names: IndexedSeq[String], config: CsvConfig): String =
     writeRow(names, config)
 
   /**
-   * Serializes a complete CSV document with a header row followed by data rows.
-   *
-   * @param header
-   *   the column header names
-   * @param rows
-   *   the data rows, each an indexed sequence of field values
-   * @param config
-   *   the CSV configuration
-   * @return
-   *   a complete CSV document string with header and all data rows
+   * Writes a whole document: the header row, then each of `rows`, each line
+   * ending with `config.lineTerminator`. It writes the header row even when
+   * [[CsvConfig#hasHeader]] is `false`, and does not check that the rows have
+   * as many cells as the header.
    */
   def writeAll(header: IndexedSeq[String], rows: Iterable[IndexedSeq[String]], config: CsvConfig): String = {
     val sb = new java.lang.StringBuilder
@@ -87,18 +80,9 @@ object CsvWriter {
   }
 
   /**
-   * Escapes a single field value per RFC 4180 rules.
-   *
-   * If the field contains the delimiter, the quote character, or any newline
-   * character (CR or LF), it is surrounded with `config.quoteChar` and any
-   * occurrences of `config.quoteChar` within the field are doubled.
-   *
-   * @param field
-   *   the raw field value
-   * @param config
-   *   the CSV configuration
-   * @return
-   *   the escaped field string, quoted if necessary
+   * Returns `field` enclosed in `config.quoteChar`, with each quote character
+   * inside it doubled, when it holds the delimiter, the quote character, `\r`
+   * or `\n`; otherwise returns it unchanged.
    */
   private def escapeField(field: String, config: CsvConfig): String = {
     val delimiter    = config.delimiter
