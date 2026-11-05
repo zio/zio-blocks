@@ -21,9 +21,16 @@ import org.bson.BsonValue
 package object bson {
 
   /**
-   * Extension methods for BsonValue to enable decoding.
+   * Adds `as` to a `BsonValue`, so `document.as[Order]` decodes it with an
+   * implicit `BsonDecoder[Order]`. The module defines no implicit decoders, so
+   * put one in scope yourself or pass it explicitly.
    */
   implicit class BsonDecoderOps(private val value: BsonValue) extends AnyVal {
+
+    /**
+     * Decodes this value with `decoder`, the same as
+     * `decoder.fromBsonValue(value)`.
+     */
     def as[A](implicit decoder: BsonDecoder[A]): Either[BsonDecoder.Error, A] =
       decoder.fromBsonValue(value)
   }
