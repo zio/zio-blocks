@@ -365,7 +365,10 @@ object ThriftCodec {
    * Writes a `BigDecimal` as a Thrift struct with the fields `mantissa`
    * (`binary`, id 1, the unscaled value), `scale` (`i32`, id 2), `precision`
    * (`i32`, id 3) and `roundingMode` (`byte`, id 4, the ordinal of its
-   * `RoundingMode`); the last two come from its `MathContext`.
+   * `RoundingMode`); the last two come from its `MathContext`. A known bug:
+   * decoding rounds the value to the precision of that `MathContext`, so a
+   * value with more significant digits than the precision, such as one made
+   * with `BigDecimal(java.math.BigDecimal)`, comes back rounded.
    */
   val bigDecimalCodec: ThriftCodec[BigDecimal] = new ThriftCodec[BigDecimal] {
     private[this] val mantissaField     = new TField("mantissa", TType.STRING, 1)
