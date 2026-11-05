@@ -19,36 +19,46 @@ package zio.blocks.sql
 import zio.blocks.schema.json.Json
 
 /**
- * PostgreSQL-specific [[DbParam]] instances for collection types.
- *
- * Import `PgCodec.given` to enable passing `Seq[A]`, `List[A]`, and
- * `IndexedSeq[A]` as SQL array parameters in the `sql"..."` interpolator.
+ * PostgreSQL instances to import with `import zio.blocks.sql.PgCodec.given`:
+ * [[DbParam]]s that bind a Scala collection as one SQL array, so that
+ * `= ANY(\$values)` matches any of the values, [[DbCodec]]s that read a
+ * `text[]` column into a `List[String]` or `IArray[String]`, and a `DbCodec`
+ * for the `Json` type.
  *
  * {{{
- * import zio.blocks.sql.*
  * import zio.blocks.sql.PgCodec.given
  *
- * val ids: List[String] = List("a", "b", "c")
- * val frag = sql"SELECT * FROM products WHERE id = ANY(\$ids)"
+ * val skus = List("KB-01", "MS-02")
+ * val frag = sql"SELECT name FROM product WHERE sku = ANY(\$skus)"
+ *
+ * frag.sql(SqlDialect.PostgreSQL) // SELECT name FROM product WHERE sku = ANY(?)
+ * frag.params                     // Vector(DbArray(varchar,Vector(KB-01, MS-02)))
  * }}}
  *
- * These instances produce `DbValue.DbArray` values that bind as JDBC arrays via
- * `Connection.createArrayOf`. The SQL element type is inferred from the Scala
- * element type.
+ * Each parameter binds through `Connection#createArrayOf` with a fixed element
+ * type: `varchar` for `Seq`, `List`, `IndexedSeq` and `IArray` of `String`;
+ * `integer` for `Seq`, `List` and `IndexedSeq` of `Int`; `bigint` for the same
+ * three of `Long`; `double precision` for `Seq` and `List` of `Double`;
+ * `boolean` for `Seq` and `List` of `Boolean`; and `uuid` for `Seq` and `List`
+ * of `UUID`. SQLite has no arrays, so these work on PostgreSQL only.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/db-param/ DbParam]]
  */
 object PgCodec {
 
   /**
-   * `DbCodec` for the blocks-native JSON AST type
-   * ([[zio.blocks.schema.json.Json]]), stored as PostgreSQL `jsonb`. Uses
-   * `Json.print`/`Json.parseUnsafe` directly as the JSON string codec, since
-   * they already are the canonical serialization for this type (no `JsonCodec`
-   * round-trip needed).
+   * Stores a [[zio.blocks.schema.json.Json]] value as JSON text, written with
+   * `Json#print` and read with `Json.parseUnsafe`, for a `jsonb` column. The
+   * text binds as a string, which PostgreSQL won't store in a `jsonb` column
+   * unless the JDBC URL has `stringtype=unspecified`: a known bug in 0.0.56.
    */
   given jsonCodec: DbCodec[Json] = DbCodec.jsonb[Json](_.print, Json.parseUnsafe)
 
+  /** The one column name of the array codecs. */
   private val ValueColumn = IndexedSeq("value")
 
+  /** Returns the array as read, `null` included. */
   private def readStringArray(values: Array[String]): Array[String] =
     if (values == null) null else values
 
@@ -92,74 +102,99 @@ object PgCodec {
       IndexedSeq(DbValue.DbArray("varchar", value.toIndexedSeq))
   }
 
+  /**
+   * Reads a SQL array column into a `List[String]` and writes one as a
+   * `varchar` array. A SQL `NULL` array reads as `null`, not an empty list: a
+   * known bug in 0.0.56.
+   */
   given listStringCodec: DbCodec[List[String]] = listStringArrayCodec
 
+  /**
+   * Reads a SQL array column into an `IArray[String]` and writes one as a
+   * `varchar` array; a SQL `NULL` array reads as `null`.
+   */
   given iArrayStringCodec: DbCodec[IArray[String]] = iArrayStringArrayCodec
 
+  /** Binds a `Seq[String]` as a `varchar` array. */
   given seqStringParam: DbParam[Seq[String]] with {
     def toDbValue(v: Seq[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
   }
 
+  /** Binds a `List[String]` as a `varchar` array. */
   given listStringParam: DbParam[List[String]] with {
     def toDbValue(v: List[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
   }
 
+  /** Binds a `IArray[String]` as a `varchar` array. */
   given iArrayStringParam: DbParam[IArray[String]] with {
     def toDbValue(v: IArray[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
   }
 
+  /** Binds a `IndexedSeq[String]` as a `varchar` array. */
   given indexedSeqStringParam: DbParam[IndexedSeq[String]] with {
     def toDbValue(v: IndexedSeq[String]): DbValue = DbValue.DbArray("varchar", v)
   }
 
+  /** Binds a `Seq[Int]` as an `integer` array. */
   given seqIntParam: DbParam[Seq[Int]] with {
     def toDbValue(v: Seq[Int]): DbValue = DbValue.DbArray("integer", v.map(Int.box).toIndexedSeq)
   }
 
+  /** Binds a `List[Int]` as an `integer` array. */
   given listIntParam: DbParam[List[Int]] with {
     def toDbValue(v: List[Int]): DbValue = DbValue.DbArray("integer", v.map(Int.box).toIndexedSeq)
   }
 
+  /** Binds a `IndexedSeq[Int]` as an `integer` array. */
   given indexedSeqIntParam: DbParam[IndexedSeq[Int]] with {
     def toDbValue(v: IndexedSeq[Int]): DbValue = DbValue.DbArray("integer", v.map(Int.box))
   }
 
+  /** Binds a `Seq[Long]` as a `bigint` array. */
   given seqLongParam: DbParam[Seq[Long]] with {
     def toDbValue(v: Seq[Long]): DbValue = DbValue.DbArray("bigint", v.map(Long.box).toIndexedSeq)
   }
 
+  /** Binds a `List[Long]` as a `bigint` array. */
   given listLongParam: DbParam[List[Long]] with {
     def toDbValue(v: List[Long]): DbValue = DbValue.DbArray("bigint", v.map(Long.box).toIndexedSeq)
   }
 
+  /** Binds a `IndexedSeq[Long]` as a `bigint` array. */
   given indexedSeqLongParam: DbParam[IndexedSeq[Long]] with {
     def toDbValue(v: IndexedSeq[Long]): DbValue = DbValue.DbArray("bigint", v.map(Long.box))
   }
 
+  /** Binds a `Seq[Double]` as a `double precision` array. */
   given seqDoubleParam: DbParam[Seq[Double]] with {
     def toDbValue(v: Seq[Double]): DbValue =
       DbValue.DbArray("double precision", v.map(Double.box).toIndexedSeq)
   }
 
+  /** Binds a `List[Double]` as a `double precision` array. */
   given listDoubleParam: DbParam[List[Double]] with {
     def toDbValue(v: List[Double]): DbValue =
       DbValue.DbArray("double precision", v.map(Double.box).toIndexedSeq)
   }
 
+  /** Binds a `Seq[Boolean]` as a `boolean` array. */
   given seqBooleanParam: DbParam[Seq[Boolean]] with {
     def toDbValue(v: Seq[Boolean]): DbValue =
       DbValue.DbArray("boolean", v.map(Boolean.box).toIndexedSeq)
   }
 
+  /** Binds a `List[Boolean]` as a `boolean` array. */
   given listBooleanParam: DbParam[List[Boolean]] with {
     def toDbValue(v: List[Boolean]): DbValue =
       DbValue.DbArray("boolean", v.map(Boolean.box).toIndexedSeq)
   }
 
+  /** Binds a `Seq[UUID]` as a `uuid` array. */
   given seqUuidParam: DbParam[Seq[java.util.UUID]] with {
     def toDbValue(v: Seq[java.util.UUID]): DbValue = DbValue.DbArray("uuid", v.toIndexedSeq)
   }
 
+  /** Binds a `List[UUID]` as a `uuid` array. */
   given listUuidParam: DbParam[List[java.util.UUID]] with {
     def toDbValue(v: List[java.util.UUID]): DbValue = DbValue.DbArray("uuid", v.toIndexedSeq)
   }

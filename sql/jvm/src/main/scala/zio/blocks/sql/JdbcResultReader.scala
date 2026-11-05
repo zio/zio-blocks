@@ -19,6 +19,11 @@ package zio.blocks.sql
 import java.sql.ResultSet
 import java.util.UUID
 
+/**
+ * The [[DbResultReader]] over a `java.sql.ResultSet`. Each getter records
+ * whether the column it read was SQL `NULL`, so `isNull` answers for any column
+ * read in the current row.
+ */
 private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultReader {
 
   private val utcCalendar: java.util.Calendar = {
