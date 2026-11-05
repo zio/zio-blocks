@@ -21,13 +21,30 @@ import scala.annotation.tailrec
 import zio.blocks.async.internal.{AsyncRunner, CancellationCleanup, PlatformAsync}
 
 /**
- * Constructors for [[Async]] values.
+ * Factories for [[Async]] values and the `Async.Running` handle.
  *
- * An `Async[A]` is created with one of [[succeed]], [[fail]], [[attempt]], or
- * [[promise]] (a bare `A` is not itself an `Async[A]`). The transformation and
- * combination operators (`map`, `flatMap`, `catchAll`, `await`, ...) become
- * available as extension methods on `Async[A]` after importing
- * `zio.blocks.async._`.
+ * A plain `A` is not an `Async[A]`: lift a value with `succeed`, a failure with
+ * `fail`, throwing code with `attempt`, a callback API with `promise`, and a
+ * block of code to run on another thread with `start`. `async` writes a
+ * sequence of awaits in direct style, `collectAll` gathers several values, and
+ * `selector` waits on several inputs again and again. The operators (`map`,
+ * `flatMap`, `catchAll`, ...) come from `import zio.blocks.async._`.
+ *
+ * {{{
+ * def orderTotal(orderId: Int): Async[BigDecimal] =
+ *   if (orderId <= 0) Async.fail(new IllegalArgumentException("bad order id"))
+ *   else Async.succeed(BigDecimal(orderId) * 10)
+ *
+ * val parsed: Async[Int] = Async.attempt("12".toInt)
+ * val total: Async[BigDecimal] = parsed.flatMap(orderTotal)
+ * total.block // 120
+ *
+ * val all: Async[List[BigDecimal]] = Async.collectAll(List(orderTotal(1), orderTotal(2)))
+ * all.block // List(10, 20)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#operations Operations]]
  */
 object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSpecific {
 
@@ -103,10 +120,39 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   /**
-   * A "fiber" / green-thread handle: an in-flight [[Async]] that is being
-   * driven eagerly, can be [[Cancelable.cancel]]led, and can be
-   * [[Pollable.poll]] ed to observe (or join) its outcome. A [[Running]] is
-   * itself an `Async[A]`.
+   * A handle to an [[Async]] that a driver is already running, returned by
+   * `fa.start` and `Async.start`. Keep it to wait for the result, to share one
+   * run between several consumers, or to stop the run.
+   *
+   * A `Running[A]` is itself an `Async[A]`: `block` it, compose it with `map`
+   * or `zipWith`, or hand it to anything that takes an `Async`. Every consumer
+   * sees the same settled outcome, and the work runs once. Share the handle
+   * rather than driving the original value twice.
+   *
+   * `cancel()` stops the driver: no outcome is published, so the run never
+   * completes and a `block` on it waits forever on the JVM (on Scala.js it
+   * throws, as for any pending value). The driver calls [[Pollable.cancel]] on
+   * the pending leaf, which reaches the underlying work only when that leaf
+   * overrides it. The built-in bridges (`Async.promise`, `Async.fromFuture`,
+   * `Async.fromCompletionStage`, `Async.fromJsPromise`) do not override it, so
+   * cancelling does not stop their source, a known bug. Cancelling an
+   * `Async.start` run does not stop its body either. `cancel()` does nothing
+   * once the run has settled.
+   *
+   * {{{
+   * def slowQuote(): Int = { Thread.sleep(20); 42 }
+   *
+   * val running: Async.Running[Int] = Async.start(slowQuote())
+   * val doubled: Async[Int] = running.map(_ * 2)
+   * val labelled: Async[String] = running.map(q => "quote " + q)
+   * (doubled.block, labelled.block) // (84,quote 42), and slowQuote ran once
+   *
+   * val stuck: Async.Running[Nothing] = Async.never.start
+   * stuck.cancel() // stops the driver; stuck never completes
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#asyncrunning Async.Running]]
    */
   abstract class Running[+A] extends Pollable[A] with Cancelable {
 
@@ -117,22 +163,42 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     private[async] def isDriverAlive: Boolean
 
     /**
-     * Cancel this run and report a failure from its asynchronous cleanup. The
-     * reporter is retained only when this cancellation wins completion and is
-     * invoked at most once.
+     * Cancels this run like `cancel()`, and passes a failure from the
+     * cancellation cleanup to `onCleanupFailure` instead of the default
+     * reporter (on the JVM, the calling thread's `UncaughtExceptionHandler`; on
+     * Scala.js, the `JSExecutionContext.queue` failure reporter). The cleanup
+     * fails, for example, when the pending leaf's [[Pollable.cancel]] throws.
+     *
+     * The reporter is kept only when this call wins the race against completion
+     * and against other `cancel` calls, and it runs at most once, possibly on
+     * another thread (on the JVM, a `ForkJoinPool.commonPool()` worker).
+     *
+     * {{{
+     * val running: Async.Running[Nothing] = Async.never.start
+     * running.cancel { cause =>
+     *   System.err.println("cleanup after cancellation failed: " + cause.getMessage)
+     * }
+     * }}}
      */
     def cancel(onCleanupFailure: Throwable => Unit): Unit
   }
 
   /**
-   * Lift an already-available value into a successful [[Async]].
+   * Lifts a value you already have into a successful [[Async]]. Nothing is
+   * deferred: the result is ready, and a combinator applied to it runs at once.
    *
-   * The value may itself be an `Async` (or a [[Pollable]]): such a value is
-   * carried as '''data''', one nesting level at a time — `map`/`flatMap`
-   * continuations, `.block`, and the drivers deliver it unwrapped exactly one
-   * layer per delivery (`flatten` peels one level), never silently running it
-   * as a computation. Sequencing effects is `flatMap`'s job; reach for nesting
-   * only when an effect value is genuinely the payload.
+   * The value may itself be an `Async` or a [[Pollable]]: it is carried as
+   * data, not run. `map` and `flatMap` functions, `block` and the drivers hand
+   * it back one nesting level at a time, and `flatten` removes one level. Use
+   * `flatMap` to sequence effects.
+   *
+   * {{{
+   * val port: Async[Int] = Async.succeed(8080)
+   * port.map(_ + 1).block // 8081
+   *
+   * val nested: Async[Async[Int]] = Async.succeed(Async.succeed(443))
+   * nested.flatten.block // 443
+   * }}}
    */
   def succeed[A](a: A): Async[A] = AsyncEncoding.liftSuccess(a)
 
@@ -235,7 +301,8 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   /**
    * Create a failure in the trusted typed-error channel used by ZIO Blocks
    * interpreters. Public [[fail]] and public [[Failure]] construction remain
-   * untrusted; the distinction is observable only through [[foldStep]].
+   * untrusted; the distinction is observable only through [[foldStep]], its
+   * primitive variants and `stepTrusted`.
    */
   private[blocks] def failTrusted(cause: Throwable): Async[Nothing] = Failure.trusted(cause)
 
@@ -395,14 +462,18 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     PlatformAsync.withCancellationBatch(batch)(body)
 
   /**
-   * Create a reusable fair selector over `inputs`.
+   * Creates an [[AsyncSelector]] with one armed slot per input, in order; the
+   * number of inputs fixes its `size`. Each successful `select` disarms its
+   * winning slot, and `replace` arms that slot again. Selection scans from the
+   * slot after the previous winner, so a slot whose input stays ready wins
+   * within as many successful selections as there are armed slots. `shutdown`
+   * cancels the inputs still armed and waits for their cleanup.
    *
-   * A selector owns one running observation of each input. Each successful
-   * [[AsyncSelector.select]] removes its winning slot; call
-   * [[AsyncSelector.replace]] to arm that slot again. The scan starts after the
-   * previous winner, so a continuously-ready slot is selected within at most
-   * the number of currently armed slots selections. Shutting down the selector
-   * cancels every armed loser and joins all of their cleanup.
+   * {{{
+   * val selector: AsyncSelector[Int] =
+   *   Async.selector(Vector(Async.succeed(8080), Async.succeed(8443)))
+   * selector.select.block // (0,8080)
+   * }}}
    */
   def selector[A](inputs: IndexedSeq[Async[A]]): AsyncSelector[A] =
     AsyncSelector(inputs)
@@ -1679,9 +1750,14 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   /**
-   * Create a failed [[Async]] carrying `cause`. A failed value short-circuits
-   * `map` / `flatMap` without invoking the continuation, is recoverable with
-   * `.catchAll`, and is re-thrown by `.block`.
+   * Creates a failed [[Async]] carrying `cause`. A failure skips `map`,
+   * `flatMap` and `zipWith` without calling their functions; `catchAll`,
+   * `either` and `foldCause` recover it, and `block` throws `cause`.
+   *
+   * {{{
+   * val missing: Async[Int] = Async.fail(new NoSuchElementException("user 42"))
+   * missing.map(_ + 1).catchAll(_ => Async.succeed(-1)).block // -1
+   * }}}
    */
   def fail(cause: Throwable): Async[Nothing] = new Failure(cause)
 
@@ -1709,24 +1785,24 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   /**
-   * Evaluate `body` on a background worker (JVM) or microtask (JS) and return a
-   * [[Running]] for the result — the `Async` analogue of `Future.apply`.
+   * Runs `body` off the calling thread and returns a [[Running]] for its
+   * result, like `Future.apply`. On the JVM each call starts a new daemon
+   * thread named `zio-blocks-async-eval`; on Scala.js `body` runs on a later
+   * microtask. A throw from `body` fails the run instead of escaping at the
+   * call site.
    *
-   * A single by-name entry point (no by-value overload): the worker evaluates
-   * `body`, capturing a throw — including a statically `Nothing`-typed body
-   * (`Async.start { ...; throw e }`, `Async.start(???)`) — as a failed run
-   * rather than letting it escape at the call site, and lifts the result with
-   * the same runtime encoding as every other value received from the user (a
-   * `Pollable` success value is wrapped, a `AsyncEncoding.WrappedPollable`
-   * carrier has its depth incremented).
+   * `body` is by-name, so `Async.start(work())` moves `work()` to the new
+   * thread, while `Async.attempt(work()).start` has already run it on the
+   * calling thread. To drive an `Async` you have already built, use `fa.start`.
+   * Cancelling the returned run stops waiting for `body` but does not interrupt
+   * it: `body` runs to the end.
    *
-   * To eagerly drive an '''already-built''' `Async` instead — composing with
-   * `either`, `tap`, `foldCause`, ... before driving (e.g.
-   * `fa.either.tap(record).start`) — use the `fa.start` extension method. A
-   * [[Running]] is itself an `Async[A]` and may be polled,
-   * [[Cancelable.cancel]] led (a no-op once completed), or further composed; on
-   * the JVM a suspended run proceeds on a background worker, on Scala.js via
-   * microtasks.
+   * {{{
+   * def loadUserCount(): Int = { Thread.sleep(20); 1200 }
+   *
+   * val running: Async.Running[Int] = Async.start(loadUserCount())
+   * running.map(_ + 1).block // 1201
+   * }}}
    */
   def start[A](body: => A): Running[A] =
     AsyncRunner.startEval(body)
@@ -1749,17 +1825,31 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     AsyncRunner.startRegisteredOwned(fa, owner)(register)
 
   /**
-   * An [[Async]] that never completes. Useful as a sentinel in tests and as the
-   * right-zero of `orElse`-style operations.
+   * An [[Async]] that never completes: its `poll` always returns itself and
+   * never runs `onComplete`. Use it as a placeholder that should never produce
+   * a value, or to test cancellation. A `block` on it waits forever on the JVM
+   * and throws `IllegalStateException` on Scala.js.
    */
   val never: Async[Nothing] = new Pollable[Nothing] {
     def poll(onComplete: Runnable): Async[Nothing] = this
   }
 
   /**
-   * Sequentially run `as` and collect their values into a `List` in input
-   * order. A failure short-circuits — subsequent inputs are not driven and the
-   * failure is propagated.
+   * Collects the values of `as` into a `List`, in input order whatever order
+   * they complete in. It waits for the inputs one at a time, from the first;
+   * since each input is already built, work it started (a thread, a request)
+   * runs meanwhile. The first failure, in input order, fails the result, and
+   * later inputs are not polled. The traversal does not grow the call stack,
+   * however many inputs are pending.
+   *
+   * {{{
+   * def price(symbol: String): Async[Int] = Async.succeed(symbol.length * 100)
+   *
+   * Async.collectAll(List(price("ZIO"), price("SCALA"))).block // List(300, 500)
+   *
+   * val failed = Async.collectAll(List(price("ZIO"), Async.fail(new RuntimeException("no quote"))))
+   * failed.either.block // Left(java.lang.RuntimeException: no quote)
+   * }}}
    */
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]] =
     // Reify a fault in the source itself (acquiring the iterator, `hasNext`,
@@ -2304,8 +2394,8 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
 
     /**
      * Slow-path `ensuring`: drive `fa` to completion (value or failure), then
-     * run `finalizer` (ignoring its failures), then propagate the original
-     * outcome.
+     * drive `finalizer`, then propagate the original outcome. A finalizer
+     * failure is dropped, or added as suppressed to a failed outcome's cause.
      */
     def ensuringAsync[A](fa: Any, finalizer: Async[Any]): Async[A] =
       new EnsuringPollable[A](fa.asInstanceOf[Pollable[A]], NotResolved, null, finalizer)
@@ -2316,22 +2406,6 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     def ensuringReady[A](a: A, finalizer: Pollable[Any]): Async[A] =
       new EnsuringPollable[A](null, Async.succeed(a), finalizer, finalizer)
 
-    /**
-     * Drive a suspended pollable to its value, parking the calling thread
-     * between polls. Allocated once per `await` call (not per poll iteration).
-     * If the pollable ever resolves to a [[Failure]], its `cause` is thrown.
-     *
-     *   - '''JVM:''' parks on a [[java.util.concurrent.locks.ReentrantLock]]
-     *     `Condition`, which (unlike `synchronized`) does not pin a virtual
-     *     thread's carrier under Project Loom.
-     *   - '''Scala.js:''' there is no thread to park. Each suspension is given
-     *     one chance to complete synchronously inside `poll`; if the waker has
-     *     not fired by the time `poll` returns, throws
-     *     [[IllegalStateException]].
-     *
-     * Must run on a non-reactor thread on the JVM — calling it from inside a
-     * `poll` deadlocks the loop.
-     */
     /**
      * Drive `target` for effects; return `observed` (pollable-as-value
      * `.block`).
@@ -2363,13 +2437,26 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     /** Alias for CPS / interop call sites that take `Any`. */
     def blockGeneric[A](fa: Any): A = block[A](fa)
 
+    /**
+     * Drive a suspended pollable to its value, parking the calling thread
+     * between polls, and throw the cause if it fails. The parker is pooled per
+     * thread; a nested call on the same thread gets a fresh one.
+     *
+     *   - '''JVM:''' parks with `java.util.concurrent.locks.LockSupport`, which
+     *     does not pin a virtual thread's carrier.
+     *   - '''Scala.js:''' there is no thread to park. Each suspension is given
+     *     one chance to complete synchronously inside `poll`; if the waker has
+     *     not fired by the time `poll` returns, throws `IllegalStateException`.
+     *
+     * On the JVM, calling it from inside a `poll` can deadlock the driver.
+     */
     def awaitSuspended[A](pa0: Pollable[A]): A = {
       if (pa0.isInstanceOf[Failure]) Failure.throwCause(pa0.asInstanceOf[Failure].cause)
 
       val parker = PlatformAsync.newParker()
 
       @tailrec def loop(cur: Pollable[A]): A = {
-        parker.reset() // reset under the parker's lock — no lost wakeup
+        parker.reset() // clear before polling: a wake from this poll sets it again, so none is lost
         val next: Async[A] = cur.poll(parker.onComplete)
         if (next.isInstanceOf[Failure])
           Failure.throwCause(next.asInstanceOf[Failure].cause)
@@ -2379,7 +2466,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
           // parker's callback. Poll it immediately; only the same identity may
           // rely on the callback permit before being polled again.
           if (replacement.asInstanceOf[AnyRef] eq cur.asInstanceOf[AnyRef])
-            parker.park() // JVM: blocks until wake(); JS: throws if not already woken
+            parker.park() // JVM: parks until onComplete runs; JS: throws if not already woken
           loop(replacement)
         } else AsyncEncoding.deliverSuccess[A](next)
       }
@@ -2388,13 +2475,6 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
       finally parker.release() // return a pooled parker to its per-thread slot
     }
 
-    /**
-     * `map` continuation: `f` produces a plain '''value''' (never a nested
-     * `Async` to flatten), so the result is always lifted via [[Async.succeed]]
-     * — exactly like the ready path. A [[Pollable]] returned by `f` (including
-     * a combinator-built `Async` held as data) is a pollable-as-value, never a
-     * computation to drive; flattening belongs to `flatMap`.
-     */
     // Each continuation pollable memoizes its settled terminal in a `done` slot
     // and short-circuits to it on a subsequent poll. This is DEFENSIVE, not a
     // contract change: [[Pollable]] still documents re-polling after a terminal
@@ -2879,6 +2959,13 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     private[async] def cancelContinuation(root: Pollable[?]): Async[Unit] =
       ContinuationInterpreter.cancel(root.asInstanceOf[CancellationPropagatingPollable[?]])
 
+    /**
+     * `map` continuation: `f` produces a plain '''value''' (never a nested
+     * `Async` to flatten), so the result is always lifted via [[Async.succeed]]
+     * — exactly like the ready path. A [[Pollable]] returned by `f` (including
+     * a combinator-built `Async` held as data) is a pollable-as-value, never a
+     * computation to drive; flattening belongs to `flatMap`.
+     */
     private final class MapPollable[A, B](pa0: Pollable[A], f: A => B)
         extends CancellationPropagatingPollable[B](pa0)
         with ContinuationNode {

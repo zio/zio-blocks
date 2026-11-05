@@ -29,9 +29,10 @@ package zio.blocks.async
  * `val a: Async[Int] = somePollable`). Raw `A` values are NOT a subtype, so
  * callers must enter the encoding through [[Async.succeed]].
  *
- * No methods live here: every operation is either an inline extension on
- * `Async[A]` (see `AsyncSyntaxVersionSpecific`) which folds the encoding via
- * `isInstanceOf[Pollable[?]]`, or a slow-path helper in [[Async.slowPath]].
+ * No methods live here: every operation is either an extension on `Async[A]`
+ * (see `AsyncSyntaxVersionSpecific`; `inline` on Scala 3) which folds the
+ * encoding via `isInstanceOf[Pollable[?]]`, or a slow-path helper in
+ * [[Async.slowPath]].
  */
 private[async] abstract class AsyncEncoding {
   type Async[+A] >: Pollable[A]
@@ -79,12 +80,6 @@ private[async] object AsyncEncoding {
   def deliverSuccess[A](any: Any): A =
     unwrapLayer(any).asInstanceOf[A]
 
-  /**
-   * Lift a success value into the [[Async]] encoding. [[Pollable]] values —
-   * including [[Failure]] stored as a success value — are wrapped; re-wrapping
-   * an existing carrier increments `depth`.
-   */
-
   /** True when `any` is a bare suspended [[Pollable]] (not a ready carrier). */
   def isSuspended(any: Any): Boolean =
     any.isInstanceOf[Pollable[?]] && !any.isInstanceOf[Failure]
@@ -101,6 +96,12 @@ private[async] object AsyncEncoding {
       case w: WrappedPollable => w.depth == 1 && !w.value.isInstanceOf[Failure]
       case _                  => false
     })
+
+  /**
+   * Lift a success value into the [[Async]] encoding. [[Pollable]] values —
+   * including [[Failure]] stored as a success value — are wrapped; re-wrapping
+   * an existing carrier increments `depth`.
+   */
   def liftSuccess[A](a: A): Async[A] = {
     val any = a.asInstanceOf[Any]
     any match {
@@ -113,8 +114,8 @@ private[async] object AsyncEncoding {
 
   /**
    * The one and only encoding instance. Ascribed to the bare [[AsyncEncoding]]
-   * type at the `val` site (in the package object) so the `= Any` rep stays
-   * hidden from outside callers.
+   * type at this `val` (and again at `encoding` in the package object) so the
+   * `= Any` rep stays hidden from outside callers.
    */
   val Instance: AsyncEncoding = new AsyncEncoding {
     type Async[+A] = Any
