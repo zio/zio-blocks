@@ -26,8 +26,9 @@ import zio.blocks.schema.codec.BinaryFormat
  * `application/msgpack`, and its deriver is [[MessagePackCodecDeriver]].
  *
  * A derived codec writes a record as a map from field names to values, a
- * sequence as an array, an `Option` as an array of zero or one element, and any
- * other variant as the index of its case followed by the case's value.
+ * sequence as an array, an `Option` as an array of zero or one element, an
+ * `Either` as a map of one entry (`left` or `right`), and any other variant as
+ * the index of its case followed by the case's value.
  * [[MessagePackCodecDeriver]] lists the layout of every kind of type, including
  * what other MessagePack tools see.
  *

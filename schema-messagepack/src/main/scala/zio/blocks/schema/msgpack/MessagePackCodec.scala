@@ -356,12 +356,14 @@ object MessagePackCodec {
 
   /**
    * Writes a `Char` as a string of its one to three UTF-8 bytes (a lone
-   * surrogate gets three bytes that are not valid UTF-8). Reads a string that
-   * holds exactly one char, and fails otherwise, for example with
-   * `Expected single char, got string of length 0 bytes`. A known bug: it does
-   * not check the end of the input, so a truncated string fails with an
-   * index-out-of-bounds message, and a heap `ByteBuffer` is read past its
-   * limit.
+   * surrogate gets three bytes that are not valid UTF-8). Reads a string of one
+   * to three bytes whose first byte starts a sequence of that length, and fails
+   * otherwise, for example with
+   * `Expected single char, got string of length 0 bytes`. A known bug: it
+   * checks neither the end of the input nor the bytes after the first, so a
+   * truncated string fails with an index-out-of-bounds message, a heap
+   * `ByteBuffer` is read past its limit, and malformed UTF-8 such as `c3 41`
+   * reads as one char.
    */
   val charCodec: MessagePackCodec[Char] = new MessagePackCodec[Char] {
     def decodeValue(in: MessagePackReader): Char = in.readChar()

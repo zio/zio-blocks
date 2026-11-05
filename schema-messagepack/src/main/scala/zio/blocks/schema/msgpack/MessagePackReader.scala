@@ -250,9 +250,10 @@ final class MessagePackReader private[msgpack] (
   /**
    * Reads a string of one char, one to three UTF-8 bytes long, as a `Char`. An
    * empty or longer string fails with
-   * `Expected single char, got string of length ... bytes`, and malformed bytes
-   * with `Invalid 2-byte UTF-8 sequence` or a similar message. A known bug: it
-   * does not check the end of the input.
+   * `Expected single char, got string of length ... bytes`, and a first byte
+   * that does not start a sequence of the string's length fails with
+   * `Invalid 2-byte UTF-8 sequence` or a similar message. A known bug: it
+   * checks neither the end of the input nor the bytes after the first.
    */
   def readChar(): Char = {
     val len = readStringHeader()
