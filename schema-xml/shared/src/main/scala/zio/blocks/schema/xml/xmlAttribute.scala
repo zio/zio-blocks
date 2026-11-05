@@ -31,7 +31,9 @@ import zio.blocks.schema.Modifier
  * instead; put that on the field to get an attribute. An empty `name` uses the
  * field name. On decoding, a missing attribute becomes `None` for an `Option`
  * field and fails with `Missing required attribute: <name>` otherwise, even
- * when the field declares a default value (a known bug).
+ * when the field declares a default value (a known bug). A record nested in
+ * another record, or a sealed-trait case, whose fields are all attributes
+ * encodes correctly but does not decode back (a known bug).
  *
  * {{{
  * import zio.blocks.schema._
