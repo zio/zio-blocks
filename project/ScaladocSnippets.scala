@@ -17,7 +17,8 @@ object ScaladocSnippets {
    * @param line
    *   1-based line of the opening marker
    * @param code
-   *   the example, with the comment margin removed
+   *   the example, with the comment margin removed and each `\$` read as `$`,
+   *   as Scaladoc renders it
    * @param onlyScalaMajor
    *   `Some(3)` for a `// scala-3-only` example, `Some(2)` for a
    *   `// scala-2-only` one
@@ -55,7 +56,9 @@ object ScaladocSnippets {
                   start,
                   "a code line contains }}}, which ends the Scaladoc code block early; reword it (e.g. split the braces or drop the output comment)"
                 )
-              code += stripMargin(lines(i))
+              // Scaladoc renders `\$` as `$` (`$name` alone would be a doc variable), so compile what
+              // the reader sees: `sql"... \$id"` is the interpolation `sql"... $id"`.
+              code += stripMargin(lines(i)).replace("\\$", "$")
               i += 1
             }
             if (i == lines.length) fail(sourcePath, start, "code block is never closed")

@@ -53,6 +53,15 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           List(ScaladocSnippets.Snippet(path, 2, List("val title = \"Zionomicon\""), None))
       )
     },
+    test("extract reads an escaped dollar as a dollar, the way Scaladoc renders it") {
+      val d       = "$" // built up so that no string literal here looks like a missing interpolator
+      val content =
+        source("/**", " * {{{", " * val q = s\"id = \\" + d + "id, min = \\" + d + "{min + 1}\"", " * }}}", " */")
+      assertTrue(
+        ScaladocSnippets.extract(path, content) ==
+          List(ScaladocSnippets.Snippet(path, 2, List("val q = s\"id = " + d + "id, min = " + d + "{min + 1}\""), None))
+      )
+    },
     test("extract ignores blocks outside Scaladoc comments") {
       val content = source("/* plain comment", " * {{{", " * val x = 1", " * }}}", " */", "// {{{")
       assertTrue(ScaladocSnippets.extract(path, content) == Nil)
