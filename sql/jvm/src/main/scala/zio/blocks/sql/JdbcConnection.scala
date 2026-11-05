@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import java.sql.Connection
 
+/** The [[DbConnection]] over a `java.sql.Connection`. */
 private[sql] class JdbcConnection(val underlying: Connection) extends DbConnection {
 
   def prepareStatement(sql: String): DbPreparedStatement =
@@ -39,20 +40,11 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
   def rollback(): Unit = underlying.rollback()
 
   /**
-   * Savepoint support via SQL strings for portability.
-   *
-   * Uses `SAVEPOINT <name>`, `RELEASE SAVEPOINT <name>`, and
-   * `ROLLBACK TO SAVEPOINT <name>` executed via a fresh Statement. This avoids
-   * tracking `java.sql.Savepoint` objects and works on both SQLite and
-   * PostgreSQL. The statement is closed in `finally` to avoid leaking
-   * resources. Names are expected to be simple identifiers like `zib_tx_1` so
-   * no quoting/escaping is needed.
-   *
-   * Cost: Each savepoint operation allocates a new JDBC `Statement` (two per
-   * nested transaction: one for `SAVEPOINT`, one for `RELEASE` or
-   * `ROLLBACK TO`). This is negligible for typical nesting depths (1-3) and
-   * avoids holding `Savepoint` objects, but very deep or high-frequency nesting
-   * should be benchmarked if it becomes hot.
+   * Runs `SAVEPOINT <name>` on a new `Statement`, closed afterwards, instead of
+   * keeping `java.sql.Savepoint` objects; `release` and `rollbackTo` do the
+   * same with `RELEASE SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, so a nested
+   * transaction costs two statements. Each checks `name` with
+   * `SqlIdentifier.validate` first, because the name is written unquoted.
    */
   override def savepoint(name: String): Unit = {
     SqlIdentifier.validate("savepoint", name)
@@ -61,6 +53,7 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
     finally stmt.close()
   }
 
+  /** Runs `RELEASE SAVEPOINT <name>` after checking `name`. */
   override def release(name: String): Unit = {
     SqlIdentifier.validate("savepoint", name)
     val stmt = underlying.createStatement()
@@ -68,6 +61,7 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
     finally stmt.close()
   }
 
+  /** Runs `ROLLBACK TO SAVEPOINT <name>` after checking `name`. */
   override def rollbackTo(name: String): Unit = {
     SqlIdentifier.validate("savepoint", name)
     val stmt = underlying.createStatement()
@@ -76,6 +70,7 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
   }
 }
 
+/** The [[DbPreparedStatement]] over a `java.sql.PreparedStatement`. */
 private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends DbPreparedStatement {
 
   def executeQuery(): DbResultSet =
@@ -97,6 +92,7 @@ private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatem
   def executeBatch(): Array[Int] = underlying.executeBatch()
 }
 
+/** The [[DbResultSet]] over a `java.sql.ResultSet`. */
 private[sql] class JdbcResultSet(val underlying: java.sql.ResultSet) extends DbResultSet {
 
   /**

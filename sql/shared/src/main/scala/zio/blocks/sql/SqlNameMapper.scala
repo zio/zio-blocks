@@ -20,25 +20,22 @@ import java.lang.Character._
 import java.lang
 
 /**
- * A sealed trait that represents a strategy for mapping column names. Classes
- * or objects that extend `SqlNameMapper` provide an implementation of the
- * `apply` method, which specifies how a field name is transformed to a column
- * name.
+ * Turns a Scala field name into a column name. [[DbCodecDeriver]] and
+ * `TableMetadata.columnsFor` apply it to every field without
+ * `@Modifier.rename`; the default is [[SqlNameMapper.SnakeCase]].
+ *
+ * {{{
+ * val snake    = SqlNameMapper.SnakeCase("unitPriceCents")       // unit_price_cents
+ * val acronym  = SqlNameMapper.SnakeCase("productSKU")           // product_sku
+ * val custom   = SqlNameMapper.Custom("col_" + _)("unitPriceCents") // col_unitPriceCents
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/sql-name-mapper/ SqlNameMapper]]
  */
 sealed trait SqlNameMapper extends (String => String)
 
-/**
- * The `SqlNameMapper` object provides predefined strategies for transforming
- * field names into SQL column naming conventions.
- *
- * This object defines several `SqlNameMapper` implementations:
- *
- *   - `SnakeCase`: Transforms strings to snake_case (default for SQL). For
- *     example, "firstName" → "first_name", "userID" → "user_id".
- *   - `Identity`: Returns the input string as-is, performing no transformation.
- *   - `Custom`: Allows for user-defined transformations by applying a given
- *     function to the input column name.
- */
+/** The predefined [[SqlNameMapper]]s. */
 object SqlNameMapper {
 
   private[this] def enforceSnakeCase(s: String): String = {
@@ -66,39 +63,25 @@ object SqlNameMapper {
   }
 
   /**
-   * A predefined implementation of the [[SqlNameMapper]] trait that converts a
-   * given field name into snake_case format by replacing transitions between
-   * uppercase and lowercase letters with underscores (`_`) and converting all
-   * characters to lowercase.
+   * Converts a name to snake case: an underscore before each word that starts
+   * with a capital, `-` replaced by `_`, and everything in lower case.
+   * `firstName` becomes `first_name`, `userID` becomes `user_id`, and
+   * `HTTPServer` becomes `http_server`.
    *
-   * For example, "firstName" is transformed into "first_name", and "userID" is
-   * transformed into "user_id".
+   * A capital that follows `_` or `-` and starts a lower-case word gets a
+   * second underscore, so `order_Line` becomes `order__line`, a known bug in
+   * 0.0.56.
    */
   case object SnakeCase extends SqlNameMapper {
     override def apply(fieldName: String): String = enforceSnakeCase(fieldName)
   }
 
-  /**
-   * An implementation of the `SqlNameMapper` trait that performs no
-   * transformation on the provided field name. The identity operation is
-   * applied, where the input string is returned unchanged.
-   */
+  /** Returns the name unchanged. */
   case object Identity extends SqlNameMapper {
     override def apply(fieldName: String): String = fieldName
   }
 
-  /**
-   * A case class that provides a custom implementation of the `SqlNameMapper`
-   * trait.
-   *
-   * The `Custom` class allows for the transformation of field names using a
-   * user-defined function. This transformation logic is encapsulated in the
-   * function `f` provided at instantiation.
-   *
-   * @param f
-   *   A function that defines how to transform a field name. The function takes
-   *   a string as input and returns the transformed column name as output.
-   */
+  /** Applies `f` to the name. */
   final case class Custom(f: String => String) extends SqlNameMapper {
     override def apply(fieldName: String): String = f(fieldName)
   }

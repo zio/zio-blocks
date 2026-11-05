@@ -16,4 +16,7 @@
 
 package zio.http
 
+/**
+ * Platform-specific members of [[Charset]]: `toJava` exists on the JVM only.
+ */
 private[http] trait CharsetPlatformSpecific { self: Charset => }

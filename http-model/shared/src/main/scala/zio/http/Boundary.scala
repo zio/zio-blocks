@@ -16,11 +16,22 @@
 
 package zio.http
 
+/**
+ * The boundary string that separates the parts of a multipart body. It is the
+ * `boundary` parameter of a [[ContentType]]. `toString` returns `value`.
+ */
 final case class Boundary(value: String) {
   override def toString: String = value
 }
 
+/** Constructors for [[Boundary]]. */
 object Boundary {
+
+  /**
+   * Returns a new boundary of 24 random letters and digits (`A-Z`, `a-z`,
+   * `0-9`), drawn with `scala.util.Random`. Each call gives a different value
+   * in practice.
+   */
   def generate: Boundary = {
     val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     val sb    = new StringBuilder(24)

@@ -16,16 +16,51 @@
 
 package zio.blocks.sql
 
+/**
+ * The SQL database a [[Transactor]] talks to: PostgreSQL or SQLite. A [[Frag]]
+ * renders its placeholders for a dialect, and [[Table#createTable]] takes
+ * column types from it.
+ *
+ * {{{
+ * val pg     = SqlDialect.PostgreSQL.typeName(DbValue.DbLong(0L))   // BIGINT
+ * val sqlite = SqlDialect.SQLite.typeName(DbValue.DbLong(0L))       // INTEGER
+ * val dec    = SqlDialect.SQLite.typeName(DbValue.DbBigDecimal(0)) // TEXT
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/sql-dialect/ SqlDialect]]
+ */
 sealed trait SqlDialect {
+
+  /** The display name: `PostgreSQL` or `SQLite`. */
   def name: String
+
+  /**
+   * Returns the column type for values like `dbValue`, such as `BIGINT` for a
+   * [[DbValue.DbLong]] on PostgreSQL.
+   */
   def typeName(dbValue: DbValue): String
+
+  /**
+   * Returns the placeholder for the 1-based parameter `index`: `?` in both
+   * dialects.
+   */
   def paramPlaceholder(index: Int): String
 }
 
+/** The supported dialects. */
 object SqlDialect {
+
+  /**
+   * PostgreSQL: `Instant` is `TIMESTAMPTZ`, `BigDecimal` is `NUMERIC`,
+   * `Boolean` is `BOOLEAN`, and an array is `TEXT[]`.
+   */
   case object PostgreSQL extends SqlDialect {
+
+    /** The dialect name. */
     val name: String = "PostgreSQL"
 
+    /** Returns this dialect's column type for `dbValue`. */
     def typeName(dbValue: DbValue): String = dbValue match {
       case DbValue.DbNull             => "NULL"
       case _: DbValue.DbInt           => "INTEGER"
@@ -48,12 +83,21 @@ object SqlDialect {
       case _: DbValue.DbArray         => "TEXT[]"
     }
 
+    /** Returns `?`. */
     def paramPlaceholder(index: Int): String = "?"
   }
 
+  /**
+   * SQLite: integers and `Boolean` are `INTEGER`, `Double` and `Float` are
+   * `REAL`, byte arrays are `BLOB`, and the other value types, including
+   * `BigDecimal`, `UUID` and the `java.time` types, are `TEXT`.
+   */
   case object SQLite extends SqlDialect {
+
+    /** The dialect name. */
     val name: String = "SQLite"
 
+    /** Returns this dialect's column type for `dbValue`. */
     def typeName(dbValue: DbValue): String = dbValue match {
       case DbValue.DbNull             => "NULL"
       case _: DbValue.DbInt           => "INTEGER"
@@ -76,6 +120,7 @@ object SqlDialect {
       case _: DbValue.DbArray         => "TEXT"
     }
 
+    /** Returns `?`. */
     def paramPlaceholder(index: Int): String = "?"
   }
 }
