@@ -231,16 +231,17 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
   /**
    * Inserts `entity`, then reads the row back by the first column of the
-   * driver's generated keys, falling back to `entity`'s own ID when there are
-   * none.
+   * driver's generated keys; when the driver returns no key, or no row has that
+   * key as its ID, it reads the row by `entity`'s own ID.
    *
    * The first generated-key column is not always the ID, a known bug in 0.0.56.
    * On SQLite it is the `rowid`, which equals the ID only when the ID column is
    * declared `INTEGER PRIMARY KEY`; on any other table, including one from
-   * [[Table#createTable]], this returns whichever row has that `rowid` as its
-   * ID. On PostgreSQL it is the table's first column, so when the ID is not the
-   * first column the key is read from the wrong column: with a text first
-   * column, the call throws `PSQLException: Bad value for type int`.
+   * [[Table#createTable]], this returns the row whose ID equals that `rowid`
+   * when there is one. On PostgreSQL it is the table's first column, so when
+   * the ID is not the first column the key is read from the wrong column: with
+   * a text first column, the call throws
+   * `PSQLException: Bad value for type int`.
    *
    * @throws java.util.NoSuchElementException
    *   if no row is found after the insert
