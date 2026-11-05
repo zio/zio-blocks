@@ -16,8 +16,13 @@
 
 package zio.blocks.sql
 
+/** The compile-time syntax checks of the `sql"..."` interpolators. */
 private[sql] object SqlValidator {
 
+  /**
+   * Returns the first problem found in the literal parts: empty SQL, an
+   * unclosed single or double quote, or unbalanced parentheses outside quotes.
+   */
   def validate(parts: Seq[String]): Option[String] = {
     if (parts.length == 1 && parts.head.trim.isEmpty)
       return Some("sql interpolator requires a non-empty SQL string")

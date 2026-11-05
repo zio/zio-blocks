@@ -17,29 +17,43 @@
 package zio.http
 
 /**
- * RFC 3986 percent-encoding utilities.
- *
- * Provides component-specific encoding via [[ComponentType]] variants
- * (`PathSegment`, `QueryKey`, `QueryValue`, `Fragment`, `UserInfo`), each
- * allowing a different set of unescaped characters as defined by the RFC.
- * Non-ASCII characters are first encoded to UTF-8 bytes, then each byte is
- * percent-encoded.
- *
- * `decode` converts percent-encoded triplets back to characters; invalid or
- * incomplete percent sequences are passed through unchanged.
+ * Percent-encoding for the parts of a URL (RFC 3986). [[encode]] keeps the
+ * unreserved characters and the punctuation its [[ComponentType]] allows, and
+ * writes every other byte of the UTF-8 form as `%XX`. The path-segment and
+ * fragment sets are the RFC's; the query sets also escape `&` (and `=` in keys)
+ * so that pairs stay separable, and the user-info set keeps only `:`.
+ * [[decode]] reads `%XX` sequences as UTF-8 bytes (invalid UTF-8 becomes
+ * U+FFFD) and keeps any other text, including an incomplete `%` sequence and
+ * `+`, as it is.
  *
  * Note: this encoder does '''not''' use `application/x-www-form-urlencoded`
  * rules (spaces are encoded as `%20`, never as `+`).
  */
 object PercentEncoder {
 
+  /**
+   * The URL component an encoded string goes into. It decides which punctuation
+   * characters stay unescaped.
+   */
   sealed trait ComponentType
+
+  /** The [[ComponentType]] variants. */
   object ComponentType {
+
+    /** A path segment: keeps `:@!$&'()*+,;=` unescaped. */
     case object PathSegment extends ComponentType
-    case object QueryKey    extends ComponentType
-    case object QueryValue  extends ComponentType
-    case object Fragment    extends ComponentType
-    case object UserInfo    extends ComponentType
+
+    /** A query parameter name: keeps `/?:@!$'()*+,;` unescaped. */
+    case object QueryKey extends ComponentType
+
+    /** A query parameter value: keeps `/?:@!$'()*+,;=` unescaped. */
+    case object QueryValue extends ComponentType
+
+    /** A fragment: keeps `/?:@!$&'()*+,;=` unescaped. */
+    case object Fragment extends ComponentType
+
+    /** The user-info part of a URL: keeps only `:` unescaped. */
+    case object UserInfo extends ComponentType
   }
 
   private def isUnreserved(b: Int): Boolean =
@@ -74,6 +88,12 @@ object PercentEncoder {
 
   private val hexChars: Array[Char] = "0123456789ABCDEF".toCharArray
 
+  /**
+   * Percent-encodes `s` for the given component. The unreserved characters
+   * `A-Z a-z 0-9 - _ . ~` and the characters the component allows are kept;
+   * every other byte of the UTF-8 form of `s` becomes `%XX` with upper-case hex
+   * digits. The empty string gives the empty string.
+   */
   def encode(s: String, componentType: ComponentType): String = {
     if (s.isEmpty) return ""
 
@@ -100,6 +120,13 @@ object PercentEncoder {
     else if (c >= 'a' && c <= 'f') c - 'a' + 10
     else -1
 
+  /**
+   * Decodes `%XX` sequences (upper- or lower-case hex digits) in `s`, reading
+   * the decoded bytes as UTF-8. A `%` not followed by two hex digits is kept as
+   * it is, and `+` is not turned into a space. Bytes that are not valid UTF-8
+   * decode to the replacement character. The empty string gives the empty
+   * string.
+   */
   def decode(s: String): String = {
     if (s.isEmpty) return ""
 
