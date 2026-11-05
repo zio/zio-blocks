@@ -611,7 +611,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
 
       BsonCodec(encoder, decoder)
     } else {
-      // Non-string keys: encode as array of [key, value] pairs
+      // Non-string keys are not supported yet
       throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${typeId.fullName}")
     }
   }
@@ -1088,7 +1088,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
     // 1. It's detected as ObjectId by typename (from ObjectIdSupport), OR
     // 2. Config explicitly enables native ObjectId support AND it's actually an ObjectId type
     if (isObjectId || (config.useNativeObjectId && isObjectId)) {
-      // Import ObjectId type and use zio-bson's native codec
+      // Use this module's BsonCodec.objectId, which writes BSON OBJECT_ID
       BsonCodec.objectId.asInstanceOf[BsonCodec[A]]
     } else {
       // Normal wrapper handling
