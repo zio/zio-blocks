@@ -16,80 +16,251 @@
 
 package zio.http
 
+/**
+ * An HTTP status code, such as `200` or `404`, with a constant for each common
+ * code (`Status.Ok`, `Status.NotFound`, ...) and tests for its class
+ * (`isSuccess`, `isClientError`, ...). Any `Int` is accepted, including codes
+ * without a constant and numbers outside 100 to 599; nothing is checked.
+ *
+ * On Scala 3, `Status` is an opaque type over `Int`, so at run time it is a
+ * plain `Int` and `toString` prints the number, `404`. On Scala 2 it is a value
+ * class and `toString` prints `Status(404)`. Use `code` or `text` when you need
+ * the same string on both.
+ *
+ * {{{
+ * val status = Status.NotFound
+ *
+ * status.code           // 404
+ * status.text           // Not Found
+ * status.isClientError  // true
+ * status.isError        // true
+ * Status(299).isSuccess // true
+ * Status(299).text      // Unknown
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#status Status]]
+ */
 final case class Status private[http] (code: Int) extends AnyVal {
+
+  /** Whether the code is from 100 to 199. */
   def isInformational: Boolean = code >= 100 && code < 200
-  def isSuccess: Boolean       = code >= 200 && code < 300
-  def isRedirection: Boolean   = code >= 300 && code < 400
-  def isClientError: Boolean   = code >= 400 && code < 500
-  def isServerError: Boolean   = code >= 500 && code < 600
-  def isError: Boolean         = code >= 400
-  def text: String             = Status.reasonPhrase(code)
+
+  /** Whether the code is from 200 to 299. */
+  def isSuccess: Boolean = code >= 200 && code < 300
+
+  /** Whether the code is from 300 to 399. */
+  def isRedirection: Boolean = code >= 300 && code < 400
+
+  /** Whether the code is from 400 to 499. */
+  def isClientError: Boolean = code >= 400 && code < 500
+
+  /** Whether the code is from 500 to 599. */
+  def isServerError: Boolean = code >= 500 && code < 600
+
+  /**
+   * Whether the code is 400 or above: a client or server error, or any larger
+   * number.
+   */
+  def isError: Boolean = code >= 400
+
+  /**
+   * The reason phrase of the code, such as `Not Found` for 404, or `Unknown`
+   * for a code without a constant in [[Status]].
+   */
+  def text: String = Status.reasonPhrase(code)
 }
 
+/**
+ * Constants for the common status codes, named after their reason phrases, and
+ * constructors for any other code.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#predefined-status-codes Predefined Status Codes]]
+ */
 object Status {
 
+  /**
+   * Creates a status from `code` without checking it.
+   *
+   * {{{
+   * val validationFailed = Status(422)
+   *
+   * validationFailed == Status.UnprocessableEntity // true
+   * Status(799).text                               // Unknown
+   * }}}
+   */
   def apply(code: Int): Status = new Status(code)
 
+  /** Creates a status from `code` without checking it; the same as `apply`. */
   def fromInt(code: Int): Status = new Status(code)
 
-  val Continue: Status           = Status(100)
+  /** `100 Continue`. */
+  val Continue: Status = Status(100)
+
+  /** `101 Switching Protocols`. */
   val SwitchingProtocols: Status = Status(101)
-  val Processing: Status         = Status(102)
-  val EarlyHints: Status         = Status(103)
 
-  val Ok: Status                          = Status(200)
-  val Created: Status                     = Status(201)
-  val Accepted: Status                    = Status(202)
+  /** `102 Processing`. */
+  val Processing: Status = Status(102)
+
+  /** `103 Early Hints`. */
+  val EarlyHints: Status = Status(103)
+
+  /** `200 OK`. */
+  val Ok: Status = Status(200)
+
+  /** `201 Created`. */
+  val Created: Status = Status(201)
+
+  /** `202 Accepted`. */
+  val Accepted: Status = Status(202)
+
+  /** `203 Non-Authoritative Information`. */
   val NonAuthoritativeInformation: Status = Status(203)
-  val NoContent: Status                   = Status(204)
-  val ResetContent: Status                = Status(205)
-  val PartialContent: Status              = Status(206)
-  val MultiStatus: Status                 = Status(207)
 
-  val MultipleChoices: Status   = Status(300)
-  val MovedPermanently: Status  = Status(301)
-  val Found: Status             = Status(302)
-  val SeeOther: Status          = Status(303)
-  val NotModified: Status       = Status(304)
+  /** `204 No Content`. */
+  val NoContent: Status = Status(204)
+
+  /** `205 Reset Content`. */
+  val ResetContent: Status = Status(205)
+
+  /** `206 Partial Content`. */
+  val PartialContent: Status = Status(206)
+
+  /** `207 Multi-Status`. */
+  val MultiStatus: Status = Status(207)
+
+  /** `300 Multiple Choices`. */
+  val MultipleChoices: Status = Status(300)
+
+  /** `301 Moved Permanently`. */
+  val MovedPermanently: Status = Status(301)
+
+  /** `302 Found`. */
+  val Found: Status = Status(302)
+
+  /** `303 See Other`. */
+  val SeeOther: Status = Status(303)
+
+  /** `304 Not Modified`. */
+  val NotModified: Status = Status(304)
+
+  /** `307 Temporary Redirect`. */
   val TemporaryRedirect: Status = Status(307)
+
+  /** `308 Permanent Redirect`. */
   val PermanentRedirect: Status = Status(308)
 
-  val BadRequest: Status                  = Status(400)
-  val Unauthorized: Status                = Status(401)
-  val PaymentRequired: Status             = Status(402)
-  val Forbidden: Status                   = Status(403)
-  val NotFound: Status                    = Status(404)
-  val MethodNotAllowed: Status            = Status(405)
-  val NotAcceptable: Status               = Status(406)
-  val ProxyAuthenticationRequired: Status = Status(407)
-  val RequestTimeout: Status              = Status(408)
-  val Conflict: Status                    = Status(409)
-  val Gone: Status                        = Status(410)
-  val LengthRequired: Status              = Status(411)
-  val PreconditionFailed: Status          = Status(412)
-  val PayloadTooLarge: Status             = Status(413)
-  val RequestEntityTooLarge: Status       = Status(413)
-  val UriTooLong: Status                  = Status(414)
-  val UnsupportedMediaType: Status        = Status(415)
-  val RangeNotSatisfiable: Status         = Status(416)
-  val ExpectationFailed: Status           = Status(417)
-  val ImATeapot: Status                   = Status(418)
-  val MisdirectedRequest: Status          = Status(421)
-  val UnprocessableEntity: Status         = Status(422)
-  val TooEarly: Status                    = Status(425)
-  val UpgradeRequired: Status             = Status(426)
-  val PreconditionRequired: Status        = Status(428)
-  val TooManyRequests: Status             = Status(429)
-  val RequestHeaderFieldsTooLarge: Status = Status(431)
-  val UnavailableForLegalReasons: Status  = Status(451)
+  /** `400 Bad Request`. */
+  val BadRequest: Status = Status(400)
 
-  val InternalServerError: Status           = Status(500)
-  val NotImplemented: Status                = Status(501)
-  val BadGateway: Status                    = Status(502)
-  val ServiceUnavailable: Status            = Status(503)
-  val GatewayTimeout: Status                = Status(504)
-  val HttpVersionNotSupported: Status       = Status(505)
-  val InsufficientStorage: Status           = Status(507)
+  /** `401 Unauthorized`. */
+  val Unauthorized: Status = Status(401)
+
+  /** `402 Payment Required`. */
+  val PaymentRequired: Status = Status(402)
+
+  /** `403 Forbidden`. */
+  val Forbidden: Status = Status(403)
+
+  /** `404 Not Found`. */
+  val NotFound: Status = Status(404)
+
+  /** `405 Method Not Allowed`. */
+  val MethodNotAllowed: Status = Status(405)
+
+  /** `406 Not Acceptable`. */
+  val NotAcceptable: Status = Status(406)
+
+  /** `407 Proxy Authentication Required`. */
+  val ProxyAuthenticationRequired: Status = Status(407)
+
+  /** `408 Request Timeout`. */
+  val RequestTimeout: Status = Status(408)
+
+  /** `409 Conflict`. */
+  val Conflict: Status = Status(409)
+
+  /** `410 Gone`. */
+  val Gone: Status = Status(410)
+
+  /** `411 Length Required`. */
+  val LengthRequired: Status = Status(411)
+
+  /** `412 Precondition Failed`. */
+  val PreconditionFailed: Status = Status(412)
+
+  /** `413 Payload Too Large`. The same value as `RequestEntityTooLarge`. */
+  val PayloadTooLarge: Status = Status(413)
+
+  /**
+   * `413 Payload Too Large`. The older name of `PayloadTooLarge`, the same
+   * value; `text` gives `Payload Too Large`.
+   */
+  val RequestEntityTooLarge: Status = Status(413)
+
+  /** `414 URI Too Long`. */
+  val UriTooLong: Status = Status(414)
+
+  /** `415 Unsupported Media Type`. */
+  val UnsupportedMediaType: Status = Status(415)
+
+  /** `416 Range Not Satisfiable`. */
+  val RangeNotSatisfiable: Status = Status(416)
+
+  /** `417 Expectation Failed`. */
+  val ExpectationFailed: Status = Status(417)
+
+  /** `418 I'm a Teapot`. */
+  val ImATeapot: Status = Status(418)
+
+  /** `421 Misdirected Request`. */
+  val MisdirectedRequest: Status = Status(421)
+
+  /** `422 Unprocessable Entity`. */
+  val UnprocessableEntity: Status = Status(422)
+
+  /** `425 Too Early`. */
+  val TooEarly: Status = Status(425)
+
+  /** `426 Upgrade Required`. */
+  val UpgradeRequired: Status = Status(426)
+
+  /** `428 Precondition Required`. */
+  val PreconditionRequired: Status = Status(428)
+
+  /** `429 Too Many Requests`. */
+  val TooManyRequests: Status = Status(429)
+
+  /** `431 Request Header Fields Too Large`. */
+  val RequestHeaderFieldsTooLarge: Status = Status(431)
+
+  /** `451 Unavailable For Legal Reasons`. */
+  val UnavailableForLegalReasons: Status = Status(451)
+
+  /** `500 Internal Server Error`. */
+  val InternalServerError: Status = Status(500)
+
+  /** `501 Not Implemented`. */
+  val NotImplemented: Status = Status(501)
+
+  /** `502 Bad Gateway`. */
+  val BadGateway: Status = Status(502)
+
+  /** `503 Service Unavailable`. */
+  val ServiceUnavailable: Status = Status(503)
+
+  /** `504 Gateway Timeout`. */
+  val GatewayTimeout: Status = Status(504)
+
+  /** `505 HTTP Version Not Supported`. */
+  val HttpVersionNotSupported: Status = Status(505)
+
+  /** `507 Insufficient Storage`. */
+  val InsufficientStorage: Status = Status(507)
+
+  /** `511 Network Authentication Required`. */
   val NetworkAuthenticationRequired: Status = Status(511)
 
   private def reasonPhrase(code: Int): String = code match {

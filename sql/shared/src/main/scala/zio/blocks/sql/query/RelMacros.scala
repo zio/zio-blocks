@@ -20,6 +20,9 @@ import scala.quoted.*
 
 import zio.blocks.sql.{SqlNameMapper, Table}
 
+/**
+ * The macros behind the selector forms of `Rel.manyToOne` and `Rel.oneToMany`.
+ */
 private[query] object RelMacros {
 
   def manyToOneImpl[From: Type, To: Type](

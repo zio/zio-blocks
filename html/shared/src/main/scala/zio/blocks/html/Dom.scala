@@ -19,43 +19,46 @@ package zio.blocks.html
 import zio.blocks.chunk.Chunk
 
 /**
- * A sealed algebraic data type (ADT) representing an HTML document node.
+ * An immutable HTML node. A `Dom` value is a [[Dom.Element]] (a tag with
+ * attributes and children), a [[Dom.Element.Void]] (a tag such as `br` or `img`
+ * that takes attributes only), a [[Dom.Text]], a [[Dom.Doctype]] or
+ * [[Dom.Empty]]. Build trees with the DSL from `import zio.blocks.html._` or
+ * with the `html"..."` interpolator, query them with `select`, and turn them
+ * into a string with `render`.
  *
- * The Dom trait models HTML as an abstract syntax tree where each node is
- * either:
- *   - Text content (automatically HTML-escaped during rendering)
- *   - An empty node (renders to nothing)
- *   - An Element with a tag, attributes, and child nodes
+ * Rendering escapes text and attribute values. Text inside `script` and `style`
+ * elements is the exception: it renders without escaping (only `</` becomes
+ * `<\/`), so never put untrusted values there.
  *
- * ===Rendering===
- * Text content is HTML-escaped by default to prevent injection attacks.
- * However, Script and Style elements intentionally render their children
- * WITHOUT escaping, allowing inline JavaScript and CSS to be rendered as-is.
- *
- * Use `render` for minified HTML or `render(indent: Int)` for pretty-printed
- * output with N spaces per indentation level.
- *
- * ===Tree Operations===
- * The ADT supports traversal via `collect`, `filter`, `find`, and `transform`
- * methods for navigating and transforming the tree structure.
+ * {{{
+ * val card = div(className := "card", h2("Tea & cakes"), p("From ", strong("4.50")))
+ * card.render
+ * // <div class="card"><h2>Tea &amp; cakes</h2><p>From <strong>4.50</strong></p></div>
+ * }}}
  *
  * @see
- *   [[Dom.Element]] for element construction
- * @see
- *   [[Dom.Text]] for text content
- * @see
- *   [[Dom.Empty]] for empty nodes
+ *   [[https://zioblocks.com/reference/html/#the-dom-adt The Dom ADT]]
  */
 sealed trait Dom extends Product with Serializable {
 
   /**
-   * Renders the DOM tree to a minified HTML string.
+   * Renders this node and its children as compact HTML, with no whitespace
+   * added between tags.
    *
-   * Text content is HTML-escaped. Script and Style elements render their
-   * children without escaping to allow inline code.
+   * Text and attribute values are HTML-escaped (`&`, `<`, `>`, `"` and `'`),
+   * void elements close as `<br/>`, and enabled boolean attributes render as
+   * the bare name. Text children of `script` and `style` elements are not
+   * escaped; only `</` becomes `<\/`, so never put untrusted values there.
+   * Repeated attribute names are merged as [[Dom.Attribute]] describes. Some
+   * URL attributes, such as `href` and `src`, get an `unsafe:` prefix when the
+   * value starts with a `javascript:`, `vbscript:` or `data:text/html` scheme.
+   * This is a best-effort check, not a sanitizer, so validate untrusted URLs
+   * yourself.
    *
-   * @return
-   *   minified HTML output with no extra whitespace
+   * {{{
+   * div(id := "cart", className := "box", p("2 items & 1 offer")).render
+   * // <div id="cart" class="box"><p>2 items &amp; 1 offer</p></div>
+   * }}}
    */
   def render: String = {
     val sb = new java.lang.StringBuilder(256)
@@ -64,16 +67,22 @@ sealed trait Dom extends Product with Serializable {
   }
 
   /**
-   * Renders the DOM tree to a pretty-printed HTML string with indentation.
+   * Renders this node as indented HTML, with `indent` spaces per level. Each
+   * child of an element goes on its own line, except that an element whose only
+   * child is a text node stays on one line. Escaping is the same as for
+   * `render`, and an `indent` of zero or less gives the output of `render`. The
+   * added whitespace becomes part of the text, `pre` and `textarea` included.
    *
-   * Text content is HTML-escaped. Script and Style elements render their
-   * children without escaping to allow inline code.
-   *
-   * @param indent
-   *   the number of spaces per indentation level; if <= 0, behaves like
-   *   `render`
-   * @return
-   *   formatted HTML with newlines and indentation
+   * {{{
+   * div(h1("Menu"), ul(li("Tea"), li("Cake"))).render(2)
+   * // <div>
+   * //   <h1>Menu</h1>
+   * //   <ul>
+   * //     <li>Tea</li>
+   * //     <li>Cake</li>
+   * //   </ul>
+   * // </div>
+   * }}}
    */
   def render(indent: Int): String =
     if (indent <= 0) render
@@ -84,10 +93,12 @@ sealed trait Dom extends Product with Serializable {
     }
 
   /**
-   * Renders the DOM tree to a minified HTML string (alias for `render`).
+   * Renders this node as compact HTML. Returns the same string as `render`.
    *
-   * @return
-   *   minified HTML output
+   * {{{
+   * p("Fresh ", em("today")).renderMinified
+   * // <p>Fresh <em>today</em></p>
+   * }}}
    */
   def renderMinified: String = {
     val sb = new java.lang.StringBuilder(256)
@@ -95,21 +106,20 @@ sealed trait Dom extends Product with Serializable {
     sb.toString
   }
 
+  /** Appends the compact HTML of this node to `sb`. */
   private[html] def renderTo(sb: java.lang.StringBuilder): Unit
   private[html] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit
   private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit
 
   /**
-   * Collects all nodes in the tree matching the given partial function.
+   * Applies `pf` to this node and to every node below it, a node before its
+   * children (depth-first pre-order), and returns the results in that order.
    *
-   * Traverses the entire tree in depth-first order, applying the partial
-   * function to each node and collecting matches.
-   *
-   * @param pf
-   *   the partial function to apply; nodes that match contribute their
-   *   transformed values
-   * @return
-   *   a list of matching nodes (or their transformed versions)
+   * {{{
+   * val menu = div(h2("Drinks"), ul(li("Tea"), li(strong("Coffee"))))
+   * menu.collect { case Dom.Text(s) => Dom.Text(s.toUpperCase) }
+   * // List(Text(DRINKS), Text(TEA), Text(COFFEE))
+   * }}}
    */
   def collect(pf: PartialFunction[Dom, Dom]): List[Dom] = {
     val buf = List.newBuilder[Dom]
@@ -118,65 +128,68 @@ sealed trait Dom extends Product with Serializable {
   }
 
   /**
-   * Filters the tree to keep only nodes satisfying the predicate.
+   * Returns a copy of the tree without the nodes that fail `predicate`. A
+   * failing child is removed together with everything below it, and an element
+   * whose children all fail stays, with no children. When this node itself
+   * fails, the result is [[Dom.Empty]].
    *
-   * Removes any node for which the predicate returns false, and recursively
-   * filters children. Empty branches collapse to `Empty`.
-   *
-   * @param predicate
-   *   the condition each node must satisfy
-   * @return
-   *   a new tree with non-matching nodes removed
+   * {{{
+   * val menu = div(h2("Drinks"), ul(li("Tea"), li(strong("Coffee"))))
+   * menu.filter { case el: Dom.Element => el.tag != "strong"; case _ => true }.render
+   * // <div><h2>Drinks</h2><ul><li>Tea</li><li></li></ul></div>
+   * }}}
    */
   def filter(predicate: Dom => Boolean): Dom =
     Dom.filterImpl(this, predicate)
 
   /**
-   * Finds the first node in the tree satisfying the predicate.
+   * Returns the first node that satisfies `predicate`, checking this node first
+   * and then the nodes below it in depth-first pre-order.
    *
-   * Traverses the tree in depth-first order and returns the first matching
-   * node.
-   *
-   * @param predicate
-   *   the condition to search for
-   * @return
-   *   `Some(node)` if a match is found, `None` otherwise
+   * {{{
+   * val menu = div(h2("Drinks"), ul(li("Tea"), li(strong("Coffee"))))
+   * menu.find { case Dom.Text(s) => s.startsWith("C"); case _ => false }
+   * // Some(Text(Coffee))
+   * }}}
    */
   def find(predicate: Dom => Boolean): Option[Dom] =
     Dom.findImpl(this, predicate)
 
   /**
-   * Transforms every node in the tree using the given function.
+   * Rebuilds the tree by applying `f` to this node and then, when the result is
+   * an element, to each of its children, recursively. `f` sees a node before
+   * its children, and the children it sees are those of the node `f` returned.
+   * Returning [[Dom.Empty]] hides a node, which stays in its parent's children.
    *
-   * Applies the transformation function to each node in depth-first order, then
-   * recursively transforms children of Elements. Suitable for rewriting the
-   * tree, e.g., removing nodes, modifying attributes, or simplifying structure.
-   *
-   * @param f
-   *   the transformation function to apply to each node
-   * @return
-   *   a new tree with all nodes transformed
+   * {{{
+   * val menu = div(h2("Drinks"), ul(li("Tea"), li(strong("Coffee"))))
+   * menu.transform {
+   *   case el: Dom.Element.Generic if el.tag == "h2" => el.copy(tag = "h3")
+   *   case other                                     => other
+   * }.render
+   * // <div><h3>Drinks</h3><ul><li>Tea</li><li><strong>Coffee</strong></li></ul></div>
+   * }}}
    */
   def transform(f: Dom => Dom): Dom =
     Dom.transformImpl(this, f)
 
   /**
-   * Selects all descendant nodes matching the given CSS selector.
+   * Returns the elements below this node that match `selector`, in document
+   * order. This node is not a candidate itself, except as the left side of `>`
+   * or `>>`. [[DomSelection#select]] lists what matches and the known bugs.
    *
-   * @param selector
-   *   the CSS selector to match against
-   * @return
-   *   a [[DomSelection]] containing all matching descendant nodes
+   * {{{
+   * val menu = div(h2("Drinks"), ul(li("Tea"), li(strong("Coffee"))))
+   * menu.select(CssSelector.Element("li")).texts
+   * // Chunk(Tea,Coffee)
+   * }}}
    */
   def select(selector: CssSelector): DomSelection = DomSelection.select(this, selector)
 
   /**
-   * Checks whether this node renders to empty HTML.
-   *
-   * Returns true if the node is `Empty` or a `Text` with empty content.
-   *
-   * @return
-   *   true if this node produces no output when rendered
+   * Returns `true` for [[Dom.Empty]] and for a [[Dom.Text]] with empty content,
+   * `false` otherwise. An element with no children is not empty, because it
+   * still renders its tags.
    */
   def isEmpty: Boolean = this match {
     case Dom.Empty           => true
@@ -187,55 +200,98 @@ sealed trait Dom extends Product with Serializable {
   }
 }
 
+/**
+ * Constructors for nodes and attributes, and the node types. Most code uses the
+ * DSL from `import zio.blocks.html._` instead of calling these directly.
+ */
 object Dom {
 
   /**
-   * A sealed trait for HTML elements with a tag, attributes, and children.
+   * An HTML element that can have children: a tag name, attributes and child
+   * nodes. The DSL values (`div`, `p`, `a`, ...) are elements with no
+   * attributes or children; apply one to modifiers to get a copy with more of
+   * them.
    *
-   * Subtypes include:
-   *   - [[Dom.Element.Generic]] — standard HTML elements
-   *   - [[Dom.Element.Script]] — script tags (children rendered without
-   *     escaping)
-   *   - [[Dom.Element.Style]] — style tags (children rendered without escaping)
+   * Most tags are [[Dom.Element.Generic]]. [[Dom.Element.Script]] and
+   * [[Dom.Element.Style]] render their text children without escaping, and the
+   * typed classes behind the content-model markers ([[Dom.Element.Li]],
+   * [[Dom.Element.Tr]], ...) are what `li(...)`, `tr(...)` and the other typed
+   * factories return. Two elements are equal when their tag, attributes,
+   * children and escaping match, whatever their classes. An element also stands
+   * for a CSS selector of its tag, as in `div > p`.
    *
-   * Elements support modifier chaining via `apply(effect, ...)` and
-   * `when(condition)(...)` for fluent construction.
-   *
-   * Import `DomModifierConversions._` (or use the `zio.blocks.html` package
-   * object) to enable implicit conversions from `String`, `Dom`,
-   * `Dom.Attribute`, etc. to [[DomModifier]].
+   * {{{
+   * div(className := "badge").when(true)(className += "sale", "-20%").render
+   * // <div class="badge sale">-20%</div>
+   * }}}
    */
   sealed trait Element extends Dom with CssSelectable {
+
+    /** The tag name, such as `div`. */
     def tag: String
+
+    /**
+     * The attributes in the order they were added. Rendering merges repeated
+     * names.
+     */
     def attributes: Chunk[Attribute]
+
+    /** The child nodes, in order. */
     def children: Chunk[Dom]
+
+    /**
+     * A selector that matches this element's tag, so `div > p` reads like CSS.
+     */
     val selector: CssSelector         = CssSelector.Element(tag)
     private[html] def isVoid: Boolean = Dom.voidElements.contains(tag)
+
+    /** Returns a copy with `attrs` in place of the current attributes. */
     def withAttributes(attrs: Chunk[Attribute]): Element
+
+    /** Returns a copy with `kids` in place of the current children. */
     def withChildren(kids: Chunk[Dom]): Element
 
+    /**
+     * Returns a copy with the modifiers applied in order: attributes are
+     * appended to the attributes and nodes to the children. A `String` becomes
+     * a text child, a disabled boolean attribute or `None` adds nothing, and a
+     * collection adds each item. The typed factories' content-model checks do
+     * not apply here.
+     */
     def apply(effect: DomModifier, effects: DomModifier*): Element =
       ToModifier.buildFromEffects(this, effect, effects)
 
+    /**
+     * Applies the modifiers as `apply` does when `condition` is `true`, and
+     * returns this element unchanged otherwise.
+     */
     def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Element =
       if (condition) ToModifier.buildFromEffects(this, effect, effects)
       else this
 
+    /**
+     * Applies the modifiers that `f` returns for the value in `option`, as
+     * `apply` does, and returns this element unchanged for `None`.
+     *
+     * {{{
+     * div(className := "badge").whenSome(Option("Sold out"))(msg => Seq(titleAttr := msg, msg)).render
+     * // <div class="badge" title="Sold out">Sold out</div>
+     * }}}
+     */
     def whenSome[T](option: Option[T])(f: T => Seq[DomModifier]): Element =
       option match {
         case Some(value) => ToModifier.buildFromEffects(this, f(value))
         case None        => this
       }
 
+    /** Whether rendering HTML-escapes this element's text children. */
     private[html] def escapeText: Boolean
 
     /**
-     * Structural comparison shared by every concrete `Element` implementation:
-     * two elements are equal when their tag, attributes, children, and
-     * [[escapeText]] semantics match, regardless of the concrete classes
-     * involved. Escaping participates so that equal elements always render
-     * identically (`Script` never equals an equally-shaped `Generic`, since one
-     * renders its children raw and the other escapes them).
+     * Equality shared by the `Element` implementations: equal tag, attributes,
+     * children and [[escapeText]], whatever the concrete classes, so equal
+     * elements render identically (a `Script` never equals an equally shaped
+     * `Generic`).
      */
     private[html] def structuralEquals(other: Any): Boolean = other match {
       case e: Element =>
@@ -315,6 +371,7 @@ object Dom {
     }
   }
 
+  /** The element classes and the typed content-model markers. */
   object Element {
 
     // --- Sealed markers for typed content models ---
@@ -363,7 +420,8 @@ object Dom {
 
     /**
      * An `<option>` element, accepted as an element child of `select(...)` and
-     * `optgroup(...)`. Produced by the `opt(...)`/`option(...)` DSL factories.
+     * `optgroup(...)`. Produced by `option(...)`, and on Scala 3 also by
+     * `opt(...)`.
      */
     sealed trait Opt extends SelectChild
 
@@ -374,10 +432,10 @@ object Dom {
     sealed trait Optgroup extends SelectChild
 
     /**
-     * A generic HTML element.
-     *
-     * Represents any standard HTML tag (e.g., "div", "p", "span"). Text content
-     * in children is HTML-escaped during rendering.
+     * An element for any tag without a dedicated class (`div`, `p`, `span`,
+     * ...). Text children are HTML-escaped when rendered. A `Generic` with a
+     * void tag such as `br` or `img`, which the `html"..."` interpolator
+     * creates, renders as `<br/>` and drops its children.
      *
      * Equality is structural across all `Element` implementations: a `Generic`
      * equals any other element with the same tag, attributes, children, and
@@ -387,7 +445,7 @@ object Dom {
      * @param tag
      *   the element tag name (e.g., "div", "h1")
      * @param attributes
-     *   attribute key-value pairs
+     *   the attributes, in the order they were added
      * @param children
      *   child DOM nodes
      */
@@ -396,9 +454,13 @@ object Dom {
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element {
-      private[html] def escapeText: Boolean                = true
+      private[html] def escapeText: Boolean = true
+
+      /** Returns a copy with `attrs` in place of the current attributes. */
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
+
+      /** Returns a copy with `kids` in place of the current children. */
+      def withChildren(kids: Chunk[Dom]): Generic = copy(children = kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
@@ -423,9 +485,21 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element
         with Li {
-      def tag: String                                                    = "li"
-      private[html] def escapeText: Boolean                              = true
-      def withAttributes(attrs: Chunk[Attribute]): Li                    = copy(attributes = attrs)
+
+      /** Always `li`. */
+      def tag: String                       = "li"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Li]].
+       */
+      def withAttributes(attrs: Chunk[Attribute]): Li = copy(attributes = attrs)
+
+      /**
+       * Returns a copy with `kids` in place of the current children, still
+       * typed [[Dom.Element.Li]].
+       */
       def withChildren(kids: Chunk[Dom]): Li                             = copy(children = kids)
       override def apply(effect: DomModifier, effects: DomModifier*): Li =
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Li]
@@ -453,9 +527,21 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element
         with Th {
-      def tag: String                                                    = "th"
-      private[html] def escapeText: Boolean                              = true
-      def withAttributes(attrs: Chunk[Attribute]): Th                    = copy(attributes = attrs)
+
+      /** Always `th`. */
+      def tag: String                       = "th"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Th]].
+       */
+      def withAttributes(attrs: Chunk[Attribute]): Th = copy(attributes = attrs)
+
+      /**
+       * Returns a copy with `kids` in place of the current children, still
+       * typed [[Dom.Element.Th]].
+       */
       def withChildren(kids: Chunk[Dom]): Th                             = copy(children = kids)
       override def apply(effect: DomModifier, effects: DomModifier*): Th =
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Th]
@@ -483,9 +569,21 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element
         with Td {
-      def tag: String                                                    = "td"
-      private[html] def escapeText: Boolean                              = true
-      def withAttributes(attrs: Chunk[Attribute]): Td                    = copy(attributes = attrs)
+
+      /** Always `td`. */
+      def tag: String                       = "td"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Td]].
+       */
+      def withAttributes(attrs: Chunk[Attribute]): Td = copy(attributes = attrs)
+
+      /**
+       * Returns a copy with `kids` in place of the current children, still
+       * typed [[Dom.Element.Td]].
+       */
       def withChildren(kids: Chunk[Dom]): Td                             = copy(children = kids)
       override def apply(effect: DomModifier, effects: DomModifier*): Td =
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Td]
@@ -497,15 +595,14 @@ object Dom {
     }
 
     /**
-     * A `<tr>` table row element.
+     * A `<tr>` table row element, returned by `tr(...)`.
      *
-     * Unlike permissive elements (`li`, `th`, `td`), this class intentionally
-     * keeps the row content model intact: it does not override
-     * `apply(DomModifier*)`, and [[withChildren]] returns a plain `Element`, so
-     * replacing children drops the `Tr` marker — children belong in the
-     * `tr(...)` factory, which enforces the restriction at compile time.
-     * Attributes can still be attached via [[withAttributes]], preserving the
-     * marker.
+     * It does not override `apply` or `withChildren`: both come back typed
+     * [[Dom.Element]], so a row changed through them no longer fits
+     * `table(...)`. The check of the cells happens in the `tr(...)` factory
+     * only; `apply` accepts any modifier, so `tr(td("Tea"))(p("note"))`
+     * compiles and renders a `<p>` inside the row. [[withAttributes]] keeps the
+     * [[Dom.Element.Tr]] type.
      *
      * Equality is structural across all `Element` implementations, so a
      * `TrElement` equals a `Generic("tr", ...)` with the same attributes and
@@ -514,17 +611,30 @@ object Dom {
      * @param attributes
      *   attribute key-value pairs
      * @param children
-     *   child DOM nodes (`<th>`/`<td>` cells only)
+     *   child DOM nodes (`<th>`/`<td>` cells when built by `tr(...)`)
      */
     final case class TrElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element
         with Tr {
-      def tag: String                                 = "tr"
-      private[html] def escapeText: Boolean           = true
+
+      /** Always `tr`. */
+      def tag: String                       = "tr"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Tr]].
+       */
       def withAttributes(attrs: Chunk[Attribute]): Tr = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Element     = copy(children = kids)
+
+      /**
+       * Returns a copy with `kids` as children, typed [[Dom.Element]] rather
+       * than [[Dom.Element.Tr]], so it no longer fits `table(...)`. At run time
+       * it is still a `TrElement`.
+       */
+      def withChildren(kids: Chunk[Dom]): Element = copy(children = kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
@@ -547,9 +657,21 @@ object Dom {
       children: Chunk[Dom]
     ) extends Element
         with Opt {
-      def tag: String                                                     = "option"
-      private[html] def escapeText: Boolean                               = true
-      def withAttributes(attrs: Chunk[Attribute]): Opt                    = copy(attributes = attrs)
+
+      /** Always `option`. */
+      def tag: String                       = "option"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Opt]].
+       */
+      def withAttributes(attrs: Chunk[Attribute]): Opt = copy(attributes = attrs)
+
+      /**
+       * Returns a copy with `kids` in place of the current children, still
+       * typed [[Dom.Element.Opt]].
+       */
       def withChildren(kids: Chunk[Dom]): Opt                             = copy(children = kids)
       override def apply(effect: DomModifier, effects: DomModifier*): Opt =
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Opt]
@@ -561,14 +683,13 @@ object Dom {
     }
 
     /**
-     * An `<optgroup>` element.
+     * An `<optgroup>` element, returned by `optgroup(...)`.
      *
-     * Unlike the other typed elements, this class intentionally does not
-     * override `apply(DomModifier*)`, and [[withChildren]] returns a plain
-     * `Element`, so replacing children drops the `Optgroup` marker — children
-     * belong in the `optgroup(...)` factory, which enforces that restriction at
-     * compile time. Attributes can still be attached via [[withAttributes]],
-     * preserving the marker.
+     * It does not override `apply` or `withChildren`: both come back typed
+     * [[Dom.Element]], so a group changed through them no longer fits
+     * `select(...)`. The check of the options happens in the `optgroup(...)`
+     * factory only; `apply` accepts any modifier. [[withAttributes]] keeps the
+     * [[Dom.Element.Optgroup]] type.
      *
      * Equality is structural across all `Element` implementations, so an
      * `OptgroupElement` equals a `Generic("optgroup", ...)` with the same
@@ -577,34 +698,51 @@ object Dom {
      * @param attributes
      *   attribute key-value pairs
      * @param children
-     *   child DOM nodes (`<option>` elements only)
+     *   child DOM nodes (`<option>` elements when built by `optgroup(...)`)
      */
     final case class OptgroupElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element
         with Optgroup {
-      def tag: String                                       = "optgroup"
-      private[html] def escapeText: Boolean                 = true
+
+      /** Always `optgroup`. */
+      def tag: String                       = "optgroup"
+      private[html] def escapeText: Boolean = true
+
+      /**
+       * Returns a copy with `attrs` in place of the current attributes, still
+       * typed [[Dom.Element.Optgroup]].
+       */
       def withAttributes(attrs: Chunk[Attribute]): Optgroup = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Element           = copy(children = kids)
+
+      /**
+       * Returns a copy with `kids` as children, typed [[Dom.Element]] rather
+       * than [[Dom.Element.Optgroup]], so it no longer fits `select(...)`. At
+       * run time it is still an `OptgroupElement`.
+       */
+      def withChildren(kids: Chunk[Dom]): Element = copy(children = kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
     }
 
     /**
-     * An HTML script element.
-     *
-     * The Script element renders its children WITHOUT HTML-escaping, allowing
-     * inline JavaScript to be rendered as-is. Provides convenience methods
-     * `inlineJs(code)` to inject escaped JavaScript or `externalJs(url)` to
-     * link external scripts.
+     * A `<script>` element. Its text children render without HTML escaping, so
+     * JavaScript keeps its `<`, `&` and quotes; rendering only rewrites `</` as
+     * `<\/`, so the code cannot close the element early. Element children are
+     * rendered as usual. Add code with `inlineJs` or a source URL with
+     * `externalJs`.
      *
      * Equality is structural across all `Element` implementations, including
      * the text-escaping semantics: because `Script` renders its children
      * unescaped, it never equals an equally-shaped `Generic("script", ...)`,
      * whose children would be escaped on render.
+     *
+     * {{{
+     * script().inlineJs(js"cart.total = \${42}").externalJs("/cart.js").render
+     * // <script src="/cart.js">cart.total = 42</script>
+     * }}}
      *
      * @param attributes
      *   attribute key-value pairs
@@ -615,16 +753,32 @@ object Dom {
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element {
-      def tag: String                                     = "script"
-      private[html] def escapeText: Boolean               = false
-      def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Script          = copy(children = kids)
 
+      /** Always `script`. */
+      def tag: String                       = "script"
+      private[html] def escapeText: Boolean = false
+
+      /** Returns a copy with `attrs` in place of the current attributes. */
+      def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
+
+      /** Returns a copy with `kids` in place of the current children. */
+      def withChildren(kids: Chunk[Dom]): Script = copy(children = kids)
+
+      /**
+       * Returns a copy with `code` appended as a text child, with each `</` in
+       * it replaced by `<\/`. The code is not otherwise escaped, so build it
+       * with `js"..."` rather than from user text.
+       */
       def inlineJs(code: Js): Script = {
         val escaped = code.value.replace("</", "<\\/")
         copy(children = children :+ Dom.Text(escaped))
       }
 
+      /**
+       * Returns a copy with a `src` attribute set to `url`, appended after the
+       * current attributes. When `src` is already set, the last value wins when
+       * rendered.
+       */
       def externalJs(url: String): Script =
         copy(attributes = attributes :+ Attribute.KeyValue("src", AttributeValue.StringValue(url)))
 
@@ -633,16 +787,21 @@ object Dom {
     }
 
     /**
-     * An HTML style element.
-     *
-     * The Style element renders its children WITHOUT HTML-escaping, allowing
-     * inline CSS to be rendered as-is. Provides convenience method
-     * `inlineCss(code)` to inject CSS code directly.
+     * A `<style>` element. Its text children render without HTML escaping, so
+     * CSS keeps its `>` and quotes; rendering only rewrites `</` as `<\/`. Add
+     * a stylesheet with `inlineCss`.
      *
      * Equality is structural across all `Element` implementations, including
      * the text-escaping semantics: because `Style` renders its children
      * unescaped, it never equals an equally-shaped `Generic("style", ...)`,
      * whose children would be escaped on render.
+     *
+     * {{{
+     * import zio.blocks.chunk.Chunk
+     *
+     * style().inlineCss(Css.Rule(CssSelector.Class("price"), Chunk(Css.Declaration("color", CssColor.Rgb(200, 0, 0))))).render
+     * // <style>.price{color:rgb(200,0,0);}</style>
+     * }}}
      *
      * @param attributes
      *   attribute key-value pairs
@@ -653,11 +812,18 @@ object Dom {
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element {
-      def tag: String                                    = "style"
-      private[html] def escapeText: Boolean              = false
-      def withAttributes(attrs: Chunk[Attribute]): Style = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Style          = copy(children = kids)
 
+      /** Always `style`. */
+      def tag: String                       = "style"
+      private[html] def escapeText: Boolean = false
+
+      /** Returns a copy with `attrs` in place of the current attributes. */
+      def withAttributes(attrs: Chunk[Attribute]): Style = copy(attributes = attrs)
+
+      /** Returns a copy with `kids` in place of the current children. */
+      def withChildren(kids: Chunk[Dom]): Style = copy(children = kids)
+
+      /** Returns a copy with `code.render` appended as a text child. */
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))
 
@@ -666,24 +832,37 @@ object Dom {
     }
 
     /**
-     * A sealed trait for void HTML elements that cannot have children.
+     * A void element: a tag such as `br`, `img` or `input` that takes
+     * attributes but no children. Passing a child does not compile, and the
+     * element renders self-closed, as in `<img src="/tea.png"/>`. It extends
+     * [[Dom]] directly, not [[Dom.Element]], so it has no `children` and no
+     * `apply(DomModifier*)`.
      *
-     * Void elements accept attributes but reject children at compile time. They
-     * self-close when rendered (e.g., `<br/>`, `<img src="..."/>`).
+     * `Dom#select` never returns a `Dom.Element.Void`, because matching only
+     * looks at [[Dom.Element]] nodes, which is a known bug.
+     * `DomSelection#children` and `DomSelection#descendants` do include void
+     * elements.
      *
-     * Unlike [[Element]], this trait does not extend [[Dom.Element]] so it does
-     * not inherit `apply(DomModifier*)` — only attributes can be applied via
-     * `apply(Attribute, Attribute*)`.
-     *
-     * Subtypes include:
-     *   - [[Dom.Element.VoidGeneric]] — generic void elements
+     * {{{
+     * img(src := "/tea.png")(alt := "Tea").render
+     * // <img src="/tea.png" alt="Tea"/>
+     * }}}
      */
     sealed trait Void extends Dom with CssSelectable {
+
+      /** The tag name, such as `img`. */
       def tag: String
+
+      /** The attributes in the order they were added. */
       def attributes: Chunk[Attribute]
+
+      /** A selector that matches this element's tag. */
       val selector: CssSelector = CssSelector.Element(tag)
+
+      /** Returns a copy with `attrs` in place of the current attributes. */
       def withAttributes(attrs: Chunk[Attribute]): Void
 
+      /** Returns a copy with the attributes appended, in order. */
       def apply(attr: Attribute, attrs: Attribute*): Void
 
       private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
@@ -699,10 +878,8 @@ object Dom {
     }
 
     /**
-     * A generic void HTML element.
-     *
-     * Represents any void HTML tag (e.g., "br", "img", "input"). Only accepts
-     * attributes, not children — enforced at compile time.
+     * A void element for any tag, such as `br`, `img` or `input`. Takes
+     * attributes only; passing a child does not compile.
      *
      * @param tag
      *   the element tag name (e.g., "br", "img")
@@ -713,8 +890,11 @@ object Dom {
       tag: String,
       attributes: Chunk[Attribute]
     ) extends Void {
+
+      /** Returns a copy with `attrs` in place of the current attributes. */
       def withAttributes(attrs: Chunk[Attribute]): VoidGeneric = copy(attributes = attrs)
 
+      /** Returns a copy with the attributes appended, in order. */
       def apply(attr: Attribute, attrs: Attribute*): VoidGeneric = {
         val b = Chunk.newBuilder[Attribute]
         b ++= attributes
@@ -730,11 +910,11 @@ object Dom {
   }
 
   /**
-   * A document type declaration node.
-   *
-   * Renders as `<!DOCTYPE value>`, typically `<!DOCTYPE html>` for HTML5
-   * documents. Doctype nodes are always rendered without indentation and are
-   * treated as leaf nodes by tree operations.
+   * A document type declaration, rendered as `<!DOCTYPE value>`; the DSL value
+   * `doctype` is `Doctype("html")`. It adds no indentation of its own, but as
+   * the child of an element `render(indent)` indents it like any other child,
+   * so render it before the `html` element rather than inside it. Tree
+   * operations treat it as a leaf.
    *
    * @param value
    *   the doctype value (e.g., "html")
@@ -752,13 +932,18 @@ object Dom {
   }
 
   /**
-   * A text node containing HTML content to be escaped during rendering.
+   * A text node. It stores the raw string and escapes `&`, `<`, `>`, `"` and
+   * `'` when rendered. As a direct child of a `script` or `style` element it is
+   * written as is instead, apart from `</` becoming `<\/`, so never put
+   * untrusted text there.
    *
-   * Text nodes are automatically HTML-escaped to prevent XSS attacks when
-   * rendered (except within Script and Style elements, which are unescaped).
+   * {{{
+   * Dom.Text("Fish & chips").render
+   * // Fish &amp; chips
+   * }}}
    *
    * @param content
-   *   the text content (will be HTML-escaped in output)
+   *   the raw text
    */
   final case class Text(content: String) extends Dom {
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit                                = Escape.htmlTo(content, sb)
@@ -768,9 +953,9 @@ object Dom {
   }
 
   /**
-   * An empty DOM node that renders to nothing.
-   *
-   * Used as a neutral element for filtering and tree operations.
+   * A node that renders nothing. Use it for a branch with no output, as in
+   * `if (onSale) badge else Dom.Empty`. As a child it stays in the children
+   * list. `filter` returns it when the root fails the predicate.
    */
   case object Empty extends Dom {
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit                                = ()
@@ -778,54 +963,155 @@ object Dom {
     private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = ()
   }
 
+  /**
+   * An attribute of an element, usually built with the DSL keys (`id :=
+   * "cart"`, `className += "sale"`, `disabled`) rather than directly.
+   *
+   * Rendering merges attributes that share a name. The last
+   * [[Dom.Attribute.KeyValue]] wins and stays at its own position; earlier ones
+   * are dropped. [[Dom.Attribute.AppendValue]] values are joined after that
+   * value with their separators, at the position of the last `KeyValue`, or of
+   * the first `AppendValue` when the name has no `KeyValue`.
+   * [[Dom.Attribute.BooleanAttribute]] values are not merged, so a repeated one
+   * renders twice.
+   *
+   * {{{
+   * div(className := "box", className += "wide", id := "a", className += "dark", id := "b").render
+   * // <div class="box wide dark" id="b"></div>
+   * }}}
+   */
   sealed trait Attribute extends Product with Serializable
 
+  /** The attribute cases. */
   object Attribute {
-    final case class KeyValue(name: String, value: AttributeValue)                                   extends Attribute
+
+    /**
+     * Sets attribute `name` to `value`. A later `KeyValue` with the same name
+     * replaces it when rendered.
+     */
+    final case class KeyValue(name: String, value: AttributeValue) extends Attribute
+
+    /**
+     * Adds `value` to attribute `name`, joined to the other values with
+     * `separator` when rendered. `+=` on a [[MultiAttributeKey]] builds it.
+     */
     final case class AppendValue(name: String, value: AttributeValue, separator: AttributeSeparator) extends Attribute
-    final case class BooleanAttribute(name: String, enabled: Boolean = true)                         extends Attribute {
+
+    /**
+     * An attribute without a value, such as `disabled`: renders as the bare
+     * name when `enabled` and not at all otherwise.
+     *
+     * {{{
+     * input(`type` := "checkbox", checked := false, disabled := true).render
+     * // <input type="checkbox" disabled/>
+     * }}}
+     */
+    final case class BooleanAttribute(name: String, enabled: Boolean = true) extends Attribute {
+
+      /**
+       * Returns a copy with `enabled` set to `value`, as in
+       * `disabled := isLocked`.
+       */
       def :=(value: Boolean): BooleanAttribute = copy(enabled = value)
     }
   }
 
+  /**
+   * The value of a [[Dom.Attribute.KeyValue]] or [[Dom.Attribute.AppendValue]].
+   */
   sealed trait AttributeValue extends Product with Serializable
 
+  /** The attribute value cases. */
   object AttributeValue {
-    final case class StringValue(value: String)                                       extends AttributeValue
+
+    /** A text value, HTML-escaped when rendered. */
+    final case class StringValue(value: String) extends AttributeValue
+
+    /**
+     * Several values, each HTML-escaped and joined with `separator` when
+     * rendered. With no values the attribute is left out.
+     */
     final case class MultiValue(values: Chunk[String], separator: AttributeSeparator) extends AttributeValue
-    final case class JsValue(js: Js)                                                  extends AttributeValue
-    final case class BooleanValue(value: Boolean)                                     extends AttributeValue
+
+    /**
+     * JavaScript code, for event handlers such as `onclick`. It is HTML-escaped
+     * when rendered.
+     */
+    final case class JsValue(js: Js) extends AttributeValue
+
+    /**
+     * Renders the bare attribute name when `true` and leaves the attribute out
+     * when `false`. `:=` with a `Boolean` on an [[AttributeKey]] builds it.
+     */
+    final case class BooleanValue(value: Boolean) extends AttributeValue
   }
 
+  /** The text placed between the values of a multi-valued attribute. */
   sealed trait AttributeSeparator extends Product with Serializable {
+
+    /** Returns the separator text. */
     def render: String
   }
 
+  /** The separators. */
   object AttributeSeparator {
-    case object Space                          extends AttributeSeparator { def render: String = " " }
-    case object Comma                          extends AttributeSeparator { def render: String = "," }
-    case object Semicolon                      extends AttributeSeparator { def render: String = ";" }
+
+    /** A single space, used by `class` and `rel`. */
+    case object Space extends AttributeSeparator { def render: String = " " }
+
+    /** A comma, with no space. */
+    case object Comma extends AttributeSeparator { def render: String = "," }
+
+    /** A semicolon, with no space. */
+    case object Semicolon extends AttributeSeparator { def render: String = ";" }
+
+    /** Any separator text. */
     final case class Custom(separator: String) extends AttributeSeparator {
+
+      /** Returns `separator`. */
       def render: String = separator
     }
   }
 
+  /** Creates a text node; the same as `Dom.Text(content)`. */
   def text(content: String): Text = Text(content)
 
+  /** [[Dom.Empty]], typed as `Dom`. */
   val empty: Dom = Empty
 
+  /**
+   * Creates a boolean attribute such as `hidden`, enabled unless `enabled` is
+   * `false`.
+   */
   def boolAttr(name: String, enabled: Boolean = true): Attribute.BooleanAttribute =
     Attribute.BooleanAttribute(name, enabled)
 
+  /**
+   * Returns a key for the multi-valued attribute `name`, whose values are
+   * joined with spaces.
+   */
   def multiAttr(name: String): MultiAttributeKey =
     new MultiAttributeKey(name, AttributeSeparator.Space)
 
+  /**
+   * Returns a key for the multi-valued attribute `name`, whose values are
+   * joined with `separator`.
+   */
   def multiAttr(name: String, separator: AttributeSeparator): MultiAttributeKey =
     new MultiAttributeKey(name, separator)
 
+  /** Creates attribute `name` holding `values` joined with spaces. */
   def multiAttr(name: String, values: Iterable[String]): Attribute =
     Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), AttributeSeparator.Space))
 
+  /**
+   * Creates attribute `name` holding the values joined with `separator`.
+   *
+   * {{{
+   * div(Dom.multiAttr("data-tags", Dom.AttributeSeparator.Comma, "tea", "green")).render
+   * // <div data-tags="tea,green"></div>
+   * }}}
+   */
   def multiAttr(name: String, separator: AttributeSeparator, value: String, rest: String*): Attribute =
     Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(value +: rest), separator))
 

@@ -18,15 +18,20 @@ package zio.blocks.sql.query
 
 import zio.blocks.sql.{Frag, SqlDialect, SqlIdentifier, Table}
 
+/**
+ * Renders a [[SqlQuery]] to a [[zio.blocks.sql.Frag]]; [[SqlQuery#toFrag]]
+ * calls it, and is the method to use.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/sql-query/ SqlQuery]]
+ */
 object QueryRenderer {
 
   /**
-   * Renders a typed query IR to an executable [[Frag]].
-   *
-   * `dialect` is currently informational: both dialects render `?` placeholders
-   * (see `Frag.renderSql`), so rendering is dialect-identical today. The
-   * parameter is kept (rather than removed) so a future `$N`-style dialect can
-   * thread through without an API break; revisit if such a dialect lands.
+   * Renders `query` with its clauses in a fixed order: `SELECT`, `FROM`, the
+   * joins, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT` and `OFFSET`.
+   * `dialect` is not used: both dialects render the same SQL with `?`
+   * placeholders.
    */
   def render[A](query: SqlQuery[A], @scala.annotation.unused dialect: SqlDialect): Frag = {
     // SELECT clause: t0."col", t1."col", ...

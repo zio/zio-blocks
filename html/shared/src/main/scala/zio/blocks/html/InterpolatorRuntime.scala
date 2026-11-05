@@ -19,14 +19,16 @@ package zio.blocks.html
 import zio.blocks.chunk.Chunk
 
 /**
- * Internal runtime support for the `css`, `selector`, `js`, and `html`
- * interpolators.
- *
- * This object is public only because Scala 2 macro expansion inlines calls at
- * the use site. It is not intended as a stable user-facing API.
+ * Run-time support for the `css`, `selector`, `js` and `html` interpolators. It
+ * is public because the code the macros generate, on Scala 2 and Scala 3, calls
+ * it at the use site; it is not a stable user-facing API.
  */
 object InterpolatorRuntime {
 
+  /**
+   * Joins the parts and converted values into [[Css.Raw]]; throws
+   * `java.lang.IllegalArgumentException` when the counts do not fit.
+   */
   def buildCss(sc: StringContext, args: Seq[String]): Css = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb        = new java.lang.StringBuilder
@@ -39,6 +41,10 @@ object InterpolatorRuntime {
     Css.Raw(sb.toString)
   }
 
+  /**
+   * Joins the parts and converted values into [[CssSelector.Raw]]; throws
+   * `java.lang.IllegalArgumentException` when the counts do not fit.
+   */
   def buildSelector(sc: StringContext, args: Seq[String]): CssSelector = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb        = new java.lang.StringBuilder
@@ -51,6 +57,10 @@ object InterpolatorRuntime {
     CssSelector.Raw(sb.toString)
   }
 
+  /**
+   * Joins the parts and converted values into [[Js]]; throws
+   * `java.lang.IllegalArgumentException` when the counts do not fit.
+   */
   def buildJs(sc: StringContext, args: Seq[String]): Js = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb        = new java.lang.StringBuilder
@@ -63,6 +73,11 @@ object InterpolatorRuntime {
     Js(sb.toString)
   }
 
+  /**
+   * Parses the template with the values in place and returns its single root,
+   * or [[Dom.Empty]] for an empty template; throws
+   * `java.lang.IllegalArgumentException` for more than one root.
+   */
   def buildHtml(sc: StringContext, args: Seq[Either[String, Chunk[Dom]]]): Dom = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
     val sb    = new java.lang.StringBuilder
@@ -114,6 +129,10 @@ object InterpolatorRuntime {
 
   private val rawContentElements: Set[String] = Set("script", "style")
 
+  /**
+   * Parses an HTML fragment leniently into top-level nodes, dropping comments
+   * and doctypes and closing unclosed elements at the end.
+   */
   def parseHtml(input: String): Chunk[Dom] = {
     val len    = input.length
     val result = Chunk.newBuilder[Dom]

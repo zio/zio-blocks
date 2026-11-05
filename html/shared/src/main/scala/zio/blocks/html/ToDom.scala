@@ -19,11 +19,11 @@ package zio.blocks.html
 import zio.blocks.chunk.Chunk
 
 /**
- * Typeclass for values that can be converted to a [[Dom]] node.
- *
- * Similar to [[ToCss]] and [[ToJs]], `ToDom` provides a uniform way to convert
- * Scala values into DOM representations. Primitive types are converted to
- * [[Dom.Text]] nodes, while [[Dom]] values pass through unchanged.
+ * Converts a value to a single [[Dom]] node: a `String`, `Int`, `Long`,
+ * `Double` or `Boolean` becomes a [[Dom.Text]], a [[Dom]] value is kept, `None`
+ * becomes [[Dom.Empty]], and an iterable with several items is wrapped in a
+ * `<span>`. Nothing else in the module uses it: the DSL takes values through
+ * [[ToModifier]] and `html"..."` through [[ToElements]].
  *
  * @tparam A
  *   the input type to convert
@@ -41,42 +41,63 @@ trait ToDom[-A] {
   def toDom(a: A): Dom
 }
 
+/**
+ * Instances of [[ToDom]] for DOM nodes, strings, numbers, booleans, options and
+ * iterables.
+ */
 object ToDom {
 
+  /** Summons the implicit [[ToDom]] instance for `A`. */
   def apply[A](implicit ev: ToDom[A]): ToDom[A] = ev
 
+  /** Returns the [[Dom]] node unchanged. */
   implicit val domToDom: ToDom[Dom] = new ToDom[Dom] {
     def toDom(a: Dom): Dom = a
   }
 
+  /** Returns the element unchanged. */
   implicit val elementToDom: ToDom[Dom.Element] = new ToDom[Dom.Element] {
     def toDom(a: Dom.Element): Dom = a
   }
 
+  /** Returns the text node unchanged. */
   implicit val textToDom: ToDom[Dom.Text] = new ToDom[Dom.Text] {
     def toDom(a: Dom.Text): Dom = a
   }
 
+  /**
+   * Wraps the `String` in a [[Dom.Text]] node, which escapes it when rendered,
+   * except as a child of a `script` or `style` element, which writes text as
+   * is.
+   */
   implicit val stringToDom: ToDom[String] = new ToDom[String] {
     def toDom(a: String): Dom = Dom.Text(a)
   }
 
+  /** Wraps the decimal form of the `Int` in a [[Dom.Text]] node. */
   implicit val intToDom: ToDom[Int] = new ToDom[Int] {
     def toDom(a: Int): Dom = Dom.Text(a.toString)
   }
 
+  /** Wraps the decimal form of the `Long` in a [[Dom.Text]] node. */
   implicit val longToDom: ToDom[Long] = new ToDom[Long] {
     def toDom(a: Long): Dom = Dom.Text(a.toString)
   }
 
+  /** Wraps the `Double#toString` form of the value in a [[Dom.Text]] node. */
   implicit val doubleToDom: ToDom[Double] = new ToDom[Double] {
     def toDom(a: Double): Dom = Dom.Text(a.toString)
   }
 
+  /** Wraps `true` or `false` in a [[Dom.Text]] node. */
   implicit val booleanToDom: ToDom[Boolean] = new ToDom[Boolean] {
     def toDom(a: Boolean): Dom = Dom.Text(a.toString)
   }
 
+  /**
+   * Converts the wrapped value of a `Some` with the instance for `A`, and
+   * yields [[Dom.Empty]] for `None`.
+   */
   implicit def optionToDom[A](implicit ev: ToDom[A]): ToDom[Option[A]] = new ToDom[Option[A]] {
     def toDom(a: Option[A]): Dom = a match {
       case Some(v) => ev.toDom(v)
@@ -84,6 +105,11 @@ object ToDom {
     }
   }
 
+  /**
+   * Converts the elements with the instance for `A`. An empty collection yields
+   * [[Dom.Empty]], one element yields its node, and several elements become the
+   * children of a `span` element.
+   */
   implicit def iterableToDom[A](implicit ev: ToDom[A]): ToDom[Iterable[A]] = new ToDom[Iterable[A]] {
     def toDom(a: Iterable[A]): Dom = {
       val builder = Chunk.newBuilder[Dom]

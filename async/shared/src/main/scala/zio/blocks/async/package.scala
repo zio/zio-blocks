@@ -17,38 +17,67 @@
 package zio.blocks
 
 /**
- * ZIO Blocks Async — a lightweight asynchronous effect type.
+ * A small asynchronous effect type, `Async[A]`, for Scala 2.13 and Scala 3 on
+ * the JVM and Scala.js.
  *
- * An `Async[A]` is a (possibly suspended) computation that eventually yields an
- * `A` or fails with a `Throwable`. Create one with [[async.Async.succeed]],
- * [[async.Async.fail]], [[async.Async.attempt]], or [[async.Async.promise]]; a
- * bare `A` is not itself an `Async[A]`. Transform and combine values with the
- * extension methods (`map`, `flatMap`, `catchAll`, `await`, ...) brought into
- * scope by importing this package.
+ * Importing this package brings the `Async` type and its operators (`map`,
+ * `flatMap`, `catchAll`, `zipWith`, `block`, `start`, ...) into scope, along
+ * with the `succeed` and `fail` helpers for an `Async.promise` body and the
+ * `when` and `unless` conditionals. Create values with the factories on the
+ * `Async` companion: `Async.succeed`, `Async.fail`, `Async.attempt`,
+ * `Async.promise` and `Async.start`.
  *
- * ==Quick start==
  * {{{
- *   import zio.blocks.async._
- *
- *   // completes immediately with 42
- *   val a: Async[Int] = Async.promise[Int](c => c.succeed(42))
- *
- *   // ops + block for the result
- *   val n: Int = a.map(_ + 1).block
+ * val total: Async[Int] = Async.succeed(40).map(_ + 2)
+ * total.block // 42
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/ Async]]
  */
 package object async extends AsyncSyntaxVersionSpecific with AsyncSyntaxPlatformSpecific {
 
   private[async] val encoding: AsyncEncoding = AsyncEncoding.Instance
 
   /**
-   * A possibly-suspended computation that will eventually yield an `A` (or fail
-   * with a `Throwable`). A [[async.Pollable]] may be used wherever an
-   * `Async[A]` is expected.
+   * A computation that yields an `A` or fails with a `Throwable`: a value that
+   * is already there, a failure that has already happened, or a [[Pollable]]
+   * that completes later. Use it for asynchronous work that must run on both
+   * the JVM and Scala.js without an effect system, such as a callback API, a
+   * `Future` or a socket read.
    *
-   * `Async` is a restricted monad: `A` must not itself be an `Async` (nor a
-   * [[async.Pollable]]). Compose effects with `flatMap` rather than nesting
-   * them as success values; `Async[Async[A]]` is unsupported.
+   * `Async` is eager, like `scala.concurrent.Future`: building a value runs its
+   * synchronous part at once, and only work that has to wait for something is
+   * left pending. A combinator applied to a ready value runs its function on
+   * the spot; applied to a pending value, it keeps the function until a driver
+   * (`block`, `start`, `toFuture`, ...) settles the value. A ready value is
+   * represented by itself, with no wrapper object.
+   *
+   * A [[Pollable]], and so a [[Completer]], an `Async.Running` or a
+   * [[Failure]], can be used wherever an `Async[A]` is expected. A success
+   * value that is itself an `Async` is carried as data, one level at a time;
+   * `flatten` removes one level.
+   *
+   * Drive a pending value from one consumer only. Driving the same pending
+   * `Async` from two consumers at once, for example `toFuture` and `block`, is
+   * undefined and can hang (a known bug); call `start` once and share the
+   * `Async.Running` it returns instead.
+   *
+   * {{{
+   * def fetchPrice(symbol: String): Async[BigDecimal] =
+   *   Async.attempt(BigDecimal(symbol.length * 10))
+   *
+   * val quote: Async[String] =
+   *   fetchPrice("ZIO")
+   *     .zipWith(fetchPrice("SCALA"))(_ + _)
+   *     .map(total => "total: " + total)
+   *     .catchAll(_ => Async.succeed("no quote"))
+   *
+   * quote.block // total: 80
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#evaluation-model Evaluation Model]]
    */
   type Async[+A] = encoding.Async[A]
 }

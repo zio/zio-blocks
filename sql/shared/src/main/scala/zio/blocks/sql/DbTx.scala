@@ -17,116 +17,128 @@
 package zio.blocks.sql
 
 /**
- * Transactional connection with savepoint support for nested transactions.
+ * The connection that `Transactor#transact` lends to its block, with
+ * auto-commit off: the transaction commits when the block returns and rolls
+ * back when it throws. It extends [[DbCon]], so every [[Frag]] and [[Repo]]
+ * operation accepts it. Inside the block, `summon[DbTx].transact { ... }` runs
+ * a nested block under a savepoint on the same connection: when the nested
+ * block throws, only its own statements are undone and the exception is
+ * rethrown. Only the outermost block commits or rolls back.
  *
- * Savepoint semantics: nested transactions are emulated via SQL savepoints
- * named `zib_tx_1 .. zib_tx_N` where N is the nesting depth. On success the
- * savepoint is released via `RELEASE SAVEPOINT`, on failure the transaction
- * rolls back to the savepoint via `ROLLBACK TO SAVEPOINT` and rethrows the
- * exception. Only the outermost `Transactor.transact` does a real
- * `COMMIT`/`ROLLBACK`; inner blocks are savepoint-scoped and share the same
- * underlying JDBC connection.
+ * {{{
+ * val db = java.nio.file.Files.createTempFile("orders", ".db")
+ * val xa = JdbcTransactor.fromUrl("jdbc:sqlite:" + db, SqlDialect.SQLite)
+ * xa.connect(sql"CREATE TABLE audit (event TEXT)".update)
  *
- * Depth tracking: each [[DbTx]] instance tracks its current nesting depth (0 =
- * outermost). The counter is incremented only after the savepoint is created
- * successfully and decremented in a `finally` block, guaranteeing correct depth
- * even if savepoint creation throws and reset even when inner blocks throw.
+ * val events = xa.transact {
+ *   sql"INSERT INTO audit VALUES ('order placed')".update
+ *   scala.util.Try {
+ *     summon[DbTx].transact {
+ *       sql"INSERT INTO audit VALUES ('coupon applied')".update
+ *       throw new IllegalArgumentException("coupon expired")
+ *     }
+ *   }
+ *   sql"INSERT INTO audit VALUES ('order paid')".update
+ *   sql"SELECT event FROM audit".query[String]
+ * }
+ * // List(order placed, order paid)
+ * }}}
+ *
+ * Savepoints are named `zib_tx_1`, `zib_tx_2`, ... by nesting depth, so sibling
+ * blocks at the same depth reuse a name. The savepoint methods of this trait
+ * throw `UnsupportedOperationException` unless an implementation overrides
+ * them, as the `DbTx` of `JdbcTransactor` and of `TransactorZIO` do.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/db-tx/ DbTx]]
  */
 trait DbTx extends DbCon {
 
   /**
-   * Create a savepoint with the given name.
-   *
-   * Implemented via `SAVEPOINT <name>` SQL for portability (SQLite,
-   * PostgreSQL). The underlying connection must be inside an active transaction
-   * (autoCommit = false).
+   * Starts a savepoint with `SAVEPOINT <name>`. Used by the nested `transact`;
+   * the default throws `UnsupportedOperationException`.
    */
   def savepoint(name: String): Unit =
     throw new UnsupportedOperationException("savepoint not supported by this DbTx implementation; use JdbcTransactor")
 
   /**
-   * Release the savepoint with the given name.
-   *
-   * Implemented via `RELEASE SAVEPOINT <name>`. No savepoint leak on the
-   * success path: every successful nested `transact` releases its savepoint
-   * before returning.
+   * Ends a savepoint, keeping its work, with `RELEASE SAVEPOINT <name>`. The
+   * nested `transact` calls it when its block returns; the default throws
+   * `UnsupportedOperationException`.
    */
   def release(name: String): Unit =
     throw new UnsupportedOperationException("release not supported by this DbTx implementation; use JdbcTransactor")
 
   /**
-   * Roll back to the savepoint with the given name.
-   *
-   * Implemented via `ROLLBACK TO SAVEPOINT <name>`. The savepoint remains valid
-   * after rollback on most drivers; on failure only depth is decremented and
-   * the savepoint is not released (it will be cleaned up when outer transaction
-   * commits/rolls back).
+   * Undoes the work done since a savepoint with `ROLLBACK TO SAVEPOINT <name>`.
+   * The nested `transact` calls it when its block throws and does not release
+   * the savepoint afterwards; the outer commit or rollback ends it. The default
+   * throws `UnsupportedOperationException`.
    */
   def rollbackTo(name: String): Unit =
     throw new UnsupportedOperationException("rollbackTo not supported by this DbTx implementation; use JdbcTransactor")
 
+  /**
+   * How many nested `transact` blocks are open: 0 in the outermost block, 1
+   * inside the first nested one.
+   */
   def currentDepth: Int = 0
 
+  /** Set by the nested `transact`; a no-op unless overridden. */
   private[sql] def currentDepth_=(depth: Int): Unit = ()
 }
 
+/** Helpers for nested transactions on a [[DbTx]]. */
 object DbTx {
 
   /**
-   * Nested transaction via savepoint using an ambient [[DbTx]].
+   * Runs `f` in a nested transaction of the [[DbTx]] in scope, like
+   * `summon[DbTx].transact(f)`. Useful in a helper that takes the transaction
+   * as a context parameter.
    *
-   * Example:
    * {{{
-   * transactor.transact {
-   *   sql"INSERT INTO t VALUES (1)".update
-   *   summon[DbTx].transact {
-   *     sql"INSERT INTO t VALUES (2)".update
+   * def recordView(page: String)(using DbTx): Int =
+   *   DbTx.transactNested {
+   *     sql"INSERT INTO page_view VALUES (\$page)".update
    *   }
-   * }
-   * }}}
    *
-   * Also available as `transactNested` for call sites that prefer a `using`
-   * parameter over an extension receiver.
+   * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+   * val views = xa.transact {
+   *   sql"CREATE TABLE page_view (page TEXT)".update
+   *   recordView("/checkout")
+   *   sql"SELECT page FROM page_view".query[String]
+   * }
+   * // List(/checkout)
+   * }}}
    */
   def transactNested[A](f: DbTx ?=> A)(using outer: DbTx): A =
     outer.transact(f)
 }
 
-/**
- * Savepoint-based nested transaction support.
- *
- * Names are `zib_tx_1 .. zib_tx_N` where N is the nesting depth derived from
- * [[DbTx.currentDepth]]. Success → `RELEASE SAVEPOINT`, failure →
- * `ROLLBACK TO SAVEPOINT` then rethrow. Depth is decremented in `finally` so
- * the counter resets even after failures, allowing subsequent nested blocks to
- * reuse the same name sequence without leaking.
- *
- * Given-priority trick (documented): When a [[DbTx]] is already in scope
- * (inside `Transactor.transact`), the extension `summon[DbTx].transact { ... }`
- * is preferred over `transactor.transact { ... }` because it resolves via the
- * more specific `DbTx` receiver and reuses the same connection with a
- * savepoint. A transparent-inline `given` trick that would make
- * `Transactor.transact` auto-delegate to the savepoint path when an ambient
- * `DbTx` exists is possible (e.g. `transparent inline given DbTx` with
- * priority), but is not required here: the explicit `summon[DbTx].transact`
- * form is the supported nested path and `Transactor.transact` remains the
- * top-level entry point that opens a new connection. This keeps semantics
- * explicit and avoids implicit-resolution surprises. If desired, a future
- * `given Conversion` or inline trick can delegate `transactor.transact` to
- * `summon[DbTx].transact` when `summon[DbTx]` is available, but the current
- * implementation documents the pattern instead of hiding it behind implicits.
- */
 extension (outer: DbTx) {
 
   /**
-   * Execute `f` inside a savepoint nested transaction.
+   * Runs `f` in a nested transaction on the same connection: creates savepoint
+   * `zib_tx_<n>`, where `n` is `outer.currentDepth + 1`, runs `f` with
+   * `currentDepth` set to `n`, then releases the savepoint when `f` returns.
+   * When `f` throws, it rolls back to the savepoint (adding any rollback
+   * failure to the exception as suppressed) and rethrows, so the enclosing
+   * block decides whether to go on. `currentDepth` goes back to `n - 1` either
+   * way. The enclosing transaction's commit decides whether the nested work is
+   * kept.
    *
-   * Creates savepoint `zib_tx_<depth>` where depth is `outer.currentDepth + 1`,
-   * runs `f` with the same underlying connection (given `DbTx` is `outer` with
-   * incremented depth), releases on success and rolls back to the savepoint on
-   * failure. Depth is always decremented in `finally`. On failure only depth is
-   * decremented and the savepoint is not released (it will be cleaned up when
-   * outer transaction commits/rolls back).
+   * {{{
+   * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+   * val depths = xa.transact {
+   *   val outer = summon[DbTx].currentDepth
+   *   val inner = summon[DbTx].transact(summon[DbTx].currentDepth)
+   *   (outer, inner)
+   * }
+   * // (0,1)
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/sql/db-tx/ DbTx]]
    */
   def transact[A](f: DbTx ?=> A): A = {
     val depth = outer.currentDepth + 1
@@ -151,6 +163,9 @@ extension (outer: DbTx) {
   }
 }
 
-/** Top-level helper that mirrors `DbTx.transactNested` with `using` syntax. */
+/**
+ * Runs `f` in a nested transaction of the [[DbTx]] in scope: the same as
+ * `DbTx.transactNested(f)`.
+ */
 def transactNested[A](f: DbTx ?=> A)(using outer: DbTx): A =
   outer.transact(f)

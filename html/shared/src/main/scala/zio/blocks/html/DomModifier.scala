@@ -20,28 +20,28 @@ import scala.language.implicitConversions
 import zio.blocks.chunk.Chunk
 
 /**
- * Represents a deferred modification to a [[Dom.Element]].
+ * A change to apply to an element: add an attribute, add a child, add several
+ * children, or apply several modifiers in order. You rarely build one directly:
+ * an implicit conversion turns any value with a [[ToModifier]] instance
+ * (attributes, strings, nodes, numbers, `Option` values and collections) into a
+ * `DomModifier` when you pass it to an element, as in
+ * `div(id := "cart", "Tea")`.
  *
- * `DomModifier` values describe additions (attributes, children, or nested
- * effects) that are collected during element construction and then applied in
- * batch by `ToModifier.buildFromEffects`.
+ * {{{
+ * DomModifier.AddAttr(id := "cart").applyTo(div).render
+ * // <div id="cart"></div>
+ * }}}
  *
- * Use [[DomModifier#applyTo]] for single-effect application to an element.
+ * @see
+ *   [[https://zioblocks.com/reference/html/#children Children]]
  */
 sealed trait DomModifier extends Product with Serializable {
 
   /**
-   * Applies this single effect to the given element, returning a new element
-   * with the modification applied.
-   *
-   * Unlike the batched `ToModifier.buildFromEffects`, this method creates
-   * intermediate elements for each effect. Use `buildFromEffects` when applying
-   * multiple effects for better performance.
-   *
-   * @param element
-   *   the element to modify
-   * @return
-   *   a new element with this effect applied
+   * Returns a copy of `element` with this modifier applied: an attribute is
+   * appended to the attributes and nodes to the children. Applying a list of
+   * modifiers through `Dom.Element#apply` builds the result in one pass instead
+   * of one copy per modifier.
    */
   def applyTo(element: Dom.Element): Dom.Element = this match {
     case DomModifier.AddAttr(attr)    => element.withAttributes(element.attributes :+ attr)
@@ -58,13 +58,34 @@ sealed trait DomModifier extends Product with Serializable {
   }
 }
 
+/** The modifier cases. */
 object DomModifier {
-  final case class AddAttr(attr: Dom.Attribute)            extends DomModifier
-  final case class AddChild(child: Dom)                    extends DomModifier
-  final case class AddChildren(children: Chunk[Dom])       extends DomModifier
+
+  /** Appends `attr` to the element's attributes. */
+  final case class AddAttr(attr: Dom.Attribute) extends DomModifier
+
+  /** Appends `child` to the element's children. */
+  final case class AddChild(child: Dom) extends DomModifier
+
+  /**
+   * Appends `children` to the element's children, in order. An empty chunk adds
+   * nothing, which is how `None` and disabled boolean attributes are encoded.
+   */
+  final case class AddChildren(children: Chunk[Dom]) extends DomModifier
+
+  /**
+   * Applies `effects` in order; a collection of modifiers becomes one of these.
+   */
   final case class AddEffects(effects: Chunk[DomModifier]) extends DomModifier
 }
 
+/**
+ * Provides the implicit conversion from any value with a [[ToModifier]]
+ * instance to [[DomModifier]]. The `zio.blocks.html` package object mixes it
+ * in.
+ */
 trait DomModifierConversions {
+
+  /** Converts `a` with its [[ToModifier]] instance. */
   implicit def toDomModifier[A](a: A)(implicit ev: ToModifier[A]): DomModifier = ev.toModifier(a)
 }

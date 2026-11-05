@@ -18,6 +18,11 @@ package zio.blocks.sql
 
 import java.sql.PreparedStatement
 
+/**
+ * The [[DbParamWriter]] over a `java.sql.PreparedStatement`. The `java.time`
+ * dates and times and `UUID` go through `setObject`, an `Instant` as a UTC
+ * `Timestamp`, and a `Duration` as its ISO-8601 text.
+ */
 private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends DbParamWriter {
 
   def setInt(index: Int, value: Int): Unit = underlying.setInt(index, value)
