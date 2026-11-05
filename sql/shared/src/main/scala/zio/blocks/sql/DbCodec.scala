@@ -143,8 +143,10 @@ private[sql] trait DbCodecOpaquePriority {
    *
    * Summoning `DbCodec[Sku]` without a given in scope resolves to
    * `DbCodec.derived`, not to this method, a known bug in 0.0.56: `derived`
-   * reads the underlying value directly and never calls `apply`. Declare the
-   * given yourself:
+   * reads the underlying value directly and never calls `apply`. Declaring the
+   * given yourself fixes `query[Sku]`, but a `Sku` field of a derived row type
+   * (`derives DbCodec`, `Table.derived`, `Repo.derived`) still skips `apply`.
+   * With the given declared:
    *
    * {{{
    * import scala.util.Try
@@ -355,8 +357,8 @@ object DbCodec extends DbCodecOpaquePriority {
 
   /**
    * Reads SQL `NULL` as `None` and writes `None` as `NULL`; otherwise defers to
-   * `inner`. Throws `UnsupportedOperationException` when `inner` has more than
-   * one column.
+   * `inner`. Throws `UnsupportedOperationException` when `inner` does not have
+   * exactly one column.
    *
    * With the JDBC backend, `inner` reads the column before the `NULL` is seen,
    * so an inner codec that rejects `NULL` throws: `Option[BigDecimal]`, and an
@@ -573,7 +575,9 @@ object DbCodec extends DbCodecOpaquePriority {
    *
    * Summoning `DbCodec[B]` resolves to `derived` whenever `derived` can derive
    * `B`, as it can for an opaque type, so this given is skipped and the `As`
-   * checks don't run, a known bug in 0.0.56. Declare the given yourself:
+   * checks don't run, a known bug in 0.0.56. Declaring the given yourself fixes
+   * `query[B]`, but a `B` field of a derived row type still skips the `As`.
+   * With the given declared:
    *
    * {{{
    * import scala.util.Try

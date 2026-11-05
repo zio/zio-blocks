@@ -37,9 +37,9 @@ import zio.blocks.typeid.AnnotationArg
  * `@Modifier.config("sql.inline_fields", "true")`; then it spreads into
  * `<field>_<subfield>` columns. A sequence, a map, a dynamic value and a sealed
  * trait with fields are stored as JSON; an enum of case objects as the case
- * name. `Option` and `Maybe` accept a single-column inner type only, so an
- * `Option` field of a record with several fields throws instead of being stored
- * as JSON, a known bug in 0.0.56.
+ * name. `Option` and `Maybe` accept a single-column inner type only, so a field
+ * of type `Option[R]`, where `R` is a case class with several fields, throws
+ * instead of being stored as JSON, a known bug in 0.0.56.
  *
  * {{{
  * import zio.blocks.schema.Schema
