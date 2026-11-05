@@ -838,9 +838,10 @@ object Dom {
      * [[Dom]] directly, not [[Dom.Element]], so it has no `children` and no
      * `apply(DomModifier*)`.
      *
-     * `Dom#select` never returns a void element, because matching only looks at
-     * [[Dom.Element]] nodes, which is a known bug. `DomSelection#children` and
-     * `DomSelection#descendants` do include void elements.
+     * `Dom#select` never returns a `Dom.Element.Void`, because matching only
+     * looks at [[Dom.Element]] nodes, which is a known bug.
+     * `DomSelection#children` and `DomSelection#descendants` do include void
+     * elements.
      *
      * {{{
      * img(src := "/tea.png")(alt := "Tea").render

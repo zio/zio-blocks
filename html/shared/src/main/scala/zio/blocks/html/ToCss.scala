@@ -106,10 +106,11 @@ final case class CssLength(value: Double, unit: String) {
   require(CssLength.validUnits.contains(unit), s"Invalid CSS unit: $unit")
 
   /**
-   * Renders the number followed by the unit. A whole number within the `Long`
-   * range drops its decimal part (`10px`), any other value uses
-   * `Double#toString` (`1.5em`), and `NaN` or an infinite value renders as `0`
-   * plus the unit.
+   * Renders the number followed by the unit. A whole number from `-2^63` up to,
+   * but not including, `2^63` drops its decimal part (`10px`); `2^63` itself
+   * renders as `9223372036854775807`, one less, because the conversion to
+   * `Long` saturates. Any other value uses `Double#toString` (`1.5em`), and
+   * `NaN` or an infinite value renders as `0` plus the unit.
    */
   def render: String =
     if (value.isNaN || value.isInfinite) "0" + unit
