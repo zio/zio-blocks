@@ -27,8 +27,9 @@ import zio.blocks.schema.Schema
  * `()`, so it costs nothing at run time.
  *
  * Files are written as UTF-8 with a trailing newline and left alone when their
- * content is already the same. A name that is not an SQL identifier has every
- * other character replaced by `_`. A failed write is a compiler warning, not an
+ * content is already the same. A name that is not an SQL identifier has each
+ * character outside `[A-Za-z0-9_]` replaced by `_`, and gets a leading `_` when
+ * it then starts with a digit. A failed write is a compiler warning, not an
  * error.
  *
  * {{{
@@ -561,8 +562,8 @@ object Dump {
    * `table`, a known bug in 0.0.56: every column is the field name in snake
    * case, even under `@Modifier.rename`, and the table name is the first string
    * literal in the argument that is an SQL identifier, or else the type name in
-   * snake case, so a name from `TableNamingPolicy.Plural` or from a `val` is
-   * lost.
+   * snake case, so a name from `TableNamingPolicy.Plural`, from
+   * `sql.table_name` or from a `val` is lost.
    */
   inline def dumpTable[A](inline table: Table[A])(using
     @scala.annotation.unused schema: Schema[A]
