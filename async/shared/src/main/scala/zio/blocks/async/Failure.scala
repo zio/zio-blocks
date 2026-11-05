@@ -27,8 +27,10 @@ package zio.blocks.async
  * A throw inside a function passed to `map` or `flatMap` is not caught by a
  * later `catchAll` or `either` in the same chain. On a ready value it escapes
  * at the call site; on a pending value it escapes from the driver: `block`
- * throws it, and a run started with `start` fails with it. Wrap throwing code
- * in `Async.attempt` to turn it into a failure the chain can recover.
+ * throws it, and a run started with `start` fails with it. An `ensuring`
+ * between the two is the exception: it turns the throw into a failure that the
+ * later handler sees. Wrap throwing code in `Async.attempt` to turn it into a
+ * failure the chain can recover.
  *
  * {{{
  * val timeout: Async[Int] = Async.fail(new java.util.concurrent.TimeoutException("quote service"))

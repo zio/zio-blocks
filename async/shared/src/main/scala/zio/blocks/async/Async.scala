@@ -3257,14 +3257,14 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     }
 
     /**
-     * Drive `fa` to a value, then `fb` to a value, then `f(a, b)`. Either side
-     * being a [[Failure]] is propagated immediately. `faSt` keeps the resolved
-     * left side's '''raw terminal encoding''' (value or `WrappedPollable`
-     * carrier) — `faResolved` marks it settled so a pollable-as-value left is
-     * never re-dispatched as a suspended computation on a later poll, and the
-     * leaf for `fa` is never re-polled after it yields its value, even while
-     * `fb` is still pending. Unwrapping to user values happens once, at the
-     * combine.
+     * Drive `fa` to a value, then `fb` to a value, then `f(a, b)`. A failure of
+     * `fa` is propagated as soon as `fa` settles; a failure of `fb` only after
+     * `fa` has succeeded. `faSt` keeps the resolved left side's '''raw terminal
+     * encoding''' (value or `WrappedPollable` carrier) — `faResolved` marks it
+     * settled so a pollable-as-value left is never re-dispatched as a suspended
+     * computation on a later poll, and the leaf for `fa` is never re-polled
+     * after it yields its value, even while `fb` is still pending. Unwrapping
+     * to user values happens once, at the combine.
      */
     private final class ZipWithPollable[A, B, C](fa0: Any, fb0: Any, f: (A, B) => C)
         extends CancellationPropagatingPollable[C](
@@ -3416,9 +3416,10 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
 
     /**
      * Drive `pa` to a value or failure, run `finalizer`, then propagate the
-     * original outcome. Failures from the finalizer are suppressed. The
-     * `outcome` memo holds the resolved value-or-failure so that, once the
-     * finalizer is being driven, we don't re-poll `pa`.
+     * original outcome. A finalizer failure is dropped after a success, and
+     * added to the cause's suppressed exceptions after a failure. The `outcome`
+     * memo holds the resolved value-or-failure so that, once the finalizer is
+     * being driven, we don't re-poll `pa`.
      */
     private final class EnsuringPollable[A](
       pa0: Pollable[A],

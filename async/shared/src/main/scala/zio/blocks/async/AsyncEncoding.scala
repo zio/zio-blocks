@@ -30,9 +30,9 @@ package zio.blocks.async
  * callers must enter the encoding through [[Async.succeed]].
  *
  * No methods live here: every operation is either an extension on `Async[A]`
- * (see `AsyncSyntaxVersionSpecific`; `inline` on Scala 3) which folds the
- * encoding via `isInstanceOf[Pollable[?]]`, or a slow-path helper in
- * [[Async.slowPath]].
+ * (see `AsyncSyntaxVersionSpecific`; `inline` on Scala 3, except `start` and
+ * `orElse`) which folds the encoding via `isInstanceOf[Pollable[?]]`, or a
+ * slow-path helper in [[Async.slowPath]].
  */
 private[async] abstract class AsyncEncoding {
   type Async[+A] >: Pollable[A]

@@ -26,9 +26,9 @@ import scala.annotation.compileTimeOnly
  * `Async[A]`, `flatten` on a nested `Async`, the `succeed` and `fail` helpers
  * for an `Async.promise` body, and `when` and `unless`. Mixed into the `async`
  * package object, so `import zio.blocks.async._` brings them into scope. The
- * operators match the Scala 3 extension methods, except that `orElse` widens
- * disjoint types to `Either` instead of a union and `zip` nests a tuple on the
- * right instead of concatenating it.
+ * operators match the Scala 3 extension methods, except that `orElse` merges
+ * two unrelated types into their shared supertype or an `Either` instead of a
+ * union and `zip` nests a tuple on the right instead of concatenating it.
  */
 private[async] trait AsyncSyntaxVersionSpecific {
 

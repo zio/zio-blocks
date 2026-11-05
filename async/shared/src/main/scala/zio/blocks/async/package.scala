@@ -51,7 +51,7 @@ package object async extends AsyncSyntaxVersionSpecific with AsyncSyntaxPlatform
    * left pending. A combinator applied to a ready value runs its function on
    * the spot; applied to a pending value, it keeps the function until a driver
    * (`block`, `start`, `toFuture`, ...) settles the value. A ready value is
-   * represented by itself, so the ready path allocates nothing.
+   * represented by itself, with no wrapper object.
    *
    * A [[Pollable]], and so a [[Completer]], an `Async.Running` or a
    * [[Failure]], can be used wherever an `Async[A]` is expected. A success
