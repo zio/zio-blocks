@@ -20,23 +20,59 @@ import scala.concurrent.Future
 import scala.scalajs.js
 
 /**
- * Scala.js platform sliver of the [[Async]] companion: constructors that
- * ingress the standard JS async carriers ([[scala.concurrent.Future]] and
- * [[scala.scalajs.js.Promise]]). Mixed into `object Async`, so callers write
- * `Async.fromFuture(...)` / `Async.fromJsPromise(...)`. The egress direction
- * lives on the `fa.toFuture` / `fa.toJsPromise` extension methods.
+ * The Scala.js constructors of the [[Async]] companion that bring in a
+ * [[scala.concurrent.Future]] or a [[scala.scalajs.js.Promise]]. `object Async`
+ * mixes this trait in, so callers write `Async.fromFuture(...)` and
+ * `Async.fromJsPromise(...)`. The `toFuture` and `toJsPromise` extension
+ * methods convert the other way.
  */
 private[async] trait AsyncCompanionPlatformSpecific {
 
   /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `future`.
+   * Creates an [[Async]] that completes with the value or the failure of
+   * `future`. It needs no `ExecutionContext`. A future that has already
+   * completed gives a ready `Async`; otherwise the `Async` completes when
+   * `future` does. On Scala.js, a `JavaScriptException` that wraps `null` (from
+   * a JavaScript promise rejected with `null`) becomes a `null` cause.
+   *
+   * Cancelling a run of this `Async` stops waiting for `future` but cannot stop
+   * it: a `Future` has no cancel operation.
+   *
+   * {{{
+   * import scala.concurrent.Future
+   *
+   * val quote: Async[Int] = Async.fromFuture(Future.successful(125))
+   * quote.map(_ * 2).block // 250
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
    */
   def fromFuture[A](future: Future[A]): Async[A] = AsyncInterop.fromFuture(future)
 
   /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `promise`.
+   * Creates an [[Async]] that completes with the value or the failure of
+   * `promise`. The `Async` is pending even when `promise` has already settled,
+   * because a JavaScript promise reports its outcome on a later microtask, so
+   * `block` on it throws: drive it with `toFuture`, `toJsPromise` or `start`,
+   * or `.await` it inside `Async.async`.
+   *
+   * A rejection with a `Throwable` fails with that `Throwable`, a rejection
+   * with any other value fails with a [[scala.scalajs.js.JavaScriptException]]
+   * that wraps it, and a rejection with `null` fails with a `null` cause.
+   * Cancelling a run of this `Async` stops waiting for `promise` but cannot
+   * stop it: a JavaScript promise has no cancel operation.
+   *
+   * {{{
+   * // no-check: Scala.js only
+   * import scala.scalajs.js
+   *
+   * val port: Async[Int]      = Async.fromJsPromise(js.Promise.resolve[Int](8080))
+   * val next: js.Promise[Int] = port.map(_ + 1).toJsPromise // resolves to 8081
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
    */
   def fromJsPromise[A](promise: js.Promise[A]): Async[A] = AsyncInterop.fromJsPromise(promise)
 }

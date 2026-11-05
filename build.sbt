@@ -1421,6 +1421,8 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-yaml`.jvm,
     typeid.jvm,
     `http-model`.jvm,
+    html.jvm,
+    async.jvm,
     `schema-toon`.jvm,
     `schema-xml`.jvm,
     `schema-yaml`.jvm

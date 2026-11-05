@@ -19,17 +19,39 @@ package zio.blocks.html
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
- * A wrapper around `Chunk[Dom]` that provides fluent chaining for CSS
- * selector-based DOM navigation and querying operations.
+ * A list of nodes picked from a [[Dom]] tree, with methods to narrow, navigate
+ * and read them. `Dom#select` returns one; each method returns a new selection
+ * or the extracted values, and none of them changes the tree. Use it to check
+ * rendered pages in tests or to pull data out of a template.
  *
- * DomSelection enables a fluent API style for navigating through DOM
- * structures:
  * {{{
- *   dom.select(CssSelector.Element("div")).children.select(CssSelector.Element("p")).texts
+ * val shop = div(
+ *   nav(a(href := "/", "Home"), a(href := "/cart", "Cart")),
+ *   ul(className := "products", li(className := "product", "Tea"), li(className := "product sale", "Cake"))
+ * )
+ * shop.select(CssSelector.Class("product")).texts
+ * // Chunk(Tea,Cake)
+ * shop.select(CssSelector.Element("nav") > CssSelector.Element("a")).attrs("href")
+ * // Chunk(/,/cart)
  * }}}
  *
- * The selection can contain zero, one, or multiple DOM nodes, supporting both
- * single-value navigation and multi-value queries.
+ * The fluent style chains steps:
+ *
+ * {{{
+ * val dom = div(div(ul(li(p("Fresh bread")), li(p("Cheese")))))
+ * dom.select(CssSelector.Element("div")).children.select(CssSelector.Element("p")).texts
+ * // Chunk(Fresh bread,Cheese)
+ * }}}
+ *
+ * Matching reads attributes in a different way from rendering, which is a known
+ * bug: for repeated attributes it reads the first value where rendering keeps
+ * the last, `attrs` and id and attribute tests skip values added with `+=`, and
+ * a class test stops at the first `class` set with `:=`, so
+ * `className := "card", className += "sale"` renders `class="card sale"` but
+ * does not match `.sale`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/html/#dom-querying-with-domselection DOM Querying with DomSelection]]
  */
 final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
 
@@ -37,10 +59,10 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // Size Operations
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns true if this selection contains no nodes. */
+  /** Returns `true` if this selection contains no nodes. */
   def isEmpty: Boolean = nodes.isEmpty
 
-  /** Returns true if this selection contains at least one node. */
+  /** Returns `true` if this selection contains at least one node. */
   def nonEmpty: Boolean = nodes.nonEmpty
 
   /** Returns the number of selected nodes. */
@@ -50,10 +72,10 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // Extraction
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns the selected nodes as a Chunk. */
+  /** Returns the selected nodes. */
   def toChunk: Chunk[Dom] = nodes
 
-  /** Returns the first node if present. */
+  /** Returns the first node, or `None` when the selection is empty. */
   def headOption: Option[Dom] =
     if (nodes.isEmpty) None
     else new Some(nodes(0))
@@ -63,16 +85,29 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Selects all descendant nodes matching the given CSS selector.
+   * Returns the elements below the nodes of this selection that match
+   * `selector`, in document order. The selected nodes themselves are not
+   * candidates, except as the left side of `>` (child) or `>>` (descendant).
    *
-   * For simple selectors (Element, Class, Id, Universal, And, Or, Not,
-   * Attribute), searches all descendants of each node in this selection. For
-   * structural selectors (Child, Descendant), walks the tree accordingly.
+   * Matching covers tag, class, id, `*`, attribute selectors, `&`, `|` and
+   * `not`. Pseudo-classes and pseudo-elements are ignored, so `li().firstChild`
+   * matches every `li`, and the sibling combinators `+` and `~` match nothing.
    *
-   * @param selector
-   *   the CSS selector to match against
-   * @return
-   *   a new selection containing all matching nodes
+   * Known bugs: a [[CssSelector.Raw]], which `selector"..."` builds, matches
+   * nothing; void elements built with the DSL, such as `img(...)` and
+   * `input(...)`, are never returned; a `>` or `>>` nested inside another
+   * selector, as in `ul > li > a` or `(nav > a) | (footer > a)`, matches
+   * nothing; an element below two nested matches of the left side of `>>` is
+   * returned twice; and attributes are read as the class description says.
+   *
+   * {{{
+   * val shop = div(
+   *   nav(a(href := "/", "Home"), a(href := "/cart", "Cart")),
+   *   ul(className := "products", li(className := "product", "Tea"), li(className := "product sale", "Cake"))
+   * )
+   * shop.select(CssSelector.Element("li") & CssSelector.Class("sale")).texts
+   * // Chunk(Cake)
+   * }}}
    */
   def select(selector: CssSelector): DomSelection = selector match {
     case CssSelector.Child(parent, child) =>
@@ -93,7 +128,10 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // Navigation
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns the direct children of all element nodes in this selection. */
+  /**
+   * Returns the direct children of the element nodes in this selection, text
+   * nodes included.
+   */
   def children: DomSelection = {
     val builder = ChunkBuilder.make[Dom]()
     var i       = 0
@@ -113,8 +151,9 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   }
 
   /**
-   * Returns all descendant nodes of all element nodes in this selection
-   * (excluding the nodes themselves).
+   * Returns every node below the element nodes in this selection, text nodes
+   * included, in depth-first pre-order. The selected nodes themselves are not
+   * included.
    */
   def descendants: DomSelection = {
     val builder = ChunkBuilder.make[Dom]()
@@ -130,17 +169,24 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
     new DomSelection(builder.result())
   }
 
-  /** Returns a selection containing only the first node. */
+  /**
+   * Returns a selection of the first node, or this selection when it is empty.
+   */
   def first: DomSelection =
     if (nodes.isEmpty) this
     else new DomSelection(Chunk.single(nodes(0)))
 
-  /** Returns a selection containing only the last node. */
+  /**
+   * Returns a selection of the last node, or this selection when it is empty.
+   */
   def last: DomSelection =
     if (nodes.isEmpty) this
     else new DomSelection(Chunk.single(nodes(nodes.length - 1)))
 
-  /** Returns a selection containing the node at the given index. */
+  /**
+   * Returns a selection of the node at `index`, or an empty selection when
+   * `index` is out of range.
+   */
   def apply(index: Int): DomSelection =
     if (index < 0 || index >= nodes.length) DomSelection.empty
     else new DomSelection(Chunk.single(nodes(index)))
@@ -149,14 +195,16 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // Element-specific
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Filters this selection to keep only Element nodes. */
+  /**
+   * Keeps only the [[Dom.Element]] nodes. Void elements built with the DSL,
+   * such as `img(...)`, are not [[Dom.Element]] values and are dropped.
+   */
   def elements: DomSelection = new DomSelection(nodes.filter(_.isInstanceOf[Dom.Element]))
 
   /**
-   * Extracts text content from all nodes in this selection.
-   *
-   * For Text nodes, returns the content directly. For Element nodes, returns
-   * the concatenated text of all child Text nodes.
+   * Returns one string per text or element node: a text node's content, or the
+   * text of every text node below an element, concatenated without separators.
+   * Other nodes are skipped.
    */
   def texts: Chunk[String] = {
     val builder = ChunkBuilder.make[String]()
@@ -173,8 +221,9 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   }
 
   /**
-   * Extracts attribute values with the given name from all element nodes in
-   * this selection.
+   * Returns the value of attribute `name` for each element node that has one,
+   * with multi-values joined by their separator. The first `:=` value is read
+   * and values added with `+=` are skipped, which is a known bug.
    */
   def attrs(name: String): Chunk[String] = {
     val builder = ChunkBuilder.make[String]()
@@ -197,35 +246,40 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // Filtering
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Filters the selection by a predicate. */
+  /** Keeps the nodes that satisfy `predicate`. */
   def filter(predicate: Dom => Boolean): DomSelection =
     new DomSelection(nodes.filter(predicate))
 
-  /** Keeps only elements with the given tag name. */
+  /** Keeps the element nodes whose tag is `tag`. */
   def withTag(tag: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => el.tag == tag
     case _               => false
   })
 
-  /** Keeps only elements that have the given CSS class. */
+  /** Keeps the element nodes that have the class `cls`. */
   def withClass(cls: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => DomSelection.hasClass(el, cls)
     case _               => false
   })
 
-  /** Keeps only elements that have the given id. */
+  /** Keeps the element nodes whose `id` is `idValue`. */
   def withId(idValue: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => DomSelection.hasAttributeValue(el, "id", idValue)
     case _               => false
   })
 
-  /** Keeps only elements that have the given attribute (any value). */
+  /**
+   * Keeps the element nodes that have attribute `name` with any value. A
+   * disabled boolean attribute such as `disabled := false` does not count, but
+   * a `false` value set with [[AttributeKey]] `:=` does, although it renders
+   * nothing, which is a known bug.
+   */
   def withAttribute(name: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => DomSelection.hasAttribute(el, name)
     case _               => false
   })
 
-  /** Keeps only elements that have the given attribute with the given value. */
+  /** Keeps the element nodes whose attribute `name` equals `value`. */
   def withAttribute(name: String, value: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => DomSelection.hasAttributeValue(el, name, value)
     case _               => false
@@ -236,8 +290,8 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Applies a transformation function to all Element nodes in this selection,
-   * returning the modified nodes.
+   * Returns a selection with `f` applied to each element node; other nodes are
+   * kept as they are. The tree the nodes came from is not changed.
    */
   def modifyAll(f: Dom.Element => Dom.Element): DomSelection =
     new DomSelection(nodes.map {
@@ -245,35 +299,45 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
       case other           => other
     })
 
-  /** Replaces all nodes in this selection with the given replacement. */
+  /**
+   * Returns a selection of the same length holding `replacement` in every
+   * position. The tree the nodes came from is not changed.
+   */
   def replaceAll(replacement: Dom): DomSelection =
     new DomSelection(nodes.map(_ => replacement))
 
-  /** Returns an empty selection (all nodes removed). */
+  /**
+   * Returns an empty selection. The tree the nodes came from is not changed.
+   */
   def removeAll: DomSelection = DomSelection.empty
 
   // ─────────────────────────────────────────────────────────────────────────
   // Combinators
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Combines two selections. */
+  /**
+   * Returns the nodes of this selection followed by those of `other`,
+   * duplicates kept.
+   */
   def ++(other: DomSelection): DomSelection =
     new DomSelection(nodes ++ other.nodes)
 }
 
+/** Constructors for [[DomSelection]]. */
 object DomSelection {
 
   /** An empty selection. */
   val empty: DomSelection = new DomSelection(Chunk.empty)
 
-  /** Creates a selection from a single DOM node. */
+  /** Creates a selection holding `dom`. */
   def single(dom: Dom): DomSelection = new DomSelection(Chunk.single(dom))
 
-  /** Creates a selection from multiple DOM nodes. */
+  /** Creates a selection holding `nodes`, in order. */
   def fromChunk(nodes: Chunk[Dom]): DomSelection = new DomSelection(nodes)
 
   /**
-   * Selects all descendant nodes of the given root that match the CSS selector.
+   * Selects the elements below `root` that match `selector`; the same as
+   * `root.select(selector)`.
    */
   def select(root: Dom, selector: CssSelector): DomSelection =
     new DomSelection(Chunk.single(root)).select(selector)
@@ -342,7 +406,7 @@ object DomSelection {
     case _ => ()
   }
 
-  /** Collects all descendant nodes (all types). */
+  /** Collects every node below `el`, of any kind. */
   private def collectAllDescendants(el: Dom.Element, builder: ChunkBuilder[Dom]): Unit = {
     var i = 0
     while (i < el.children.length) {
@@ -394,7 +458,7 @@ object DomSelection {
     new DomSelection(resultBuilder.result())
   }
 
-  /** Handles `Descendant(ancestor, desc)` selector. */
+  /** Handles `Descendant(ancestor, desc)` selectors. */
   private def selectDescendant(
     roots: Chunk[Dom],
     ancestorSel: CssSelector,
@@ -452,8 +516,8 @@ object DomSelection {
   }
 
   /**
-   * Checks if an element has the given CSS class (space-separated "class"
-   * attribute).
+   * Checks whether `el` has class `cls`. Reads `+=` values up to the first
+   * `class` set with `:=`, then that value, and stops.
    */
   private[html] def hasClass(el: Dom.Element, cls: String): Boolean = {
     var i = 0
@@ -520,7 +584,9 @@ object DomSelection {
       case None    => false
     }
 
-  /** Gets the string value of an attribute by name. */
+  /**
+   * Returns the first `:=` value of attribute `name`; `+=` values are skipped.
+   */
   private[html] def getAttributeValue(el: Dom.Element, name: String): Option[String] = {
     var i = 0
     while (i < el.attributes.length) {

@@ -17,14 +17,35 @@
 package zio.blocks.html
 
 /**
- * A wrapper for raw JavaScript code. Use `js"..."` to create instances with
- * proper escaping.
+ * JavaScript source code, used as the body of a `script` element or as an
+ * attribute value such as `onclick`. A script body is written without HTML
+ * escaping (only `</` becomes `<\/`); an attribute value is HTML-escaped.
+ *
+ * Build code with `js"..."`, which turns each interpolated value into a
+ * JavaScript literal through [[ToJs]], so strings are quoted and escaped.
+ * `Js(...)` wraps a string as is, so pass it only trusted code.
+ *
+ * {{{
+ * val item = "Tea \"Earl Grey\""
+ * script(js"cart.add(\$item, \${2})").render
+ * // <script>cart.add("Tea \"Earl Grey\"", 2)</script>
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/html/#js-interpolator js Interpolator]]
  */
 sealed abstract case class Js(value: String) {
+
+  /** Returns the source code. */
   override def toString: String = value
-  def stripMargin: Js           = Js(value.stripMargin)
+
+  /** Returns a copy with `stripMargin` applied to the code. */
+  def stripMargin: Js = Js(value.stripMargin)
 }
 
+/** Constructors for [[Js]]. */
 object Js {
+
+  /** Wraps `value` as code, without escaping or checking it. */
   def apply(value: String): Js = new Js(value) {}
 }
