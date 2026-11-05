@@ -24,8 +24,10 @@ import zio.blocks.schema.DynamicOptic
  *
  * [[XmlReader]] throws it for malformed input, with the line and column in the
  * message, and `XmlCodec#decodeValue` throws it when the tree does not match
- * the type (some primitive codecs, used on their own, throw the JDK's parsing
- * exception instead). `XmlCodec#decode` catches it and returns a
+ * the type (some primitive codecs, used on their own, throw another exception
+ * instead: the JDK's exception for types such as `DayOfWeek` or `UUID`, and
+ * `zio.blocks.schema.json.JsonCodecError` for `Instant`, `Duration` and most
+ * other `java.time` types). `XmlCodec#decode` catches it and returns a
  * [[zio.blocks.schema.SchemaError]] whose path is built from `spans`.
  *
  * @param spans
