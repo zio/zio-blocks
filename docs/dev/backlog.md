@@ -731,6 +731,8 @@ Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, co
 
 ## 13g. Scaladoc: schema-avro, schema-bson, schema-csv and schema-thrift
 
+**Merged** 2026-11-05 as `bc5d4fa5a` (#1949).
+
 Session `schema-formats-scaladoc` (Opus), started 2026-11-05 on `main` `ff63582e5`. Phase 0: 44 / 233 (avro 0/53, bson 17/110, csv 20/22, thrift 7/48); `--drift` empty; one copy per file (csv is `CrossType.Pure`); no `{{{` blocks; cross versions match `scaladoc-check`; the third-party jars (avro, bson, libthrift) reach the checker through `dependsOn`, so the build change is four list entries; 11 known entries. Milad's Phase 1 decisions: one PR for all four modules; tier 1 (13 types) = `AvroFormat`, `AvroCodec`, `BsonSchemaCodec` (with `Config`), `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `CsvFormat`, `CsvCodec`, `CsvConfig`, `CsvError`, `ThriftFormat`, `ThriftCodec`; schema-csv JS: only the `schema-csvJS/doc` gate (3.9.0 and 2.13.18), claims probed on the JVM; sample domains: Avro sensor readings, BSON orders, CSV a readings export, Thrift an event log.
 
 - **Coverage:** 44/233 → 233/233 (avro 0/53 → 53/53, bson 17/110 → 110/110, csv 20/22 → 22/22, thrift 7/48 → 48/48). `--drift` empty before and after (one copy of every file). 27 compiled examples (avro 7, thrift 6, bson 7, csv 7) on 2.13.18, 3.9.0 and 3.10.0. Tooling: four `scaladocCheckedModules` entries, no override (packages follow the folder); `AGENTS.md` bullet + downstream line; style-guide module list.
