@@ -75,6 +75,20 @@ class TransactorZIO(
    * throw from `f` becomes the effect's failure. It runs through
    * [[zio.blocks.sql.JdbcTransactor]], so SQLite connections get its busy
    * timeout and `IMMEDIATE` transactions.
+   *
+   * {{{
+   * import zio._
+   * import zio.blocks.sql._
+   *
+   * val tx = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+   *
+   * val total: Task[Int] = tx.connect {
+   *   sql"CREATE TABLE refund (amount INTEGER)".update
+   *   sql"INSERT INTO refund VALUES (15), (5)".update
+   *   sql"SELECT sum(amount) FROM refund".queryOne[Int].getOrElse(0)
+   * }
+   * // total succeeds with 20
+   * }}}
    */
   def connect[A](f: DbCon ?=> A): Task[A] =
     ZIO.attemptBlocking(underlying.connect(f))
@@ -85,6 +99,24 @@ class TransactorZIO(
    * returns, roll back when it throws, and the exception becomes the effect's
    * failure. The driver's isolation level and read-only flag are left as they
    * are.
+   *
+   * {{{
+   * import zio._
+   * import zio.blocks.sql._
+   *
+   * val db = java.nio.file.Files.createTempFile("shipping", ".db")
+   * val tx = TransactorZIO.fromUrl("jdbc:sqlite:" + db, SqlDialect.SQLite)
+   *
+   * val program = for {
+   *   _      <- tx.connect(sql"CREATE TABLE shipment (id INTEGER)".update)
+   *   failed <- tx.transact {
+   *               sql"INSERT INTO shipment VALUES (1)".update
+   *               throw new IllegalStateException("carrier unavailable")
+   *             }.either
+   *   count  <- tx.connect(sql"SELECT count(*) FROM shipment".queryOne[Int].getOrElse(0))
+   * } yield (failed, count)
+   * // program succeeds with (Left(java.lang.IllegalStateException: carrier unavailable),0)
+   * }}}
    */
   def transact[A](f: DbTx ?=> A): Task[A] =
     ZIO.attemptBlocking(underlying.transact(f))

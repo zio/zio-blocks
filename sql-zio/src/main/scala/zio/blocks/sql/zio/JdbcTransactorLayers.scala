@@ -31,10 +31,10 @@ import zio.blocks.sql.*
  * import zio._
  * import zio.blocks.sql._
  *
- * val program: ZIO[Transactor, Nothing, Int] =
- *   ZIO.serviceWith[Transactor](_.connect(sql"SELECT 1 + 1".queryOne[Int].getOrElse(0)))
+ * val program: ZIO[Transactor, Throwable, Int] =
+ *   ZIO.serviceWithZIO[Transactor](xa => ZIO.attemptBlocking(xa.connect(sql"SELECT 1 + 1".queryOne[Int].getOrElse(0))))
  *
- * def runnable(dataSource: javax.sql.DataSource): UIO[Int] =
+ * def runnable(dataSource: javax.sql.DataSource): Task[Int] =
  *   program.provide(JdbcTransactor.sqliteLayer, ZLayer.succeed(dataSource))
  * // with an org.sqlite.SQLiteDataSource for "jdbc:sqlite::memory:", runnable succeeds with 2
  * }}}
