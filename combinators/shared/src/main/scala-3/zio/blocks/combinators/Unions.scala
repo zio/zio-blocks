@@ -26,13 +26,12 @@ import scala.reflect.TypeTest
  * `Either`, or the other way round. The `Unions.Unions` type class does the
  * work. `combine` drops the `Left`/`Right` wrapper; `separate` decides the side
  * with a run-time type test for `R`, so it is reliable only when no value of
- * `L` passes that test. If `R` is a subtype of `L`, or the two differ only in
- * erased type arguments (`List[Int]` and `List[String]`), a value that came
- * from the left comes back as `Right`.
+ * `L` passes that test. If `R` is a subtype of `L` (`Shape` and `Circle`), or
+ * the two differ only in erased type arguments (`List[Int]` and
+ * `List[String]`), a left value that passes the test comes back as `Right`.
  *
  * {{{
- * val port: Int | String = Unions.combine(Left(8080): Either[Int, String])
- * port // 8080
+ * val port: Int | String = Unions.combine(Left(8080): Either[Int, String]) // 8080
  *
  * val u = summon[Unions.Unions[Int, String]]
  * u.separate("localhost": Int | String) // Right(localhost)
