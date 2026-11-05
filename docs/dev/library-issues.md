@@ -7198,6 +7198,28 @@ The output is identical on Scala 3.9.0 with `zio-blocks-next-schema` 0.0.56 and 
 
 **Suggested fix.** Do not append a separator before a capital when the previous output character is already the separator (for example, track whether the last appended character was a separator), and add `my_Field` and `first_Edition_Year` to `NameMapperSpec`.
 
+**Addition (2026-11-05, sql Scaladoc rollout, verified on 0.0.56).** `sql` has its own copy of the snake-case code, `SqlNameMapper.SnakeCase`, with the same bug: `order_Id` becomes `order__id` and `ship-To` becomes `ship__to`. It names every derived column (`DbCodecDeriver`, `TableMetadata.columnsFor`, `Repo.derived`) and every table (`TableNamingPolicy.Singular`/`Plural`), so a field such as `order_Id` maps to a column `order__id`. Root cause: `sql/shared/src/main/scala/zio/blocks/sql/SqlNameMapper.scala:44-66`; after `_` or `-` (`:52`) the flag is reset, and `:59` adds another `_` before a capital followed by a lower-case letter. Test gap: `sql/shared/src/test/scala/zio/blocks/sql/SqlNameMapperSpec.scala` covers `first_name`, `first-name` and `first_name-value` (all lower case after the separator), never a capital after `_` or `-`. Fix together with the schema mapper. `Repro.sc` (Scala 3.9.0, `zio-blocks-sql` 0.0.56), run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Line(order_Id: Int, `ship-To`: String)
+object Line { implicit val schema: Schema[Line] = Schema.derived }
+
+println(SqlNameMapper.SnakeCase("order_Id"))
+println(SqlNameMapper.SnakeCase("ship-To"))
+println(DbCodec[Line].columns)
+println(Table.derived[Line].columns)
+// order__id
+// ship__to
+// Vector(order__id, ship__to)
+// Vector(order__id, ship__to)
+```
+
 ### streams (Scala.js): a rejected `ReadableStream` read fails the `Async` with an internal `StreamError` instead of producing `Left`
 
 Found 2026-10-26 while writing the how-to guide `docs/guides/run-streams-without-blocking.md` (backlog H-26), on `main` at `7f551627c`. Same at tag `v0.0.56`, the version tested. Verified by running on Node 24 (scala-cli hung on that machine, so the reproduction is a scratch sbt-scalajs project). Not filed on GitHub yet.
@@ -11401,6 +11423,366 @@ object Repro {
 - Read the type case-insensitively.
 - Read `name`, `filename` and `filename*` as parameters, in any order. Accept a token or a quoted string (unescaped), and decode `filename*` per RFC 8187, or at least keep `filename` when `filename*` follows.
 - Add a test for each line of the reproducer.
+
+### sql: a summoned `DbCodec` for an opaque type is `DbCodec.derived`, so the companion's `apply` and a `given As` never run on read
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2, branch `sql-scaladoc`, base `0c0021d61`), while making the `DbCodec.derivedOpaque` and `DbCodec.dbCodecFromAs` Scaladoc examples compile. The code is the same at tag `v0.0.56`. Verified on Scala 3.9.0 (`zio-blocks-sql` 0.0.56) and on Scala 3.10.0 (`zio-blocks-next-sql` 0.0.56, `-experimental`), with the same output.
+
+**Summary.** `DbCodec` has two givens meant for opaque types and newtypes: `derivedOpaque`, which reads through the companion's `apply` (so its checks run on every row), and `dbCodecFromAs`, which reads through a `given As[A, B]` (so its `Left` rejects bad rows). Neither is ever chosen by implicit search when `DbCodec.derived` can derive the type, and it can derive any opaque type: `Schema.derived` sees through the alias. So `query[Sku]`, a `Repo` with an opaque ID, or a case class with an opaque field, reads the underlying value directly and never calls `apply` or `As#into`. Invalid data, such as `'mug'` for a `Sku` whose `apply` requires `SKU-`, is accepted silently. Both givens only work when called by name, `given DbCodec[Sku] = DbCodec.derivedOpaque[Sku]`, and even then only for a summoned codec such as `query[Sku]`: a `Sku` or `Coupon` field of a case class derived with `derives DbCodec`, `Table.derived` or `Repo.derived` still reads the raw value, because `DbCodecDeriver#deriveRecord` builds field codecs from the schema (`D.instance(field.value.metadata)`) and never looks up a given. Their Scaladoc and `docs/reference/sql/db-codec.md` say they are picked automatically.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `sqlite-jdbc` 3.53.2.1). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import scala.util.Try
+import zio.blocks.schema.{As, SchemaError}
+import zio.blocks.sql.*
+
+object Types {
+  opaque type Sku <: String = String
+  object Sku {
+    def apply(value: String): Sku = { require(value.startsWith("SKU-"), s"not a SKU: $value"); value }
+  }
+
+  opaque type Coupon = String
+  object Coupon {
+    given As[String, Coupon] = new As[String, Coupon] {
+      def into(s: String): Either[SchemaError, Coupon] =
+        if (s.startsWith("C-")) Right(s) else Left(SchemaError(s"not a coupon: $s"))
+      def from(c: Coupon): Either[SchemaError, String] = Right(c)
+    }
+  }
+}
+import Types.*
+
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  println(Try(sql"SELECT 'mug' AS value".query[Sku]))
+  println(Try(sql"SELECT 'SPRING' AS value".query[Coupon]))
+  println(Try(sql"SELECT 'mug' AS value".query[Sku](using summon[DbCon], DbCodec.derivedOpaque[Sku])))
+  println(Try(sql"SELECT 'SPRING' AS value".query[Coupon](using summon[DbCon], DbCodec.dbCodecFromAs[String, Coupon])))
+}
+// Success(List(mug))
+// Success(List(SPRING))
+// Failure(java.lang.IllegalArgumentException: requirement failed: not a SKU: mug)
+// Failure(java.lang.IllegalStateException: DbCodec decode via As failed: zio.blocks.schema.SchemaError: not a coupon: SPRING)
+```
+
+**Reproduction, row-type fields** (Verified; same versions). With both givens declared by name, the summoned `query[Sku]` checks, but fields of derived row types don't. `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import scala.util.Try
+import zio.blocks.schema.{As, Schema, SchemaError}
+import zio.blocks.sql.*
+
+object Types {
+  opaque type Sku <: String = String
+  object Sku {
+    def apply(value: String): Sku = { require(value.startsWith("SKU-"), s"not a SKU: $value"); value }
+  }
+
+  opaque type Coupon = String
+  object Coupon {
+    given As[String, Coupon] = new As[String, Coupon] {
+      def into(s: String): Either[SchemaError, Coupon] =
+        if (s.startsWith("C-")) Right(s) else Left(SchemaError(s"not a coupon: $s"))
+      def from(c: Coupon): Either[SchemaError, String] = Right(c)
+    }
+  }
+}
+import Types.*
+
+given DbCodec[Sku]    = DbCodec.derivedOpaque[Sku]
+given DbCodec[Coupon] = DbCodec.dbCodecFromAs[String, Coupon]
+
+case class Line(sku: Sku, qty: Int) derives DbCodec
+case class Promo(code: Coupon) derives DbCodec
+case class Stock(sku: Sku, qty: Int)
+object Stock { implicit val schema: Schema[Stock] = Schema.derived }
+
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  println(Try(sql"SELECT 'mug' AS value".query[Sku]))
+  println(Try(sql"SELECT 'mug' AS sku, 2 AS qty".query[Line]))
+  println(Try(sql"SELECT 'SPRING' AS code".query[Promo]))
+  println(Try(sql"SELECT 'mug' AS sku, 2 AS qty".query[Stock](using summon[DbCon], Table.derived[Stock].codec)))
+}
+// Failure(java.lang.IllegalArgumentException: requirement failed: not a SKU: mug)
+// Success(List(Line(mug,2)))
+// Success(List(Promo(SPRING)))
+// Success(List(Stock(mug,2)))
+```
+
+**Expected.** The first two lines fail like the last two: summoning `DbCodec[Sku]` uses `derivedOpaque` (it calls `Sku.apply`), and summoning `DbCodec[Coupon]` uses `dbCodecFromAs` (it calls the `given As`), as the Scaladoc of both says.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/DbCodec.scala:190-191` declares `inline given derived[A]: DbCodec[A] = Schema.derived[A].deriving(DbCodecDeriver).derive`, with no constraint on `A` and no using clause, in `object DbCodec`; `derived` succeeds for an opaque type because `Schema.derived` treats it as its underlying type. Two rankings make it win:
+
+- `derivedOpaque` (`:96-97`) is as general as `derived` but sits in the parent trait `DbCodecOpaquePriority` (`:66`), and a given defined in a subclass (here the companion object) outranks one inherited from its parent, which is what that trait is for.
+- `dbCodecFromAs` (`:378-389`) is in the same object and as general as `derived` (`DbCodec[B]` for any `B`), but has a using clause. A replica of the two givens shows that this decides it: the given without a using clause wins; giving `derived` a `(using DummyImplicit)` turns the search into an "Ambiguous given instances" error; making `derived` non-inline changes nothing; and the output is the same with `-source:3.6`, so the Scala 3.7 given-prioritization change is not the cause (as an earlier draft of this entry said). The compiler rule behind the using-clause tie-break was not traced in the compiler source.
+
+The comment at `:92-94` says `derived` "requires `Schema`", which would make it inapplicable without one, but `derived` derives the schema itself, so it applies to every type. For fields, `DbCodecDeriver#deriveRecord` builds each field's codec with `D.instance(field.value.metadata)` (`DbCodecDeriver.scala:138`), from the schema, so no declared `given DbCodec[Sku]` is consulted.
+
+Replica (Scala 3.9.0, no dependencies), `P.scala`, run with `scala-cli run --server=false .`, then again with `//> using options -source:3.6` added (same output):
+
+```scala
+//> using scala 3.9.0
+package prio
+
+trait Conv[A, B]
+
+// V1: same shape as DbCodec: inline unconstrained given vs given with using clause, same object
+object V1 {
+  trait TCx[A] { def via: String }
+  object TCx {
+    inline given derived[A]: TCx[A] = new TCx[A] { def via = "derived" }
+    given fromAs[A, B](using c: Conv[A, B], base: TCx[A]): TCx[B] = new TCx[B] { def via = "fromAs" }
+  }
+}
+// V2: derived not inline
+object V2 {
+  trait TCx[A] { def via: String }
+  object TCx {
+    given derived[A]: TCx[A] = new TCx[A] { def via = "derived" }
+    given fromAs[A, B](using c: Conv[A, B], base: TCx[A]): TCx[B] = new TCx[B] { def via = "fromAs" }
+  }
+}
+// V4: fromAs with one type parameter and one using parameter
+object V4 {
+  trait TCx[A] { def via: String }
+  object TCx {
+    given derived[A]: TCx[A] = new TCx[A] { def via = "derived" }
+    given fromAs[B](using c: Conv[String, B]): TCx[B] = new TCx[B] { def via = "fromAs" }
+  }
+}
+
+object Types {
+  opaque type Coupon = String
+  object Coupon { given Conv[String, Coupon] = new Conv[String, Coupon] {} }
+}
+import Types.Coupon
+
+@main def run(): Unit = {
+  println("V1 " + summon[V1.TCx[Coupon]].via)
+  println("V2 " + summon[V2.TCx[Coupon]].via)
+  println("V4 " + summon[V4.TCx[Coupon]].via)
+}
+// V1 derived
+// V2 derived
+// V4 derived
+```
+
+With `derived[A](using DummyImplicit)` in a third copy (V3), `summon[V3.TCx[Coupon]]` fails to compile: `Ambiguous given instances: both given instance derived in object TCx and given instance fromAs in object TCx match type prio.V3.TCx[prio.Types.Coupon] of parameter x of method summon in object Predef`.
+
+**Impact.** Validation in an opaque type's smart constructor, or in an `As`, is skipped for every value read from the database, with no warning; rows that the type is meant to reject flow into the program. Writing is unaffected (the value is bound as the underlying type either way). Users who read the Scaladoc or `db-codec.md` believe the checks run. Declaring the given by name does not help for row types, the common case: a field of a `derives DbCodec`, `Table.derived` or `Repo.derived` row still skips the checks.
+
+**Test gap.** `sql/jvm/src/test/scala/zio/blocks/sql/DbCodecOpaqueSpec.scala` summons `DbCodec[ProductId]` and asserts only the encoded `DbValue`s, which are the same under `derived`; its one validation test calls `DbCodec.derivedOpaque[ProductId]` by name, and its comment says why ("`summon` resolves the higher-priority Schema-based `derived` given, which dealiases the opaque type and skips `apply`"). `DbCodecFromAsSpec.scala` "opaque type resolves DbCodec via dbCodecFromAs without explicit given" asserts the encoding, and the round-trip test uses an `As` that always returns `Right`, so neither can tell which given ran. No test reads a value that `apply` or `As#into` rejects through a summoned codec.
+
+**Suggested fix.** Make `derived` not apply to opaque types (for example, have its macro abort for an opaque `A` so that implicit search moves on, or move `derived` to a lower-priority parent and the opaque and `As` givens into the object), and make `DbCodecDeriver#deriveRecord` give an opaque or `As`-backed field the same path (use the `apply`/`unwrap` or the `As` for the field, or look up a given `DbCodec` for the field's type before deriving from the schema); then add tests that read a rejected value through `summon[DbCodec[...]]`, `query[...]` and a derived row type with such a field. Until then, fix the Scaladoc and `db-codec.md` to say the givens must be declared by name (the Scaladoc on the `sql-scaladoc` branch already does).
+
+### sql: `Table#createTable`, `Table#dropTable` and `Ddl` leave table and column names unquoted, so a table named `order` fails on SQLite and PostgreSQL, while `Repo` works on it
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2, branch `sql-scaladoc`, base `0c0021d61`). The code is the same at tag `v0.0.56`. Verified on SQLite (reproducer below) and on PostgreSQL 16 in Docker (output in entry C's PostgreSQL probe: `pg createTable order => Failure(org.postgresql.util.PSQLException: ERROR: syntax error at or near "order" Position: 28)`, and the same for `dropTable`).
+
+**Summary.** `Repo`, `Upsert` and `SqlQuery` write every table and column name in double quotes, so a table or column named by an SQL keyword works with them. `Table#createTable`, `Table#dropTable`, `Ddl.createTable` and `Ddl.dropTable` write the names without quotes. A shop's `Order` row type stored in a table called `order`, or any column called `order`, `group`, `user` (PostgreSQL) and so on, gets DDL that both databases reject, although every other statement for that table works. `docs/reference/sql/table.md` works around it in its first example ("`user` is a reserved word in PostgreSQL, so the table name is overridden explicitly") without naming it as a bug. This is the DDL counterpart of the filed `Frag.keysetAfter` entry.
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `sqlite-jdbc` 3.53.2.1). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Order(id: Int, customerId: Int)
+object Order { implicit val schema: Schema[Order] = Schema.derived }
+
+val orders = Table.derived[Order]("order")
+val repo   = Repo[Order, Int](orders, "id", DbCodec[Int], _.id)
+println(orders.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
+
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  println(Try(orders.createTable(SqlDialect.SQLite).update))
+  println(Try(orders.dropTable.update))
+  sql"""CREATE TABLE "order" (id INTEGER NOT NULL, customer_id INTEGER NOT NULL)""".update
+  println(Try(repo.insert(Order(1, 7))))
+  println(Try(repo.all))
+}
+// CREATE TABLE IF NOT EXISTS order (
+//   id INTEGER NOT NULL,
+//   customer_id INTEGER NOT NULL
+// )
+// Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (near "order": syntax error))
+// Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (near "order": syntax error))
+// Success(1)
+// Success(List(Order(1,7)))
+```
+
+**Expected.** `CREATE TABLE IF NOT EXISTS "order" ("id" INTEGER NOT NULL, "customer_id" INTEGER NOT NULL)` and `DROP TABLE IF EXISTS "order"`, which both databases accept, matching the quoting of `Repo`.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/Ddl.scala:38-46` builds each column as `s"  $validatedColumn ${col.sqlType}$nullStr"` (`:43`) and the statement as `s"CREATE TABLE IF NOT EXISTS $validatedTable (...)"` (`:45`); `:49-50` builds `DROP TABLE IF EXISTS <name>` the same way. `Table#createTable` and `Table#dropTable` (`Table.scala:54-62`) call them. `SqlIdentifier.validate` only checks the `[A-Za-z_][A-Za-z0-9_]*` shape and does not reject keywords. `Repo` (`Repo.scala:106-110`) and `Upsert` (`Upsert.scala:35`, `:58`) quote. `Dump.dumpTable` (`Dump.scala:562-587`) renders through `Ddl.createTable`, so dumped DDL has the same problem.
+
+**Impact.** A derived table whose type or field name is an SQL keyword cannot be created or dropped with the library's own DDL, on either database; the failure comes at run time. Mixed-case names (from `@Modifier.rename` or `TableNamingPolicy.Custom`) also differ: unquoted, PostgreSQL folds them to lower case in the DDL, while `Repo` uses the exact name, so the table `Repo` queries is not the one `createTable` made.
+
+**Test gap.** `sql/shared/src/test/scala/zio/blocks/sql/DdlSpec.scala:23-47` asserts the unquoted strings (`"CREATE TABLE IF NOT EXISTS users (\n  id INTEGER NOT NULL, ..."`), so the inconsistency is pinned by the tests. No test creates a table or column named by a keyword.
+
+**Suggested fix.** Quote the table and column names in `Ddl.createTable` and `Ddl.dropTable` as `Repo.buildInsertFrag` does, and update `DdlSpec`, `TableSpec` and the dump golden files; add a test that creates, fills and drops a table named `order` on SQLite.
+
+### sql: `Repo#insertReturning` reads the key from the first generated-key column, so on SQLite it returns another row, and on PostgreSQL it fails when the ID is not the first column
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2, branch `sql-scaladoc`, base `0c0021d61`), while fact-checking the `insertReturning` Scaladoc. The code is the same at tag `v0.0.56`. Verified on SQLite and on PostgreSQL 16 in Docker.
+
+**Summary.** `Repo#insertReturning(entity)` inserts the entity (ID included), reads the first column of the driver's generated keys as the ID, and returns `find` of that key, falling back to `find(getId(entity))` when the driver returns no key or no row has that key as its ID. The first generated-key column is often not the ID. On SQLite it is the `rowid`, which equals the ID only when the ID column is `INTEGER PRIMARY KEY`; on a table from `Table#createTable` (which declares no key), inserting `Product(1, "Teapot")` as the second row returns `Product(2, "Mug")`, the row whose ID equals the new `rowid`. On PostgreSQL the driver returns the whole inserted row, so the key is read from the table's first column; when that is not the ID, the call throws (or, if the first column has the ID's type, would read the wrong key; not run).
+
+**Reproduction, SQLite** (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `sqlite-jdbc` 3.53.2.1). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class Product(id: Int, name: String)
+object Product { implicit val schema: Schema[Product] = Schema.derived }
+
+val products = Repo.derived[Product, Int]
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  products.table.createTable(SqlDialect.SQLite).update
+  products.insert(Product(2, "Mug"))
+  println(products.insertReturning(Product(1, "Teapot")))
+  println(products.all)
+}
+// Product(2,Mug)
+// List(Product(2,Mug), Product(1,Teapot))
+```
+
+**Reproduction, PostgreSQL** (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `postgresql` 42.7.4, PostgreSQL 16 started with `docker run --rm -d --name sqlscaladoc-pg -p 55432:5432 -e POSTGRES_PASSWORD=pw postgres:16`, stopped afterwards). `Probe.scala`, run with `scala-cli run --server=false .`; it also shows entry B on PostgreSQL:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep dev.zio::zio-blocks-sql-zio:0.0.56
+//> using dep org.postgresql:postgresql:42.7.4
+
+import zio.blocks.schema._
+import zio.blocks.sql.{zio => _, _}
+import scala.util.Try
+
+case class Order(id: Int, customerId: Int)
+object Order { implicit val schema: Schema[Order] = Schema.derived }
+case class Review(sku: String, reviewId: Int, stars: Int)
+object Review { implicit val schema: Schema[Review] = Schema.derived }
+case class Product(id: Int, name: String)
+object Product { implicit val schema: Schema[Product] = Schema.derived }
+
+@main def run(): Unit = {
+  def p(label: String, v: => Any): Unit = println(s"$label => ${Try(v)}")
+  Thread.sleep(4000)
+  val xa = JdbcTransactor.fromUrl("jdbc:postgresql://localhost:55432/postgres", "postgres", "pw", SqlDialect.PostgreSQL)
+  xa.connect {
+    val orders = Table.derived[Order]("order")
+    p("pg createTable order", orders.createTable(SqlDialect.PostgreSQL).update)
+    p("pg repo with quoted order", { sql"""CREATE TABLE "order" (id INTEGER PRIMARY KEY, customer_id INTEGER NOT NULL)""".update; Repo[Order, Int](orders, "id", DbCodec[Int], _.id).insert(Order(1, 2)) })
+    p("pg dropTable order", orders.dropTable.update)
+    val reviews = Repo.derived[Review, Int]
+    p("review id", reviews.idColumn)
+    p("review create", sql"CREATE TABLE review (sku TEXT NOT NULL, review_id INTEGER PRIMARY KEY, stars INTEGER NOT NULL)".update)
+    p("review insertReturning", reviews.insertReturning(Review("MUG-1", 10, 5)))
+    val products = Repo.derived[Product, Int]
+    p("product create", products.table.createTable(SqlDialect.PostgreSQL).update)
+    p("product insert 2", products.insert(Product(2, "Mug")))
+    p("product insertReturning 1", products.insertReturning(Product(1, "Teapot")))
+  }
+}
+// pg createTable order => Failure(org.postgresql.util.PSQLException: ERROR: syntax error at or near "order"
+//   Position: 28)
+// pg repo with quoted order => Success(1)
+// pg dropTable order => Failure(org.postgresql.util.PSQLException: ERROR: syntax error at or near "order"
+//   Position: 22)
+// review id => Success(review_id)
+// review create => Success(0)
+// review insertReturning => Failure(org.postgresql.util.PSQLException: Bad value for type int : MUG-1)
+// product create => Success(0)
+// product insert 2 => Success(1)
+// product insertReturning 1 => Success(Product(1,Teapot))
+```
+
+**Expected.** `insertReturning(Product(1, "Teapot"))` returns `Product(1,Teapot)` on SQLite, and `insertReturning(Review("MUG-1", 10, 5))` returns `Review(MUG-1,10,5)` on PostgreSQL.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/Repo.scala:200-207`: `frag.updateReturningKeys[ID](using con, idCodec)` (`:202`), then `keys.headOption.flatMap(find(_)).orElse(find(getId(entity)))` (`:203`). `Frag.updateReturningKeys` (`Frag.scala:496-523`) reads each key row with `codec.readValue(reader, 1)` (`:509`), the first column of `getGeneratedKeys` (`JdbcConnection.scala:27`, `:88`). sqlite-jdbc returns `last_insert_rowid()` there; pgjdbc, given `RETURN_GENERATED_KEYS`, appends `RETURNING *`, so column 1 is the table's first column. The entity's own ID, which was just inserted, is only a fallback.
+
+**Impact.** On SQLite, `insertReturning` silently returns a different, existing row whenever the ID column is not `INTEGER PRIMARY KEY` and the new `rowid` collides with another row's ID, which is the normal case for tables made by `Table#createTable`. On PostgreSQL it throws for any table whose first column is not the ID.
+
+**Test gap.** `sql/jvm/src/test/scala/zio/blocks/sql/RepoIntegrationSpec.scala:406-472` runs `insertReturning` only on an empty table (`withFreshDb`, `CREATE TABLE ... id INTEGER NOT NULL` at `:74`), inserting one row: with `User(1, ...)` the `rowid` 1 matches by luck, and with `User(42, ...)` the `rowid` lookup finds nothing and the fallback `find(42)` saves the test ("insertReturning uses getGeneratedKeys for the lookup" asserts the fallback's result). No test inserts a second row, and no `insertReturning` test runs on PostgreSQL.
+
+**Suggested fix.** Since `Repo#insert` always writes the ID, look the row up by `getId(entity)` first and use generated keys only for an ID the database fills in; or read the generated-key column named `idColumn` instead of column 1. Add tests with a second row on SQLite and with a non-leading ID column on PostgreSQL.
+
+### sql: joining along a `Rel` whose tables are both missing from the query reads the foreign key from `t0` and leaves the `Rel`'s `fromTable` out of the SQL
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2, fix round 1, branch `sql-scaladoc`, base `0c0021d61`), while documenting `SqlQuery#innerJoin` after review. The code is the same at tag `v0.0.56`. Verified on SQLite.
+
+**Summary.** `SqlQuery#innerJoin`, `leftJoin`, `join` and `joinLeft` give a new alias to the table of the `Rel` that is not yet in the query, and keep the alias of the table that is. When neither table is in the query yet, the builder does not reject the `Rel`: it joins `rel.toTable` with the next alias and writes the condition as `t0."<fkColumn>" = tN."<pkColumn>"`, so the `FROM` table stands in for `rel.fromTable`, which never appears in the SQL. The query builds, renders and passes `explain` without a warning, and fails when the database runs it (`no such column: t0.invoice_id`); a `FROM` table that happens to have a column with the foreign key's name would run and join on it instead (not run).
+
+**Reproduction** (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `sqlite-jdbc` 3.53.2.1). `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+import zio.blocks.sql.query.*
+
+case class Customer(customerId: Int, name: String)
+object Customer { implicit val schema: Schema[Customer] = Schema.derived }
+case class Invoice(invoiceId: Int, buyerId: Int)
+object Invoice { implicit val schema: Schema[Invoice] = Schema.derived }
+case class InvoiceLine(lineId: Int, invoiceId: Int, sku: String)
+object InvoiceLine { implicit val schema: Schema[InvoiceLine] = Schema.derived }
+
+val customers = Table.derived[Customer]
+val invoices  = Table.derived[Invoice]
+val lines     = Table.derived[InvoiceLine]
+
+// Neither invoice_line nor invoice is in the query yet
+val q = SqlQuery.from(customers).join(Rel(lines, "invoice_id", invoices, "invoice_id"))
+println(q.sql(SqlDialect.SQLite))
+
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  customers.createTable(SqlDialect.SQLite).update
+  invoices.createTable(SqlDialect.SQLite).update
+  lines.createTable(SqlDialect.SQLite).update
+  println(Try(q.toFrag(SqlDialect.SQLite).query[(Customer, Invoice)]))
+}
+// SELECT t0."customer_id", t0."name", t1."invoice_id", t1."buyer_id" FROM "customer" AS t0 INNER JOIN "invoice" AS t1 ON t0."invoice_id" = t1."invoice_id"
+// Failure(org.sqlite.SQLiteException: [SQLITE_ERROR] SQL error or missing database (no such column: t0.invoice_id))
+```
+
+**Expected.** `join` throws `IllegalArgumentException` when neither table of the `Rel` is in the query (or the API makes the two tables explicit), instead of building SQL that compares the `FROM` table's column.
+
+**Root cause.** `sql/shared/src/main/scala/zio/blocks/sql/query/SqlQuery.scala:87-114`, the `(None, None)` case of `addJoin`. Its first four branches compare the `Rel`'s tables with the source and the last join by name, but `aliasOf` (`:197-199`) has already looked both up by name in the source and in every join, so in this case none of them can match, and the default branch (`:109-114`) always runs: `target = rel.toTable`, `fkAlias = "t0"`, `pkAlias = nextAlias`. The condition is built at `:121-123`.
+
+**Impact.** A join chain written in the wrong order (a `Rel` added before the join that brings in one of its tables) builds silently and fails only when it runs, with an error that names a column of the wrong table. The `Rel`'s own table check (both columns exist in their tables) passes, so nothing earlier catches it.
+
+**Test gap.** `sql/shared/src/test/scala/zio/blocks/sql/query/QueryRenderSpec.scala` (join tests at `:63-99`), `ExplainSpec.scala` and `ExplainDumpGoldenSpec.scala` add each `Rel` after a join or source that already holds one of its tables; no test adds a `Rel` whose tables are both missing.
+
+**Suggested fix.** In the `(None, None)` case, throw `IllegalArgumentException` naming both tables and the tables already in the query, and delete the unreachable name comparisons; add a test for it.
 
 ## Usability traps
 

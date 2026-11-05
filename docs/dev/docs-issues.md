@@ -120,6 +120,60 @@ object GetString { val headers = Headers("authorization" -> "Bearer abc123"); va
 
 **Suggested fix.** Apply the corrections above; turn the "Lazy Header Parsing" block into `mdoc:compile-only` so it is compiled.
 
+### `reference/sql/db-codec.md`: `DbCodec.derivedOpaque` and `DbCodec.dbCodecFromAs` are not "selected automatically"
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2), base `0c0021d61`; same at `v0.0.56`. Verified with entry A's reproducer.
+
+- `db-codec.md:272` ("`DbCodec.derivedOpaque` — Opaque type derivation"): "The compiler selects it automatically when `A` is an opaque type and no explicit `DbCodec[A]` is in scope." False: the compiler selects `DbCodec.derived`, which never calls the companion's `apply` (library entry A). The example at `:290-295` (`val codec = DbCodec[ProductId]` with the comment "resolved automatically — no explicit given needed") gets `derived`; its output `codec.columns` is the same either way, so the page doesn't show it.
+- `db-codec.md:306` ("`DbCodec.dbCodecFromAs`"): "It enables opaque types and newtype wrappers to receive a `DbCodec` automatically when their underlying type already has one and an `As[A, B]` instance is provided", and the `mdoc:compile-only` block at `:327` ("DbCodec[EmailAddress] is then resolved automatically — no explicit given needed"). False for any type `DbCodec.derived` can derive, which includes every opaque type: the `As` is ignored.
+- Fix: say that both must be declared by name (`given DbCodec[Sku] = DbCodec.derivedOpaque[Sku]`), show a read that the companion or the `As` rejects, and name library entry A as a known bug in 0.0.56. The Scaladoc on the `sql-scaladoc` branch shows the working pattern.
+
+### `reference/sql/db-value.md`: `DbArray` is covered by `SqlDialect#typeName`, and `DbCodec` never matches on `DbNull` when decoding
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2), base `0c0021d61`; same at `v0.0.56`. Read from source.
+
+- `db-value.md:37` (table row `DbArray`, "*(not in typeName)*") and `:39`: "`DbArray` ... not currently covered by `SqlDialect#typeName`". False: `SqlDialect.scala:48` maps it to `TEXT[]` for PostgreSQL and `:76` to `TEXT` for SQLite.
+- `db-value.md:39`: "`DbCodec` matches on it [`DbNull`] to decode nullable columns, throwing `IllegalStateException` if a non-optional codec hits it." False: decoding never sees a `DbValue`; codecs read from a `DbResultReader` and detect `NULL` with `isNull`/`wasNull` (`DbCodec.scala:196-228`). `DbNull` is only produced on the write side (`toDbValues` of `None`). A non-optional codec does not throw on `NULL` either, except `BigDecimal` and a derived `Char`: `Int` reads `0`, `String` reads `null` (as `db-codec.md:537` already says).
+- Fix: put `TEXT[]` / `TEXT` in the `DbArray` row, and say `DbNull` is what `toDbValues` produces for `None`/`Maybe.absent`.
+
+### `reference/sql/repo.md`: `insertReturning` with a placeholder ID does not return a database-assigned key
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2), base `0c0021d61`; same at `v0.0.56`.
+
+- `repo.md:441-456` says `insertReturning` "is most useful when the database assigns the primary key — for example, via an auto-increment or sequence column", and the example comments "Pass a placeholder ID; the returned entity carries the database-assigned key." False: `Repo#insert` and `insertReturning` always write every column, the ID included (`Repo.scala:201` builds the `INSERT` from `table.columns`), so the database never assigns the key: the placeholder `0` is stored, and a second placeholder insert violates the key. See also library entry C (the key is read from the wrong column).
+- Reproducer (Verified; Scala 3.9.0, `zio-blocks-sql` 0.0.56, `sqlite-jdbc` 3.53.2.1), `Repro.sc`, run with `scala-cli run --server=false Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import zio.blocks.schema.Schema
+import zio.blocks.sql.*
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+xa.connect {
+  sql"CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL)".update
+  println(repo.insertReturning(User(0, "Bob", "bob@example.com")))
+  println(repo.insertReturning(User(0, "Ann", "ann@example.com")))
+}
+// User(0,Bob,bob@example.com)
+// Exception in thread "main" org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: users.id)
+```
+
+- Fix: drop the auto-increment framing; say `insertReturning` inserts the entity with its own ID and reads the row back, and name entry C as a known bug.
+
+### `reference/sql/table.md`: `Table#columns` is not O(1) and not built once
+
+Found 2026-11-05 by the sql Scaladoc rollout (Task 2), base `0c0021d61`; same at `v0.0.56`. Read from source.
+
+- `table.md:184` ("`columns` — Column names in codec order"): "Access is O(1) since the sequence is built once during construction." False: `Table#columns` is a `def` (`Table.scala:48`) that maps `validatedColumnsMeta` to names on every call, O(n) in the column count. The same paragraph says the names are "in the same order as the underlying `DbCodec[A]`"; they come from `columnsMeta`, which differs from the codec for nested and collection fields (the page's own caution under `createTable`). The old Scaladoc said "delegates to `codec.columns`", also false; fixed on the `sql-scaladoc` branch.
+- Fix: drop the O(1) sentence, and say the names come from `columnsMeta`.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
