@@ -182,6 +182,55 @@ Found 2026-11-05 while fact-checking the `sql` Scaladoc against the reference pa
 2. **`sql-logger.md`, opening paragraph:** "Every statement calls either `onSuccess` or `onError`." Only the statements that `Frag` and `Repo` operations run report events. The savepoint statements of nested transactions (`JdbcConnection.scala:57-76`), the `PRAGMA busy_timeout` that `JdbcTransactor#connect` runs on SQLite (`JdbcTransactor.scala:36`), and commit and rollback report nothing; a `Repo` batch reports one event per batch with empty `params` (`Repo.scala:239`, `:308`). A probe with a printing logger and a nested `summon[DbTx].transact` printed the `INSERT` lines and no `SAVEPOINT` line. Correct: "Each `Frag` operation, and each `Repo` operation (one event for a whole batch, with empty `params`), calls either `onSuccess` or `onError`; savepoint, commit and rollback statements report nothing."
 3. **`transactor-zio.md`, opening paragraph:** "It wraps a `JdbcTransactor` ... and lifts its connection and transaction lifecycle management into the ZIO effect system." Only `connect` and `transact` go through the wrapped `JdbcTransactor`; `connectZIO` and `transactZIO` open connections from the factory themselves (`sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala:93`, `:144`), so on SQLite they skip its busy timeout and `IMMEDIATE` mode (library entry "sql-zio: `transactZIO` and `connectZIO` skip the SQLite settings"). Correct: "`connect` and `transact` delegate to a `JdbcTransactor`; `connectZIO` and `transactZIO` open their own connections from the same connection factory."
 
+### async reference: "Direct Style" says every collection closure with `await` is lazy and sequential, but `List.map` and `Array.map` run every closure first
+
+Found 2026-11-05 while fact-checking the Scala 2 macro comments (`AsyncMacros.emitHofMap`, `emitArrayMap`) in the async Scaladoc rollout (Task 1b, branch `async-scaladoc` on `3ac1121a9`). Same at tag `v0.0.56`. Verified by running on Scala 2.13.18 and 3.9.0 (JVM), with the same output, and for `List.map` on Scala.js 3.9.0.
+
+**Summary.** `docs/reference/async.md:709` says: "Each is lazy and sequential: the closure for element *n+1* runs only after element *n*'s `await` has completed, so a `List(a, b, c).map(fetch(_).await)` performs three fetches one after another rather than at once". For `List.map` and `Array.map` the opposite holds, on purpose: both Scala 2 (`AsyncMacros.emitHofMap`, `emitArrayMap`) and Scala 3 (dotty-cps-async's `ListAsyncShift`) apply the closure to every element first and only then sequence the awaits, fail-fast. The tests assert it (`AsyncJsAwaitSpec` "List.map closure applies eagerly, then awaits sequence fail-fast", Scala 2 and Scala 3). So the page's own example, `List(a, b, c).map(fetch(_).await)`, calls `fetch` three times before the first `await` resolves; if `fetch` starts work when called (a `Future`-backed call, for example), the three run at once. `Vector.map` and the other builder-backed receivers are lazy and sequential as the page says.
+
+**Reproduction** (save as `EagerMapRepro.scala`, run `scala-cli run --server=false EagerMapRepro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+import scala.collection.mutable.ListBuffer
+
+object EagerMapRepro {
+  def main(args: Array[String]): Unit = {
+    val calls = ListBuffer.empty[String]
+    def fetchPrice(sku: Int): Async[Int] = {
+      calls += s"fetch $sku"
+      if (sku == 2) Async.fail(new IllegalStateException(s"sku $sku: price service down"))
+      else Async.succeed(sku * 10)
+    }
+    def run(label: String)(body: => Async[Any]): Unit = {
+      calls.clear()
+      val result = body.either.block
+      println(s"$label: $result; ${calls.mkString(", ")}")
+    }
+    run("List.map  ")(Async.async(List(1, 2, 3).map(sku => fetchPrice(sku).await)))
+    run("Array.map ")(Async.async(Array(1, 2, 3).map(sku => fetchPrice(sku).await).toList))
+    run("Vector.map")(Async.async(Vector(1, 2, 3).map(sku => fetchPrice(sku).await)))
+  }
+}
+// List.map  : Left(java.lang.IllegalStateException: sku 2: price service down); fetch 1, fetch 2, fetch 3
+// Array.map : Left(java.lang.IllegalStateException: sku 2: price service down); fetch 1, fetch 2, fetch 3
+// Vector.map: Left(java.lang.IllegalStateException: sku 2: price service down); fetch 1, fetch 2
+```
+
+The same file with `//> using scala 3.9.0`, `//> using options -experimental` and `dev.zio::zio-blocks-next-async:0.0.56` prints the same three lines.
+
+**Expected.** The paragraph names the exception: `map` over a `List` or an `Array` applies the closure to every element first (so every call in it happens before the first `await` resolves) and then awaits the results left to right, failing fast; every other listed method and receiver is lazy and sequential. The example should use a receiver that is lazy (for example `Vector`) or say that the `List` version starts all three calls.
+
+**Root cause.** The page generalises the lazy/sequential behaviour of `foreach`, `flatMap` and the builder-backed receivers to `List.map` and `Array.map`, which the implementation (`async/shared/src/main/scala-2/zio/blocks/async/internal/AsyncMacros.scala:1089-1101` and `:1394-1464` at v0.0.56 = 3ac1121a9, and dotty-cps-async on Scala 3) makes eager to match `List.map` without `await`.
+
+**Impact.** A reader who wants calls made one at a time picks `List(...).map(x => call(x).await)` and gets all calls started together, or relies on a failed call stopping the later ones and finds that the later calls already ran.
+
+**Suggested fix.** Rewrite the paragraph at `docs/reference/async.md:709` as in Expected, and add a small example that shows the order (the reproducer above, trimmed). Keep "use `Async.collectAll` when you want them overlapped" for the lazy receivers.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

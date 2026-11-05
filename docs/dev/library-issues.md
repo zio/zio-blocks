@@ -11924,6 +11924,106 @@ val categories = Table.derived[Category](TableNamingPolicy.Plural)
 
 **Suggested fix.** In `addTableMeta`, read `@Modifier.rename` from each field's annotations (as the runtime `Table` does: `suppliers.columns` has `company`) and add the renamed name instead of the snake-cased field name, and take the table name from the same place the runtime `Table` takes it (naming policy included); ideally share one column-naming function between the deriver and the macro so they can't drift. Add tests with a renamed field and with a `TableNamingPolicy.Plural` table that expect the real names to pass and the field or type names to fail.
 
+### async (JVM): `Async.fromCompletionStage` unwraps an `ExecutionException` failure only when the stage fails after the call
+
+Found 2026-11-05 while writing the Scaladoc of `Async.fromCompletionStage` (async Scaladoc rollout, Task 1b, branch `async-scaladoc` on `3ac1121a9`). Same at tag `v0.0.56`: `async/` differs from the tag only by an import cleanup in `scala-3/AsyncSyntaxVersionSpecific.scala`. Verified by running on Scala 2.13.18 and 3.9.0 (`zio-blocks-next-async`), with the same output.
+
+**Summary.** `fromCompletionStage` strips one wrapper layer so the `Async` fails with what the producer threw. For a `CompletionException` the result is the same whether the stage has already failed or fails later. For an `ExecutionException` it is not: a stage that has already failed with `ExecutionException(cause)` gives an `Async` that fails with the `ExecutionException`, while the same stage failing after the call gives one that fails with `cause`. A `catchAll` that matches on the cause type therefore works or not depending on timing.
+
+**Reproduction** (save as `EeRepro.scala`, run `scala-cli run --server=false EeRepro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+import java.util.concurrent.{CompletableFuture, CompletionException, ExecutionException}
+
+object EeRepro {
+  def main(args: Array[String]): Unit = {
+    val down = new IllegalStateException("price service down")
+
+    // The stage has already failed when it is converted
+    val failed = new CompletableFuture[Int]()
+    failed.completeExceptionally(new ExecutionException(down))
+    println(s"already failed: ${Async.fromCompletionStage(failed).either.block}")
+
+    // The same failure, arriving after the conversion
+    val later   = new CompletableFuture[Int]()
+    val pending = Async.fromCompletionStage(later)
+    later.completeExceptionally(new ExecutionException(down))
+    println(s"fails later:    ${pending.either.block}")
+
+    // CompletionException is unwrapped the same way in both cases
+    val ce = new CompletableFuture[Int]()
+    ce.completeExceptionally(new CompletionException(down))
+    println(s"CompletionException, already failed: ${Async.fromCompletionStage(ce).either.block}")
+  }
+}
+// already failed: Left(java.util.concurrent.ExecutionException: java.lang.IllegalStateException: price service down)
+// fails later:    Left(java.lang.IllegalStateException: price service down)
+// CompletionException, already failed: Left(java.lang.IllegalStateException: price service down)
+```
+
+**Expected.** The same failure in both cases. Either keep a producer's own `ExecutionException` (unwrap only the layer `CompletableFuture` adds), or unwrap it in both paths.
+
+**Root cause** (lines at v0.0.56 = 3ac1121a9). `async/jvm/src/main/scala/zio/blocks/async/AsyncInterop.scala:68-70`: for a done stage the bridge calls `cf.get()`, which wraps the stored exception in a new `ExecutionException` (after first unwrapping a `CompletionException`), so `unwrapCompletionException` (`:171-178`) peels only that new layer and the producer's `ExecutionException` survives. For a pending stage (`:72-77`), `whenComplete` hands over the stored exception itself, and `unwrapCompletionException` treats the producer's `ExecutionException` as a wrapper and peels it (`:174`).
+
+**Impact.** Low: few producers fail a stage with an `ExecutionException` of their own. Where one does (a stage built from a `java.util.concurrent.Future#get` failure), error handling that matches on the exception type behaves differently depending on whether the stage finished before the conversion.
+
+**Test gap.** `AsyncInteropSpec` ("fromCompletionStage: already-failed unwraps the cause", "pending failure is unwrapped from CompletionException", "fromCompletionStage_bareNullCauseCompletionException_surfacesTheWrapperItself") covers `CompletionException` and a plain cause in each path, never an `ExecutionException` completion.
+
+**Suggested fix.** For a done stage, read the stored outcome without `get()` (for example `cf.handle` / `cf.whenComplete`, which fires at once on a done future, or `cf.exceptionNow()` on JDK 19+), so both paths see the same exception, and unwrap only `CompletionException` there. Add one test per path with `completeExceptionally(new ExecutionException(cause))`. The Scaladoc of `Async.fromCompletionStage` names this as a known bug; update it with the fix.
+
+### async (Scala 3, JVM): the runtime-await fallback `asyncRuntimeAwait` is never found, so `.await` inside a user lambda fails to compile with a dotty-cps-async message
+
+Found 2026-11-05 while fact-checking `async/jvm/src/main/scala-3/zio/blocks/async/internal/AsyncRuntimeAwait.scala` (async Scaladoc rollout, Task 1b, branch `async-scaladoc` on `3ac1121a9`). Same at tag `v0.0.56`. Verified by running on Scala 3.9.0, JVM.
+
+**Summary.** `AsyncRuntimeAwait.scala` defines `given asyncRuntimeAwait: CpsRuntimeAwait[Async]`, and its comment says dotty-cps-async falls back to it for an `.await` it cannot rewrite, such as one inside a plain user lambda, and drives the `Async` by blocking. dotty-cps-async never finds the given: it lives in package `zio.blocks.async.internal`, outside the implicit scope of `CpsRuntimeAwait[Async]`. An `.await` inside a lambda passed to a user method fails to compile with "Can't find AsyncShift ...", a message that names no `zio-blocks` type. Importing the given by hand makes the same code compile and run, which shows the fallback works but is unreachable.
+
+**Reproduction** (save as `RuntimeAwaitRepro.scala`, run `scala-cli compile --server=false RuntimeAwaitRepro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-async:0.0.56
+
+import zio.blocks.async.*
+
+object RuntimeAwaitRepro {
+  def twice(f: Int => Int): Int = f(1) + f(2) // a user higher-order function, no AsyncShift
+
+  def main(args: Array[String]): Unit = {
+    def price(sku: Int): Async[Int] = Async.succeed(sku * 10)
+    val total = Async.async { twice(sku => price(sku).await) }
+    println(total.block)
+  }
+}
+// -- Error: RuntimeAwaitRepro.scala:12:30
+//  12 |    val total = Async.async { twice(sku => price(sku).await) }
+//     |                              ^^^^^
+//     |Can't find AsyncShift (Found:    cps.runtime.CpsMonadSelfAsyncShift[[A] =>> zio.blocks.async.encoding.Async[A],
+//     |  cps.CpsMonad[[A] =>> zio.blocks.async.encoding.Async[A]]]
+//     |Required: cps.AsyncShift[object RuntimeAwaitRepro]) or async functions) for qual=Ident(RuntimeAwaitRepro) name = twice, shiftedName=twice_async, askedShiftedType=cps.AsyncShift[RuntimeAwaitRepro]
+```
+
+The same file with `import zio.blocks.async.internal.asyncRuntimeAwait` added after the first import (and the object renamed `RuntimeAwaitImported`) compiles, and `scala-cli run --server=false RuntimeAwaitImported.scala` prints:
+
+```
+// 30
+```
+
+**Expected.** One of two things, decided on purpose: either the fallback is reachable without an import (so such an `.await` blocks the calling thread, as the comment describes), or it is removed and the macro rejects the shape with a named diagnostic, as the Scala 2 macro does ("`.await` inside a function literal / higher-order-function argument is not supported ...").
+
+**Root cause** (lines at v0.0.56 = 3ac1121a9). `async/jvm/src/main/scala-3/zio/blocks/async/internal/AsyncRuntimeAwait.scala:41` declares the given as a top-level definition of package `zio.blocks.async.internal`; neither `AsyncDcaTransform.asyncImpl` (`async/shared/src/main/scala-3-dca/zio/blocks/async/internal/AsyncDcaTransform.scala:204-211`, which brings only `AsyncCpsMonad` into scope) nor the implicit scope of `Async` contains it.
+
+**Impact.** Low for correctness: users get a compile error, never a wrong result. The cost is a confusing message on Scala 3 (dotty-cps-async internals, no hint at the supported collection list in `docs/reference/async.md`), a JVM-only file that is dead code, and a comment that promises behaviour that does not happen.
+
+**Test gap.** No test uses `.await` inside a non-whitelisted lambda on Scala 3 JVM; `AsyncRewriteSpec` and `AsyncAwaitCompileErrorSpec` cover other shapes only.
+
+**Suggested fix.** Decide which behaviour is wanted. To make the fallback live, bring `asyncRuntimeAwait` into scope in the `cps.async` block that `AsyncDcaTransform.asyncImpl` splices (as it does for `AsyncCpsMonad`) and add a test. To drop it, delete `AsyncRuntimeAwait.scala` and add a named diagnostic for the shape, matching Scala 2. The Scaladoc of `asyncRuntimeAwait` names this as a known bug; update it with the fix.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -16006,9 +16106,42 @@ Seen 2026-10-30 in CI on #1907 (H-60, a guide plus `schema-examples` files; no l
 
 **Impact.** Fails unrelated PRs at random, like the `AsyncReaderReachableCoverageSpec` flake above; the workaround is `gh run rerun <id> --failed`.
 
-**Cause.** Not investigated. The test races completion against cancellation; the assertion may run before the callback thread has finished, or the race may really let cancel win.
+**Cause.** and **Suggested fix.** paragraphs with the following (found 2026-11-05 in the async Scaladoc rollout, Task 1b, while fact-checking `AsyncRunner`; verified by running against the published 0.0.56 on Scala 2.13.18; the code is the same on `3ac1121a9`):
 
-**Suggested fix.** Run it in a loop under load (`asyncJVM/testOnly *AsyncInteropSpec -- -t "completion wins cancel race"`) to reproduce. If the callback is asynchronous, wait for it (latch or promise with a timeout) before asserting; if cancel can legitimately win, make the test accept both outcomes or force the ordering.
+**Cause.** The race really can let cancel win; the test assumes it cannot. After `c.succeed(99)`, the `Running` is not settled yet: the completer's waker only submits a driver task to `ForkJoinPool.commonPool()` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:356-360`, lines at v0.0.56 = 3ac1121a9), and that task polls the source, runs the `tap` and publishes the result. If the pool has not run the task within the test's 100 ms, `running.cancel()` wins the `terminal` CAS (`:288`), the later publish loses (`:262`), and the `tap` callback never runs. A busy CI runner (or anything else holding the common pool's workers) delays the task past 100 ms. Reproduction (save as `CancelRaceRepro.scala`, run `scala-cli run --server=false CancelRaceRepro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+import java.util.concurrent.{CountDownLatch, ForkJoinPool}
+import java.util.concurrent.atomic.AtomicInteger
+
+object CancelRaceRepro {
+  def main(args: Array[String]): Unit = {
+    // Occupy every common-pool worker, so the driver task for the Running waits in the queue.
+    val workers = ForkJoinPool.getCommonPoolParallelism
+    val gate    = new CountDownLatch(1)
+    (1 to workers).foreach(_ => ForkJoinPool.commonPool().execute(new Runnable { def run(): Unit = gate.await() }))
+    Thread.sleep(100)
+
+    val orderTotal = new Completer[Int]
+    val delivered  = new AtomicInteger(0)
+    val running    = orderTotal.peek.tap(_ => { delivered.incrementAndGet(); Async.succeed(()) }).start
+    orderTotal.succeed(99) // the source completes first
+    Thread.sleep(100)
+    running.cancel()        // then the caller cancels
+    gate.countDown()
+    Thread.sleep(300)
+    println(s"source completed before cancel; tap ran ${delivered.get} time(s); poll after cancel: ${running.poll(new Runnable { def run(): Unit = () }) == running}")
+  }
+}
+// source completed before cancel; tap ran 0 time(s); poll after cancel: true
+```
+
+**Suggested fix.** Make the test wait for the run to settle before cancelling instead of sleeping: poll `running` with a latch-counting waker (or block on it) until it returns the value, then cancel and assert the count is 1. If "a source that completed before the cancel always delivers" is meant to be a guarantee, it is a library change instead: `cancel` would have to drive the source once before claiming `terminal`. The Scaladoc of the JVM `AsyncRunner` now states the current behaviour (a cancel that lands after the source completed but before the next driver task ran still wins).
 
 ### Flaky streams test: `AsyncReader JVM` "toSync interrupted close keeps interruption primary over close failure"
 
