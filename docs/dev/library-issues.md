@@ -12092,7 +12092,7 @@ The same file with `//> using scala 3.9.0`, `//> using dep dev.zio::zio-blocks-n
 
 **Expected.** The same shape on both versions, as the combinators reference page shows: a tuple on the right is concatenated.
 
-**Root cause.** The Scala 2 macro `TuplesMacros.tuplesImpl` (`combinators/shared/src/main/scala-2/zio/blocks/combinators/Tuples.scala:71-124`, lines at v0.0.56 = 3ac1121a9) checks only whether the left type is a tuple (`isTuple(c)(lType)`, line 87). For a non-tuple or tuple left it appends `r` as one element (lines 92-108), and the final `else` (line 111) builds the pair `(l, r)`; nothing inspects `rType`. The Scala 3 `Tuples` instances flatten both sides.
+**Root cause.** The Scala 2 macro `TuplesMacros.tuplesImpl` (`combinators/shared/src/main/scala-2/zio/blocks/combinators/Tuples.scala:71-121`, lines at v0.0.56 = 3ac1121a9) checks only whether the left type is a tuple (`isTuple(c)(lType)`, line 87). For a tuple left it appends `r` as one more element (lines 88-110), and for any other left the final `else` (line 111) builds the pair `(l, r)`; nothing inspects `rType`. The Scala 3 `Tuples` instances flatten both sides.
 
 **Impact.** `Async#zip`, and any other API built on `Tuples` (the HTTP path and query codecs that combine parameters), returns `(A, (B, C))` on Scala 2 where Scala 3 returns `(A, B, C)`. Shared code that pattern-matches on the result compiles on one version and not the other.
 
@@ -12435,6 +12435,65 @@ object Repro {
 **Test gap.** No test merges a non-string `:=` value with `+=`.
 
 **Suggested fix.** Handle `JsValue` (`js.value`) and `BooleanValue` explicitly in `appendBaseValue`, or reject the combination.
+
+### async: a `flatMap` chain whose continuations return new pending wrappers is driven in quadratic time
+
+Found 2026-11-05 during the async Scaladoc rollout (worktree `async-scaladoc`, base `3ac1121a9`), while checking the reference page's iterative example (`docs/reference/async.md:204`, `fa = fa.flatMap(_ => src.flatMap(…))`) after review. Same at v0.0.56: `async/` at the base differs from the tag only by an import in the Scala 3 syntax file. Verified by running.
+
+**Summary.** Build a chain `fa = fa.flatMap(_ => src.flatMap(...))` of n steps while `src` is pending, complete `src`, and drive the result. Each step's continuation returns a new pending `FlatMapPollable` over `src` (the captured `src` is the `Completer` itself, which stays a `Pollable` after completion). The continuation interpreter treats every such replacement as a reason to start again from the root of the chain, so driving the chain costs about n²/2 node visits. 16,000 steps take about 9 s where the same length with ready continuations takes 3 ms; 64,000 steps took 148 s in a separate run (2.13.18, JDK 25), and 100,000 did not finish in 10 minutes. Nothing overflows and the result is right, so the program just appears to hang.
+
+**Reproduction** (`QuadraticRepro.scala`, `scala-cli run --server=false QuadraticRepro.scala`; JDK 25; about 15 s):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+object QuadraticRepro {
+  // Builds an n-step chain on `src` while `src` is still pending, completes it, then times `block`.
+  def time(label: String, n: Int, nested: Boolean): Unit = {
+    val gate = new Completer[Int]
+    val src: Async[Int] = gate.peek
+    var fa: Async[Int] = src
+    var i = 0
+    while (i < n) {
+      fa =
+        if (nested) fa.flatMap(_ => src.flatMap(x => Async.succeed(x + 1))) // the reference page's shape
+        else fa.flatMap(x => Async.succeed(x + 1))
+      i += 1
+    }
+    gate.succeed(0)
+    val t0 = System.nanoTime
+    val r = fa.block
+    println(label + " x" + n + ": result " + r + " in " + (System.nanoTime - t0) / 1000000 + " ms")
+  }
+
+  def main(args: Array[String]): Unit =
+    for (n <- List(1000, 4000, 16000)) {
+      time("fa.flatMap(x => Async.succeed(x + 1))   ", n, nested = false)
+      time("fa.flatMap(_ => src.flatMap(...))       ", n, nested = true)
+    }
+}
+// fa.flatMap(x => Async.succeed(x + 1))    x1000: result 1000 in 45 ms
+// fa.flatMap(_ => src.flatMap(...))        x1000: result 1 in 88 ms
+// fa.flatMap(x => Async.succeed(x + 1))    x4000: result 4000 in 1 ms
+// fa.flatMap(_ => src.flatMap(...))        x4000: result 1 in 558 ms
+// fa.flatMap(x => Async.succeed(x + 1))    x16000: result 16000 in 3 ms
+// fa.flatMap(_ => src.flatMap(...))        x16000: result 1 in 8808 ms
+```
+
+On Scala 3.9.0 (`zio-blocks-next-async:0.0.56`, `-experimental`) the same program prints 89 ms, 576 ms and 9030 ms for the `src.flatMap` shape (42, 1 and 2 ms for the plain one).
+
+**Expected.** Linear time: each step's replacement is polled where it was installed, without re-walking the frames above it, as for the plain chain.
+
+**Root cause.** `Async.slowPath.ContinuationInterpreter.poll` (`async/shared/src/main/scala/zio/blocks/async/Async.scala:2807-2876`, lines at v0.0.56 = 3ac1121a9) descends from `root` through every `ContinuationNode` to the leaf, polls it, then unwinds. When a frame absorbs a distinct pending replacement (`FlatMapPollable.finishContinuationPoll` returns the pending `inner` from `f(a)`, lines 3031-3044, and the parent frame stores it as its new `pa` and returns itself, lines 3009-3013), the unwind sets `maskedDistinct` (line 2852) and `driveAgain = maskedDistinct` (line 2869) restarts the outer loop with `scratch.clear()` and `current = root` (lines 2814-2815). With n frames, each completed step costs a walk of the remaining frames.
+
+**Impact.** Any long loop whose step returns another pending `Async` (polling a source again, retrying a request, reading the next chunk through a still-pending handle) slows down quadratically; at tens of thousands of steps it looks like a hang. The reference page recommends this exact shape when it explains depth limits.
+
+**Test gap.** `AsyncBlockingSpec` "iterative flatMap accumulation is depth-safe over ready and pending sources" and "iterative map and alternating accumulation are depth-safe over a pending source" (`async/jvm/src/test/scala/zio/blocks/async/AsyncBlockingSpec.scala:136-174`) use continuations that return ready values only; no test times, or runs at length, a chain whose continuations return pending wrappers.
+
+**Suggested fix.** After a frame absorbs a distinct replacement, resume the descent from that frame (the frames above it are unchanged and still hold their ownership) instead of restarting from `root`; or keep the restart but let `FlatMapPollable` splice a pending `inner` into its parent so the chain shrinks. Add a test that drives 100,000 steps of `fa.flatMap(_ => src.flatMap(...))` within a time budget.
 
 ## Usability traps
 
@@ -13417,6 +13476,8 @@ object NoWayBack {
 
 ### async: driving one `Async` from two consumers (`toFuture` and `block`) can hang forever with no error
 
+**Status.** Named as a known bug in the Scaladoc of `block`, the `Async` alias and `Async.Running` (async Scaladoc rollout); the library bug is open.
+
 Found 2026-10-21 by the M-04 session (`docs/guides/streaming-library-migration.md`, PR #1801): Build Docs hit its 30-minute timeout because mdoc hung. Reproduced again on main `e79a7617` against the published 0.0.56 (scala-cli, Scala 3.9.0, JDK 21).
 
 **Summary.** An `Async` value is a description that its consumer drives. If two consumers drive the same value, for example `toFuture` and then `block`, one of them can wait forever. Nothing is thrown and nothing is logged; the program just stops. It happens only some of the time, so a test can pass locally and hang in CI. `docs/reference/async.md` ("Concurrent Fan-Out via Running") calls this undefined behaviour, but neither `toFuture` nor `block` warns about it, and a `val` holding an `Async` looks reusable like any other value.
@@ -14046,7 +14107,7 @@ Found 2026-10-22 while writing the tutorial `docs/guides/evolve-your-data.md` (b
 
 ### async: cancelling an `Async` never reaches the underlying call for `fromFuture`, `fromCompletionStage`, `fromJsPromise` or `Async.promise`
 
-**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885); the library bug is open.
+**Status.** Named as a known bug in 0.0.56 on the reference pages (#1885) and in the Scaladoc of `Async.Running`, `Completer` and `Async.promise` (async Scaladoc rollout); the library bug is open.
 
 Found 2026-10-22 while writing the how-to guide `docs/guides/wrap-callback-and-future-apis.md` (backlog H-28), on branch `async-interop` at `94080050`. Same at tag `v0.0.56`: `async/` differs from the tag only by an import cleanup in `scala-3/AsyncSyntaxVersionSpecific.scala`. Verified by running.
 
