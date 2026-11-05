@@ -53,6 +53,14 @@ trait Transactor {
    * as it runs. Anything that reads from the connection later, such as a stream
    * from `Frag#queryStream` returned out of `f`, fails once the connection is
    * closed.
+   *
+   * {{{
+   * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+   * val autoCommit = xa.connect {
+   *   summon[DbCon].connection.getAutoCommit
+   * }
+   * // true
+   * }}}
    */
   def connect[A](f: DbCon ?=> A): A
 

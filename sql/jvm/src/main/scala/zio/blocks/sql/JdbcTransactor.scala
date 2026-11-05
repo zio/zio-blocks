@@ -260,7 +260,17 @@ object JdbcTransactor {
    * Returns a transactor that opens each connection with
    * `DriverManager.getConnection(url)`, with no pooling. For SQLite it also
    * passes the driver properties `busy_timeout=5000` and
-   * `transaction_mode=IMMEDIATE`.
+   * `transaction_mode=IMMEDIATE`. Each block gets a new connection, so use a
+   * file URL when data must outlive one block:
+   *
+   * {{{
+   * val db = java.nio.file.Files.createTempFile("catalog", ".db")
+   * val xa = JdbcTransactor.fromUrl("jdbc:sqlite:" + db, SqlDialect.SQLite)
+   * xa.connect(sql"CREATE TABLE brand (name TEXT)".update)
+   * xa.connect(sql"INSERT INTO brand VALUES ('Acme')".update)
+   * val brands = xa.connect(sql"SELECT name FROM brand".query[String])
+   * // List(Acme)
+   * }}}
    */
   def fromUrl(url: String, dialect: SqlDialect): JdbcTransactor =
     if (dialect == SqlDialect.SQLite) {
@@ -289,6 +299,12 @@ object JdbcTransactor {
    * pooling `DataSource` such as HikariCP's decides how connections are reused.
    * For SQLite, an `org.sqlite.SQLiteDataSource` is also set to a 5-second busy
    * timeout and `IMMEDIATE` transactions.
+   *
+   * {{{
+   * // pool: a HikariDataSource or any other pooling javax.sql.DataSource
+   * def transactor(pool: javax.sql.DataSource): JdbcTransactor =
+   *   JdbcTransactor.fromDataSource(pool, SqlDialect.PostgreSQL)
+   * }}}
    */
   def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): JdbcTransactor = {
     // For SQLite, try to configure the DataSource for IMMEDIATE + busy timeout

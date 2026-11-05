@@ -22,8 +22,8 @@ import java.time.Duration
  * Receives an event for the statements that [[Frag]] and [[Repo]] operations
  * run: `onSuccess` with the row count, or `onError` with the exception. The
  * callbacks run on the thread that ran the statement, after it finished, so
- * keep them fast. Pass one as the third argument of the `JdbcTransactor`
- * constructor; the default is `SqlLogger.noop`.
+ * keep them fast. Pass one as the third argument of the `JdbcTransactor` or
+ * `TransactorZIO` constructor; the default is `SqlLogger.noop`.
  *
  * {{{
  * val seen = scala.collection.mutable.ListBuffer.empty[String]
