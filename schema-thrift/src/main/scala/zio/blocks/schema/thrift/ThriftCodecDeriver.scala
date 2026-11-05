@@ -34,10 +34,14 @@ import scala.util.control.NonFatal
  * variant, such as a sealed trait, `Option` or `Either`, becomes a struct with
  * one field, whose id is the case's index plus one (`None` is 1, `Some` is 2).
  * A sequence becomes a Thrift `list` and a map a Thrift `map`. A wrapper uses
- * the encoding of the type it wraps. `DynamicValue` encodes, but decoding it
- * always fails with `Cannot decode DynamicValue without schema`. Known bugs: a
- * record field missing from the input decodes as `null`, `0` or `false`, and
- * decoding does not check the Thrift type written before each field.
+ * the encoding of the type it wraps, but a known bug labels a wrapper field,
+ * list element or map entry with the Thrift type `struct` even when the wrapped
+ * type is not a struct, so a reader that skips it, or another Thrift library,
+ * misreads it; a `Unit` field is labelled `void`, which libthrift cannot skip.
+ * `DynamicValue` encodes, but decoding it always fails with
+ * `Cannot decode DynamicValue without schema`. Known bugs: a record field
+ * missing from the input decodes as `null`, `0` or `false`, and decoding does
+ * not check the Thrift type written before each field.
  */
 object ThriftCodecDeriver extends Deriver[ThriftCodec] {
   // Existential type aliases for internal use

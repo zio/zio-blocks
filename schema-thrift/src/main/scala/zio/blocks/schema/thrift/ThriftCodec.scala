@@ -36,7 +36,11 @@ import java.math.{BigInteger, MathContext, RoundingMode}
  * tools that read Thrift binary data, without writing a `.thrift` file. A
  * record is a Thrift struct whose fields have the ids 1, 2, 3 and so on, in
  * declaration order; the decoder reads the fields in any order and skips field
- * ids that it does not know, so a reader can be older than the writer.
+ * ids that it does not know, so a reader can be older than the writer. A known
+ * bug breaks this for a field of type `Unit`, or of a wrapper type (such as one
+ * built with `Schema#transform`) over a type that is not a struct: the field's
+ * header names the wrong Thrift type, so a reader that does not know the field
+ * fails or misreads it.
  *
  * Decoding returns `Left` with a `SchemaError` whose message ends with the path
  * of the part that failed; errors that come from the Thrift library start with
@@ -261,7 +265,11 @@ object ThriftCodec {
    */
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 
-  /** Writes `Unit` as no bytes; as a struct field its type is Thrift `void`. */
+  /**
+   * Writes `Unit` as no bytes. As a struct field its type is Thrift `void`,
+   * which libthrift cannot skip: a known bug makes a reader that does not know
+   * the field fail with `Thrift protocol error: Unrecognized type 1`.
+   */
   val unitCodec: ThriftCodec[Unit] = new ThriftCodec[Unit] {
     def decodeValue(protocol: TProtocol): Unit = ()
 
