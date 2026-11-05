@@ -24,17 +24,75 @@ import zio.blocks.schema.derive.Deriver
 import zio.blocks.schema.json.Json
 import zio.blocks.typeid.TypeId
 
+/**
+ * The deriver with the default [[BsonSchemaCodec.Config]]: pass it to
+ * `Schema#derive`, or call its `with*` methods for another configuration.
+ */
 object BsonCodecDeriver extends BsonCodecDeriver(BsonSchemaCodec.Config)
 
+/**
+ * Derives a [[BsonCodec]] from a schema: `Schema#derive(BsonCodecDeriver)`. Its
+ * `with*` methods return a deriver with one setting of `config` changed, and
+ * `Schema#deriving(BsonCodecDeriver)` lets you replace the codec of one type or
+ * field.
+ *
+ * It supports the primitive types, case classes, sealed traits, collections,
+ * maps with `String` keys, wrappers, recursive types and
+ * [[zio.blocks.schema.json.Json]]. A map with other keys or a `DynamicValue`
+ * throws `UnsupportedOperationException` when the codec is derived. Besides the
+ * config, it reads these modifiers: `Modifier.rename` and `Modifier.transient`
+ * on fields and cases, `Modifier.alias` on cases (accepted when decoding),
+ * `Modifier.fieldNaming` and `Modifier.noExtraFields` on case classes, and
+ * `Modifier.caseNaming` and `Modifier.discriminator` on sealed traits. A
+ * transient case is written as an empty document, which the default
+ * [[BsonSchemaCodec.SumTypeHandling.WrapperWithClassNameField]] does not
+ * decode.
+ *
+ * {{{
+ * import org.bson.BsonDocument
+ * import zio.blocks.schema._
+ *
+ * case class Customer(name: String, email: String)
+ * object Customer {
+ *   implicit val schema: Schema[Customer] = Schema.derived
+ * }
+ *
+ * val strict = Customer.schema.derive(BsonCodecDeriver.withIgnoreExtraFields(false))
+ * val result = strict.decoder
+ *   .fromBsonValue(BsonDocument.parse("""{"name": "Kim", "email": "kim@example.com", "phone": "555"}"""))
+ *   .left
+ *   .map(_.getMessage)
+ * // Left(Path: .phone, error: Invalid extra field.)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/bson/ BSON Codec Module]]
+ */
 class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extends Deriver[BsonCodec] {
   import BsonSchemaCodec.SumTypeHandling
 
+  /** Returns a deriver that stores sealed traits as `value` says. */
   def withSumTypeHandling(value: BsonSchemaCodec.SumTypeHandling): BsonCodecDeriver =
     new BsonCodecDeriver(config.withSumTypeHandling(value))
+
+  /**
+   * Returns a deriver that renames the case names of sealed traits with
+   * `value`.
+   */
   def withClassNameMapping(value: BsonSchemaCodec.TermMapping): BsonCodecDeriver =
     new BsonCodecDeriver(config.withClassNameMapping(value))
+
+  /**
+   * Returns a deriver whose codecs skip unknown document fields when `value` is
+   * `true`, or fail on them with `Invalid extra field.` when it is `false`.
+   */
   def withIgnoreExtraFields(value: Boolean): BsonCodecDeriver =
     new BsonCodecDeriver(config.withIgnoreExtraFields(value))
+
+  /**
+   * Returns a deriver with `useNativeObjectId` set, which has no effect (a
+   * known bug); see [[BsonSchemaCodec.Config]].
+   */
   def withNativeObjectId(value: Boolean): BsonCodecDeriver =
     new BsonCodecDeriver(config.withNativeObjectId(value))
 
@@ -553,7 +611,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
 
       BsonCodec(encoder, decoder)
     } else {
-      // Non-string keys: encode as array of [key, value] pairs
+      // Non-string keys are not supported yet
       throw new UnsupportedOperationException(s"Map with non-string keys not yet supported for ${typeId.fullName}")
     }
   }
@@ -1030,7 +1088,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
     // 1. It's detected as ObjectId by typename (from ObjectIdSupport), OR
     // 2. Config explicitly enables native ObjectId support AND it's actually an ObjectId type
     if (isObjectId || (config.useNativeObjectId && isObjectId)) {
-      // Import ObjectId type and use zio-bson's native codec
+      // Use this module's BsonCodec.objectId, which writes BSON OBJECT_ID
       BsonCodec.objectId.asInstanceOf[BsonCodec[A]]
     } else {
       // Normal wrapper handling
