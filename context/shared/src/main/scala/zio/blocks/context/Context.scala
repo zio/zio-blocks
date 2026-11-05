@@ -260,7 +260,8 @@ final class Context[+R] private (
 
   /**
    * Lists the entries as `Context(<type name> -> <value>, ...)`, most recently
-   * added first, with each type's full name.
+   * added first, with each type's full name without its type arguments
+   * (`List[Int]` prints as `scala.collection.immutable.List`).
    */
   override def toString: String = {
     val contents = entries.reverseIterator.map { case (k, v) =>

@@ -27,7 +27,7 @@ import scala.annotation.implicitNotFound
  * `Context#get` checks one type at a time. When it does not resolve, the
  * compiler reports `Context[Ctx] does not provide A. Compare the two types —
  * each component of A not in Ctx must be added via context.add(value).`, with
- * the two types written out in full.
+ * the two types written out in full (Scala 3 then adds the implicit it tried).
  *
  * {{{
  * trait Server
