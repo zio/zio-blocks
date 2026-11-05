@@ -20,41 +20,68 @@ import zio.blocks.chunk.Chunk
 
 /** Typeclass for converting values to sequences of DOM elements. */
 trait ToElements[-A] {
+
+  /**
+   * Converts the value to a chunk of [[Dom]] nodes, so a single value can
+   * produce zero, one or several children.
+   */
   def toElements(a: A): Chunk[Dom]
 }
 
+/**
+ * Instances of [[ToElements]] for strings, numbers, booleans, characters, DOM
+ * nodes and collections of them.
+ */
 object ToElements {
 
+  /** Summons the implicit [[ToElements]] instance for `A`. */
   def apply[A](implicit ev: ToElements[A]): ToElements[A] = ev
 
+  /**
+   * Produces one [[Dom.Text]] node holding the `String`, which escapes it when
+   * rendered.
+   */
   implicit val stringToElements: ToElements[String] = new ToElements[String] {
     def toElements(a: String): Chunk[Dom] = Chunk(Dom.Text(a))
   }
 
+  /** Produces one [[Dom.Text]] node holding the decimal form of the `Int`. */
   implicit val intToElements: ToElements[Int] = new ToElements[Int] {
     def toElements(a: Int): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
+  /** Produces one [[Dom.Text]] node holding the decimal form of the `Long`. */
   implicit val longToElements: ToElements[Long] = new ToElements[Long] {
     def toElements(a: Long): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
+  /**
+   * Produces one [[Dom.Text]] node holding the `Double#toString` form of the
+   * value.
+   */
   implicit val doubleToElements: ToElements[Double] = new ToElements[Double] {
     def toElements(a: Double): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
+  /** Produces one [[Dom.Text]] node holding `true` or `false`. */
   implicit val booleanToElements: ToElements[Boolean] = new ToElements[Boolean] {
     def toElements(a: Boolean): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
+  /** Produces one [[Dom.Text]] node holding the character. */
   implicit val charToElements: ToElements[Char] = new ToElements[Char] {
     def toElements(a: Char): Chunk[Dom] = Chunk(Dom.Text(a.toString))
   }
 
+  /** Produces a chunk holding the [[Dom]] node itself. */
   implicit val domToElements: ToElements[Dom] = new ToElements[Dom] {
     def toElements(a: Dom): Chunk[Dom] = Chunk(a)
   }
 
+  /**
+   * Converts the wrapped value of a `Some` with the instance for `A`, and
+   * produces an empty chunk for `None`.
+   */
   implicit def optionToElements[A](implicit ev: ToElements[A]): ToElements[Option[A]] =
     new ToElements[Option[A]] {
       def toElements(a: Option[A]): Chunk[Dom] = a match {
@@ -63,6 +90,10 @@ object ToElements {
       }
     }
 
+  /**
+   * Converts each element with the instance for `A` and concatenates the
+   * results in iteration order.
+   */
   implicit def iterableToElements[A](implicit ev: ToElements[A]): ToElements[Iterable[A]] =
     new ToElements[Iterable[A]] {
       def toElements(a: Iterable[A]): Chunk[Dom] = {
@@ -75,6 +106,10 @@ object ToElements {
       }
     }
 
+  /**
+   * Converts each element with the instance for `A` and concatenates the
+   * results in order.
+   */
   implicit def chunkToElements[A](implicit ev: ToElements[A]): ToElements[Chunk[A]] =
     new ToElements[Chunk[A]] {
       def toElements(a: Chunk[A]): Chunk[Dom] = {
@@ -88,6 +123,10 @@ object ToElements {
       }
     }
 
+  /**
+   * Converts each element with the instance for `A` and concatenates the
+   * results in order.
+   */
   implicit def listToElements[A](implicit ev: ToElements[A]): ToElements[List[A]] =
     new ToElements[List[A]] {
       def toElements(a: List[A]): Chunk[Dom] = {

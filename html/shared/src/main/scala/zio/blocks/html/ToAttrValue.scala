@@ -21,45 +21,74 @@ package zio.blocks.html
  * escaping.
  */
 trait ToAttrValue[-A] {
+
+  /**
+   * Converts the value to the text of an HTML attribute value, escaping it
+   * where the type can carry markup.
+   */
   def toAttrValue(a: A): String
 }
 
+/**
+ * Instances of [[ToAttrValue]] for the attribute value types the DSL accepts.
+ */
 object ToAttrValue {
 
+  /** Summons the implicit [[ToAttrValue]] instance for `A`. */
   def apply[A](implicit ev: ToAttrValue[A]): ToAttrValue[A] = ev
 
+  /**
+   * Renders a `String` with `&`, `<`, `>`, `"` and `'` replaced by character
+   * references.
+   */
   implicit val stringToAttrValue: ToAttrValue[String] = new ToAttrValue[String] {
     def toAttrValue(a: String): String = Escape.html(a)
   }
 
+  /** Renders an `Int` in decimal, with no escaping needed. */
   implicit val intToAttrValue: ToAttrValue[Int] = new ToAttrValue[Int] {
     def toAttrValue(a: Int): String = a.toString
   }
 
+  /** Renders a `Long` in decimal, with no escaping needed. */
   implicit val longToAttrValue: ToAttrValue[Long] = new ToAttrValue[Long] {
     def toAttrValue(a: Long): String = a.toString
   }
 
+  /**
+   * Renders a `Double` with `Double#toString`, so `1.0` stays `1.0` and
+   * `1.5e10` becomes `1.5E10`.
+   */
   implicit val doubleToAttrValue: ToAttrValue[Double] = new ToAttrValue[Double] {
     def toAttrValue(a: Double): String = a.toString
   }
 
+  /** Renders a `Boolean` as `true` or `false`. */
   implicit val booleanToAttrValue: ToAttrValue[Boolean] = new ToAttrValue[Boolean] {
     def toAttrValue(a: Boolean): String = a.toString
   }
 
+  /** Renders a `Char` as a one-character string, escaped like a `String`. */
   implicit val charToAttrValue: ToAttrValue[Char] = new ToAttrValue[Char] {
     def toAttrValue(a: Char): String = Escape.html(a.toString)
   }
 
+  /** Renders the source text of a [[Js]] value, escaped like a `String`. */
   implicit val jsToAttrValue: ToAttrValue[Js] = new ToAttrValue[Js] {
     def toAttrValue(a: Js): String = Escape.html(a.value)
   }
 
+  /**
+   * Renders a [[Css]] value with its `render` text, escaped like a `String`.
+   */
   implicit val cssToAttrValue: ToAttrValue[Css] = new ToAttrValue[Css] {
     def toAttrValue(a: Css): String = Escape.html(a.render)
   }
 
+  /**
+   * Renders the wrapped value of a `Some` with the instance for `A`, and an
+   * empty string for `None`.
+   */
   implicit def optionToAttrValue[A](implicit ev: ToAttrValue[A]): ToAttrValue[Option[A]] =
     new ToAttrValue[Option[A]] {
       def toAttrValue(a: Option[A]): String = a match {
@@ -68,6 +97,10 @@ object ToAttrValue {
       }
     }
 
+  /**
+   * Renders each string with the escaping of a `String` and joins them with a
+   * single space.
+   */
   implicit def iterableStringToAttrValue: ToAttrValue[Iterable[String]] =
     new ToAttrValue[Iterable[String]] {
       def toAttrValue(a: Iterable[String]): String = {
