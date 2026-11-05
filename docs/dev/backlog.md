@@ -738,6 +738,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
 | 16 | openapi / codegen / smithy | 43/130, 73/107, 55/64 | 33 / 68 / 85 | 27 / 7,116 | none |
 | 16 | markdown / mux / ringbuffer | 91/107, 43/46, 82/122 | 85 / 93 / 67 | 35 / 6,160 | markdown needs an override (`zio.blocks.docs`) |
 | 17 | mediatype | 0 / 2634 | 0 | 5 / 12,676 | 2,622 items are in the generated `MediaTypes.scala`: document through the generator |
+| 18 | schema (core, rest) | 3232 / 3775 (`schema` package 1478/1948, `schema.json` 865/872, `schema.binding` 429/471, `schema.migration` 154/176) | 85 | — | none; already in `scaladoc-check` |
 
 All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 31% without mediatype.
 
