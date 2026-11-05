@@ -21,24 +21,60 @@ import java.util.concurrent.CompletionStage
 import scala.concurrent.Future
 
 /**
- * JVM platform sliver of the [[Async]] companion: constructors that ingress the
- * standard JVM async carriers ([[scala.concurrent.Future]] and
- * [[java.util.concurrent.CompletionStage]] / `CompletableFuture`). Mixed into
- * `object Async`, so callers write `Async.fromFuture(...)` /
- * `Async.fromCompletionStage(...)`. The egress direction lives on the
- * `fa.toFuture` / `fa.toCompletableFuture` extension methods.
+ * The JVM constructors of the [[Async]] companion that bring in a
+ * [[scala.concurrent.Future]] or a [[java.util.concurrent.CompletionStage]].
+ * `object Async` mixes this trait in, so callers write `Async.fromFuture(...)`
+ * and `Async.fromCompletionStage(...)`. The `toFuture` and
+ * `toCompletableFuture` extension methods convert the other way.
  */
 private[async] trait AsyncCompanionPlatformSpecific {
 
   /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `future`. No `ExecutionContext` is required.
+   * Creates an [[Async]] that completes with the value or the failure of
+   * `future`. It needs no `ExecutionContext`. A future that has already
+   * completed gives a ready `Async`; otherwise the `Async` completes when
+   * `future` does. On Scala.js, a `JavaScriptException` that wraps `null` (from
+   * a JavaScript promise rejected with `null`) becomes a `null` cause.
+   *
+   * Cancelling a run of this `Async` stops waiting for `future` but cannot stop
+   * it: a `Future` has no cancel operation.
+   *
+   * {{{
+   * import scala.concurrent.Future
+   *
+   * val quote: Async[Int] = Async.fromFuture(Future.successful(125))
+   * quote.map(_ * 2).block // 250
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
    */
   def fromFuture[A](future: Future[A]): Async[A] = AsyncInterop.fromFuture(future)
 
   /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `stage`.
+   * Creates an [[Async]] that completes with the value or the failure of
+   * `stage`. A stage that has already completed gives a ready `Async`;
+   * otherwise the `Async` completes when `stage` does.
+   *
+   * A failure wrapped in a [[java.util.concurrent.CompletionException]] is
+   * unwrapped to its cause, so the `Async` fails with what the producer threw,
+   * and a cancelled stage fails with its
+   * [[java.util.concurrent.CancellationException]]. A stage that fails with an
+   * [[java.util.concurrent.ExecutionException]] is unwrapped as well when it
+   * fails after this call, but not when it has already failed, a known bug.
+   * Cancelling a run of this `Async` does not cancel `stage`, a known bug.
+   *
+   * {{{
+   * import java.util.concurrent.CompletableFuture
+   *
+   * val token                = new CompletableFuture[String]()
+   * val upper: Async[String] = Async.fromCompletionStage(token).map(_.toUpperCase)
+   * token.complete("t-123")
+   * upper.block // T-123
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
    */
   def fromCompletionStage[A](stage: CompletionStage[A]): Async[A] = AsyncInterop.fromCompletionStage(stage)
 }

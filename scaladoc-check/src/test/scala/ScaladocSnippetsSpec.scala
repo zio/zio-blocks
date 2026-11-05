@@ -191,6 +191,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport and objectName give an async example the async import") {
+      val asyncPath = "async/shared/src/main/scala/zio/blocks/async/Async.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(asyncPath) == "zio.blocks.async._",
+        ScaladocSnippets.objectName(asyncPath, 40) == "Snippet_async_shared_scala_Async_L40"
+      )
+    },
     test("moduleImport hides the sql.zio package from sql examples and keeps the default for sql-zio") {
       val fragPath = "sql/shared/src/main/scala/zio/blocks/sql/Frag.scala"
       val relPath  = "sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala"
@@ -201,6 +208,16 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(relPath, 3) == "Snippet_sql_shared_scala_query_Rel_L3",
         ScaladocSnippets.moduleImport(zioPath) == "zio.blocks.sql.zio._",
         ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
+      )
+    },
+    test("moduleImport and objectName give an html example the html import and drop the html package") {
+      val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
+      val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(domPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(domPath, 12) == "Snippet_html_shared_scala_Dom_L12",
+        ScaladocSnippets.moduleImport(elementsPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(elementsPath, 30) == "Snippet_html_shared_scala_2_HtmlElements_L30"
       )
     },
     test("moduleImport follows the module directory") {
