@@ -24,13 +24,24 @@ import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaErro
  * chaining for XML navigation and querying operations.
  *
  * XmlSelection enables a fluent API style for navigating through XML
- * structures:
+ * structures. `Xml#select` starts a selection at a node, so the first `get`
+ * looks at that node's children, not at the node itself:
  * {{{
- *   xml.get("users").elements.apply(0).get("name").texts
+ * val users = XmlReader.read("<users><user><name>Ada</name></user><user><name>Lin</name></user></users>")
+ * val names = users.select.get("user").get("name")
+ *
+ * names.size        // 2
+ * names.textContent // AdaLin
  * }}}
  *
  * The selection can contain zero, one, or multiple XML values, supporting both
- * single-value navigation and multi-value queries.
+ * single-value navigation and multi-value queries. Each navigation step applies
+ * to every selected value. A step that finds nothing gives an empty selection,
+ * not a failure; the terminal operations (`one`, `any`, `text`, ...) turn that
+ * into a `Left`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
  */
 final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends AnyVal {
 
@@ -38,7 +49,10 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   // Basic operations
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Returns true if the selection is successful (contains values). */
+  /**
+   * Returns true if the selection is successful. An empty selection is also
+   * successful.
+   */
   def isSuccess: Boolean = either.isRight
 
   /** Returns true if the selection is a failure. */
@@ -65,6 +79,12 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   /**
    * Returns the single selected value or fails if there are 0 or more than 1
    * values.
+   *
+   * {{{
+   * val tags = XmlReader.read("<tags><tag>a</tag><tag>b</tag></tags>")
+   *
+   * tags.select.get("tag").one.left.map(_.getMessage) // Left(Expected single value but got 2)
+   * }}}
    */
   def one: Either[SchemaError, Xml] = either match {
     case Right(v) =>
@@ -98,8 +118,14 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns any single value from the selection. Fails if the selection is
-   * empty or an error.
+   * Returns the first value of the selection. Fails if the selection is empty
+   * or an error.
+   *
+   * {{{
+   * val tags = XmlReader.read("<tags><tag>a</tag><tag>b</tag></tags>")
+   *
+   * tags.select.get("tag").any.map(_.print) // Right(<tag>a</tag>)
+   * }}}
    */
   def any: Either[SchemaError, Xml] = either match {
     case Right(v) =>
@@ -110,8 +136,14 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
 
   /**
    * Returns all selected values condensed into a single Xml. If there are
-   * multiple values, wraps them in an element. Fails if the selection is empty
-   * or an error.
+   * multiple values, wraps them in an element named `root`. Fails if the
+   * selection is empty or an error.
+   *
+   * {{{
+   * val tags = XmlReader.read("<tags><tag>a</tag><tag>b</tag></tags>")
+   *
+   * tags.select.get("tag").all.map(_.print) // Right(<root><tag>a</tag><tag>b</tag></root>)
+   * }}}
    */
   def all: Either[SchemaError, Xml] = either match {
     case Right(v) =>
@@ -126,7 +158,9 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   }
 
   /**
-   * Returns all selected values as an XML element with children.
+   * Returns all selected values as the children of an element named `root`,
+   * even when there is only one value or none. Fails only if the selection is
+   * an error.
    */
   def toArray: Either[SchemaError, Xml] = either match {
     case Right(v) => new Right(Xml.Element(XmlName("root"), Chunk.empty, v))
@@ -156,14 +190,36 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   // Navigation
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Navigates to child elements with the given name. */
+  /**
+   * Navigates to the child elements, of every selected element, whose local
+   * name is `name` (a prefix is ignored). Non-element values contribute
+   * nothing.
+   *
+   * {{{
+   * val cfg = XmlReader.read("<config><db><host>localhost</host></db></config>")
+   *
+   * cfg.select.get("db").get("host").text // Right(localhost)
+   * cfg.select.get("config").size         // 0: the selection starts at <config>
+   * }}}
+   */
   def get(name: String): XmlSelection = flatMap {
     case e1: Xml.Element =>
       XmlSelection.succeedMany(e1.children.collect { case e2: Xml.Element if e2.name.localName == name => e2 })
     case _ => XmlSelection.empty
   }
 
-  /** Navigates to the nth child (any type). */
+  /**
+   * Navigates to the child at `index` (any node type, counting from 0) of every
+   * selected element. It does not pick the nth value of the selection: on two
+   * selected elements it returns up to two children. An index out of range
+   * contributes nothing.
+   *
+   * {{{
+   * val cart = XmlReader.read("<cart><line>pen</line><line>ink</line></cart>")
+   *
+   * cart.select(1).text // Right(ink)
+   * }}}
+   */
   def apply(index: Int): XmlSelection = flatMap {
     case e: Xml.Element if index >= 0 && index < e.children.length => XmlSelection.succeed(e.children(index))
     case _                                                         => XmlSelection.empty
@@ -173,6 +229,12 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
    * Navigates to all descendant elements with the given name (recursive
    * search). Does not include the starting element itself, only its
    * descendants.
+   *
+   * {{{
+   * val menu = XmlReader.read("<menu><item>Tea</item><group><item>Coffee</item></group></menu>")
+   *
+   * menu.select.descendant("item").textContent // TeaCoffee
+   * }}}
    */
   def descendant(name: String): XmlSelection = flatMap { xml =>
     def findDescendants(node: Xml): Chunk[Xml] = node match {
@@ -190,7 +252,20 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
     }
   }
 
-  /** Navigates using a DynamicOptic path. */
+  /**
+   * Navigates using a DynamicOptic path, starting from the selected values. A
+   * field node acts like `get(name)`, an index node like `apply(index)`, and a
+   * map-key node with a `String` key selects the value of the attribute with
+   * that name, as a text node. Other nodes are skipped.
+   *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   *
+   * val doc = XmlReader.read("<order id=\"A-17\"><item sku=\"KB-01\"/></order>")
+   *
+   * doc.select.get(DynamicOptic.root.field("item").atKey("sku")).text // Right(KB-01)
+   * }}}
+   */
   def get(path: DynamicOptic): XmlSelection =
     path.nodes.foldLeft(this) { (sel, node) =>
       node match {
@@ -220,8 +295,16 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
 
   /**
    * Extracts text content from the single selected element. For Text/CData
-   * nodes, returns the content directly. For Element nodes, returns
-   * concatenated text of all child text nodes.
+   * nodes, returns the content directly. For Element nodes, returns the
+   * concatenated text of all child text and CDATA nodes, and fails with
+   * `No text content found` if there are none. Fails if the selection does not
+   * hold exactly one value.
+   *
+   * {{{
+   * val code = XmlReader.read("<code><![CDATA[a < b]]></code>")
+   *
+   * code.select.text // Right(a < b)
+   * }}}
    */
   def text: Either[SchemaError, String] = one.flatMap {
     case t: Xml.Text    => new Right(t.value)
@@ -237,8 +320,15 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   }
 
   /**
-   * Concatenates all text content from the selection. Never fails; returns
-   * empty string if no text is found.
+   * Concatenates all text content from the selection: text and CDATA values
+   * themselves, and the text and CDATA children of selected elements (not
+   * deeper descendants). Never fails; returns empty string if no text is found.
+   *
+   * {{{
+   * val p = XmlReader.read("<p>Hello <b>world</b></p>")
+   *
+   * p.select.textContent // Hello
+   * }}}
    */
   def textContent: String = {
     val sb = new java.lang.StringBuilder
@@ -266,7 +356,10 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
     case l        => l
   })
 
-  /** FlatMaps a function over all selected values, combining results. */
+  /**
+   * FlatMaps a function over all selected values, combining results. Stops at,
+   * and returns, the first failure.
+   */
   def flatMap(f: Xml => XmlSelection): XmlSelection = new XmlSelection(either match {
     case Right(v1) =>
       new Right({
@@ -294,7 +387,18 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
     case l        => l
   })
 
-  /** Returns this selection if successful, otherwise the alternative. */
+  /**
+   * Returns this selection if successful, otherwise the alternative. An empty
+   * selection counts as successful, so it does not fall back.
+   *
+   * {{{
+   * import zio.blocks.schema.SchemaError
+   *
+   * val missing = XmlSelection.fail(SchemaError("no feed"))
+   *
+   * missing.orElse(XmlSelection.succeed(Xml.Text("fallback"))).text // Right(fallback)
+   * }}}
+   */
   def orElse(alternative: => XmlSelection): XmlSelection =
     if (either.isRight) this
     else alternative
@@ -305,7 +409,10 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
     case _        => default
   }
 
-  /** Combines two selections, concatenating their values. */
+  /**
+   * Combines two selections, concatenating their values. If either is a
+   * failure, returns the first failure.
+   */
   def ++(other: XmlSelection): XmlSelection = new XmlSelection(either match {
     case Right(v1) =>
       other.either match {
@@ -321,7 +428,8 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
 
   /**
    * Narrows the single selected value to the specified XML type. Fails if there
-   * are 0 or more than 1 values, or if the value doesn't match.
+   * are 0 or more than 1 values, or if the value doesn't match. The mismatch
+   * message prints both types as `<function1>` (a known bug).
    */
   def as(xmlType: XmlType): Either[SchemaError, xmlType.Type] = either match {
     case Right(v) =>
@@ -339,6 +447,7 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   /**
    * Extracts the underlying Scala value from the single selected XML value.
    * Fails if there are 0 or more than 1 values, or if the value doesn't match.
+   * The mismatch message prints both types as `<function1>` (a known bug).
    */
   def unwrap(xmlType: XmlType): Either[SchemaError, xmlType.Unwrap] = either match {
     case Right(v) =>
@@ -356,6 +465,7 @@ final case class XmlSelection(either: Either[SchemaError, Chunk[Xml]]) extends A
   }
 }
 
+/** Constructors for [[XmlSelection]]. */
 object XmlSelection {
 
   /** Creates a successful selection with a single value. */
