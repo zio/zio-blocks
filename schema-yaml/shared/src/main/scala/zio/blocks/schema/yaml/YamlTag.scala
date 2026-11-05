@@ -16,12 +16,17 @@
 
 package zio.blocks.schema.yaml
 
-/** Represents a YAML tag that annotates node types (e.g. `!!str`, `!!int`). */
+/**
+ * A YAML tag on a [[Yaml.Scalar]], such as `!!int` or `!!str`. The `Int`,
+ * `Float`, `Bool` and `Null` tags stop `YamlWriter` from quoting a scalar's
+ * text; the writer never prints a tag, and `YamlReader` never sets one.
+ */
 sealed trait YamlTag
 
 /**
- * Predefined YAML core schema tags and a [[Custom]] variant for user-defined
- * tags.
+ * The standard YAML tags (`!!str`, `!!bool`, `!!int`, `!!float`, `!!null`,
+ * `!!seq`, `!!map` and `!!timestamp`), [[YamlTag.Custom]] for any other tag,
+ * and conversions to and from tag text.
  */
 object YamlTag {
   case object Str                      extends YamlTag
@@ -43,6 +48,10 @@ object YamlTag {
   val map: YamlTag       = Map
   val timestamp: YamlTag = Timestamp
 
+  /**
+   * Returns the tag for text such as `!!int`. Text that is not one of the
+   * standard tags becomes `Custom(tag)`.
+   */
   def fromString(tag: String): YamlTag = tag match {
     case "!!str"       => Str
     case "!!bool"      => Bool
@@ -55,6 +64,10 @@ object YamlTag {
     case other         => Custom(other)
   }
 
+  /**
+   * Returns the text of a tag, such as `!!int`; a `Custom` tag returns its
+   * `uri` unchanged.
+   */
   def toTagString(tag: YamlTag): String = tag match {
     case Str         => "!!str"
     case Bool        => "!!bool"
