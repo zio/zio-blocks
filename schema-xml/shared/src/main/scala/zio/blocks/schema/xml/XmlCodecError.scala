@@ -19,19 +19,19 @@ package zio.blocks.schema.xml
 import zio.blocks.schema.DynamicOptic
 
 /**
- * A custom exception class without the stack trace representing errors that
- * occur during XML encoding/decoding operations.
+ * An exception without a stack trace for errors that occur while reading or
+ * decoding XML.
  *
- * The `XmlCodecError` class extends `Throwable` to provide enhanced error
- * reporting for scenarios involving XML encoding or decoding errors where
- * dynamic data paths (spans) are involved. These spans represent the stack of
- * nodes traversed within the data structure when the error occurred. So that
- * top-level spans are at the end of the list.
+ * [[XmlReader]] throws it for malformed input, with the line and column in the
+ * message, and `XmlCodec#decodeValue` throws it when the tree does not match
+ * the type (some primitive codecs, used on their own, throw the JDK's parsing
+ * exception instead). `XmlCodec#decode` catches it and returns a
+ * [[zio.blocks.schema.SchemaError]] whose path is built from `spans`.
  *
  * @param spans
- *   A list of `DynamicOptic.Node` objects representing the traversal path
- *   within the data structure where the error occurred. Each node encapsulates
- *   information about a specific element (field, index, etc.).
+ *   The path to the value that failed, outermost node first: a field `inner`
+ *   holding a failing field `n` gives `List(Field(inner), Field(n))`. Each
+ *   enclosing codec prepends its node as the error propagates.
  * @param message
  *   A descriptive message providing additional context or details about the
  *   error.
