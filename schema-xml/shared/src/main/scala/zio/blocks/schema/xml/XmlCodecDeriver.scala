@@ -68,11 +68,13 @@ object XmlCodecDeriver extends XmlCodecDeriver
  *     the record adds a namespace (see [[xmlNamespace]]). Decoding ignores the
  *     element's name and unknown children, uses the last of repeated children,
  *     and fills a missing child-element field with its default value. A missing
- *     `Option` field becomes `None` even when it declares another default, and
- *     a missing attribute field fails even when it has a default (known bugs).
- *     A nested record, or a sealed-trait case, whose fields are all attributes
- *     (or whose element fields are all `None`) fails to decode with
- *     `Missing required attribute` (a known bug).
+ *     `Option` field (element or attribute) becomes `None` even when it
+ *     declares another default, and a missing non-`Option` attribute field
+ *     fails even when it has a default (known bugs). A nested record, or a
+ *     sealed-trait case, that has no child elements (all its fields are
+ *     attributes, or its element fields are all `None`) loses its attributes on
+ *     decoding: a required attribute fails with `Missing required attribute`,
+ *     and an `Option` attribute silently becomes `None` (a known bug).
  *   - An `Option` field that is `None` is left out. A top-level `Option` is
  *     `<Some>...</Some>` or `<None/>`.
  *   - A sequence becomes `<items>` with one `<item>` per element, and a map

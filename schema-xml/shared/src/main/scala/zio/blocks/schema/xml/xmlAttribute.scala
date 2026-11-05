@@ -30,10 +30,12 @@ import zio.blocks.schema.Modifier
  * [[XmlCodec]] reads the modifier `Modifier.config("xml.attribute", name)`
  * instead; put that on the field to get an attribute. An empty `name` uses the
  * field name. On decoding, a missing attribute becomes `None` for an `Option`
- * field and fails with `Missing required attribute: <name>` otherwise, even
- * when the field declares a default value (a known bug). A record nested in
+ * field and fails with `Missing required attribute: <name>` otherwise; both
+ * ignore a default value the field declares (a known bug). A record nested in
  * another record, or a sealed-trait case, whose fields are all attributes
- * encodes correctly but does not decode back (a known bug).
+ * encodes correctly but does not decode back: a required attribute fails with
+ * `Missing required attribute` and an `Option` attribute silently becomes
+ * `None` (a known bug).
  *
  * {{{
  * import zio.blocks.schema._
