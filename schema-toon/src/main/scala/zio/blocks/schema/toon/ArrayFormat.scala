@@ -23,8 +23,10 @@ package zio.blocks.schema.toon
  * [[ToonCodecDeriver.withArrayFormat]]; the default is [[ArrayFormat.Auto]].
  * Every format writes the length in the header. A record field decodes from any
  * of the three forms whatever the setting, but a top-level sequence decodes
- * only from the form its own setting writes, a known bug. The `DynamicValue`
- * codec ignores this setting and picks the form from the elements.
+ * only from the form its own setting writes, a known bug. A sequence of
+ * sequences, such as `List[List[Int]]`, cannot be decoded, another known bug.
+ * The `DynamicValue` codec ignores this setting and picks the form from the
+ * elements.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]

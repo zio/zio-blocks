@@ -27,6 +27,8 @@ package zio.blocks.schema.toon
  * Strict mode, on by default, rejects tabs in indentation, indentation that is
  * not a multiple of the step, blank lines between the items of an array,
  * unknown escapes in quoted strings such as `\q`, and path expansion conflicts.
+ * A known bug: a quoted value in an inline array or a table row keeps an
+ * unknown escape even in strict mode.
  *
  * {{{
  * import zio.blocks.schema._
@@ -53,7 +55,7 @@ package zio.blocks.schema.toon
  *   the initial delimiter (default: Comma); it has no effect on decoding
  *   arrays, because the reader takes each array's delimiter from its header
  * @param strict
- *   whether to apply the strict checks listed above (default: true)
+ *   whether to apply the strict-mode checks (default: true)
  * @param expandPaths
  *   whether the `DynamicValue` codec reads dotted keys as nested records
  *   (default: Off)
@@ -86,7 +88,8 @@ class ReaderConfig private (
   /**
    * Returns a copy with `delimiter` as the initial delimiter. It has no effect
    * on decoding arrays: the reader takes each array's delimiter from its
-   * header, where the writer records any delimiter other than the comma.
+   * header, where the writer records any delimiter other than the comma (a
+   * known bug loses the tab of a top-level sequence's header).
    */
   def withDelimiter(delimiter: Delimiter): ReaderConfig = copy(delimiter = delimiter)
 
