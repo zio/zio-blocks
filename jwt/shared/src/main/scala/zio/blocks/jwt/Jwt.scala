@@ -20,82 +20,152 @@ import scala.collection.mutable
 import zio.blocks.chunk.Chunk
 
 /**
- * Platform-specific cryptographic operations for JWT.
+ * The signature operations that [[Jwt]] delegates to: computing and checking
+ * the signature of a token for one [[Algorithm]].
  *
- * Call `install()` on a platform backend (e.g. `JvmJwtCryptoBackend.install()`)
- * before signing or verifying tokens. The default backend (the built-in shared
- * backend) supports HMAC-SHA2 algorithms only and requires no native
- * dependencies.
+ * Three backends come with the module. The default one, active until another is
+ * installed, is written in pure Scala and supports `HS256`, `HS384` and `HS512`
+ * only. `JvmJwtCryptoBackend` (JVM, on the JDK's `java.security`) supports all
+ * 13 algorithms of [[Algorithm]], and `JsJwtCryptoBackend` (Scala.js, on
+ * Node.js's `crypto` module) supports the `HS*`, `RS*` and `ES*` algorithms.
+ * Install a platform backend once at startup with its `install()` method, or
+ * pass one for a single call in [[JwtSignOptions]] or [[JwtDecodeOptions]];
+ * [[JwtCrypto]] holds the installed one.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#supported-algorithms-and-key-strength JWT]]
  */
 trait JwtCryptoBackend {
 
   /**
-   * The set of algorithms this backend supports. Calling sign/verify with an
-   * unsupported algorithm returns UnsupportedAlgorithm.
+   * The algorithms this backend can sign and verify with. `Jwt.sign` and
+   * `Jwt.decode` do not consult this set; the three built-in backends return
+   * `Left(JwtError.UnsupportedAlgorithm(...))` from `sign` and `verify` for an
+   * algorithm they do not support.
    */
   def supportedAlgorithms: Set[Algorithm]
 
-  /** Computes the JWT signature over `data` with `key` using `alg`. */
+  /**
+   * Computes the signature of `data` (the bytes of `header.payload`) with the
+   * private key or secret `key` for `alg`, and returns the raw signature bytes.
+   * For the `ES*` algorithms these are the fixed-length `r || s` bytes that JWS
+   * uses (64, 96 or 132 bytes), not DER. Returns a `Left`, such as
+   * `JwtError.InvalidKey` or `JwtError.UnsupportedAlgorithm`, when the key or
+   * algorithm cannot be used.
+   */
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]]
 
-  /** Verifies that `signature` over `data` is valid for `key` and `alg`. */
+  /**
+   * Checks that `signature` is a signature of `data` for the secret or public
+   * key `key` and `alg`. Returns `Right(false)` for a signature that does not
+   * match, and a `Left` when the key or the signature bytes cannot be used, for
+   * example `JwtError.InvalidKey` for an HMAC key that is too short.
+   */
   def verify(data: Array[Byte], signature: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Boolean]
 }
 
 /**
- * Global registry for the active [[JwtCryptoBackend]].
+ * The global holder of the active [[JwtCryptoBackend]], used by every `Jwt`
+ * call that does not pass its own backend. Such a call reads the holder once,
+ * when it starts.
  *
- * Call `JvmJwtCryptoBackend.install()` (JVM) or `JsJwtCryptoBackend.install()`
- * (JS) once at application startup. Until then the default backend handles HMAC
- * algorithms only.
+ * It starts with the built-in pure Scala backend, which handles the HMAC
+ * algorithms (`HS256`, `HS384`, `HS512`) only. Call
+ * `JvmJwtCryptoBackend.install()` (JVM) or `JsJwtCryptoBackend.install()`
+ * (Scala.js) once at application startup to use the other algorithms. The
+ * holder is an atomic reference, so a backend installed on one thread is seen
+ * by the others.
+ *
+ * {{{
+ * JwtCrypto.backend.supportedAlgorithms.contains(Algorithm.RS256) // false
+ * JvmJwtCryptoBackend.install()
+ * JwtCrypto.backend.supportedAlgorithms.contains(Algorithm.RS256) // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#getting-started JWT]]
  */
 object JwtCrypto {
   private val backendRef =
     new java.util.concurrent.atomic.AtomicReference[JwtCryptoBackend](SharedJwtCryptoBackend)
 
-  /**
-   * The active crypto backend. Install a platform backend (e.g.
-   * JvmJwtCryptoBackend) before use.
-   */
+  /** Returns the active backend. */
   def backend: JwtCryptoBackend = backendRef.get()
 
-  /** Sets the active crypto backend (source-compatible setter). */
+  /** Replaces the active backend; the same as `installBackend`. */
   def backend_=(impl: JwtCryptoBackend): Unit = backendRef.set(impl)
 
-  /** Installs a platform backend as the global default (thread-safe). */
+  /**
+   * Replaces the active backend with `impl` for every later call that does not
+   * pass its own backend. Calls already running keep the backend they started
+   * with.
+   */
   def installBackend(impl: JwtCryptoBackend): Unit = backendRef.set(impl)
 
-  /**
-   * Installs a platform backend as the global default (alias for
-   * installBackend).
-   */
+  /** Replaces the active backend with `impl`; the same as `installBackend`. */
   def install(impl: JwtCryptoBackend): Unit = backendRef.set(impl)
 
-  /** Atomically sets the backend if currently expected value. */
+  /**
+   * Replaces the active backend with `updated` only if it is `expected`
+   * (compared by reference), in one atomic step, and returns whether it did.
+   */
   def compareAndSet(expected: JwtCryptoBackend, updated: JwtCryptoBackend): Boolean =
     backendRef.compareAndSet(expected, updated)
 
-  /** Atomically sets and returns the previous backend. */
+  /**
+   * Replaces the active backend with `impl` in one atomic step and returns the
+   * backend it replaced, for example to restore it after a test.
+   */
   def getAndSet(impl: JwtCryptoBackend): JwtCryptoBackend = backendRef.getAndSet(impl)
 }
 
 /**
- * Conservative resource limits for JWT parsing and token validation.
+ * Size and shape limits for a token, so that an oversized or deeply nested
+ * token is rejected with a [[JwtError]] instead of being parsed in full.
  *
- * All limits are checked before allocation where possible.
+ * `Jwt.decode` and `Jwt.decodeWithoutVerification` apply all six limits;
+ * `JwtHeader.parse` and `JwtClaims.parse` apply all but `maxTokenChars`. On
+ * decode, the three size limits run before any parsing, and the header's JSON
+ * limits before the signature check. `Jwt.sign` applies only the three size
+ * limits (`maxTokenChars`, `maxSegmentChars`, `maxJsonChars`), a known bug, so
+ * it can sign a token that a decoder with the same limits rejects. Every value
+ * is an inclusive maximum, and the constructor throws
+ * `IllegalArgumentException` ("requirement failed: maxDepth must be positive")
+ * for a value that is not positive.
+ *
+ * {{{
+ * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+ * val token = Jwt.sign(JwtClaims(sub = Some("user-42")), key, Algorithm.HS256)
+ *
+ * token.flatMap(t => Jwt.decodeWithoutVerification(t, JwtLimits(maxTokenChars = 64))).left.map(_.message)
+ * // Left(JWT token too large: 104 chars exceeds limit 64)
+ * }}}
  *
  * @param maxTokenChars
- *   maximum total compact token length in characters
+ *   the maximum length of the whole compact token, in characters (default
+ *   8192); returns `TokenTooLarge` when exceeded
  * @param maxSegmentChars
- *   maximum length of a single Base64Url segment (header/payload/signature)
+ *   the maximum length of each of the three Base64URL segments, in characters
+ *   (default 4096); returns `SegmentTooLarge`
  * @param maxJsonChars
- *   maximum length of decoded JSON (header or payload) in characters
+ *   the maximum length of the header JSON and of the payload JSON, each in
+ *   characters after Base64URL decoding (default 8192); returns `JsonTooLarge`
  * @param maxDepth
- *   maximum nesting depth for JSON objects/arrays (root is depth 1)
+ *   the maximum nesting depth of the header and payload JSON (default 32);
+ *   returns `TooDeep`. The top-level object is depth 1, a value in it depth 2,
+ *   and a value inside a nested array or object one level more. A nested object
+ *   counts one level deeper than its position even when it is empty, a known
+ *   bug, so `{"a":[]}` passes with `maxDepth = 2` but `{"a":{}}` needs 3.
  * @param maxFields
- *   maximum number of fields in a single JSON object
+ *   the maximum number of fields in any one JSON object, the header and the
+ *   payload included (default 512); returns `TooManyFields`. The registered
+ *   claims count, and a repeated field name counts once.
  * @param maxArrayElements
- *   maximum number of elements in a single JSON array
+ *   the maximum number of elements in any one JSON array (default 512); returns
+ *   `TooManyElements`
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#limits-and-options JWT]]
  */
 final case class JwtLimits(
   maxTokenChars: Int = 8192,
@@ -113,38 +183,70 @@ final case class JwtLimits(
   require(maxArrayElements > 0, "maxArrayElements must be positive")
 }
 
+/** Holds the default [[JwtLimits]]. */
 object JwtLimits {
+
+  /**
+   * The default limits: `maxTokenChars = 8192`, `maxSegmentChars = 4096`,
+   * `maxJsonChars = 8192`, `maxDepth = 32`, `maxFields = 512` and
+   * `maxArrayElements = 512`.
+   */
   val Default: JwtLimits = JwtLimits()
 }
 
 /**
- * Options for authenticated JWT decoding.
+ * The checks and settings of one `Jwt.decode` call, beyond the token, key and
+ * algorithm.
  *
- * This is the source-compatible configuration value that groups optional
- * parameters instead of adding many positional arguments. Existing call sites
- * that use `decode(token,key,alg,clockSkew,issuer)` continue to work via the
- * legacy overload which delegates to this options type.
+ * After the signature verifies, `decode` checks the claims in this order and
+ * returns the first failure: `exp`, `nbf`, then `iss` (if `issuer` is set) and
+ * `aud` (if `expectedAudience` is set). `exp` and `nbf` are checked only when
+ * the token has them, so a token without `exp` never expires, and `iat` is not
+ * checked. The audience check follows RFC 7519 §4.1.3: the token's `aud` must
+ * be present (else `MissingClaim("aud")`) and equal the expected value, or
+ * contain it when `aud` is an array (else `InvalidClaim("aud", ...)`, with the
+ * reason "expected notes-api but found billing-api").
  *
- * Audience validation follows RFC 7519 §4.1.3 receiver contract: when
- * `expectedAudience` is set, the token's `aud` claim must be present and
- * contain the expected value (string match for single aud, membership for array
- * aud). Missing `aud` yields `MissingClaim("aud")`; mismatch yields
- * `InvalidToken`.
+ * {{{
+ * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+ * val token = Jwt.sign(
+ *   JwtClaims(iss = Some("https://auth.example.com"), aud = Some(JwtAudience.single("billing-api"))),
+ *   key,
+ *   Algorithm.HS256
+ * )
+ * val options = JwtDecodeOptions(
+ *   issuer = Some("https://auth.example.com"),
+ *   expectedAudience = Some("notes-api"),
+ *   clockSkewSeconds = 30L
+ * )
+ *
+ * token.flatMap(t => Jwt.decode(t, key, Algorithm.HS256, options)).left.map(_.message)
+ * // Left(Invalid JWT claim 'aud': expected notes-api but found billing-api)
+ * }}}
  *
  * @param clockSkewSeconds
- *   allowable clock skew in seconds for `exp`/`nbf` validation
+ *   the tolerance, in seconds, for the time checks (default 0): a token is
+ *   expired when `now - clockSkewSeconds > exp` and not yet valid when `now +
+ *   clockSkewSeconds < nbf`. A token whose `exp` equals `now` still passes with
+ *   no skew, a known bug, since RFC 7519 requires `now` to be before `exp`. A
+ *   negative value is not rejected and narrows the window instead.
  * @param issuer
- *   if set, the `iss` claim must match exactly
+ *   if set, the `iss` claim must be present (else `MissingClaim("iss")`) and
+ *   equal this value, case-sensitively (else `InvalidClaim("iss", ...)`)
  * @param expectedAudience
- *   if set, the `aud` claim must contain this audience
+ *   if set, the `aud` claim must be present and equal this value or, as an
+ *   array, contain it, case-sensitively
  * @param backend
- *   explicit crypto backend to use for this operation; defaults to
- *   [[JwtCrypto.backend]] snapshot
+ *   the backend for this call; `None` uses [[JwtCrypto.backend]], read once
+ *   when the call starts
  * @param nowSeconds
- *   explicit current time in seconds since epoch for `exp`/`nbf` validation;
- *   defaults to `System.currentTimeMillis()/1000`
+ *   the current time, in seconds since the Unix epoch, for the `exp` and `nbf`
+ *   checks; `None` uses `System.currentTimeMillis() / 1000`. Fix it in tests.
  * @param limits
- *   resource limits for token/JSON parsing
+ *   the size and shape limits for the token
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#decoding-and-verifying JWT]]
  */
 final case class JwtDecodeOptions(
   clockSkewSeconds: Long = 0L,
@@ -155,41 +257,109 @@ final case class JwtDecodeOptions(
   limits: JwtLimits = JwtLimits.Default
 )
 
+/** Holds the default [[JwtDecodeOptions]]. */
 object JwtDecodeOptions {
+
+  /**
+   * The options of `Jwt.decode(token, key, alg)`: no clock skew, no issuer or
+   * audience check, the global backend, the system clock and
+   * [[JwtLimits.Default]].
+   */
   val Default: JwtDecodeOptions = JwtDecodeOptions()
 }
 
 /**
- * Options for JWT signing.
+ * The settings of one `Jwt.sign` call, beyond the claims, key and algorithm.
+ *
+ * {{{
+ * val key = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+ *
+ * Jwt.sign(JwtClaims(sub = Some("user-42")), key, Algorithm.HS256, JwtSignOptions(limits = JwtLimits(maxTokenChars = 64)))
+ *   .left
+ *   .map(_.message)
+ * // Left(JWT token too large: 104 chars exceeds limit 64)
+ * }}}
  *
  * @param backend
- *   explicit crypto backend to use for this operation; defaults to
- *   [[JwtCrypto.backend]] snapshot
+ *   the backend for this call; `None` uses [[JwtCrypto.backend]], read once
+ *   when the call starts
  * @param limits
- *   resource limits for header JSON validation
+ *   the size limits for the token: `sign` returns `JsonTooLarge`,
+ *   `SegmentTooLarge` or `TokenTooLarge` when the rendered header or claims
+ *   JSON, a segment or the whole token would exceed `maxJsonChars`,
+ *   `maxSegmentChars` or `maxTokenChars`. It does not apply `maxDepth`,
+ *   `maxFields` and `maxArrayElements`, a known bug.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#limits-and-options JWT]]
  */
 final case class JwtSignOptions(
   backend: Option[JwtCryptoBackend] = None,
   limits: JwtLimits = JwtLimits.Default
 )
 
+/** Holds the default [[JwtSignOptions]]. */
 object JwtSignOptions {
+
+  /**
+   * The options of `Jwt.sign(claims, key, alg)`: the global backend and
+   * [[JwtLimits.Default]].
+   */
   val Default: JwtSignOptions = JwtSignOptions()
 }
 
 /**
- * Pure-Scala JWT implementation (RFC 7519).
+ * Signs and verifies JSON Web Tokens (RFC 7519) in the compact JWS form
+ * `header.payload.signature`, each part Base64URL-encoded without padding.
+ *
+ * `sign` renders a [[JwtHeader]] and [[JwtClaims]] as JSON, encodes them and
+ * signs them with a key; `decode` checks a token and returns its claims; and
+ * `decodeWithoutVerification` reads a token without checking it. Each operation
+ * returns its failure as a `Left` of [[JwtError]]. The signing work is done by
+ * a [[JwtCryptoBackend]]: the HMAC algorithms (`HS256`, `HS384`, `HS512`) work
+ * with the built-in default, and the others need a platform backend.
+ *
+ * The caller, not the token, chooses the algorithm: `decode` rejects a token
+ * whose header names another algorithm with `AlgorithmMismatch`, and one whose
+ * header names an algorithm this module does not know, such as `none`, with
+ * `UnsupportedAlgorithm`.
  *
  * ==Minimal usage==
  * {{{
- *  JvmJwtCryptoBackend.install()          // once at startup
- *  val token = Jwt.sign(claims, key, Algorithm.HS256).getOrElse(throw new RuntimeException(...))
- *  val claims = Jwt.decode(token, key, Algorithm.HS256).getOrElse(throw new RuntimeException(...))
+ * JvmJwtCryptoBackend.install() // once at startup
+ * val key     = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+ * val claims  = JwtClaims(sub = Some("user-42"), iss = Some("https://auth.example.com"))
+ * val token   = Jwt.sign(claims, key, Algorithm.HS256).getOrElse(throw new RuntimeException("cannot sign"))
+ * val decoded = Jwt.decode(token, key, Algorithm.HS256).getOrElse(throw new RuntimeException("invalid token"))
+ * decoded.sub // Some(user-42)
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/ JWT]]
  */
 object Jwt {
 
-  /** Signs `claims` with `key` and `alg`, returning a compact JWT string. */
+  /**
+   * Signs `claims` with `key` and `alg` and returns the compact token. The
+   * header is `JwtHeader(alg)`, rendered as `{"alg":"HS256","typ":"JWT"}` for
+   * `HS256`, and the backend is [[JwtCrypto.backend]].
+   *
+   * For the `HS*` algorithms `key` is the shared secret, at least 32, 48 or 64
+   * bytes long for `HS256`, `HS384` or `HS512`; for the others it is the
+   * private key in PKCS#8 DER form. A shorter secret, or a key the backend
+   * cannot use, gives `Left(JwtError.InvalidKey(...))`, and an algorithm the
+   * backend does not support gives `Left(JwtError.UnsupportedAlgorithm(...))`.
+   * A registered claim name in `claims.extra` is written a second time after
+   * the typed field, and decoders read the later value, a known bug.
+   *
+   * {{{
+   * val key    = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+   * val claims = JwtClaims(sub = Some("user-42"), exp = Some(1767225600L))
+   *
+   * Jwt.sign(claims, key, Algorithm.HS256).map(_.split('.').length) // Right(3)
+   * Jwt.sign(claims, "too-short".getBytes("UTF-8"), Algorithm.HS256).isLeft // true
+   * }}}
+   */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -198,8 +368,10 @@ object Jwt {
     sign(claims, key, alg, JwtHeader(alg))
 
   /**
-   * Signs `claims` with `key` and `alg` using an explicit `header`. Returns an
-   * error if `header.alg != alg`.
+   * Signs `claims` with `key` and `alg` under `header`, for example to set a
+   * `kid` or another `typ`. Returns
+   * `Left(JwtError.AlgorithmMismatch(alg.name, header.alg.name))` when
+   * `header.alg` is not `alg`.
    */
   def sign(
     claims: JwtClaims,
@@ -209,7 +381,10 @@ object Jwt {
   ): Either[JwtError, String] =
     sign(claims, key, alg, header, JwtSignOptions.Default)
 
-  /** Signs with explicit backend (snapshot once per operation). */
+  /**
+   * Signs `claims` with `key` and `alg` under `header`, using `backend` instead
+   * of [[JwtCrypto.backend]].
+   */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -219,7 +394,9 @@ object Jwt {
   ): Either[JwtError, String] =
     sign(claims, key, alg, header, JwtSignOptions(backend = Some(backend)))
 
-  /** Signs with explicit sign options. */
+  /**
+   * Signs `claims` with `key` and `alg` under `JwtHeader(alg)` and `options`.
+   */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -228,7 +405,17 @@ object Jwt {
   ): Either[JwtError, String] =
     sign(claims, key, alg, JwtHeader(alg), options)
 
-  /** Signs with explicit header and sign options. */
+  /**
+   * Signs `claims` with `key` and `alg` under `header` and `options`; the other
+   * `sign` overloads delegate to this one.
+   *
+   * The checks run in this order, and the first failure is returned:
+   * `header.alg` against `alg` (`AlgorithmMismatch`), the length of the header
+   * and claims JSON (`JsonTooLarge`), of the encoded header and payload
+   * (`SegmentTooLarge`) and of the unsigned token (`TokenTooLarge`), then the
+   * backend's signature (for example `InvalidKey`), and last the length of the
+   * signature segment and of the finished token.
+   */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -276,18 +463,34 @@ object Jwt {
     }
 
   /**
-   * Decodes and verifies a compact JWT string (legacy overload).
+   * Verifies `token` with `key` for `alg` and returns its claims, using the
+   * global backend, the system clock and [[JwtLimits.Default]].
+   *
+   * It is the same as `decode(token, key, alg, options)` with
+   * `JwtDecodeOptions(clockSkewSeconds = clockSkewSeconds, issuer = issuer)`;
+   * use that overload for an audience check or a fixed clock.
+   *
+   * {{{
+   * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+   * val token = Jwt.sign(JwtClaims(sub = Some("user-42"), iss = Some("https://auth.example.com")), key, Algorithm.HS256)
+   *
+   * token.flatMap(t => Jwt.decode(t, key, Algorithm.HS256, issuer = Some("https://auth.example.com"))).map(_.sub)
+   * // Right(Some(user-42))
+   * token.flatMap(t => Jwt.decode(t, key, Algorithm.HS384)).left.map(_.message)
+   * // Left(JWT algorithm mismatch: expected HS384 but found HS256)
+   * }}}
    *
    * @param token
-   *   the compact three-segment JWT
+   *   the compact token, `header.payload.signature`
    * @param key
-   *   the secret or public key bytes
+   *   the shared secret for the `HS*` algorithms, or the public key in X.509
+   *   SubjectPublicKeyInfo DER form for the others
    * @param alg
-   *   the expected signing algorithm
+   *   the algorithm the token must be signed with
    * @param clockSkewSeconds
-   *   allowable clock skew in seconds for `exp`/`nbf` validation
+   *   the tolerance, in seconds, for the `exp` and `nbf` checks
    * @param issuer
-   *   if set, the `iss` claim must match exactly
+   *   if set, the `iss` claim must be present and equal this value
    */
   def decode(
     token: String,
@@ -298,7 +501,11 @@ object Jwt {
   ): Either[JwtError, JwtClaims] =
     decode(token, key, alg, JwtDecodeOptions(clockSkewSeconds = clockSkewSeconds, issuer = issuer))
 
-  /** Decodes with explicit backend (snapshot once per operation). */
+  /**
+   * Verifies `token` with `key` for `alg` and returns its claims, using
+   * `backend` instead of [[JwtCrypto.backend]] and the defaults of
+   * [[JwtDecodeOptions]] otherwise.
+   */
   def decode(
     token: String,
     key: Array[Byte],
@@ -307,7 +514,11 @@ object Jwt {
   ): Either[JwtError, JwtClaims] =
     decode(token, key, alg, JwtDecodeOptions(backend = Some(backend)))
 
-  /** Decodes with explicit backend and nowSeconds. */
+  /**
+   * Verifies `token` with `key` for `alg` and returns its claims, using
+   * `backend` and taking `nowSeconds` (seconds since the Unix epoch) as the
+   * current time for the `exp` and `nbf` checks.
+   */
   def decode(
     token: String,
     key: Array[Byte],
@@ -317,7 +528,21 @@ object Jwt {
   ): Either[JwtError, JwtClaims] =
     decode(token, key, alg, JwtDecodeOptions(backend = Some(backend), nowSeconds = Some(nowSeconds)))
 
-  /** Decodes with full decode options. */
+  /**
+   * Verifies `token` with `key` for `alg` and `options` and returns its claims;
+   * the other `decode` overloads delegate to this one.
+   *
+   * The checks run in this order, and the first failure is returned: the token
+   * size (`TokenTooLarge`), its three non-empty segments (`InvalidToken`,
+   * `SegmentTooLarge`), the header (`InvalidToken`, `UnsupportedAlgorithm` for
+   * an unknown `alg`, the JSON limits), the header's `alg` against `alg`
+   * (`AlgorithmMismatch`), the signature (`InvalidSignature`, or `InvalidKey`
+   * for a key the backend cannot use), and only then the payload and its claims
+   * (`InvalidToken`, `InvalidClaim`, `ExpiredToken`, `NotYetValid`,
+   * `MissingClaim`). A tampered payload is therefore reported as
+   * `InvalidSignature`. The header fields other than `alg`, `typ` and `kid` are
+   * not read.
+   */
   def decode(
     token: String,
     key: Array[Byte],
@@ -343,23 +568,35 @@ object Jwt {
   }
 
   /**
-   * Decodes a compact JWT **without** verifying the signature or validating
-   * claims. Useful for inspecting the header/payload of an untrusted token.
-   *
-   * This method is kept for compatibility. Prefer [[decodeWithoutVerification]]
-   * for new code.
+   * Reads the header and claims of `token` **without** checking its signature
+   * or claims, with [[JwtLimits.Default]]. It is an older name for
+   * `decodeWithoutVerification`; prefer that name in new code.
    */
   def decodeUnsafe(token: String): Either[JwtError, (JwtHeader, JwtClaims)] =
     decodeWithoutVerification(token, JwtLimits.Default)
 
   /**
-   * Decodes a compact JWT **without** verifying the signature or validating
-   * claims.
+   * Reads the header and claims of `token` **without** checking its signature,
+   * its algorithm or any claim (`exp`, `nbf`, `iss`, `aud`).
+   *
+   * It applies `limits` and the format checks of `decode`: three non-empty
+   * segments, valid Base64URL, JSON objects, a known `alg` and well-typed
+   * registered claims. The signature segment must be present but is not
+   * decoded. Use it to inspect a token, for example to read its `kid`, and
+   * verify it with `decode` before trusting any claim.
+   *
+   * {{{
+   * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
+   * val token = Jwt.sign(JwtClaims(sub = Some("user-42")), key, Algorithm.HS256, JwtHeader(Algorithm.HS256, kid = Some("key-2026-01")))
+   *
+   * token.flatMap(t => Jwt.decodeWithoutVerification(t)).map { case (header, claims) => (header.kid, claims.sub) }
+   * // Right((Some(key-2026-01),Some(user-42)))
+   * }}}
    *
    * @param token
-   *   compact JWT string
+   *   the compact token, `header.payload.signature`
    * @param limits
-   *   resource limits
+   *   the size and shape limits for the token
    */
   def decodeWithoutVerification(
     token: String,
@@ -372,7 +609,11 @@ object Jwt {
       claims <- JwtClaims.parse(parts.payloadSegment, limits)
     } yield (header, claims)
 
-  /** Compatibility alias for decodeUnsafe with limits. */
+  /**
+   * Reads the header and claims of `token` **without** checking its signature
+   * or claims, with `limits`; the same as `decodeWithoutVerification(token,
+   * limits)`.
+   */
   def decodeUnsafe(token: String, limits: JwtLimits): Either[JwtError, (JwtHeader, JwtClaims)] =
     decodeWithoutVerification(token, limits)
 
@@ -460,12 +701,14 @@ object Jwt {
   }
 }
 
+/** UTF-8 conversion between strings and bytes. */
 private[jwt] object JwtText {
   def encodeUtf8(value: String): Array[Byte] = value.getBytes("UTF-8")
 
   def decodeUtf8(bytes: Array[Byte]): String = new String(bytes, "UTF-8")
 }
 
+/** The JSON reader and writer for token headers and claims. */
 private[jwt] object JwtJson {
   import JwtValue._
 
@@ -514,10 +757,9 @@ private[jwt] object JwtJson {
     }
 
   /**
-   * Parses NumericDate per RFC 7519 §2: a JSON number that is finite,
-   * non-negative, and in-range. Fractional values are truncated toward zero
-   * (floor for non-negative values) deterministically to seconds. Exponent
-   * notation is accepted.
+   * Parses a NumericDate (RFC 7519 §2): a non-negative JSON number that fits a
+   * `Long` after it is rounded down to whole seconds. Fractional and exponent
+   * forms are accepted; `null` reads as absent.
    */
   def optionalNumericDate(fields: Map[String, JwtValue], key: String): Either[JwtError, Option[Long]] =
     fields.get(key) match {
@@ -791,6 +1033,10 @@ private[jwt] object JwtJson {
   }
 }
 
+/**
+ * The default backend: HMAC-SHA2 in pure Scala, `HS256`, `HS384` and `HS512`
+ * only.
+ */
 private[jwt] object SharedJwtCryptoBackend extends JwtCryptoBackend {
   val supportedAlgorithms: Set[Algorithm] = Set(Algorithm.HS256, Algorithm.HS384, Algorithm.HS512)
 
@@ -831,6 +1077,7 @@ private[jwt] object SharedJwtCryptoBackend extends JwtCryptoBackend {
   }
 }
 
+/** HMAC (RFC 2104) over the pure Scala SHA-2 digests. */
 private[jwt] object HmacSha2 {
   def hmacSha256(key: Array[Byte], data: Array[Byte]): Array[Byte] = hmac(key, data, 64, Sha2.sha256)
 
@@ -874,6 +1121,7 @@ private[jwt] object HmacSha2 {
   }
 }
 
+/** SHA-256, SHA-384 and SHA-512 (FIPS 180-4) in pure Scala. */
 private[jwt] object Sha2 {
   private val K256: Array[Int] = Array(
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
