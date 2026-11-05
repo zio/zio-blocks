@@ -113,6 +113,31 @@ println(ConfigSource.fromYaml("tags: [scala", "bookstore.yaml"))
 
 **Suggested fix.** Before stripping delimiters, check that the value ends with the matching closing character (taking quotes into account), and fail with a parse error otherwise. Make `collectFlowContent` fail when it reaches the end of input with `depth > 0`. Add `YamlReaderSpec` tests for each unterminated form, including the multi-line flow sequence.
 
+**Addition (2026-11-05, Scaladoc rollout for schema-yaml, commit a7014433f, same at 0.0.56: yes; verified by running).** The shortest unterminated quote does not lose a character: it throws. A value that is only `"` or `'` (`title: "`, or a document that is just `'`) makes `YamlReader.read` throw `java.lang.StringIndexOutOfBoundsException`, because `unquoteDouble` and `unquoteSingle` take `s.substring(1, s.length - 1)`, which is `substring(1, 0)` for a one-character string. `YamlCodec#decode` catches it, so the codec returns a `Left` whose message is the JDK's (`Range [1, 0) out of bounds for length 1 at: .`), which says nothing about YAML. Callers of `YamlReader.read` (and of `readFromBytes`) get the raw exception.
+
+Reproducer (save as `Repro.sc`, run `scala-cli run --server=false Repro.sc`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+import scala.util.Try
+
+println(Try(YamlReader.read("title: \"")))
+println(Try(YamlReader.read("'")))
+println(Schema[String].derive(YamlFormat).decode("\""))
+// Failure(java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1)
+// Failure(java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1)
+// Left(zio.blocks.schema.SchemaError: Range [1, 0) out of bounds for length 1 at: .)
+```
+
+Root cause (lines at v0.0.56 = a7014433f): `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlReader.scala:448-449` (`parseInlineValue` calls `unquoteSingle`/`unquoteDouble` when the value starts with a quote), `:522` and `:525` (`substring(1, s.length - 1)` without a length check). `unquoteScalar` (`:517-520`), used for keys, checks `s.length >= 2` and is not affected.
+
+Test gap: `YamlReaderSpec` has no input whose value is a lone quote.
+
+Suggested fix: the same closing-delimiter check the entry proposes covers this case; make it return a parse error rather than throw.
+
 ### schema-yaml: `YamlWriter` leaves a value that starts with `#` unquoted, so YAML readers drop it as a comment
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
@@ -209,6 +234,44 @@ Filed as #1779. Found 2026-10-20 while writing H-12. Verified on 0.0.56.
 **Root cause.** `deriveSequence.decodeValue` (`ToonCodecDeriver.scala:873-884`) decodes only `values(0)` of each row. No test covers the top-level case.
 
 **Fix.** Decode the whole row for top-level tables. Add a round-trip test for `List[Record]` with `ArrayFormat.Tabular`.
+
+**Addition (2026-11-05, Task 2b of the schema-toon Scaladoc, commit `a7014433f`, same at 0.0.56).** The top-level decoder also rejects the inline and list forms it does not write itself. Under `ArrayFormat.Auto` (and `Inline`) a top-level `List[Int]` decodes `[2]: 3,7` but fails on `[2]:` followed by `- 3` and `- 7`; under `ArrayFormat.List` (and `Tabular`) it is the other way round. As a record field, both forms decode with either codec.
+
+Reproduction (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `r4/TopLevelForms.scala`, run with `scala-cli run --server=false TopLevelForms.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object TopLevelForms {
+  case class Codes(codes: List[Int])
+  object Codes { implicit val schema: Schema[Codes] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val auto = Schema[List[Int]].derive(ToonFormat)
+    val list = Schema[List[Int]].derive(ToonCodecDeriver.withArrayFormat(ArrayFormat.List))
+    println(auto.decode("[2]: 3,7"))
+    println(auto.decode("[2]:\n  - 3\n  - 7"))
+    println(list.decode("[2]:\n  - 3\n  - 7"))
+    println(list.decode("[2]: 3,7"))
+    // The same two forms as a record field decode with either codec
+    val codes = Codes.schema.derive(ToonFormat)
+    println(codes.decode("codes[2]: 3,7"))
+    println(codes.decode("codes[2]:\n  - 3\n  - 7"))
+  }
+}
+// Right(List(3, 7))
+// Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 2 items but got 0 at: .)
+// Right(List(3, 7))
+// Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 2 items but got 0 at: .)
+// Right(Codes(List(3, 7)))
+// Right(Codes(List(3, 7)))
+```
+
+Root cause: `deriveSequence`'s `decodeValue` (`ToonCodecDeriver.scala:860-930`) chooses the reading path from its own setting: with `useInlineFormat` it calls `in.parseArrayHeader(true)` and reads only the rest of the header line (`:867-869`), so list items below are never read; otherwise `parseArrayHeader(false)` advances past the header line (`ToonReader.scala:341-342`), dropping inline values on it. A record field instead dispatches on the syntax it finds (`FieldInfo.readArrayFieldValue`, `ToonCodecDeriver.scala:1350-1403`). Suggested fix: make the top-level path dispatch on the header the way `readArrayFieldValue` does (braces: table; text after the colon: inline; nothing: list), which also fixes the table case. Test gap: no test decodes a top-level sequence in a form its codec does not write.
 
 ### schema-toon: `withFieldNameMapper` is ignored in tabular headers
 
@@ -5653,6 +5716,37 @@ pages: 744""")
 **Test gap.** `YamlInterpolatorSpec` splices collections only in flow or single-line positions where the rendered block happens to parse, has no multi-line literal followed by more keys after a collection splice, and no test with `\n` in a literal or a malformed literal.
 
 **Suggested fix.** Splice values into the parsed tree instead of re-parsing text (parse the literal with placeholders, then replace the placeholder nodes with the encoded `Yaml`), or render spliced values in flow style. Process escapes in the parts. Make `validateYamlLiteral` use a strict parse once the reader can fail.
+
+**Addition (2026-11-05, schema-yaml Scaladoc review, commit a7014433f, same at 0.0.56: yes; verified by running on 3.9.0, and on 2.13.18 inside `zio.blocks.schema`).** A key splice has the quoting bug of item 2 in a worse form: the quotes end up inside the key. For a value whose text the writer quotes (a `String` such as `8080` or `true`, or a `java.time` value whose key text the writer quotes, such as an `Instant`, `Year`, `ZoneOffset` or `LocalDate`; `Duration`, `Period`, `MonthDay`, `ZoneId`, `DayOfWeek` and `Month` keys are written unquoted), the macro passes `encodeKey(x)`, which is already quoted, and `writeKeyValue` quotes it a second time with `appendYamlScalar`. `YamlReader` then strips only the outer pair. The resulting key never matches a field name. Scala 2.13 has the same bug: both macros call `encodeKey`, and the runtime is shared. The same probe on 2.13.18 inside `zio.blocks.schema` (`/tmp/claude-1000/yaml-2c/r1b`) also shows item 2 (`label: "app-$name"` with `name = "true"` gives `app-"true"`) and item 3 (`yaml"a: x\ty"` keeps the backslash), so none of the listed bugs is specific to Scala 3; 2.13 only hides them because the interpolator compiles nowhere else. Item 3 applies to Scala escapes only: inside YAML double quotes, `YamlReader` itself turns `\n` into a line break (`yaml"""a: "x\ny""""` gives a two-line value).
+
+Reproducer (save as `Repro.sc`, run `scala-cli run --server=false Repro.sc`; run as written in `/tmp/claude-1000/yaml-2c/bug-keysplice`; on 3.9.0 scala-cli also prints wrapper warnings, which are not program output):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+val region  = "eu-west-1"
+val port    = "8080"
+val enabled = "true"
+val day     = java.time.LocalDate.of(2026, 11, 5)
+
+println(yaml"$region: 3")
+println(yaml"$port: open")
+println(yaml"$enabled: yes")
+println(yaml"$day: release")
+// Mapping(Chunk((Scalar(eu-west-1,None),Scalar(3,None))))
+// Mapping(Chunk((Scalar("8080",None),Scalar(open,None))))
+// Mapping(Chunk((Scalar("true",None),Scalar(yes,None))))
+// Mapping(Chunk((Scalar("2026-11-05",None),Scalar(release,None))))
+```
+
+Expected: the keys `8080`, `true` and `2026-11-05`, without quotes in the text.
+
+Root cause (lines at v0.0.56 = a7014433f): `schema-yaml/shared/src/main/scala-3/zio/blocks/schema/yaml/package.scala:77` and `scala-2/.../package.scala:78` pass `encodeKey(...)` for a key; `YamlInterpolatorRuntime.scala:61` (`case s: String => appendYamlScalar(sb, s)`) quotes it again, because `needsQuoting` (`:215`) is true for text that starts with `"`.
+
+Test gap: `YamlInterpolatorSpec` "supports interpolated String keys and values" draws random strings, which rarely need quoting. "supports interpolated UUID keys and values" accepts the double-quoted key as a correct result (an `||` alternative with `Yaml.Scalar("\"" + x.toString + "\"")`), so the test enshrines the bug.
 
 ### sql: `Table.derived` and `Repo.derived` flatten a nested case class field that the codec stores as one JSON column, so every insert fails, and they throw for a `List` field
 
@@ -12495,6 +12589,884 @@ On Scala 3.9.0 (`zio-blocks-next-async:0.0.56`, `-experimental`) the same progra
 
 **Suggested fix.** After a frame absorbs a distinct replacement, resume the descent from that frame (the frames above it are unchanged and still hold their ownership) instead of restarting from `root`; or keep the restart but let `FlatMapPollable` splice a pending `inner` into its parent so the chain shrinks. Add a test that drives 100,000 steps of `fa.flatMap(_ => src.flatMap(...))` within a time budget.
 
+### schema-xml: `@xmlAttribute` and `@xmlNamespace` have no effect: `Schema.derived` drops them
+
+**Where found.** `schema-xml` Scaladoc fact-check (`xmlAttribute.scala`, `xmlNamespace.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** The module ships two annotations, `@xmlAttribute(name)` for a field and `@xmlNamespace(uri, prefix)` for a record, and the reference page uses them in five examples. Neither does anything. `Schema.derived` records only annotations that extend `Modifier`, and these two extend `StaticAnnotation`, so the derived codec never sees them: an `@xmlAttribute` field is still written as a child element and an `@xmlNamespace` record has no namespace. Only the raw `@Modifier.config("xml.attribute", name)` / `@Modifier.config("xml.namespace.uri", uri)` forms, which the tests use, work.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Sensor(@xmlAttribute() id: String, @xmlAttribute("unit") scale: String, reading: Double)
+object Sensor { implicit val schema: Schema[Sensor] = Schema.derived }
+
+@xmlNamespace(uri = "http://example.com/inventory", prefix = "inv")
+case class Stock(sku: String, count: Int)
+object Stock { implicit val schema: Schema[Stock] = Schema.derived }
+
+case class Sensor2(@Modifier.config("xml.attribute", "") id: String, reading: Double)
+object Sensor2 { implicit val schema: Schema[Sensor2] = Schema.derived }
+
+println(Schema[Sensor].derive(XmlFormat).encodeToString(Sensor("t-1", "C", 21.5)))
+// <Sensor><id>t-1</id><scale>C</scale><reading>21.5</reading></Sensor>
+println(Schema[Stock].derive(XmlFormat).encodeToString(Stock("KB-01", 12)))
+// <Stock><sku>KB-01</sku><count>12</count></Stock>
+println(Schema[Sensor2].derive(XmlFormat).encodeToString(Sensor2("t-1", 21.5)))
+// <Sensor2 id="t-1"><reading>21.5</reading></Sensor2>
+```
+
+The same output on Scala 2.13.18 (probe `/tmp/claude-1000/xml-2a/p1`, lines `1 xmlAttribute` and `2 xmlNamespace`).
+
+**Expected.** `<Sensor id="t-1" unit="C"><reading>21.5</reading></Sensor>` and `<inv:Stock xmlns:inv="http://example.com/inventory"><sku>KB-01</sku><count>12</count></inv:Stock>`, as the annotations' Scaladoc and the reference page promise.
+
+**Root cause.** `xmlAttribute` is `@field case class xmlAttribute(name: String = "") extends StaticAnnotation` (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/xmlAttribute.scala:29`), and `xmlNamespace` likewise (`xmlNamespace.scala:30`). The Scala 3 macro keeps a type annotation only if `annotation.tpe <:< modifierReflectTpe` (`schema/shared/src/main/scala-3/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:408`) and a field annotation only if `aTpe <:< modifierTermTpe` (`:559`); the Scala 2 macro does the same (`schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala:355`, `:403`). The deriver then looks for `Modifier.config("xml.attribute", value)` on the field (`XmlCodecDeriver.scala:633`) and `xmlNamespace.getNamespace(modifiers)` on the record (`XmlCodecDeriver.scala:128`), which only finds `Modifier.config` entries. Nothing turns the annotations into modifiers. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Anyone following the reference page (Attributes, Namespaces, the complete Atom example, the RSS and Atom real-world examples) gets plain child elements and no namespace, silently. Decoding real XML whose fields are attributes fails with `Missing required field: <name>`.
+
+**Test gap.** `xmlAttributeSpec` and `XmlNamespaceSpec` put `@Modifier.config("xml.attribute", ...)` and `@Modifier.config("xml.namespace.uri", ...)` on every case class; no test in the module uses `@xmlAttribute` or `@xmlNamespace`.
+
+**Suggested fix.** `Modifier` is sealed, but `Modifier.config` is a non-final case class (`schema/shared/src/main/scala/zio/blocks/schema/Modifier.scala:156`), so `class xmlAttribute(name: String = "") extends Modifier.config("xml.attribute", name)` (and two classes or one for the namespace) should pass both macro filters and still match `case Modifier.config(key, value)` in the deriver (not verified; the Scala 2 macro re-creates the annotation with `new $aTpe(args)`, which fits a one-parameter class). Otherwise remove the two annotations and document the `Modifier.config` keys. Add tests that use the annotations themselves.
+
+### schema-xml: A sealed trait inside a record, sequence or map loses its case name, so it never decodes back
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlCodecDeriver.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** At the top level a sealed trait encodes as the element of its case (`<Circle><r>1.0</r></Circle>`) and round-trips. As a record field, a sequence element or a map value, the case element is renamed to the field name (or `item`/`value`), so the case name disappears; a case object becomes an empty element. Decoding then fails with `Unknown variant case: <field name>` (or `value`).
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+sealed trait Shape
+case class Circle(r: Double) extends Shape
+case object Dot extends Shape
+object Shape { implicit val schema: Schema[Shape] = Schema.derived }
+
+case class Drawing(main: Shape, extras: List[Shape])
+object Drawing { implicit val schema: Schema[Drawing] = Schema.derived }
+
+val codec = Schema[Drawing].derive(XmlFormat)
+val d     = Drawing(Circle(1.0), List(Dot, Circle(2.0)))
+println(codec.encodeToString(d))
+// <Drawing><main><r>1.0</r></main><extras><item/><item><r>2.0</r></item></extras></Drawing>
+println(codec.decode(codec.encode(d)))
+// Left(zio.blocks.schema.SchemaError: Unknown variant case: main at: .main)
+println(codec.decode(codec.encode(Drawing(Circle(1.0), Nil))))
+// Left(zio.blocks.schema.SchemaError: Unknown variant case: main at: .main)
+val top = Schema[Shape].derive(XmlFormat)
+println(top.encodeToString(Circle(1.0)) + " " + top.decode(top.encode(Circle(1.0))))
+// <Circle><r>1.0</r></Circle> Right(Circle(1.0))
+```
+
+On Scala 2.13.18 too (probe `/tmp/claude-1000/xml-2a/p1`: `3 variant field rt => Left(... Unknown variant case: shape at: .shape)`, `3b enum field rt => Left(... Unknown variant case: value at: .c)`, `3c variant list rt => Left(... Unknown variant case: value at: .items.at(0))`).
+
+**Expected.** The case name survives nesting, for example `<main><Circle><r>1.0</r></Circle></main>`, and `decode(encode(d)) == Right(d)`.
+
+**Root cause.** The variant codec returns the case's own element (`XmlCodecDeriver.scala:406-415`). The record encoder passes it to `xmlFieldElement(name, ...)` (`XmlCodecDeriver.scala:625-630`), which builds a new element named after the field from the case element's attributes and children, dropping the case element's name; the sequence encoder does the same with `"item"` (`:468`) and the map encoder with `"key"`/`"value"` (`:549-550`). On decoding, the record passes the field element (or, when it has no element children, a synthetic `<value>`) to the variant codec (`:176-183`), and the sequence wraps each item's children in `<value>` (`:447`); the variant codec looks the element's local name up among the case names (`:380-386`) and fails at `:401`. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Any schema with a sealed trait or a Scala 3 enum below the top level (a status field, a list of events, `Option[Shape]`) encodes lossy XML and cannot read its own output. The reference page lists "Variants (sealed traits)" as supported without this limit.
+
+**Test gap.** The "variant derivation" suite of `XmlCodecDeriverSpec` derives `Schema[Animal]` itself and only encodes and decodes top-level `Dog`/`Cat`; no record, sequence or map in the module's tests contains a variant.
+
+**Suggested fix.** In `xmlFieldElement`, keep a variant's case element as the child of the field element (`<main><Circle>...</Circle></main>`), as the old "double-wrapped" decode branch at `:387-389` already expects, or mark variant codecs so the record and collection encoders do not rename them. Add round-trip tests for a variant field, a `List` of variants, a case object field and `Option[variant]`.
+
+### schema-xml: `Option` inside a sequence or a map does not decode back
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlCodecDeriver.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** An `Option` record field round-trips (`None` is left out, `Some(4)` is `<field>4</field>`). An `Option` element of a `List` or value of a `Map` encodes `Some(4)` as `<item><value>4</value></item>` and `None` as `<item/>`, and decoding either fails with `Expected text content in <value> element`.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Survey(scores: List[Option[Int]])
+object Survey { implicit val schema: Schema[Survey] = Schema.derived }
+
+val codec = Schema[Survey].derive(XmlFormat)
+println(codec.encodeToString(Survey(List(Some(4), None))))
+// <Survey><scores><item><value>4</value></item><item/></scores></Survey>
+println(codec.decode(codec.encode(Survey(List(Some(4), None)))))
+// Left(zio.blocks.schema.SchemaError: Expected text content in <value> element at: .scores.at(0).when[Some].value)
+println(codec.decode(codec.encode(Survey(List(None)))))
+// Left(zio.blocks.schema.SchemaError: Expected text content in <value> element at: .scores.at(0).when[Some].value)
+val mc = Schema[Map[String, Option[Int]]].derive(XmlFormat)
+println(mc.encodeToString(Map("a" -> Some(1))) + " " + mc.decode(mc.encode(Map("a" -> Some(1)))))
+// <map><entry><key>a</key><value><value>1</value></value></entry></map> Left(zio.blocks.schema.SchemaError: Expected text content in <value> element at: .atKey("a").when[Some].value)
+```
+
+On Scala 2.13.18 too (probe `/tmp/claude-1000/xml-2a/p1`, `4 list opt rt`).
+
+**Expected.** `Right(Survey(List(Some(4), None)))`; a `None` element needs a distinct form (for example `<item><None/></item>` or an `xsi:nil`-style marker).
+
+**Root cause.** The `Option` codec encodes `Some(v)` as `<Some>` wrapping the inner encoding and `None` as `<None/>` (`XmlCodecDeriver.scala:363-366`). The record encoder unwraps `<Some>` for optional fields (`:262-271`), but the sequence and map encoders call `xmlFieldElement("item", ...)` (`:468`, `:550`) on the `<Some>` element, which keeps its child `<value>4</value>` and renames `<Some>` to `<item>`, and turns `<None/>` into `<item/>`. The sequence decoder wraps the item's children in `<value>` (`:447`), giving `<value><value>4</value></value>`; the `Option` decoder sees neither `None` nor `Some` and hands it to the `Int` codec, which finds an element instead of text. Lines at v0.0.56 = a7014433f.
+
+**Impact.** `List[Option[A]]`, `Vector[Option[A]]` and `Map[K, Option[V]]` cannot round-trip; `None` and `Some` are not even distinguishable in the output.
+
+**Test gap.** `XmlCodecDeriverSpec` "optional field handling" covers only `Option` record fields (`OptionalField`, `Recursive`); no test puts an `Option` in a collection.
+
+**Suggested fix.** Treat `Option` element codecs in `deriveSequence`/`deriveMap` the way `deriveRecord` treats optional fields, with an explicit marker for `None`, and add round-trip tests.
+
+### schema-xml: An `Option` field ignores its default value, and an attribute field ignores any default
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlCodecDeriver.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** A missing child element for a non-`Option` field falls back to the field's default value. A missing `Option` field becomes `None` even when its default is `Some(...)`, and a missing attribute field fails with `Missing required attribute` even when the field has a default.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Flags(name: String, debug: Option[Boolean] = Some(true), retries: Int = 3)
+object Flags { implicit val schema: Schema[Flags] = Schema.derived }
+
+case class Tagged(@Modifier.config("xml.attribute", "") tag: String = "none", name: String)
+object Tagged { implicit val schema: Schema[Tagged] = Schema.derived }
+
+println(Schema[Flags].derive(XmlFormat).decode("<Flags><name>x</name></Flags>"))
+// Right(Flags(x,None,3))
+println(Schema[Tagged].derive(XmlFormat).decode("<Tagged><name>x</name></Tagged>"))
+// Left(zio.blocks.schema.SchemaError: Missing required attribute: tag at: .)
+```
+
+**Expected.** `Right(Flags(x,Some(true),3))` and `Right(Tagged(none,x))`: a declared default wins over the `None`/error fallback.
+
+**Root cause.** In `deriveRecord`'s decoder, the attribute branch checks only `isOptional` before failing (`XmlCodecDeriver.scala:172-173`) and never reads `fieldInfo.defaultValue`; the element branch checks `isOptional` before `defaultValue` (`:200-202`), so an `Option` field never reaches its default. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Configuration-style records (`debug: Option[Boolean] = Some(true)`, an attribute field `version: String = "1"`) decode against the author's intent; missing attributes with defaults reject otherwise valid documents.
+
+**Test gap.** No test in `schema-xml` declares a default value on any field.
+
+**Suggested fix.** Check `fieldInfo.defaultValue` first in both branches, then fall back to `None` for `Option` fields, then fail. Add tests for a defaulted `Option` field and a defaulted attribute.
+
+### schema-xml: `XmlReader` rejects character references, DOCTYPE and a comment before the root, and ignores content after the root
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlReader.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** The parser replaces only the five predefined entities: any character reference (`&#233;`, `&#x2019;`) fails. It accepts at most one processing instruction before the root, so a `<!DOCTYPE ...>`, a comment, or a declaration followed by a comment fails with `Invalid element name`. After the root element it stops reading, so trailing elements and text are silently ignored instead of rejected.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema.xml._
+
+def attempt(s: String): String =
+  try XmlReader.read(s).toString catch { case e: XmlCodecError => "XmlCodecError: " + e.getMessage }
+
+println(attempt("<title>Caf&#233; &#x2019;s</title>"))
+// XmlCodecError: Unknown entity reference: &#233; (line: 1, column: 17)
+println(attempt("<!DOCTYPE note><note>hi</note>"))
+// XmlCodecError: Invalid element name (line: 1, column: 2)
+println(attempt("<!-- feed --><note>hi</note>"))
+// XmlCodecError: Invalid element name (line: 1, column: 2)
+println(attempt("<?xml version=\"1.0\"?><!-- feed --><note>hi</note>"))
+// XmlCodecError: Invalid element name (line: 1, column: 23)
+println(attempt("<note>hi</note><extra>ignored</extra>"))
+// Element(note,Chunk(),Chunk(Text(hi)))
+println(attempt("<note>hi</note> trailing garbage"))
+// Element(note,Chunk(),Chunk(Text(hi)))
+```
+
+`XmlCodec#decode` returns the same errors as a `Left` (probe `/tmp/claude-1000/xml-2a/p1`, lines 5-6d, on 2.13.18 and 3.9.0).
+
+**Expected.** Character references decode (`Café ’s`); a DOCTYPE (at least an internal-subset-free one), comments and processing instructions are allowed in the prolog and after the root; non-whitespace content after the root is an error.
+
+**Root cause.** `parseEntityReference` matches only `amp`, `lt`, `gt`, `quot` and `apos` and fails on anything else (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlReader.scala:236-243`). `parse()` skips whitespace, consumes one `<?...?>` if present, then calls `parseElement()` and returns (`:40-49`); it never loops over prolog comments/PIs/DOCTYPE and never checks for trailing input. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Real-world XML (RSS and Atom feeds with `&#8217;`, documents with a DOCTYPE or a leading licence comment) cannot be read; truncated or concatenated documents are accepted silently.
+
+**Test gap.** `XmlReaderSpec` tests the five named entities (`:75-111`) and nothing else; no test feeds a DOCTYPE, a prolog comment or trailing content.
+
+**Suggested fix.** Decode `&#NNN;` and `&#xHHH;` (with surrogate pairs) in `parseEntityReference`; loop over `Misc` items (comments, PIs, whitespace) before and after the root and skip a DOCTYPE declaration; fail on other content after the root. Add reader tests for each.
+
+### schema-xml: `XmlWriter` writes malformed XML for CDATA containing `]]>` and comments containing `--`
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlWriter.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** The writer copies CDATA and comment content verbatim. A CDATA value containing `]]>` (common in minified JavaScript) ends the section early, so the output is malformed and reads back as different nodes; a comment containing `--` is not well-formed XML. Attribute values containing a newline or tab are written raw, so a conforming parser normalizes them to spaces.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.xml._
+
+val cdata   = Xml.Element("script", Xml.CData("if (a[b[0]]>1) go()"))
+val comment = Xml.Element("cfg", Xml.Comment(" use -- carefully "))
+val attr    = Xml.Element(XmlName("msg"), Chunk((XmlName("text"), "line1\nline2")), Chunk.empty)
+println(cdata.print)
+// <script><![CDATA[if (a[b[0]]>1) go()]]></script>
+println(XmlReader.read(cdata.print))
+// Element(script,Chunk(),Chunk(CData(if (a[b[0),Text(1) go()]]>)))
+println(comment.print)
+// <cfg><!-- use -- carefully --></cfg>
+println(attr.print)
+// <msg text="line1
+// line2"/>
+```
+
+**Expected.** `]]>` inside CDATA is split across two sections (`]]]]><![CDATA[>`), so the content round-trips; a comment containing `--` (or ending in `-`) is rejected or rewritten; `\n`, `\r` and `\t` in attribute values are written as `&#10;`, `&#13;`, `&#9;`.
+
+**Root cause.** `writeNode` appends `cd.value` and `c.value` unchanged (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlWriter.scala:64-65`); `escapeAttribute` escapes only `&`, `<`, `"` and `'` (`:158-174`). Lines at v0.0.56 = a7014433f.
+
+**Impact.** Any tree holding user-supplied CDATA or comments can serialize to XML that other parsers reject or misread; this module's own reader splits the CDATA into wrong nodes.
+
+**Test gap.** `XmlWriterSpec` "writes CDATA node" uses `"some <data> with special chars"` (`:32-35`) and the comment test uses plain text; neither contains `]]>` or `--`.
+
+**Suggested fix.** Split `]]>` in CDATA output; validate or replace `--` in comments; escape whitespace control characters in attribute values. Add tests.
+
+### schema-xml: `XmlReader` does not resolve namespaces, so a namespaced element does not round-trip
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlName.scala`, `XmlReader.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** `XmlName` has a `namespace` field and the writer turns it into an `xmlns` declaration, but the reader never fills it: `xmlns` and `xmlns:p` stay ordinary attributes and `namespace` is always `None`. So `XmlReader.read(e.print) != e` for any element with a namespace. The closing-tag check also compares local names only, so `<a:item></b:item>` is accepted.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema.xml._
+
+val feed = Xml.Element("feed", "http://www.w3.org/2005/Atom")
+println(feed.print)
+// <feed xmlns="http://www.w3.org/2005/Atom"/>
+val back = XmlReader.read(feed.print)
+println(back)
+// Element(feed,Chunk((xmlns,http://www.w3.org/2005/Atom)),Chunk())
+println(back == feed)
+// false
+println(back.asInstanceOf[Xml.Element].name.namespace)
+// None
+println(XmlReader.read("<atom:feed xmlns:atom=\"http://www.w3.org/2005/Atom\"/>"))
+// Element(atom:feed,Chunk((xmlns:atom,http://www.w3.org/2005/Atom)),Chunk())
+println(XmlReader.read("<a:item></b:item>"))
+// Element(a:item,Chunk(),Chunk())
+```
+
+**Expected.** Either the reader resolves prefixes and default namespaces into `XmlName.namespace` (and drops or keeps the declarations consistently with the writer), or `XmlName.namespace` and the writer's `xmlns` emission are documented as write-only. A mismatched prefix in a closing tag is an error.
+
+**Root cause.** `parseName` splits on `:` into `localName` and `prefix` and never sets `namespace` (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlReader.scala:106-118`); attributes are parsed with the same function and kept as is (`:120-138`). `parseClosingTag` compares `closingName.localName != expectedName.localName` (`:194`). The writer emits a declaration for `name.namespace` (`XmlWriter.scala:85-91`). Lines at v0.0.56 = a7014433f.
+
+**Impact.** Code that builds namespaced trees and reads them back (or compares) sees different values; `XmlSelection#get` and `XmlPatch` match by local name, so documents mixing namespaces cannot be told apart. Derived codecs ignore namespaces on decode, which hides this for the codec path.
+
+**Test gap.** `XmlReaderSpec` "parse element with namespace prefix" (`:244`) checks only the prefix; no test reads back an element built with `XmlName(..., namespace)` or checks `namespace` after reading.
+
+**Suggested fix.** Track `xmlns` scopes in `XmlReaderImpl` and fill `namespace` for elements and prefixed attributes; compare full qualified names in `parseClosingTag`. Add round-trip tests.
+
+### schema-xml: `XmlType` prints as `<function1>`, so `XmlSelection` error messages are unreadable
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlSelection.scala`, `XmlType.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** `XmlType` extends `Xml => Boolean`, and its case objects inherit `Function1#toString`, so `XmlType.Element.toString == "<function1>"`. `XmlSelection#as`, `#unwrap` and `#text` interpolate types into their messages, which read `Expected <function1> but got <function1>`.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema.xml._
+
+println(XmlType.Element.toString)
+// <function1>
+println(XmlSelection.succeed(Xml.Text("21.5")).as(XmlType.Element))
+// Left(zio.blocks.schema.SchemaError: Expected <function1> but got <function1>)
+println(XmlSelection.succeed(Xml.Text("21.5")).unwrap(XmlType.Element))
+// Left(zio.blocks.schema.SchemaError: Cannot unwrap <function1> as <function1>)
+println(XmlSelection.succeed(Xml.Comment("note")).text)
+// Left(zio.blocks.schema.SchemaError: Expected text content but got <function1>)
+```
+
+Same on Scala 2.13.18 (probe `/tmp/claude-1000/xml-2a/p1`, lines 35d-35f).
+
+**Expected.** `Expected Element but got Text`, `Cannot unwrap Text as Element`, `Expected text content but got Comment`.
+
+**Root cause.** `sealed trait XmlType extends (Xml => Boolean)` (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlType.scala:28`); a case object does not get a synthesized `toString` when a parent class other than `AnyRef` already defines one, and `Function1` does. Messages at `XmlSelection.scala:236`, `:333`, `:351`. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Every type-mismatch error from `XmlSelection` hides which types were involved.
+
+**Test gap.** `XmlSelectionSpec` "as fails when type doesn't match" (`:414-418`) and "unwrap fails when type doesn't match" (`:457`) assert only `result.isLeft`, never the message.
+
+**Suggested fix.** Add `override def toString: String = "Element"` (etc.) to each case object, or `override def toString = productPrefix` in the trait. Assert the messages in the tests.
+
+**Addition (2026-11-05, schema-xml Scaladoc review, lines at v0.0.56 = a7014433f).** `XmlPatch` paths that step into a non-element node fail with `Expected Element but got <function1>` too (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlPatch.scala:290`, `:322`), so every type-mismatch error from `XmlSelection` and `XmlPatch` hides which types were involved; the expected message is `Expected Element but got Text`. Add to the reproducer (re-run on 3.9.0 and 2.13.18):
+
+```scala
+println(XmlPatch.remove(zio.blocks.schema.DynamicOptic.root.at(0).field("x"))(Xml.Element("a", Xml.Text("t"))))
+// Left(zio.blocks.schema.SchemaError: Expected Element but got <function1>)
+```
+
+### schema-xml: A `String` field given as CDATA fails to decode, and mixed text/CDATA is truncated
+
+**Where found.** `schema-xml` Scaladoc fact-check (`XmlCodec.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** `XmlCodec.stringCodec` decodes only when the first child is a text node, and returns only that node. `<code><![CDATA[a < b]]></code>` fails with `Expected text content in <value> element`, and `<code>a <![CDATA[< b]]></code>` decodes to `"a "`, dropping the CDATA part. CDATA is the usual way to carry markup-like strings in XML.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Snippet(code: String)
+object Snippet { implicit val schema: Schema[Snippet] = Schema.derived }
+
+val codec = Schema[Snippet].derive(XmlFormat)
+println(codec.decode("<Snippet><code><![CDATA[a < b]]></code></Snippet>"))
+// Left(zio.blocks.schema.SchemaError: Expected text content in <value> element at: .code)
+println(codec.decode("<Snippet><code>a <![CDATA[< b]]></code></Snippet>"))
+// Right(Snippet(a ))
+println(codec.decode("<Snippet><code>a &lt; b</code></Snippet>"))
+// Right(Snippet(a < b))
+```
+
+**Expected.** `Right(Snippet(a < b))` for all three inputs.
+
+**Root cause.** `stringCodec.decodeValue` matches `e.children.headOption` against `Some(t: Xml.Text)` only (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlCodec.scala:284-292`); the other primitive codecs share the pattern. Lines at v0.0.56 = a7014433f.
+
+**Impact.** Documents produced by other tools that wrap strings in CDATA cannot be decoded; mixed content is silently truncated.
+
+**Test gap.** No codec test decodes CDATA; `XmlCodecDeriverSpec` "round-trip String" only decodes this codec's own output.
+
+**Suggested fix.** Concatenate all `Text` and `CData` children (as `XmlSelection#text` already does) in `stringCodec` and the primitive codecs. Add tests.
+
+### schema-xml: A nested record or a sealed-trait case whose fields are all attributes does not decode back
+
+**Where found.** Review of the `schema-xml` Scaladoc (`XmlCodecDeriver.scala`, `xmlAttribute.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes (the module's main sources are identical).
+
+**Summary.** A field marked `Modifier.config("xml.attribute", ...)` round-trips on a top-level record. When the record is a field of another record and has no child elements (all its fields are attributes, or its element fields are all `None`), or when it is a sealed-trait case with only attribute fields, the encoder writes the attributes (`<unit code="C"/>`, `<Click x="3"/>`) but the decoder drops them: a required attribute fails with `Missing required attribute`, and an `Option` attribute silently decodes as `None` (no error, the value is lost). A nested record with only `Option` element fields and no attribute field decodes fine when they are all `None`; the "element fields all `None`" shape fails only together with a required attribute field.
+
+**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc` (scala-cli 1.10.1):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Unit_(@Modifier.config("xml.attribute", "") code: String)
+object Unit_ { implicit val schema: Schema[Unit_] = Schema.derived }
+
+case class Reading(value: Double, unit: Unit_)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+case class Tag(@Modifier.config("xml.attribute", "") key: String, note: Option[String])
+object Tag { implicit val schema: Schema[Tag] = Schema.derived }
+
+case class Item(tag: Tag)
+object Item { implicit val schema: Schema[Item] = Schema.derived }
+
+case class OA(@Modifier.config("xml.attribute", "") key: Option[String])
+object OA { implicit val schema: Schema[OA] = Schema.derived }
+
+case class HO(a: OA)
+object HO { implicit val schema: Schema[HO] = Schema.derived }
+
+sealed trait Event
+case class Click(@Modifier.config("xml.attribute", "") x: Int) extends Event
+case object Idle extends Event
+object Event { implicit val schema: Schema[Event] = Schema.derived }
+
+val rc = Schema[Reading].derive(XmlFormat)
+println(rc.encodeToString(Reading(21.5, Unit_("C"))))
+// <Reading><value>21.5</value><unit code="C"/></Reading>
+println(rc.decode(rc.encode(Reading(21.5, Unit_("C")))))
+// Left(zio.blocks.schema.SchemaError: Missing required attribute: code at: .unit)
+val ic = Schema[Item].derive(XmlFormat)
+println(ic.decode(ic.encode(Item(Tag("k", None)))))
+// Left(zio.blocks.schema.SchemaError: Missing required attribute: key at: .tag)
+println(ic.decode(ic.encode(Item(Tag("k", Some("n"))))))
+// Right(Item(Tag(k,Some(n))))
+val ec = Schema[Event].derive(XmlFormat)
+println(ec.encodeToString(Click(3)) + " " + ec.decode(ec.encode(Click(3))))
+// <Click x="3"/> Left(zio.blocks.schema.SchemaError: Missing required attribute: x at: .when[Click])
+val ho = Schema[HO].derive(XmlFormat)
+println(ho.encodeToString(HO(OA(Some("k")))) + " " + ho.decode(ho.encode(HO(OA(Some("k"))))))
+// <HO><a key="k"/></HO> Right(HO(OA(None)))
+```
+
+The same output on Scala 2.13.18 (same file with `//> using scala 2.13.18`). Run directories: `/tmp/claude-1000/xml-2a/repro/r12-s3` and `r12-s2` (re-run as written on both versions after adding `OA`/`HO`).
+
+**Expected.** `Right(Reading(21.5,Unit_(C)))`, `Right(Item(Tag(k,None)))`, `Right(Click(3))` and `Right(HO(OA(Some(k))))`.
+
+**Root cause.** In `deriveRecord`'s decoder, a field element is passed to the field codec as is only when it has element children; otherwise the decoder wraps its children in a new `<value>` element with no attributes (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlCodecDeriver.scala:178-181`), so the nested record codec never sees its attributes: it fails at `:173` for a required attribute and sets `None` at `:172` for an `Option` one. In `deriveVariant`'s decoder, a case element with no children is replaced by `xmlElement(caseName)`, again without attributes (`:394-396`). Lines at v0.0.56 = a7014433f.
+
+**Impact.** Attribute-only types are common in XML (`<unit code="C"/>`, `<link href="..."/>`, `<enclosure url="..." length="..."/>`); any schema that nests one, or a sealed trait whose case carries only attributes, cannot read its own output or real documents of that shape.
+
+**Test gap.** `xmlAttributeSpec` round-trips only top-level records that also have at least one child-element field (`Book`, `Item`, `Document`, `AllTypes`); no test nests an attribute record or puts attributes on a variant case.
+
+**Suggested fix.** Decide on "pass as is" by whether the field codec is a record or variant codec, not by whether the element has element children; or keep the field element's attributes on the synthetic `<value>` element. In `deriveVariant`, decode the case element itself (`xml`) when it has no children. Add round-trip tests for the three shapes above.
+
+### schema-toon: a non-empty `Array` field is left out of the encoded record
+
+Found 2026-11-05 while fact-checking `ToonCodecDeriver.withTransientEmptyCollection` (Task 2b), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** With the default deriver (`withTransientEmptyCollection(true)`), a case class field of type `Array[...]` is never written, even when the array has elements. Decoding the output gives an empty array, so encode then decode silently loses the data. `List`, `Vector` and `Map` fields are written as expected, and so is an `Array` field once `withTransientEmptyCollection(false)` is set. The JSON codec writes the same field.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `r1/ArrayField.scala`, run with `scala-cli run --server=false ArrayField.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object ArrayField {
+  case class Samples(sensor: String, values: Array[Int])
+  object Samples { implicit val schema: Schema[Samples] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Samples.schema.derive(ToonFormat)
+    val toon  = codec.encodeToString(Samples("cellar", Array(4, 5, 6)))
+    println(toon)
+    println(codec.decode(toon).map(s => (s.sensor, s.values.toList)))
+    val keep = Samples.schema.derive(ToonCodecDeriver.withTransientEmptyCollection(false))
+    println(keep.encodeToString(Samples("cellar", Array(4, 5, 6))))
+  }
+}
+// sensor: cellar
+// Right((cellar,List()))
+// sensor: cellar
+// values[3]: 4,5,6
+```
+
+**Expected.** `values[3]: 4,5,6` with the default deriver, and the decoded value holds `4, 5, 6`.
+
+**Root cause.** `FieldInfo.writeCollection` (`schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodecDeriver.scala:1471-1478`) decides whether to write the field with `value match { case s: Iterable[?] => s.nonEmpty; case _ => false }`. An `Array` is not an `Iterable`, so it falls into `case _ => false` and is skipped. The record encoder calls it for every collection field while `transientEmptyCollection` is on (`:405`; `isCollection` comes from `fieldReflect.isCollection`, `:272`).
+
+**Impact.** Silent data loss for any record with an `Array` field (byte payloads, sample buffers) under the default settings; decoding does not fail, so the loss is not noticed.
+
+**Test gap.** `ToonCodecDeriverSpec` "collection field alongside other fields" tests use `List`/`Map` only; no test has an `Array` field (`grep -n 'Array\[' ToonCodecDeriverSpec.scala` finds none).
+
+**Suggested fix.** Test emptiness through the sequence deconstructor (`deconstructor.size(x) > 0`), or add `case a: Array[?] => a.length > 0` (and other non-`Iterable` collections) to `writeCollection`. Add a round-trip test for an `Array` field.
+
+### schema-toon: `DiscriminatorKind.Field` writes a case object as nothing, so it cannot be decoded
+
+Found 2026-11-05 while fact-checking the `DiscriminatorKind.Field` Scaladoc (Task 2b), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** With `withDiscriminatorKind(DiscriminatorKind.Field("type"))`, a case object of a sealed trait that also has case classes (so it is not written as an enumeration string) encodes as an empty string: no `type: Idle` line. Decoding the output fails with `Missing discriminator field: type`. The JSON codec writes `{"type":"Idle"}` for the same schema.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `r2/FieldCaseObject.scala`, run with `scala-cli run --server=false FieldCaseObject.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object FieldCaseObject {
+  sealed trait Job
+  case object Idle extends Job
+  case class Busy(task: String) extends Job
+  object Job { implicit val schema: Schema[Job] = Schema.derived }
+
+  case class Worker(name: String, job: Job)
+  object Worker { implicit val schema: Schema[Worker] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Worker.schema.derive(ToonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    for (w <- List(Worker("w1", Busy("backup")), Worker("w2", Idle))) {
+      val toon = codec.encodeToString(w)
+      println(toon)
+      println(codec.decode(toon))
+    }
+  }
+}
+// name: w1
+// job: type: Busy
+// task: backup
+// Right(Worker(w1,Busy(backup)))
+// name: w2
+// job:
+// Left(zio.blocks.schema.SchemaError: Missing discriminator field: type at: .job)
+```
+
+(The `Busy` lines show B3; it decodes here only because `job` is the last field.)
+
+**Expected.** `Idle` is written with its discriminator, as `type: Idle` under `job:`, and decodes back to `Worker(w2,Idle)`.
+
+**Root cause.** For a `Field` variant, each case's codec is derived while a `DiscriminatorFieldInfo` is pushed on the `discriminatorFields` thread-local (`ToonCodecDeriver.scala:607-609`), and the non-empty record codec reads it (`:311`) and writes it first (`:387-391`). The record codec for a record with no fields (`:184-195`) never reads `discriminatorFields`: its `encodeValue` is `()`, so nothing is written.
+
+**Impact.** Any ADT with a case object (`case object Idle`, `case object Empty`) cannot use `DiscriminatorKind.Field`: the value encodes to nothing and decoding fails, at top level and as a field.
+
+**Test gap.** "field discriminator roundtrips correctly" (`ToonCodecDeriverSpec.scala:919-927`) round-trips only `Pet.Dog`, a case class, at top level.
+
+**Suggested fix.** In the zero-field record codec, capture `discriminatorFields.get.headOption.orNull` like the non-empty one and write `name: value` in `encodeValue`; add a round-trip test with a case object under `DiscriminatorKind.Field`.
+
+### schema-toon: a `DiscriminatorKind.Field` or `DiscriminatorKind.None` variant inside a record breaks decoding of the fields after it
+
+Found 2026-11-05 while probing B2 (Task 2b), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** When a variant field is written with `DiscriminatorKind.Field` or `DiscriminatorKind.None`, its first line goes on the key's line (`job: type: Busy`) and its other fields at the parent record's level, followed by a blank line. Decoding then treats every following field of the parent as part of the variant, so a field after the variant goes missing: `Missing required field: shift`. With the default `DiscriminatorKind.Key`, the same record round-trips. A variant that is the last field of its record decodes, which hides the problem in simple tests.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `r5/FieldNested.scala`, run with `scala-cli run --server=false FieldNested.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object FieldNested {
+  sealed trait Job
+  case class Busy(task: String) extends Job
+  case class Paused(reason: String) extends Job
+  object Job { implicit val schema: Schema[Job] = Schema.derived }
+
+  case class Worker(name: String, job: Job, shift: String)
+  object Worker { implicit val schema: Schema[Worker] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Worker.schema.derive(ToonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+    val toon  = codec.encodeToString(Worker("w1", Busy("backup"), "night"))
+    println(toon)
+    println(codec.decode(toon))
+    val keyCodec = Worker.schema.derive(ToonFormat)
+    val keyToon  = keyCodec.encodeToString(Worker("w1", Busy("backup"), "night"))
+    println(keyToon)
+    println(keyCodec.decode(keyToon))
+  }
+}
+// name: w1
+// job: type: Busy
+// task: backup
+//
+// shift: night
+// Left(zio.blocks.schema.SchemaError: Missing required field: shift at: .)
+// name: w1
+// job: Busy:
+//   task: backup
+//
+// shift: night
+// Right(Worker(w1,Busy(backup),night))
+```
+
+`r6/NoneNested.scala` is the same file with `DiscriminatorKind.None`; it prints `job: task: backup`, a blank line, `shift: night` and the same `Left(... Missing required field: shift at: .)`.
+
+**Expected.** The variant's lines are indented under `job:` (`job:` / `  type: Busy` / `  task: backup`), and the record decodes back to `Worker(w1,Busy(backup),night)`.
+
+**Root cause.** The `Field` and `None` variant codecs (`ToonCodecDeriver.scala:623-691` and `:726-749`) do not override `encodeAsField`, so the record encoder (`FieldInfo.writeRequired`, `:1427`) uses the default `ToonCodec#encodeAsField` (`ToonCodec.scala:110-114`): `writeKey(fieldName)`, then `encodeValue` at the current depth, then `newLine()`. The case's record codec writes its first field on the key line and the rest at the parent's depth, then the extra `newLine()` adds the blank line. Record, sequence and map codecs override `encodeAsField` to write `key:`, increase the depth and write the value (`:414-419`, `:977-1013`, `:1181-1186`). On decoding, the `Field` decoder collects every line at a depth `>=` the variant's start depth until a shallower line (`:637-667`), and the `None` decoder's case codecs read every following key at that depth, so the parent's later fields are consumed.
+
+**Impact.** `DiscriminatorKind.Field` and `DiscriminatorKind.None` work only for a top-level variant or a variant that is the last field of every enclosing record. Any realistic model (an event with a `payload` variant and a `timestamp` after it) fails to decode the codec's own output.
+
+**Test gap.** The `Field` and `None` round-trip tests (`ToonCodecDeriverSpec.scala:919-943`) encode the variant at top level only; no test nests one in a record.
+
+**Suggested fix.** Override `encodeAsField` in the `Field` and `None` variant codecs (and, for consistency, the `Key` one, which writes `job: Busy:`) as the record codec does: `writeKeyOnly(fieldName)`, `incrementDepth()`, `encodeValue`, `decrementDepth()`. Add round-trip tests with a variant field followed by another field for all three kinds.
+
+### schema-toon: a negative number close to zero is written with the minus sign inside the digits, and cannot be decoded
+
+Found 2026-11-05 while fact-checking the `ToonWriter.writeDouble` and `ToonCodec.doubleCodec` Scaladoc (review of the schema-toon Scaladoc rollout), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** `Double`, `Float` and `BigDecimal` values whose JSON form has an exponent and a minus sign, such as `-0.0004` (`-4.0E-4`), are written as `0.00-4`. The derived codec then fails to decode its own output. The `DynamicValue` codec silently reads the value back as the string `"0.00-4"`. The output is the same on Scala.js.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `NegativeDecimal.scala`, run with `scala-cli run --server=false NegativeDecimal.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object NegativeDecimal {
+  case class Reading(sensor: String, delta: Double, drift: Float, offset: BigDecimal)
+  object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Reading.schema.derive(ToonFormat)
+    val toon  = codec.encodeToString(Reading("cellar", -0.0004, -1.0e-5f, BigDecimal("-1E-10")))
+    println(toon)
+    println(codec.decode(toon))
+    println(codec.encodeToString(Reading("cellar", -0.001, -0.5f, BigDecimal("-0.00012"))))
+    val dynamic = Schema[DynamicValue].derive(ToonFormat)
+    println(dynamic.decode(dynamic.encodeToString(Schema[Double].toDynamicValue(-0.0004))))
+  }
+}
+// sensor: cellar
+// delta: 0.00-4
+// drift: 0.000-1
+// offset: 0.00000000-1
+// Left(zio.blocks.schema.SchemaError: Expected double, got: 0.00-4 at: .delta)
+// sensor: cellar
+// delta: -0.001
+// drift: -0.5
+// offset: -0.00012
+// Right("0.00-4")
+```
+
+**Expected.** The first record is written as `delta: -0.0004`, `drift: -0.00001` and `offset: -0.0000000001`, and decodes back to the same values. The `DynamicValue` round trip gives the number `-0.0004`.
+
+**Root cause.** `ToonWriter.writeFloat`, `writeDouble` and `writeBigDecimal` (`schema-toon/src/main/scala/zio/blocks/schema/toon/ToonWriter.scala:117-127`) take the JSON codec's text and pass it to `writeDecimalString` (`:246`). For an exponent form, that calls `expandScientific` (`:257-283`), which computes `pointPos = mant(0).length + exp` (`:263`) and builds `digits` from `mant(0)`. With a negative mantissa, `mant(0)` is `"-4"`, so the sign counts as a digit and lands after the leading `0.` and zeros. Positive values and large negative values (where the sign stays first) come out right.
+
+**Impact.** Any negative `Double` between `-0.001` and `0` (sensor deltas, small losses, rates), any small negative `Float`, and some small negative `BigDecimal` values are written as text no TOON reader accepts. The derived codec fails on decode; the `DynamicValue` codec turns the number into a string without an error.
+
+**Test gap.** `ToonCodecDeriverSpec` "Float"/"Double"/"BigDecimal" (`schema-toon/src/test/scala/zio/blocks/schema/toon/ToonCodecDeriverSpec.scala:112-340`) round-trip negative values only when they are large (`-1.5887592e7f`, `-1.3821488797638562e14`) or zero. The `Gen.double` check only decodes `x.toString`; it never encodes.
+
+**Suggested fix.** In `expandScientific`, strip a leading `-` from the mantissa before computing `pointPos` and `digits`, and put it back in front of the result. Add round-trip tests for `-0.0004`, `-1.0e-5f` and `BigDecimal("-1E-10")`.
+
+### schema-toon: a top-level sequence written with `Delimiter.Tab` cannot be decoded
+
+Found 2026-11-05 while fact-checking the `ToonReader.parseArrayHeader` and `ToonCodecDeriver.withDelimiter` Scaladoc, commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** With `ToonCodecDeriver.withDelimiter(Delimiter.Tab)`, a top-level `List[Int]` encodes as `[2<TAB>]: 3<TAB>7`. The same codec fails to decode it with `Array count mismatch: expected 2 items but got 1`. A pipe delimiter works at top level, and a tab works for a record field.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `TabTopLevel.scala`, run with `scala-cli run --server=false TabTopLevel.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object TabTopLevel {
+  case class Codes(codes: List[Int])
+  object Codes { implicit val schema: Schema[Codes] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val tab  = Schema[List[Int]].derive(ToonCodecDeriver.withDelimiter(Delimiter.Tab))
+    val toon = tab.encodeToString(List(3, 7))
+    println(toon.replace("\t", "<TAB>"))
+    println(tab.decode(toon))
+    val pipe = Schema[List[Int]].derive(ToonCodecDeriver.withDelimiter(Delimiter.Pipe))
+    println(pipe.decode(pipe.encodeToString(List(3, 7))))
+    val field = Codes.schema.derive(ToonCodecDeriver.withDelimiter(Delimiter.Tab))
+    println(field.decode(field.encodeToString(Codes(List(3, 7)))))
+  }
+}
+// [2<TAB>]: 3<TAB>7
+// Left(zio.blocks.schema.SchemaError: Array count mismatch: expected 2 items but got 1 at: .)
+// Right(List(3, 7))
+// Right(Codes(List(3, 7)))
+```
+
+**Expected.** `tab.decode(toon)` returns `Right(List(3, 7))`.
+
+**Root cause.** The top-level sequence decoder calls `ToonReader.parseArrayHeader` (`ToonCodecDeriver.scala:867`), whose `parseBracketContent` (`ToonReader.scala:413-425`) starts with `val trimmed = content.trim` (`:414`) and then tests the last character for `'\t'` (`:418`). `String.trim` has already removed the tab, so the header reads as comma-delimited, and `readInlineArray` returns the single value `3<TAB>7`. The record-field path (`FieldInfo.readArrayFieldValue`, `ToonCodecDeriver.scala:1350-1403`) and the `DynamicValue` codec (`parseLengthAndDelimiter`) test the untrimmed text, so they work.
+
+**Impact.** `Delimiter.Tab`, which TOON offers for spreadsheet-friendly output, breaks every top-level sequence; the codec cannot read what it writes.
+
+**Test gap.** "parses root-level array with tab delimiter" (`ToonSpecConformanceSpec.scala:392-398`) decodes with the `DynamicValue` codec only. The derived-codec tab tests (`:108-109`, `:125-126`) use record fields.
+
+**Suggested fix.** In `parseBracketContent`, test the last character of the untrimmed content (or `content.stripLeading`), then trim the length. Add a top-level round-trip test with `Delimiter.Tab`.
+
+### schema-toon: a sequence of sequences, such as `List[List[Int]]`, cannot be decoded with the default `ReaderConfig`
+
+Found 2026-11-05 while fact-checking the `ToonReader.parseArrayHeader` Scaladoc, commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** The derived codec writes nested sequences as list items with a blank line after each inner array. With the default `ReaderConfig` (strict mode on), the decoder rejects the blank line, so a sequence of sequences never reads back, at top level or as a record field; `Vector[Vector[Int]]` behaves the same. With strict mode off, the blank lines are skipped, but each inner header is parsed with a length check that is off by the indentation: an inner list whose text after the colon is short, such as `[1]: 3`, fails with `Expected : after array header`, while long inner lists (`[6]: 1,2,3,4,5,6`) decode. With `ArrayFormat.List`, the inner header fails in both modes, whatever the length.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `NestedSequence.scala`, run with `scala-cli run --server=false NestedSequence.scala`; the same file with `//> using scala 3.9.0` prints the same lines):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object NestedSequence {
+  case class Grid(rows: List[List[Int]])
+  object Grid { implicit val schema: Schema[Grid] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Grid.schema.derive(ToonFormat)
+    val toon  = codec.encodeToString(Grid(List(List(1, 2), List(3))))
+    println(toon)
+    println(codec.decode(toon))
+    println(codec.decode(toon, ReaderConfig.withStrict(false)))
+    println(codec.decode("rows[2]:\n  - [2]: 1,2\n  - [1]: 3"))
+    val top = Schema[List[List[Int]]].derive(ToonFormat)
+    println(top.decode(top.encodeToString(List(List(1, 2), List(3)))))
+    // Long inner lists decode once strict mode is off, but not with ArrayFormat.List
+    val long = codec.encodeToString(Grid(List((1 to 6).toList, (7 to 12).toList)))
+    println(codec.decode(long))
+    println(codec.decode(long, ReaderConfig.withStrict(false)))
+    val listCodec = Grid.schema.derive(ToonCodecDeriver.withArrayFormat(ArrayFormat.List))
+    val listToon  = listCodec.encodeToString(Grid(List((1 to 6).toList, (7 to 12).toList)))
+    println(listCodec.decode(listToon, ReaderConfig.withStrict(false)))
+  }
+}
+// rows[2]:
+//   - [2]: 1,2
+//
+//   - [1]: 3
+// Left(zio.blocks.schema.SchemaError: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .rows)
+// Left(zio.blocks.schema.SchemaError: Expected : after array header at: .rows.at(1))
+// Left(zio.blocks.schema.SchemaError: Expected : after array header at: .rows.at(1))
+// Left(zio.blocks.schema.SchemaError: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .)
+// Left(zio.blocks.schema.SchemaError: Blank lines are not allowed inside arrays/tabular blocks in strict mode at: .rows)
+// Right(Grid(List(List(1, 2, 3, 4, 5, 6), List(7, 8, 9, 10, 11, 12))))
+// Left(zio.blocks.schema.SchemaError: Expected : after array header at: .rows.at(0))
+```
+
+**Expected.** `rows[2]:` followed by `  - [2]: 1,2` and `  - [1]: 3` with no blank line, decoding to `Right(Grid(List(List(1, 2), List(3))))`; the top-level codec round-trips too.
+
+**Root cause.** Two bugs.
+1. Encoding: the inline-array `encodeValue` ends with `out.newLine()` (`ToonCodecDeriver.scala:957-958`), and `encodeAsListFormat` adds another one after every element that is not a record (`:972`, `if (!isRecordElement) out.newLine()`). Together they write a blank line, which `skipBlankLinesInArray` rejects in strict mode (`ToonReader.scala:143-152`).
+2. Decoding: the inner sequence decoder calls `parseArrayHeader` (`ToonCodecDeriver.scala:867`) on the list item line. `parseArrayHeader` sets `len = currentLine.length - linePos` (`ToonReader.scala:331`), a length relative to the read position, and compares it with the absolute index `afterBracket` (`:339`). On an indented line it reports `Expected : after array header` whenever the text after the colon is shorter than the indentation plus the `- ` marker (`  - [1]: 3` fails, `  - [2]: 1,2` passes). Under `ArrayFormat.List` the inner header line is `- [6]:` with nothing after the colon, so it fails at any length.
+
+**Impact.** Matrices, grids, batches of tags and any `List[List[A]]` field written with the default deriver cannot be read back with the default `ReaderConfig`. With strict mode off they read back only when every inner list is long enough, and never with `ArrayFormat.List`.
+
+**Test gap.** No derived-codec test has a sequence of sequences (`grep -n 'List\[List\|Vector\[Vector' schema-toon/src/test` finds none). Nested arrays in list items are decoded only by the `DynamicValue` codec ("parses nested arrays with tab delimiter", `ToonSpecConformanceSpec.scala:350-363`) or appear as record fields (`- xs[2]: 1,2`, `:182-195`).
+
+**Suggested fix.** In `encodeAsListFormat`, skip the extra `newLine()` when the element codec already ended its line (sequences, and probably maps, not verified), as is already done for records. In `parseArrayHeader`, compare `afterBracket` with `currentLine.length`. Add round-trip tests for `List[List[Int]]` at top level and as a field.
+
+### schema-toon: strict mode keeps an unknown escape inside an inline array or a table row
+
+Found 2026-11-05 while fact-checking the `ReaderConfig` Scaladoc (strict mode), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** With the default `ReaderConfig` (strict mode on), the field value `"web\q1"` fails with `Invalid escape: \q`, and so does a list item. The same escape inside an inline array (`tags[1]: "edge\q"`) or a table row is accepted and kept as `\q`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56; `StrictEscape.scala`, run with `scala-cli run --server=false StrictEscape.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.toon._
+
+object StrictEscape {
+  case class Host(name: String, tags: List[String])
+  object Host { implicit val schema: Schema[Host] = Schema.derived }
+  case class Fleet(hosts: List[Host])
+  object Fleet { implicit val schema: Schema[Fleet] = Schema.derived }
+  case class Row(name: String, zone: String)
+  object Row { implicit val schema: Schema[Row] = Schema.derived }
+  case class Table(rows: List[Row])
+  object Table { implicit val schema: Schema[Table] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val codec = Host.schema.derive(ToonFormat)
+    println(codec.decode("name: \"web\\q1\"\ntags[1]: edge"))
+    println(codec.decode("name: web1\ntags[1]: \"edge\\q\""))
+    println(codec.decode("name: web1\ntags[1]:\n  - \"edge\\q\""))
+    println(Table.schema.derive(ToonFormat).decode("rows[1]{name,zone}:\n  web1,\"eu\\q\""))
+  }
+}
+// Left(zio.blocks.schema.SchemaError: Invalid escape: \q at: .name)
+// Right(Host(web1,List(edge\q)))
+// Left(zio.blocks.schema.SchemaError: Invalid escape: \q at: .tags.at(0))
+// Right(Table(List(Row(web1,eu\q))))
+```
+
+(`Fleet` is unused; it was left in the file as run.)
+
+**Expected.** Lines 2 and 4 also return `Left(... Invalid escape: \q ...)` in strict mode.
+
+**Root cause.** Field values and list items go through `ToonReader#unescapeString`, which checks `strict` (`ToonReader.scala:578`). Inline-array values (`ToonCodecDeriver.scala:1025`, also `:880`, `:908`, `:1059`) and table-row values (`:455`) go through `ToonReader.unescapeQuoted` (`ToonReader.scala:614-638`), which has no strict flag and appends `\` plus the character for any unknown escape (`:629`).
+
+**Impact.** Strict mode does not give the guarantee the `ReaderConfig` docs and the TOON spec describe; malformed escapes in arrays and tables pass silently.
+
+**Test gap.** The strict-escape tests decode field values only; no test puts an invalid escape in an inline array or a table row.
+
+**Suggested fix.** Make `unescapeQuoted` take the reader's `strict` flag (or route those values through `unescapeString`), and add strict tests for inline and tabular values.
+
+### schema-yaml: a `Double` or `Float` that is NaN or infinite throws on encode, and `.nan` and `.inf` do not decode
+
+Found 2026-11-05 during the schema-yaml Scaladoc rollout (branch `schema-text-formats-scaladoc`, base a7014433f). Same at tag `v0.0.56`: yes. Verified by running on Scala 2.13.18 and 3.9.0 with the same output.
+
+**Summary.** `YamlCodec.doubleCodec` and `YamlCodec.floatCodec` format numbers with the JSON codec, which rejects NaN and infinity, so `encodeToString`, `encode` and `encodeValue` throw `zio.blocks.schema.json.JsonCodecError: illegal number: NaN` (or `Infinity`, `-Infinity`) for a record that holds such a value. Encoding has no `Either`, so the exception reaches the caller. YAML has spellings for these values (`.nan`, `.inf`, `-.inf`), and `YamlWriter` already quotes them as special values, but the codecs neither write nor read them: decoding `.nan` or `.inf` fails with `Invalid double value: .nan`. Only the Java spellings `NaN` and `Infinity` decode, because the decoder calls `String#toDouble`.
+
+**Reproducer** (save as `Repro.sc`, run `scala-cli run --server=false Repro.sc`; probe directory `/tmp/claude-1000/yaml-2c/bug-nan`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+import scala.util.Try
+
+case class Reading(sensor: String, celsius: Double)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+val codec = Reading.schema.derive(YamlFormat)
+println(Try(codec.encodeToString(Reading("t-101", Double.NaN))))
+println(Try(codec.encodeToString(Reading("t-101", Double.PositiveInfinity))))
+println(Try(Schema[Float].derive(YamlFormat).encode(Float.NegativeInfinity)))
+println(codec.decode("sensor: t-101\ncelsius: .nan\n"))
+println(codec.decode("sensor: t-101\ncelsius: .inf\n"))
+println(codec.decode("sensor: t-101\ncelsius: NaN\n"))
+// Failure(zio.blocks.schema.json.JsonCodecError: illegal number: NaN)
+// Failure(zio.blocks.schema.json.JsonCodecError: illegal number: Infinity)
+// Failure(zio.blocks.schema.json.JsonCodecError: illegal number: -Infinity)
+// Left(zio.blocks.schema.SchemaError: Invalid double value: .nan at: .celsius)
+// Left(zio.blocks.schema.SchemaError: Invalid double value: .inf at: .celsius)
+// Right(Reading(t-101,NaN))
+```
+
+**Expected.** NaN encodes as `.nan`, positive infinity as `.inf` and negative infinity as `-.inf` (the YAML 1.2 core schema forms), and those forms (with their `.NaN`/`.Inf`/`.INF` variants) decode back. At the least, encoding should not throw.
+
+**Root cause** (lines at v0.0.56 = a7014433f), `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodec.scala`: `floatCodec.encodeValue` (`:227`) and `doubleCodec.encodeValue` (`:238-239`) call `JsonCodec.floatCodec.encodeToString` / `JsonCodec.doubleCodec.encodeToString`, which throw for non-finite values; the decoders use `v.trim.toFloat` (`:221`) and `v.trim.toDouble` (`:232`). The same JSON formatting is used for `DynamicValue` (`YamlCodecDeriver.scala:541-544`) and for spliced values in `yaml"..."` (`YamlInterpolatorRuntime.scala:68-69`, `:105-106`, `:164-165`).
+
+**Impact.** A sensor reading, a ratio or any computed `Double` that happens to be NaN makes YAML export throw at run time; YAML files that use the standard `.nan`/`.inf` cannot be read into `Double` fields.
+
+**Test gap.** `YamlCodecSpec` "Float codec" and "Double codec" suites test only finite values (`3.14`, `3.14159`); no test encodes or decodes NaN or infinity. `YamlWriterSpec` tests that `.inf`/`.nan` strings are quoted, which is a different path.
+
+**Suggested fix.** In `floatCodec`/`doubleCodec` (and `fromPrimitiveValue`), write `.nan`, `.inf` and `-.inf` with the `Float` tag for non-finite values, and map those spellings (all capitalizations) before `toFloat`/`toDouble` when decoding. Add round-trip tests for the three values.
+
+### schema-yaml: a missing `Option` field decodes as `None` even when its default is a `Some`
+
+Found 2026-11-05 during the schema-yaml Scaladoc rollout (base a7014433f). Same at tag `v0.0.56`: yes. Verified by running on Scala 2.13.18 and 3.9.0 with the same output.
+
+**Summary.** For a record field of type `Option[A]` with a default value such as `Some(true)`, the derived YAML codec ignores the default: when the key is missing, the field is `None`. The JSON codec, derived from the same schema, uses the default. A YAML configuration file that leaves out `enabled` therefore turns a feature off that the case class turns on by default, and the same input means different things in YAML and JSON.
+
+**Reproducer** (save as `Repro.sc`, run `scala-cli run --server=false Repro.sc`; probe directory `/tmp/claude-1000/yaml-2c/bug-optdef`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.json.JsonFormat
+import zio.blocks.schema.yaml._
+
+case class Tls(enabled: Option[Boolean] = Some(true), port: Int = 443)
+object Tls { implicit val schema: Schema[Tls] = Schema.derived }
+
+println(Tls.schema.derive(YamlFormat).decode("port: 8443\n"))
+println(Tls.schema.derive(JsonFormat).decode("""{"port": 8443}"""))
+// Right(Tls(None,8443))
+// Right(Tls(Some(true),8443))
+```
+
+**Expected.** `Right(Tls(Some(true),8443))` from both codecs: a missing field takes its default value when it has one, and `None` only when it has no default.
+
+**Root cause** (lines at v0.0.56 = a7014433f): `schema-yaml/shared/src/main/scala/zio/blocks/schema/yaml/YamlCodecDeriver.scala:172-175`. For a missing key, the record decoder checks `fieldInfo.isOptional` first and sets `None`; it reads `fieldInfo.defaultValue` only for non-`Option` fields.
+
+**Impact.** Silent wrong values for configuration-style records, the main use of YAML: any `Option` field defaulted to `Some(...)` loses its default.
+
+**Test gap.** `YamlCodecDeriverSpec` has `OptionalField(name: String, nickname: Option[String])` (no default) and no record with a defaulted `Option` field.
+
+**Suggested fix.** Check `fieldInfo.defaultValue` before falling back to `None` (swap the two branches), and add a test with `Option[A] = Some(...)` missing from the input.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -16555,6 +17527,143 @@ object Repro {
 **Test gap.** `ContentModelsSpec` has no compile-fail test (`grep -ri 'typeCheck\|compileErrors\|illTyped' html/shared/src/test` finds nothing), so nothing checks that the factories reject wrong children; its "Dom.Element methods still work" tests (`ContentModelsSpec.scala:151`, `:155`, `:159`) apply `when` to `ul(...)` and `tr(...)` results with an attribute only, and no test adds a child through `apply` or `when`.
 
 **Suggested fix.** Return dedicated types from `ul`/`ol`/`table`/`select` (as for `tr`) whose `apply` accepts only attributes and the permitted children, and override `apply` in `TrElement`/`OptgroupElement` to the restricted argument type; or document that the check is per factory call (the new Scaladoc does).
+
+### schema-xml: XML bytes written with a non-UTF-8 `WriterConfig.encoding` do not decode back
+
+**Where found.** `schema-xml` Scaladoc fact-check (`WriterConfig.scala`, `XmlReader.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** `XmlCodec#encode(value, config)` encodes the output bytes with `config.encoding` (and names it in the declaration), but every byte-decoding path reads UTF-8 regardless of the declaration. UTF-16 output fails to decode; ISO-8859-1 output decodes to corrupted text without an error.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Greeting(text: String)
+object Greeting { implicit val schema: Schema[Greeting] = Schema.derived }
+
+val codec = Schema[Greeting].derive(XmlFormat)
+val bytes = codec.encode(Greeting("hi"), WriterConfig(includeDeclaration = true, encoding = "UTF-16"))
+println(bytes.length)
+// 152
+println(codec.decode(bytes))
+// Left(zio.blocks.schema.SchemaError: Expected '<' (line: 1, column: 1) at: .)
+val latin = codec.encode(Greeting("café"), WriterConfig(encoding = "ISO-8859-1"))
+println(codec.decode(latin))
+// Right(Greeting(caf�))
+```
+
+**Expected.** Either decoding honours the declared encoding (or a BOM), or `decode(bytes, config)` takes the charset, or the docs say that byte input must be UTF-8.
+
+**Root cause.** `XmlWriter.writeToBytes` uses `Charset.forName(config.encoding)` (`XmlWriter.scala:59`); `XmlReader.readFromBytes` always uses `new String(input, "UTF-8")` (`XmlReader.scala:32`), and `XmlCodec#decode(Array[Byte], ...)` calls it (`XmlCodec.scala:99`). Lines at v0.0.56 = a7014433f.
+
+**Impact.** A codec cannot read its own output when `encoding` is set; the ISO-8859-1 case corrupts data silently.
+
+**Test gap.** `XmlWriterSpec` checks only the declaration text for `UTF-16` (`:185-187`); no test decodes non-UTF-8 bytes.
+
+**Suggested fix.** Detect the encoding from a BOM or the declaration in `readFromBytes`, or document the UTF-8-only input in `WriterConfig.encoding` (now done in the Scaladoc) and on the reference page.
+
+### schema-xml: Pretty printing changes text in mixed content
+
+**Where found.** `schema-xml` Scaladoc fact-check (`Xml.scala` `printPretty`, `XmlWriter.scala`), 2026-11-05, commit a7014433f. Same at 0.0.56: yes.
+
+**Summary.** With `indentStep > 0`, the writer puts every child of an element on its own indented line unless the element's only child is a text node. For mixed content (text next to elements) this inserts newlines and spaces into the text, so the printed document has different text from the tree; the default reader then trims it, hiding the change.
+
+**Reproducer.** `Repro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema.xml._
+
+val para = Xml.Element("p", Xml.Text("Total: "), Xml.Element("b", Xml.Text("42")), Xml.Text(" items"))
+println(para.print)
+// <p>Total: <b>42</b> items</p>
+val pretty = para.printPretty
+println(pretty)
+// <p>
+//   Total: 
+//   <b>42</b>
+//    items
+// </p>
+println(XmlReader.read(pretty, ReaderConfig(preserveWhitespace = true)) == para)
+// false
+println(XmlReader.read(para.print))
+// Element(p,Chunk(),Chunk(Text(Total:),Element(b,Chunk(),Chunk(Text(42))),Text(items)))
+```
+
+(The line after `<p>` ends with a space: `  Total: `.)
+
+**Expected.** Keep an element's children on one line when any child is a text node, so the text is unchanged.
+
+**Root cause.** `writeElement` indents children unless `children.length == 1 && children(0).isInstanceOf[Xml.Text]` (`schema-xml/shared/src/main/scala/zio/blocks/schema/xml/XmlWriter.scala:103-113`). Lines at v0.0.56 = a7014433f.
+
+**Impact.** Pretty-printed XHTML-like or prose content changes meaning (extra spaces, line breaks); the last line of the reproducer also shows that `XmlReader.read` with the default config trims `"Total: "` to `"Total:"`.
+
+**Test gap.** `XmlWriterSpec` "indentation" (`:146-160`) uses element-only content.
+
+**Suggested fix.** Skip indentation for elements with any `Text`/`CData` child. Documented in the `printPretty` Scaladoc meanwhile.
+
+### schema-toon: the TOON deriver ignores `@Modifier.fieldNaming`, `caseNaming`, `discriminator` and `noExtraFields`
+
+Found 2026-11-05 while writing the `ToonCodecDeriver` Scaladoc (Task 2b), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
+
+**Summary.** The same `Schema` gives different field names, discriminators and extra-field handling in TOON and JSON. `JsonCodecDeriver` honours the type-level modifiers `@Modifier.fieldNaming`, `@Modifier.caseNaming`, `@Modifier.discriminator` and `@Modifier.noExtraFields`; `ToonCodecDeriver` reads only `@Modifier.rename`, `@Modifier.alias` and `@Modifier.transient`. The `Modifier` Scaladoc names only "the JSON codec", so it does not promise otherwise, but users who annotate a type once expect every format to follow.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema-toon` 0.0.56, which brings `zio-blocks-schema`; `r3/IgnoredModifiers.scala`, run with `scala-cli run --server=false IgnoredModifiers.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-toon:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.json.JsonFormat
+import zio.blocks.schema.toon.ToonFormat
+
+object IgnoredModifiers {
+  @Modifier.fieldNaming("snake_case")
+  @Modifier.noExtraFields()
+  case class Order(orderId: Int, customerName: String)
+  object Order { implicit val schema: Schema[Order] = Schema.derived }
+
+  @Modifier.discriminator("kind")
+  sealed trait Payment
+  case class Card(last4: String) extends Payment
+  object Payment { implicit val schema: Schema[Payment] = Schema.derived }
+
+  def main(args: Array[String]): Unit = {
+    val order = Order(7, "Grace")
+    println(Order.schema.derive(JsonFormat).encodeToString(order))
+    println(Order.schema.derive(ToonFormat).encodeToString(order))
+    println(Order.schema.derive(JsonFormat).decode("""{"order_id":7,"customer_name":"Grace","note":"x"}"""))
+    println(Order.schema.derive(ToonFormat).decode("orderId: 7\ncustomerName: Grace\nnote: x"))
+    val card: Payment = Card("4242")
+    println(Payment.schema.derive(JsonFormat).encodeToString(card))
+    println(Payment.schema.derive(ToonFormat).encodeToString(card))
+  }
+}
+// {"order_id":7,"customer_name":"Grace"}
+// orderId: 7
+// customerName: Grace
+// Left(zio.blocks.schema.SchemaError: unexpected field "note" at: .)
+// Right(Order(7,Grace))
+// {"kind":"Card","last4":"4242"}
+// Card:
+//   last4: "4242"
+```
+
+**Expected.** TOON writes `order_id`/`customer_name`, rejects `note`, and writes `kind: Card` followed by `last4: "4242"`, as JSON does; or the `Modifier` and TOON docs say plainly that TOON ignores these modifiers.
+
+**Root cause.** `ToonCodecDeriver#deriveRecord` matches only `Modifier.rename`, `Modifier.alias` and `Modifier.transient` on fields (`ToonCodecDeriver.scala:293-298`) and never looks at the record's `modifiers` parameter; the variant branches match only `Modifier.rename` (and `alias` for `Field`) on cases (`:551-554`, `:602-615`, `:708-711`, `:766-769`) and take the discriminator from the deriver alone (`:586`). `JsonCodecDeriver` reads the type-level modifiers in its record and variant derivation (see its class Scaladoc, `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecDeriver.scala:71-76`).
+
+**Impact.** A schema shared between a JSON API and TOON prompts or files produces different keys and variant layouts in TOON, and TOON accepts input JSON would reject.
+
+**Test gap.** No TOON test uses a type-level modifier (`grep -n 'fieldNaming\|caseNaming\|noExtraFields\|Modifier.discriminator' schema-toon/src/test` finds nothing).
+
+**Suggested fix.** Read the four modifiers in `ToonCodecDeriver` as `JsonCodecDeriver` does (same precedence: modifier over deriver setting, `rename` over naming strategy). Until then, the new `ToonCodecDeriver` Scaladoc states which modifiers it reads.
 
 ## Test and CI
 

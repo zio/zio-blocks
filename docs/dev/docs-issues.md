@@ -413,6 +413,81 @@ The code comments at lines 700 and 1168 also show unescaped output. (Line 1169 r
 
 **Suggested fix.** Correct each line as stated.
 
+### `reference/schema/built-in-codecs/xml.md`: the `@xmlAttribute` and `@xmlNamespace` examples do not do what the page says
+
+**Where found.** `docs/reference/schema/built-in-codecs/xml.md` (Attributes, Namespaces, "Complete Example with Attributes and Namespaces", "RSS Feed Parsing", "Atom Feed with Advanced Features"), 2026-11-05, commit a7014433f.
+
+**Summary.** The annotations have no effect (see the library entry "`@xmlAttribute` and `@xmlNamespace` have no effect"). The `mdoc` blocks that print output (`val xml = codec.encodeToString(person)` at about line 325, the two Feed blocks at about 358 and 378, `xmlStr` at about 835) render plain child elements without attributes or namespaces, contradicting the prose ("Encode the person with attributes", "Encode the feed with a namespace prefix"). The RSS example's `codec.decode(feedXml)` fails (`guid` is an attribute in the input, a child element for the codec).
+
+**Fix.** Until the library is fixed, show `@Modifier.config("xml.attribute", "")` / `@Modifier.config("xml.namespace.uri", ...)` and `@Modifier.config("xml.namespace.prefix", ...)`, name the bug, and re-check the rendered output; also state that decoding ignores namespaces.
+
+### `reference/schema/built-in-codecs/xml.md`: the `XmlSelection` and `XmlPatch` paths start one level too high
+
+**Where found.** `docs/reference/schema/built-in-codecs/xml.md` ("XmlSelection > Navigation", "XmlPatch > Creating Patches", "Applying Patches", "Composing Patches", "Navigation and Transformation"), 2026-11-05, commit a7014433f.
+
+**Summary.** `xml.select` already selects the root element, and `get(name)` looks at children, so `xml.select.get("library").get("books")` on a `<library>` document is empty, and so is every value derived from it (`firstBook`, `title`, `titles`, `books`). `books.get("book")(0)` would not pick the first book either: `apply(index)` returns the child at that index of every selected element (here the `<title>` of each book). `XmlPatch` paths also start at the root's children: `XmlPatch.setAttribute(p".person", ...)` on `<person>...</person>` returns `Left(Element 'person' not found)`, and `p".library.books"` on `<library>` fails the same way. Probe `/tmp/claude-1000/xml-2a/p1` (both Scala versions):
+
+```
+11 select.get(library) => 0
+11b select.get(books) => 1
+11c get(book)(0) => Chunk(Element(title,Chunk(),Chunk(Text(T1))),Element(title,Chunk(),Chunk(Text(T2))))
+12 patch p.person => Left(zio.blocks.schema.SchemaError: Element 'person' not found)
+12b patch root => Right(<person active="true"><name>Alice</name></person>)
+```
+
+The `mdoc` blocks that print `title` and `allTitles` render whatever the empty selection gives; the `compile-only` patch blocks are never run.
+
+**Fix.** Drop the root name from selection chains (`xml.select.get("books").get("book")`), use `DynamicOptic.root` for the root and `p".books.book"`-style paths below it, and use `XmlSelection#apply` only with its real meaning (or pick from `toChunk`). Run the patch blocks with `mdoc` so their results show.
+
+### `reference/schema/built-in-codecs/xml.md`: smaller errors
+
+**Where found.** `docs/reference/schema/built-in-codecs/xml.md`, 2026-11-05, commit a7014433f.
+
+- XmlName section: `simple.namespace // ""` and `simple.prefix // ""` — both are `Option[String]`, so the values are `None`.
+- XmlBuilder section: `XmlBuilder.cdata("<![CDATA[raw content]]>")` puts the markers inside the content, so it prints `<![CDATA[<![CDATA[raw content]]>]]>`, which is malformed; pass `"raw content"`. The "Result:" comment shows indented output for a value that is never pretty-printed.
+- WriterConfig section: `val compact = WriterConfig` binds the companion object; it should be `WriterConfig.default`.
+- Supported Types / XmlCodec sections: "Variants (sealed traits)" and "Options" are listed without the limits (a variant below the top level and an `Option` inside a collection do not round-trip; see the library entries).
+- Error Handling: "All decoding operations return `Either[SchemaError, A]` or `Either[SchemaError, A]`" repeats itself; "Error information includes parse location" holds only for malformed XML (reader errors carry `(line: L, column: C)`), not for decoding errors, which carry a path such as `at: .qty`.
+
+### `reference/schema/built-in-codecs/toon.md`: misstates config scope, primitive count and the reader/writer
+
+Found 2026-11-05 while fact-checking the schema-toon Scaladoc against the reference page (Task 2b), commit `a7014433f`; the page is the same at the 0.0.56 docs. Evidence: probes `p1`, `p2`, `p5` under `/tmp/claude-1000/task2b-toon/` (all against 0.0.56).
+
+1. **`toon.md:84-94`** ("How They Work Together", steps 6 and 7) says `WriterConfig` controls "Array format selection" and `ReaderConfig` controls "Delimiter selection for inline arrays". The array format is a deriver setting (`ToonCodecDeriver.withArrayFormat`); `WriterConfig` has no such field (`WriterConfig.scala`, five fields: indent, delimiter, keyFolding, flattenDepth, discriminatorField). `ReaderConfig.withDelimiter` has no effect on decoding arrays, as the page itself says at `:624` (probe `p2`: `ReaderConfig.withDelimiter(Delimiter.Pipe)` still decodes `[2]: a,b` as `List(a, b)`). Steps 6 and 7 should also say that key folding, the delimiter and the discriminator field reach only the `DynamicValue` codec. Fix: drop "Array format selection" from step 6 and "Delimiter selection" from step 7; add "(`DynamicValue` codec only)" to the other DynamicValue-only items.
+2. **`toon.md:120-121`** ("Type Relationships") repeats it: `WriterConfig` "(indentation, delimiters, discriminators)" and `ReaderConfig` "(path expansion, strict mode, delimiters)". Fix: "indentation for every codec; delimiter, key folding and discriminator field for the `DynamicValue` codec" and "indentation and strict mode for every codec; path expansion and discriminator field for the `DynamicValue` codec".
+3. **`toon.md:6`, `:54`, `:440`, `:461`** say "27 primitive types". `ToonCodecDeriver#derivePrimitive` maps 30 (`ToonCodecDeriver.scala:137-167`: `Unit` through `UUID`), and the page's own list at `:462-465` names 30 (8 numeric, 3 logical, 16 temporal, 3 special). Fix: "30".
+4. **`toon.md:1006`** says "`ToonCodecDeriver` drives all codec derivation via `ToonCodecDeriver.derive(schema)`". No such method exists (`Deriver` has only the `deriveX` hooks, `schema/shared/src/main/scala/zio/blocks/schema/derive/Deriver.scala:100-200`); derivation is `Schema#derive(ToonCodecDeriver)` or `Schema#derive(ToonFormat)`. Fix the call.
+5. **`toon.md:738-742`, `:784-788`** call `ToonReader` a "low-level binary parser" with "error reporting at the byte level" and `ToonWriter` a "binary encoder" into "TOON binary format". TOON is text: the reader decodes the input as UTF-8 and splits it into lines (`ToonReader.scala:93-104`), and errors carry a path (`at: .port`), not a byte offset. Fix: "line-oriented text parser/writer".
+6. **`toon.md:51`** ("Handle errors — Catch `SchemaError`"): the `decode` methods return `Either[SchemaError, A]` and catch the exceptions themselves (`ToonCodec.scala:234-236`); nothing needs catching. Fix: "Handle the `Left(SchemaError)`".
+7. **`toon.md:865-907`** (DiscriminatorKind) and **`:688-690`** (known bugs) do not mention the two new `DiscriminatorKind.Field`/`None` bugs (B2, B3) or the `Array` field bug (B1). Once filed, add them to the page's known-bugs admonitions next to #1778-#1780.
+
+### `reference/schema/built-in-codecs/yaml.md`: error paths are shown as `.field[0]`, but YAML errors render indexes as `.at(0)`
+
+Found 2026-11-05 during the schema-yaml Scaladoc rollout (base a7014433f; page last changed in `4d774b674`). Same at 0.0.56: yes. Verified by running.
+
+**Summary.** `docs/reference/schema/built-in-codecs/yaml.md` says "Errors render as paths like `.field[0].nested.value`" (line 582) and, in the pipeline diagram, "Shows path (.field[index].nested)" (line 94). A YAML decoding error renders a sequence index as `.at(1)`, the `DynamicOptic` form, so a reader who searches logs for `[1]` finds nothing.
+
+**Reproducer** (save as `Repro.sc`, run `scala-cli run --server=false Repro.sc`; probe directory `/tmp/claude-1000/yaml-2c/docs-path`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-yaml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+case class Team(name: String, members: List[String])
+object Team { implicit val schema: Schema[Team] = Schema.derived }
+
+println(Team.schema.derive(YamlFormat).decode("name: core\nmembers:\n  - ada\n  - lead: grace\n"))
+// Left(zio.blocks.schema.SchemaError: Expected scalar for string at: .members.at(1))
+```
+
+(Output of the same shape from `fc1`: `Left(zio.blocks.schema.SchemaError: Expected scalar for string at: .tags.at(1))`.)
+
+**Expected page text.** "Errors render as paths like `.members.at(1)` or `.inner.level`" and, in the diagram, "Shows path (.field.at(index).nested)".
+
+**Suggested fix.** Edit the two lines; optionally add an mdoc example whose failure is inside a list, so the rendered output shows `.at(n)`.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
