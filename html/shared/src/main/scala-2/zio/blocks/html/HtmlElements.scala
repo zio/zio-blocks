@@ -26,6 +26,11 @@ import scala.language.implicitConversions
  * pass the attribute or the code directly.
  */
 sealed trait ScriptArg
+
+/**
+ * Companion of `ScriptArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object ScriptArg {
 
   /** Adds an HTML attribute to the `script` element. */
@@ -34,8 +39,15 @@ object ScriptArg {
   /** Adds [[Js]] code to the `script` element body. */
   final case class Source(value: Js) extends ScriptArg
 
+  /**
+   * Wraps an attribute as a `ScriptArg`, so `script(...)` accepts it directly.
+   */
   implicit def fromAttribute(attribute: Dom.Attribute): ScriptArg = Attribute(attribute)
-  implicit def fromJs(js: Js): ScriptArg                          = Source(js)
+
+  /**
+   * Wraps [[Js]] code as a `ScriptArg`, so `script(...)` accepts it directly.
+   */
+  implicit def fromJs(js: Js): ScriptArg = Source(js)
 }
 
 /**
@@ -44,6 +56,11 @@ object ScriptArg {
  * you pass the attribute or the CSS directly.
  */
 sealed trait StyleArg
+
+/**
+ * Companion of `StyleArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object StyleArg {
 
   /** Adds an HTML attribute to the `style` element. */
@@ -52,8 +69,15 @@ object StyleArg {
   /** Adds the rendered [[Css]] to the `style` element body. */
   final case class Source(value: Css) extends StyleArg
 
+  /**
+   * Wraps an attribute as a `StyleArg`, so `style(...)` accepts it directly.
+   */
   implicit def fromAttribute(attribute: Dom.Attribute): StyleArg = Attribute(attribute)
-  implicit def fromCss(css: Css): StyleArg                       = Source(css)
+
+  /**
+   * Wraps a [[Css]] value as a `StyleArg`, so `style(...)` accepts it directly.
+   */
+  implicit def fromCss(css: Css): StyleArg = Source(css)
 }
 
 /**
@@ -62,6 +86,11 @@ object StyleArg {
  * accept.
  */
 sealed trait ListArg
+
+/**
+ * Companion of `ListArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object ListArg {
 
   /** Adds an HTML attribute to the `ul`/`ol` element. */
@@ -70,8 +99,17 @@ object ListArg {
   /** Adds a `<li>` item to the `ul`/`ol` element body. */
   final case class Item(value: Dom.Element.Li) extends ListArg
 
+  /**
+   * Wraps an attribute as a `ListArg`, so `ul` and `ol(...)` accepts it
+   * directly.
+   */
   implicit def fromAttribute(attribute: Dom.Attribute): ListArg = Attribute(attribute)
-  implicit def fromLi(item: Dom.Element.Li): ListArg            = Item(item)
+
+  /**
+   * Wraps a `<li>` item as a `ListArg`, so `ul` and `ol(...)` accepts it
+   * directly.
+   */
+  implicit def fromLi(item: Dom.Element.Li): ListArg = Item(item)
 }
 
 /**
@@ -79,6 +117,11 @@ object ListArg {
  * or a `<th>` or `<td>` cell, the only element children this factory accepts.
  */
 sealed trait CellArg
+
+/**
+ * Companion of `CellArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object CellArg {
 
   /** Adds an HTML attribute to the `tr` element. */
@@ -87,8 +130,14 @@ object CellArg {
   /** Adds a `<th>`/`<td>` cell to the `tr` element body. */
   final case class Cell(value: Dom.Element.Cell) extends CellArg
 
+  /** Wraps an attribute as a `CellArg`, so `tr(...)` accepts it directly. */
   implicit def fromAttribute(attribute: Dom.Attribute): CellArg = Attribute(attribute)
-  implicit def fromCell(cell: Dom.Element.Cell): CellArg        = Cell(cell)
+
+  /**
+   * Wraps a `<th>` or `<td>` cell as a `CellArg`, so `tr(...)` accepts it
+   * directly.
+   */
+  implicit def fromCell(cell: Dom.Element.Cell): CellArg = Cell(cell)
 }
 
 /**
@@ -96,6 +145,11 @@ object CellArg {
  * attribute or a `<tr>` row (the typed marker for direct table children).
  */
 sealed trait RowArg
+
+/**
+ * Companion of `RowArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object RowArg {
 
   /** Adds an HTML attribute to the `table` element. */
@@ -104,8 +158,11 @@ object RowArg {
   /** Adds a `<tr>` row to the `table` element body. */
   final case class Row(value: Dom.Element.Tr) extends RowArg
 
+  /** Wraps an attribute as a `RowArg`, so `table(...)` accepts it directly. */
   implicit def fromAttribute(attribute: Dom.Attribute): RowArg = Attribute(attribute)
-  implicit def fromRow(row: Dom.Element.Tr): RowArg            = Row(row)
+
+  /** Wraps a `<tr>` row as a `RowArg`, so `table(...)` accepts it directly. */
+  implicit def fromRow(row: Dom.Element.Tr): RowArg = Row(row)
 }
 
 /**
@@ -113,6 +170,11 @@ object RowArg {
  * attribute or a select child (`<option>`/`<optgroup>`).
  */
 sealed trait SelectArg
+
+/**
+ * Companion of `SelectArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object SelectArg {
 
   /** Adds an HTML attribute to the `select` element. */
@@ -121,7 +183,15 @@ object SelectArg {
   /** Adds an `<option>`/`<optgroup>` child to the `select` element body. */
   final case class Child(value: Dom.Element.SelectChild) extends SelectArg
 
-  implicit def fromAttribute(attribute: Dom.Attribute): SelectArg         = Attribute(attribute)
+  /**
+   * Wraps an attribute as a `SelectArg`, so `select(...)` accepts it directly.
+   */
+  implicit def fromAttribute(attribute: Dom.Attribute): SelectArg = Attribute(attribute)
+
+  /**
+   * Wraps an `<option>` or `<optgroup>` element as a `SelectArg`, so
+   * `select(...)` accepts it directly.
+   */
   implicit def fromSelectChild(child: Dom.Element.SelectChild): SelectArg = Child(child)
 }
 
@@ -130,6 +200,11 @@ object SelectArg {
  * attribute or an `<option>`, the only element child this factory accepts.
  */
 sealed trait OptgroupArg
+
+/**
+ * Companion of `OptgroupArg`: its cases and the implicit conversions that build
+ * them.
+ */
 object OptgroupArg {
 
   /** Adds an HTML attribute to the `optgroup` element. */
@@ -138,8 +213,17 @@ object OptgroupArg {
   /** Adds an `<option>` to the `optgroup` element body. */
   final case class Option(value: Dom.Element.Opt) extends OptgroupArg
 
+  /**
+   * Wraps an attribute as a `OptgroupArg`, so `optgroup(...)` accepts it
+   * directly.
+   */
   implicit def fromAttribute(attribute: Dom.Attribute): OptgroupArg = Attribute(attribute)
-  implicit def fromOpt(option: Dom.Element.Opt): OptgroupArg        = Option(option)
+
+  /**
+   * Wraps an `<option>` element as a `OptgroupArg`, so `optgroup(...)` accepts
+   * it directly.
+   */
+  implicit def fromOpt(option: Dom.Element.Opt): OptgroupArg = Option(option)
 }
 
 /**
@@ -293,90 +377,357 @@ trait HtmlElements {
     Dom.Element.OptgroupElement(attrBuilder.result(), childBuilder.result())
   }
 
-  val doctype: Dom.Doctype    = Dom.Doctype("html")
-  val html: Dom.Element       = Dom.Element.Generic("html", Chunk.empty, Chunk.empty)
-  val head: Dom.Element       = Dom.Element.Generic("head", Chunk.empty, Chunk.empty)
-  val body: Dom.Element       = Dom.Element.Generic("body", Chunk.empty, Chunk.empty)
-  val title: Dom.Element      = Dom.Element.Generic("title", Chunk.empty, Chunk.empty)
-  val div: Dom.Element        = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-  val span: Dom.Element       = Dom.Element.Generic("span", Chunk.empty, Chunk.empty)
-  val p: Dom.Element          = Dom.Element.Generic("p", Chunk.empty, Chunk.empty)
-  val h1: Dom.Element         = Dom.Element.Generic("h1", Chunk.empty, Chunk.empty)
-  val h2: Dom.Element         = Dom.Element.Generic("h2", Chunk.empty, Chunk.empty)
-  val h3: Dom.Element         = Dom.Element.Generic("h3", Chunk.empty, Chunk.empty)
-  val h4: Dom.Element         = Dom.Element.Generic("h4", Chunk.empty, Chunk.empty)
-  val h5: Dom.Element         = Dom.Element.Generic("h5", Chunk.empty, Chunk.empty)
-  val h6: Dom.Element         = Dom.Element.Generic("h6", Chunk.empty, Chunk.empty)
-  val a: Dom.Element          = Dom.Element.Generic("a", Chunk.empty, Chunk.empty)
-  val abbr: Dom.Element       = Dom.Element.Generic("abbr", Chunk.empty, Chunk.empty)
-  val address: Dom.Element    = Dom.Element.Generic("address", Chunk.empty, Chunk.empty)
-  val area: Dom.Element.Void  = Dom.Element.VoidGeneric("area", Chunk.empty)
-  val article: Dom.Element    = Dom.Element.Generic("article", Chunk.empty, Chunk.empty)
-  val aside: Dom.Element      = Dom.Element.Generic("aside", Chunk.empty, Chunk.empty)
-  val audio: Dom.Element      = Dom.Element.Generic("audio", Chunk.empty, Chunk.empty)
-  val b: Dom.Element          = Dom.Element.Generic("b", Chunk.empty, Chunk.empty)
-  val base: Dom.Element.Void  = Dom.Element.VoidGeneric("base", Chunk.empty)
-  val bdi: Dom.Element        = Dom.Element.Generic("bdi", Chunk.empty, Chunk.empty)
-  val bdo: Dom.Element        = Dom.Element.Generic("bdo", Chunk.empty, Chunk.empty)
+  /** The HTML5 document type declaration, rendered as `<!DOCTYPE html>`. */
+  val doctype: Dom.Doctype = Dom.Doctype("html")
+
+  /** The root `<html>` element of a document. */
+  val html: Dom.Element = Dom.Element.Generic("html", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<head>` element: metadata about the document, such as its `title` and
+   * `meta` tags.
+   */
+  val head: Dom.Element = Dom.Element.Generic("head", Chunk.empty, Chunk.empty)
+
+  /** The `<body>` element: the visible content of the document. */
+  val body: Dom.Element = Dom.Element.Generic("body", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<title>` element: the document title, shown in the browser tab. The
+   * attribute `title` is `titleAttr`.
+   */
+  val title: Dom.Element = Dom.Element.Generic("title", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<div>` element: a generic block container with no meaning of its own.
+   */
+  val div: Dom.Element = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<span>` element: a generic inline container with no meaning of its
+   * own.
+   */
+  val span: Dom.Element = Dom.Element.Generic("span", Chunk.empty, Chunk.empty)
+
+  /** The `<p>` element: a paragraph. */
+  val p: Dom.Element = Dom.Element.Generic("p", Chunk.empty, Chunk.empty)
+
+  /** The `<h1>` element: a top-level heading. */
+  val h1: Dom.Element = Dom.Element.Generic("h1", Chunk.empty, Chunk.empty)
+
+  /** The `<h2>` element: a second-level heading. */
+  val h2: Dom.Element = Dom.Element.Generic("h2", Chunk.empty, Chunk.empty)
+
+  /** The `<h3>` element: a third-level heading. */
+  val h3: Dom.Element = Dom.Element.Generic("h3", Chunk.empty, Chunk.empty)
+
+  /** The `<h4>` element: a fourth-level heading. */
+  val h4: Dom.Element = Dom.Element.Generic("h4", Chunk.empty, Chunk.empty)
+
+  /** The `<h5>` element: a fifth-level heading. */
+  val h5: Dom.Element = Dom.Element.Generic("h5", Chunk.empty, Chunk.empty)
+
+  /** The `<h6>` element: a sixth-level heading. */
+  val h6: Dom.Element = Dom.Element.Generic("h6", Chunk.empty, Chunk.empty)
+
+  /** The `<a>` element: a hyperlink, usually with an `href`. */
+  val a: Dom.Element = Dom.Element.Generic("a", Chunk.empty, Chunk.empty)
+
+  /** The `<abbr>` element: an abbreviation or acronym. */
+  val abbr: Dom.Element = Dom.Element.Generic("abbr", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<address>` element: contact information for its nearest article or the
+   * page.
+   */
+  val address: Dom.Element = Dom.Element.Generic("address", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<area>` void element: a clickable region of an image map. It renders
+   * as `<area/>`, with no closing tag.
+   */
+  val area: Dom.Element.Void = Dom.Element.VoidGeneric("area", Chunk.empty)
+
+  /**
+   * The `<article>` element: a self-contained piece of content, such as a blog
+   * post.
+   */
+  val article: Dom.Element = Dom.Element.Generic("article", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<aside>` element: content related to the surrounding content but set
+   * apart, such as a sidebar.
+   */
+  val aside: Dom.Element = Dom.Element.Generic("aside", Chunk.empty, Chunk.empty)
+
+  /** The `<audio>` element: embedded sound content. */
+  val audio: Dom.Element = Dom.Element.Generic("audio", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<b>` element: text drawn to the reader's attention, usually shown in
+   * bold.
+   */
+  val b: Dom.Element = Dom.Element.Generic("b", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<base>` void element: the base URL that relative URLs in the document
+   * resolve against. It renders as `<base/>`, with no closing tag.
+   */
+  val base: Dom.Element.Void = Dom.Element.VoidGeneric("base", Chunk.empty)
+
+  /**
+   * The `<bdi>` element: text isolated from the text direction of its
+   * surroundings.
+   */
+  val bdi: Dom.Element = Dom.Element.Generic("bdi", Chunk.empty, Chunk.empty)
+
+  /** The `<bdo>` element: text whose direction is overridden. */
+  val bdo: Dom.Element = Dom.Element.Generic("bdo", Chunk.empty, Chunk.empty)
+
+  /** The `<blockquote>` element: a block quotation from another source. */
   val blockquote: Dom.Element = Dom.Element.Generic("blockquote", Chunk.empty, Chunk.empty)
-  val br: Dom.Element.Void    = Dom.Element.VoidGeneric("br", Chunk.empty)
-  val button: Dom.Element     = Dom.Element.Generic("button", Chunk.empty, Chunk.empty)
-  val canvas: Dom.Element     = Dom.Element.Generic("canvas", Chunk.empty, Chunk.empty)
-  val caption: Dom.Element    = Dom.Element.Generic("caption", Chunk.empty, Chunk.empty)
-  val cite: Dom.Element       = Dom.Element.Generic("cite", Chunk.empty, Chunk.empty)
-  val code: Dom.Element       = Dom.Element.Generic("code", Chunk.empty, Chunk.empty)
-  val col: Dom.Element.Void   = Dom.Element.VoidGeneric("col", Chunk.empty)
-  val colgroup: Dom.Element   = Dom.Element.Generic("colgroup", Chunk.empty, Chunk.empty)
-  val data: Dom.Element       = Dom.Element.Generic("data", Chunk.empty, Chunk.empty)
-  val datalist: Dom.Element   = Dom.Element.Generic("datalist", Chunk.empty, Chunk.empty)
-  val dd: Dom.Element         = Dom.Element.Generic("dd", Chunk.empty, Chunk.empty)
-  val del: Dom.Element        = Dom.Element.Generic("del", Chunk.empty, Chunk.empty)
-  val details: Dom.Element    = Dom.Element.Generic("details", Chunk.empty, Chunk.empty)
-  val dfn: Dom.Element        = Dom.Element.Generic("dfn", Chunk.empty, Chunk.empty)
-  val dialog: Dom.Element     = Dom.Element.Generic("dialog", Chunk.empty, Chunk.empty)
-  val dl: Dom.Element         = Dom.Element.Generic("dl", Chunk.empty, Chunk.empty)
-  val dt: Dom.Element         = Dom.Element.Generic("dt", Chunk.empty, Chunk.empty)
-  val em: Dom.Element         = Dom.Element.Generic("em", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<br>` void element: a line break. It renders as `<br/>`, with no
+   * closing tag.
+   */
+  val br: Dom.Element.Void = Dom.Element.VoidGeneric("br", Chunk.empty)
+
+  /** The `<button>` element: a clickable button. */
+  val button: Dom.Element = Dom.Element.Generic("button", Chunk.empty, Chunk.empty)
+
+  /** The `<canvas>` element: a drawing surface for scripts. */
+  val canvas: Dom.Element = Dom.Element.Generic("canvas", Chunk.empty, Chunk.empty)
+
+  /** The `<caption>` element: the title of a table. */
+  val caption: Dom.Element = Dom.Element.Generic("caption", Chunk.empty, Chunk.empty)
+
+  /** The `<cite>` element: the title of a cited work. */
+  val cite: Dom.Element = Dom.Element.Generic("cite", Chunk.empty, Chunk.empty)
+
+  /** The `<code>` element: a fragment of computer code. */
+  val code: Dom.Element = Dom.Element.Generic("code", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<col>` void element: a column, or a group of columns, inside a
+   * `colgroup`. It renders as `<col/>`, with no closing tag.
+   */
+  val col: Dom.Element.Void = Dom.Element.VoidGeneric("col", Chunk.empty)
+
+  /** The `<colgroup>` element: a group of table columns. */
+  val colgroup: Dom.Element = Dom.Element.Generic("colgroup", Chunk.empty, Chunk.empty)
+
+  /** The `<data>` element: content with a machine-readable `value`. */
+  val data: Dom.Element = Dom.Element.Generic("data", Chunk.empty, Chunk.empty)
+
+  /** The `<datalist>` element: a list of suggested values for an input. */
+  val datalist: Dom.Element = Dom.Element.Generic("datalist", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<dd>` element: the description of a term in a description list (`dl`).
+   */
+  val dd: Dom.Element = Dom.Element.Generic("dd", Chunk.empty, Chunk.empty)
+
+  /** The `<del>` element: text that was removed from the document. */
+  val del: Dom.Element = Dom.Element.Generic("del", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<details>` element: a disclosure widget that shows or hides its
+   * content.
+   */
+  val details: Dom.Element = Dom.Element.Generic("details", Chunk.empty, Chunk.empty)
+
+  /** The `<dfn>` element: the term being defined. */
+  val dfn: Dom.Element = Dom.Element.Generic("dfn", Chunk.empty, Chunk.empty)
+
+  /** The `<dialog>` element: a dialog box or window. */
+  val dialog: Dom.Element = Dom.Element.Generic("dialog", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<dl>` element: a description list of terms (`dt`) and descriptions
+   * (`dd`).
+   */
+  val dl: Dom.Element = Dom.Element.Generic("dl", Chunk.empty, Chunk.empty)
+
+  /** The `<dt>` element: a term in a description list (`dl`). */
+  val dt: Dom.Element = Dom.Element.Generic("dt", Chunk.empty, Chunk.empty)
+
+  /** The `<em>` element: emphasized text, usually shown in italics. */
+  val em: Dom.Element = Dom.Element.Generic("em", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<embed>` void element: an external application or interactive content.
+   * It renders as `<embed/>`, with no closing tag.
+   */
   val embed: Dom.Element.Void = Dom.Element.VoidGeneric("embed", Chunk.empty)
-  val fieldset: Dom.Element   = Dom.Element.Generic("fieldset", Chunk.empty, Chunk.empty)
-  val figure: Dom.Element     = Dom.Element.Generic("figure", Chunk.empty, Chunk.empty)
+
+  /** The `<fieldset>` element: a group of related form controls. */
+  val fieldset: Dom.Element = Dom.Element.Generic("fieldset", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<figure>` element: self-contained content, such as an illustration,
+   * with an optional `figcaption`.
+   */
+  val figure: Dom.Element = Dom.Element.Generic("figure", Chunk.empty, Chunk.empty)
+
+  /** The `<figcaption>` element: the caption of a `figure`. */
   val figcaption: Dom.Element = Dom.Element.Generic("figcaption", Chunk.empty, Chunk.empty)
-  val footer: Dom.Element     = Dom.Element.Generic("footer", Chunk.empty, Chunk.empty)
-  val form: Dom.Element       = Dom.Element.Generic("form", Chunk.empty, Chunk.empty)
-  val header: Dom.Element     = Dom.Element.Generic("header", Chunk.empty, Chunk.empty)
-  val hgroup: Dom.Element     = Dom.Element.Generic("hgroup", Chunk.empty, Chunk.empty)
-  val hr: Dom.Element.Void    = Dom.Element.VoidGeneric("hr", Chunk.empty)
-  val i: Dom.Element          = Dom.Element.Generic("i", Chunk.empty, Chunk.empty)
-  val iframe: Dom.Element     = Dom.Element.Generic("iframe", Chunk.empty, Chunk.empty)
-  val img: Dom.Element.Void   = Dom.Element.VoidGeneric("img", Chunk.empty)
+
+  /** The `<footer>` element: the footer of a page or section. */
+  val footer: Dom.Element = Dom.Element.Generic("footer", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<form>` element: a form that collects and submits user input. The
+   * attribute `form` is `formAttr`.
+   */
+  val form: Dom.Element = Dom.Element.Generic("form", Chunk.empty, Chunk.empty)
+
+  /** The `<header>` element: introductory content of a page or section. */
+  val header: Dom.Element = Dom.Element.Generic("header", Chunk.empty, Chunk.empty)
+
+  /** The `<hgroup>` element: a heading with its subheading or tagline. */
+  val hgroup: Dom.Element = Dom.Element.Generic("hgroup", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<hr>` void element: a thematic break between paragraphs. It renders as
+   * `<hr/>`, with no closing tag.
+   */
+  val hr: Dom.Element.Void = Dom.Element.VoidGeneric("hr", Chunk.empty)
+
+  /**
+   * The `<i>` element: text in an alternate voice, usually shown in italics.
+   */
+  val i: Dom.Element = Dom.Element.Generic("i", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<iframe>` element: a nested browsing context that embeds another page.
+   */
+  val iframe: Dom.Element = Dom.Element.Generic("iframe", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<img>` void element: an image. It renders as `<img/>`, with no closing
+   * tag.
+   */
+  val img: Dom.Element.Void = Dom.Element.VoidGeneric("img", Chunk.empty)
+
+  /**
+   * The `<input>` void element: a form control; its `type` attribute selects
+   * the kind. It renders as `<input/>`, with no closing tag.
+   */
   val input: Dom.Element.Void = Dom.Element.VoidGeneric("input", Chunk.empty)
-  val ins: Dom.Element        = Dom.Element.Generic("ins", Chunk.empty, Chunk.empty)
-  val kbd: Dom.Element        = Dom.Element.Generic("kbd", Chunk.empty, Chunk.empty)
-  val label: Dom.Element      = Dom.Element.Generic("label", Chunk.empty, Chunk.empty)
-  val legend: Dom.Element     = Dom.Element.Generic("legend", Chunk.empty, Chunk.empty)
-  val link: Dom.Element.Void  = Dom.Element.VoidGeneric("link", Chunk.empty)
-  val main: Dom.Element       = Dom.Element.Generic("main", Chunk.empty, Chunk.empty)
-  val menu: Dom.Element       = Dom.Element.Generic("menu", Chunk.empty, Chunk.empty)
-  val map: Dom.Element        = Dom.Element.Generic("map", Chunk.empty, Chunk.empty)
-  val mark: Dom.Element       = Dom.Element.Generic("mark", Chunk.empty, Chunk.empty)
-  val math: Dom.Element       = Dom.Element.Generic("math", Chunk.empty, Chunk.empty)
-  val meta: Dom.Element.Void  = Dom.Element.VoidGeneric("meta", Chunk.empty)
-  val meter: Dom.Element      = Dom.Element.Generic("meter", Chunk.empty, Chunk.empty)
-  val nav: Dom.Element        = Dom.Element.Generic("nav", Chunk.empty, Chunk.empty)
-  val noscript: Dom.Element   = Dom.Element.Generic("noscript", Chunk.empty, Chunk.empty)
-  val `object`: Dom.Element   = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
-  val objectTag: Dom.Element  = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
-  val output: Dom.Element     = Dom.Element.Generic("output", Chunk.empty, Chunk.empty)
+
+  /** The `<ins>` element: text that was added to the document. */
+  val ins: Dom.Element = Dom.Element.Generic("ins", Chunk.empty, Chunk.empty)
+
+  /** The `<kbd>` element: keyboard input. */
+  val kbd: Dom.Element = Dom.Element.Generic("kbd", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<label>` element: a caption for a form control. The attribute `label`
+   * is `labelAttr`.
+   */
+  val label: Dom.Element = Dom.Element.Generic("label", Chunk.empty, Chunk.empty)
+
+  /** The `<legend>` element: the caption of a `fieldset`. */
+  val legend: Dom.Element = Dom.Element.Generic("legend", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<link>` void element: a relationship to an external resource, such as
+   * a stylesheet. It renders as `<link/>`, with no closing tag.
+   */
+  val link: Dom.Element.Void = Dom.Element.VoidGeneric("link", Chunk.empty)
+
+  /** The `<main>` element: the main content of the page. */
+  val main: Dom.Element = Dom.Element.Generic("main", Chunk.empty, Chunk.empty)
+
+  /** The `<menu>` element: a list of commands. */
+  val menu: Dom.Element = Dom.Element.Generic("menu", Chunk.empty, Chunk.empty)
+
+  /** The `<map>` element: an image map, which holds `area` elements. */
+  val map: Dom.Element = Dom.Element.Generic("map", Chunk.empty, Chunk.empty)
+
+  /** The `<mark>` element: highlighted text. */
+  val mark: Dom.Element = Dom.Element.Generic("mark", Chunk.empty, Chunk.empty)
+
+  /** The `<math>` element: the root of a MathML formula. */
+  val math: Dom.Element = Dom.Element.Generic("math", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<meta>` void element: metadata that no other element covers, such as
+   * the character set. It renders as `<meta/>`, with no closing tag.
+   */
+  val meta: Dom.Element.Void = Dom.Element.VoidGeneric("meta", Chunk.empty)
+
+  /** The `<meter>` element: a scalar measurement within a known range. */
+  val meter: Dom.Element = Dom.Element.Generic("meter", Chunk.empty, Chunk.empty)
+
+  /** The `<nav>` element: a section of navigation links. */
+  val nav: Dom.Element = Dom.Element.Generic("nav", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<noscript>` element: content shown when scripting is off or
+   * unsupported.
+   */
+  val noscript: Dom.Element = Dom.Element.Generic("noscript", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<object>` element: an external resource such as an image or a nested
+   * context. `objectTag` is the same element without backticks.
+   */
+  val `object`: Dom.Element = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<object>` element, under a name that needs no backticks. `object` is
+   * the same element.
+   */
+  val objectTag: Dom.Element = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
+
+  /** The `<output>` element: the result of a calculation or user action. */
+  val output: Dom.Element = Dom.Element.Generic("output", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<param>` void element: a parameter for an `object` element. It renders
+   * as `<param/>`, with no closing tag.
+   */
   val param: Dom.Element.Void = Dom.Element.VoidGeneric("param", Chunk.empty)
-  val picture: Dom.Element    = Dom.Element.Generic("picture", Chunk.empty, Chunk.empty)
-  val pre: Dom.Element        = Dom.Element.Generic("pre", Chunk.empty, Chunk.empty)
-  val progress: Dom.Element   = Dom.Element.Generic("progress", Chunk.empty, Chunk.empty)
-  val q: Dom.Element          = Dom.Element.Generic("q", Chunk.empty, Chunk.empty)
-  val rp: Dom.Element         = Dom.Element.Generic("rp", Chunk.empty, Chunk.empty)
-  val rt: Dom.Element         = Dom.Element.Generic("rt", Chunk.empty, Chunk.empty)
-  val ruby: Dom.Element       = Dom.Element.Generic("ruby", Chunk.empty, Chunk.empty)
-  val s: Dom.Element          = Dom.Element.Generic("s", Chunk.empty, Chunk.empty)
-  val samp: Dom.Element       = Dom.Element.Generic("samp", Chunk.empty, Chunk.empty)
+
+  /** The `<picture>` element: an image with alternative sources. */
+  val picture: Dom.Element = Dom.Element.Generic("picture", Chunk.empty, Chunk.empty)
+
+  /** The `<pre>` element: preformatted text. */
+  val pre: Dom.Element = Dom.Element.Generic("pre", Chunk.empty, Chunk.empty)
+
+  /** The `<progress>` element: the completion progress of a task. */
+  val progress: Dom.Element = Dom.Element.Generic("progress", Chunk.empty, Chunk.empty)
+
+  /** The `<q>` element: a short inline quotation. */
+  val q: Dom.Element = Dom.Element.Generic("q", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<rp>` element: fallback parentheses for browsers that do not support
+   * ruby text.
+   */
+  val rp: Dom.Element = Dom.Element.Generic("rp", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<rt>` element: the pronunciation or annotation text of a `ruby`
+   * element.
+   */
+  val rt: Dom.Element = Dom.Element.Generic("rt", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<ruby>` element: a ruby annotation, used for East Asian pronunciation.
+   */
+  val ruby: Dom.Element = Dom.Element.Generic("ruby", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<s>` element: text that is no longer accurate, usually shown struck
+   * through.
+   */
+  val s: Dom.Element = Dom.Element.Generic("s", Chunk.empty, Chunk.empty)
+
+  /** The `<samp>` element: sample output of a program. */
+  val samp: Dom.Element = Dom.Element.Generic("samp", Chunk.empty, Chunk.empty)
 
   /**
    * Creates an empty `script` element. Add code with
@@ -396,12 +747,32 @@ trait HtmlElements {
    * `Js(...)`.
    */
   def script(effect: ScriptArg, effects: ScriptArg*): Dom.Element.Script = elScript(effect +: effects)
-  val search: Dom.Element                                                = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
-  val section: Dom.Element                                               = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
-  val slot: Dom.Element                                                  = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
-  val small: Dom.Element                                                 = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
-  val source: Dom.Element.Void                                           = Dom.Element.VoidGeneric("source", Chunk.empty)
-  val strong: Dom.Element                                                = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
+
+  /** The `<search>` element: a section with search or filtering controls. */
+  val search: Dom.Element = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
+
+  /** The `<section>` element: a thematic section of a document. */
+  val section: Dom.Element = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<slot>` element: a placeholder inside a web component, filled by its
+   * user.
+   */
+  val slot: Dom.Element = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
+
+  /** The `<small>` element: side comments such as fine print. */
+  val small: Dom.Element = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<source>` void element: an alternative media resource for `audio`,
+   * `video` or `picture`. It renders as `<source/>`, with no closing tag.
+   */
+  val source: Dom.Element.Void = Dom.Element.VoidGeneric("source", Chunk.empty)
+
+  /**
+   * The `<strong>` element: text of strong importance, usually shown in bold.
+   */
+  val strong: Dom.Element = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
 
   /**
    * Creates an empty `style` element. Add a stylesheet with
@@ -418,24 +789,87 @@ trait HtmlElements {
    * so pass only trusted CSS to it.
    */
   def style(effect: StyleArg, effects: StyleArg*): Dom.Element.Style = elStyle(effect +: effects)
-  val sub: Dom.Element                                               = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
-  val summary: Dom.Element                                           = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
-  val sup: Dom.Element                                               = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
-  val svg: Dom.Element                                               = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
-  val tbody: Dom.Element                                             = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
-  val `template`: Dom.Element                                        = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
-  val templateTag: Dom.Element                                       = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
-  val textarea: Dom.Element                                          = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
-  val tfoot: Dom.Element                                             = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
-  val thead: Dom.Element                                             = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
-  val time: Dom.Element                                              = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
-  val track: Dom.Element.Void                                        = Dom.Element.VoidGeneric("track", Chunk.empty)
-  val u: Dom.Element                                                 = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
-  val `var`: Dom.Element                                             = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
-  val varTag: Dom.Element                                            = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
-  val video: Dom.Element                                             = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
-  val wbr: Dom.Element.Void                                          = Dom.Element.VoidGeneric("wbr", Chunk.empty)
-  def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+
+  /** The `<sub>` element: subscript text. */
+  val sub: Dom.Element = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<summary>` element: the visible heading of a `details` element. The
+   * attribute `summary` is `summaryAttr`.
+   */
+  val summary: Dom.Element = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
+
+  /** The `<sup>` element: superscript text. */
+  val sup: Dom.Element = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
+
+  /** The `<svg>` element: the root of an inline SVG graphic. */
+  val svg: Dom.Element = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
+
+  /** The `<tbody>` element: the body rows of a table. */
+  val tbody: Dom.Element = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<template>` element: markup that the page does not render until a
+   * script uses it. `templateTag` is the same element without backticks.
+   */
+  val `template`: Dom.Element = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<template>` element, under a name that needs no backticks. `template`
+   * is the same element.
+   */
+  val templateTag: Dom.Element = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
+
+  /** The `<textarea>` element: a multi-line text input. */
+  val textarea: Dom.Element = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
+
+  /** The `<tfoot>` element: the footer rows of a table. */
+  val tfoot: Dom.Element = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
+
+  /** The `<thead>` element: the header rows of a table. */
+  val thead: Dom.Element = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
+
+  /** The `<time>` element: a date, a time or a duration. */
+  val time: Dom.Element = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<track>` void element: a timed text track, such as subtitles, for
+   * `audio` or `video`. It renders as `<track/>`, with no closing tag.
+   */
+  val track: Dom.Element.Void = Dom.Element.VoidGeneric("track", Chunk.empty)
+
+  /**
+   * The `<u>` element: text with an unarticulated annotation, usually shown
+   * underlined.
+   */
+  val u: Dom.Element = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<var>` element: a variable in a mathematical expression or program.
+   * `varTag` is the same element without backticks.
+   */
+  val `var`: Dom.Element = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<var>` element, under a name that needs no backticks. `var` is the
+   * same element.
+   */
+  val varTag: Dom.Element = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
+
+  /** The `<video>` element: embedded video content. */
+  val video: Dom.Element = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
+
+  /**
+   * The `<wbr>` void element: a position where the browser may break a long
+   * word across lines. It renders as `<wbr/>`, with no closing tag.
+   */
+  val wbr: Dom.Element.Void = Dom.Element.VoidGeneric("wbr", Chunk.empty)
+
+  /**
+   * Creates an empty element with the tag `tag`, for a tag that has no
+   * predefined member, such as a custom element.
+   */
+  def element(tag: String): Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
   /** Creates an empty `<li>` element, typed [[Dom.Element.Li]]. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
@@ -587,135 +1021,661 @@ trait HtmlElements {
 
   // --- Attribute helpers ---
 
-  val id: AttributeKey                               = new AttributeKey("id")
-  val `class`: MultiAttributeKey                     = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
-  val className: MultiAttributeKey                   = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
-  val styleAttr: AttributeKey                        = new AttributeKey("style")
-  val titleAttr: AttributeKey                        = new AttributeKey("title")
-  val href: AttributeKey                             = new AttributeKey("href")
-  val src: AttributeKey                              = new AttributeKey("src")
-  val alt: AttributeKey                              = new AttributeKey("alt")
-  val width: AttributeKey                            = new AttributeKey("width")
-  val height: AttributeKey                           = new AttributeKey("height")
-  val action: AttributeKey                           = new AttributeKey("action")
-  val method: AttributeKey                           = new AttributeKey("method")
-  val name: AttributeKey                             = new AttributeKey("name")
-  val value: AttributeKey                            = new AttributeKey("value")
-  val `type`: AttributeKey                           = new AttributeKey("type")
-  val typeAttr: AttributeKey                         = new AttributeKey("type")
-  val placeholder: AttributeKey                      = new AttributeKey("placeholder")
-  val required: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("required")
-  val disabled: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("disabled")
-  val readonly: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("readonly")
-  val checked: Dom.Attribute.BooleanAttribute        = Dom.boolAttr("checked")
-  val selected: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("selected")
-  val multiple: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("multiple")
-  val min: AttributeKey                              = new AttributeKey("min")
-  val max: AttributeKey                              = new AttributeKey("max")
-  val step: AttributeKey                             = new AttributeKey("step")
-  val pattern: AttributeKey                          = new AttributeKey("pattern")
-  val autofocus: Dom.Attribute.BooleanAttribute      = Dom.boolAttr("autofocus")
-  val autoComplete: AttributeKey                     = new AttributeKey("autocomplete")
-  val target: AttributeKey                           = new AttributeKey("target")
-  val rel: MultiAttributeKey                         = new MultiAttributeKey("rel", Dom.AttributeSeparator.Space)
-  val download: AttributeKey                         = new AttributeKey("download")
-  val role: AttributeKey                             = new AttributeKey("role")
-  val tabIndex: AttributeKey                         = new AttributeKey("tabindex")
-  val hidden: Dom.Attribute.BooleanAttribute         = Dom.boolAttr("hidden")
-  val draggable: AttributeKey                        = new AttributeKey("draggable")
-  val contentEditable: AttributeKey                  = new AttributeKey("contenteditable")
-  val lang: AttributeKey                             = new AttributeKey("lang")
-  val dir: AttributeKey                              = new AttributeKey("dir")
-  val colspan: AttributeKey                          = new AttributeKey("colspan")
-  val rowspan: AttributeKey                          = new AttributeKey("rowspan")
-  val `scope`: AttributeKey                          = new AttributeKey("scope")
-  val scopeAttr: AttributeKey                        = new AttributeKey("scope")
-  val headers: AttributeKey                          = new AttributeKey("headers")
-  val `for`: AttributeKey                            = new AttributeKey("for")
-  val forAttr: AttributeKey                          = new AttributeKey("for")
-  val encType: AttributeKey                          = new AttributeKey("enctype")
-  val formAction: AttributeKey                       = new AttributeKey("formaction")
-  val formMethod: AttributeKey                       = new AttributeKey("formmethod")
-  val loading: AttributeKey                          = new AttributeKey("loading")
-  val srcSet: AttributeKey                           = new AttributeKey("srcset")
-  val sizes: AttributeKey                            = new AttributeKey("sizes")
-  val minLength: AttributeKey                        = new AttributeKey("minlength")
-  val maxLength: AttributeKey                        = new AttributeKey("maxlength")
-  val size: AttributeKey                             = new AttributeKey("size")
-  val cols: AttributeKey                             = new AttributeKey("cols")
-  val rows: AttributeKey                             = new AttributeKey("rows")
-  val wrap: AttributeKey                             = new AttributeKey("wrap")
-  val accept: AttributeKey                           = new AttributeKey("accept")
-  val blocking: AttributeKey                         = new AttributeKey("blocking")
-  val enterKeyHint: AttributeKey                     = new AttributeKey("enterkeyhint")
-  val exportParts: AttributeKey                      = new AttributeKey("exportparts")
-  val fetchPriority: AttributeKey                    = new AttributeKey("fetchpriority")
-  val inputMode: AttributeKey                        = new AttributeKey("inputmode")
-  val inert: Dom.Attribute.BooleanAttribute          = Dom.boolAttr("inert")
-  val itemId: AttributeKey                           = new AttributeKey("itemid")
-  val itemProp: AttributeKey                         = new AttributeKey("itemprop")
-  val itemRef: AttributeKey                          = new AttributeKey("itemref")
-  val itemScope: Dom.Attribute.BooleanAttribute      = Dom.boolAttr("itemscope")
-  val itemType: AttributeKey                         = new AttributeKey("itemtype")
-  val nonce: AttributeKey                            = new AttributeKey("nonce")
-  val part: AttributeKey                             = new AttributeKey("part")
-  val popover: AttributeKey                          = new AttributeKey("popover")
-  val popoverTarget: AttributeKey                    = new AttributeKey("popovertarget")
-  val popoverTargetAction: AttributeKey              = new AttributeKey("popovertargetaction")
-  val writingSuggestions: AttributeKey               = new AttributeKey("writingsuggestions")
-  val accesskey: AttributeKey                        = new AttributeKey("accesskey")
-  val async: Dom.Attribute.BooleanAttribute          = Dom.boolAttr("async")
-  val autoplay: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("autoplay")
-  val charset: AttributeKey                          = new AttributeKey("charset")
-  val content: AttributeKey                          = new AttributeKey("content")
-  val controls: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("controls")
-  val crossorigin: AttributeKey                      = new AttributeKey("crossorigin")
-  val datetime: AttributeKey                         = new AttributeKey("datetime")
-  val defer: Dom.Attribute.BooleanAttribute          = Dom.boolAttr("defer")
-  val formAttr: AttributeKey                         = new AttributeKey("form")
+  /** The `id` attribute: the unique identifier of the element. */
+  val id: AttributeKey = new AttributeKey("id")
+
+  /**
+   * The `class` attribute: the CSS classes of the element. Several values join
+   * with spaces, as in `class := ("a", "b")`. `className` is the same key.
+   */
+  val `class`: MultiAttributeKey = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
+
+  /**
+   * The `class` attribute (`className` in Scala): the CSS classes of the
+   * element. Several values join with spaces, as in `className := ("a", "b")`.
+   */
+  val className: MultiAttributeKey = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
+
+  /**
+   * The `style` attribute (`styleAttr` in Scala): inline CSS declarations for
+   * the element.
+   */
+  val styleAttr: AttributeKey = new AttributeKey("style")
+
+  /**
+   * The `title` attribute (`titleAttr` in Scala): advisory text about the
+   * element, often shown as a tooltip.
+   */
+  val titleAttr: AttributeKey = new AttributeKey("title")
+
+  /** The `href` attribute: the URL a link or resource points to. */
+  val href: AttributeKey = new AttributeKey("href")
+
+  /**
+   * The `src` attribute: the URL of an embedded resource such as an image,
+   * script or frame.
+   */
+  val src: AttributeKey = new AttributeKey("src")
+
+  /**
+   * The `alt` attribute: the text that replaces an image when it cannot be
+   * shown.
+   */
+  val alt: AttributeKey = new AttributeKey("alt")
+
+  /**
+   * The `width` attribute: the width of the element, for example of an image or
+   * a canvas.
+   */
+  val width: AttributeKey = new AttributeKey("width")
+
+  /**
+   * The `height` attribute: the height of the element, for example of an image
+   * or a canvas.
+   */
+  val height: AttributeKey = new AttributeKey("height")
+
+  /** The `action` attribute: the URL a form submits to. */
+  val action: AttributeKey = new AttributeKey("action")
+
+  /**
+   * The `method` attribute: the HTTP method a form submits with, such as `get`
+   * or `post`.
+   */
+  val method: AttributeKey = new AttributeKey("method")
+
+  /**
+   * The `name` attribute: the name of the element, for example of a form
+   * control or a `meta` entry.
+   */
+  val name: AttributeKey = new AttributeKey("name")
+
+  /**
+   * The `value` attribute: the value of the element, for example of an input or
+   * an option.
+   */
+  val value: AttributeKey = new AttributeKey("value")
+
+  /**
+   * The `type` attribute: the type of the element, for example the kind of an
+   * input or the media type of a script. `typeAttr` is the same key.
+   */
+  val `type`: AttributeKey = new AttributeKey("type")
+
+  /**
+   * The `type` attribute (`typeAttr` in Scala): the type of the element, for
+   * example the kind of an input. `type` is the same key without backticks.
+   */
+  val typeAttr: AttributeKey = new AttributeKey("type")
+
+  /** The `placeholder` attribute: a hint shown in an empty input. */
+  val placeholder: AttributeKey = new AttributeKey("placeholder")
+
+  /**
+   * The `required` boolean attribute: marks an input as required before a form
+   * submits. It renders as the bare name.
+   */
+  val required: Dom.Attribute.BooleanAttribute = Dom.boolAttr("required")
+
+  /**
+   * The `disabled` boolean attribute: disables a form control. It renders as
+   * the bare name.
+   */
+  val disabled: Dom.Attribute.BooleanAttribute = Dom.boolAttr("disabled")
+
+  /**
+   * The `readonly` boolean attribute: makes an input read-only. It renders as
+   * the bare name.
+   */
+  val readonly: Dom.Attribute.BooleanAttribute = Dom.boolAttr("readonly")
+
+  /**
+   * The `checked` boolean attribute: checks a checkbox or radio button. It
+   * renders as the bare name.
+   */
+  val checked: Dom.Attribute.BooleanAttribute = Dom.boolAttr("checked")
+
+  /**
+   * The `selected` boolean attribute: preselects an `option`. It renders as the
+   * bare name.
+   */
+  val selected: Dom.Attribute.BooleanAttribute = Dom.boolAttr("selected")
+
+  /**
+   * The `multiple` boolean attribute: lets an input or a `select` take more
+   * than one value. It renders as the bare name.
+   */
+  val multiple: Dom.Attribute.BooleanAttribute = Dom.boolAttr("multiple")
+
+  /** The `min` attribute: the smallest value an input accepts. */
+  val min: AttributeKey = new AttributeKey("min")
+
+  /** The `max` attribute: the largest value an input accepts. */
+  val max: AttributeKey = new AttributeKey("max")
+
+  /** The `step` attribute: the step between the values an input accepts. */
+  val step: AttributeKey = new AttributeKey("step")
+
+  /**
+   * The `pattern` attribute: a regular expression the value of an input has to
+   * match.
+   */
+  val pattern: AttributeKey = new AttributeKey("pattern")
+
+  /**
+   * The `autofocus` boolean attribute: focuses the element when the page loads.
+   * It renders as the bare name.
+   */
+  val autofocus: Dom.Attribute.BooleanAttribute = Dom.boolAttr("autofocus")
+
+  /**
+   * The `autocomplete` attribute (`autoComplete` in Scala): whether the browser
+   * may fill an input automatically.
+   */
+  val autoComplete: AttributeKey = new AttributeKey("autocomplete")
+
+  /**
+   * The `target` attribute: where a link or a form opens its result, such as
+   * `_blank`.
+   */
+  val target: AttributeKey = new AttributeKey("target")
+
+  /**
+   * The `rel` attribute: the relationship between the document and the linked
+   * resource. Several values join with spaces.
+   */
+  val rel: MultiAttributeKey = new MultiAttributeKey("rel", Dom.AttributeSeparator.Space)
+
+  /**
+   * The `download` attribute: marks a link as a download, optionally with the
+   * file name.
+   */
+  val download: AttributeKey = new AttributeKey("download")
+
+  /** The `role` attribute: the ARIA role of the element. */
+  val role: AttributeKey = new AttributeKey("role")
+
+  /**
+   * The `tabindex` attribute (`tabIndex` in Scala): the position of the element
+   * in the keyboard focus order.
+   */
+  val tabIndex: AttributeKey = new AttributeKey("tabindex")
+
+  /**
+   * The `hidden` boolean attribute: hides the element. It renders as the bare
+   * name.
+   */
+  val hidden: Dom.Attribute.BooleanAttribute = Dom.boolAttr("hidden")
+
+  /**
+   * The `draggable` attribute: whether the element can be dragged, as `true` or
+   * `false`.
+   */
+  val draggable: AttributeKey = new AttributeKey("draggable")
+
+  /**
+   * The `contenteditable` attribute (`contentEditable` in Scala): whether the
+   * user can edit the content of the element.
+   */
+  val contentEditable: AttributeKey = new AttributeKey("contenteditable")
+
+  /**
+   * The `lang` attribute: the language of the element content, such as `en`.
+   */
+  val lang: AttributeKey = new AttributeKey("lang")
+
+  /**
+   * The `dir` attribute: the text direction of the element content, such as
+   * `ltr` or `rtl`.
+   */
+  val dir: AttributeKey = new AttributeKey("dir")
+
+  /** The `colspan` attribute: the number of columns a table cell spans. */
+  val colspan: AttributeKey = new AttributeKey("colspan")
+
+  /** The `rowspan` attribute: the number of rows a table cell spans. */
+  val rowspan: AttributeKey = new AttributeKey("rowspan")
+
+  /**
+   * The `scope` attribute: which cells a table header cell applies to, such as
+   * `col` or `row`. `scopeAttr` is the same key.
+   */
+  val `scope`: AttributeKey = new AttributeKey("scope")
+
+  /**
+   * The `scope` attribute (`scopeAttr` in Scala): which cells a table header
+   * cell applies to, such as `col` or `row`. `scope` is the same key without
+   * backticks.
+   */
+  val scopeAttr: AttributeKey = new AttributeKey("scope")
+
+  /**
+   * The `headers` attribute: the ids of the header cells that apply to a table
+   * cell.
+   */
+  val headers: AttributeKey = new AttributeKey("headers")
+
+  /**
+   * The `for` attribute: the id of the form control a `label` or `output`
+   * belongs to. `forAttr` is the same key.
+   */
+  val `for`: AttributeKey = new AttributeKey("for")
+
+  /**
+   * The `for` attribute (`forAttr` in Scala): the id of the form control a
+   * `label` or `output` belongs to. `for` is the same key without backticks.
+   */
+  val forAttr: AttributeKey = new AttributeKey("for")
+
+  /**
+   * The `enctype` attribute (`encType` in Scala): the encoding a form uses to
+   * submit its data.
+   */
+  val encType: AttributeKey = new AttributeKey("enctype")
+
+  /**
+   * The `formaction` attribute (`formAction` in Scala): the URL a submit button
+   * sends its form to, overriding the form `action`.
+   */
+  val formAction: AttributeKey = new AttributeKey("formaction")
+
+  /**
+   * The `formmethod` attribute (`formMethod` in Scala): the HTTP method a
+   * submit button uses, overriding the form `method`.
+   */
+  val formMethod: AttributeKey = new AttributeKey("formmethod")
+
+  /**
+   * The `loading` attribute: when the browser loads an image or frame, as
+   * `lazy` or `eager`.
+   */
+  val loading: AttributeKey = new AttributeKey("loading")
+
+  /**
+   * The `srcset` attribute (`srcSet` in Scala): a list of image sources for
+   * different display conditions.
+   */
+  val srcSet: AttributeKey = new AttributeKey("srcset")
+
+  /**
+   * The `sizes` attribute: the display sizes that go with the sources in
+   * `srcSet`.
+   */
+  val sizes: AttributeKey = new AttributeKey("sizes")
+
+  /**
+   * The `minlength` attribute (`minLength` in Scala): the minimum number of
+   * characters an input accepts.
+   */
+  val minLength: AttributeKey = new AttributeKey("minlength")
+
+  /**
+   * The `maxlength` attribute (`maxLength` in Scala): the maximum number of
+   * characters an input accepts.
+   */
+  val maxLength: AttributeKey = new AttributeKey("maxlength")
+
+  /**
+   * The `size` attribute: the visible width of an input in characters, or the
+   * number of visible rows of a `select`.
+   */
+  val size: AttributeKey = new AttributeKey("size")
+
+  /** The `cols` attribute: the visible width of a `textarea` in characters. */
+  val cols: AttributeKey = new AttributeKey("cols")
+
+  /** The `rows` attribute: the number of visible text lines of a `textarea`. */
+  val rows: AttributeKey = new AttributeKey("rows")
+
+  /** The `wrap` attribute: how a `textarea` wraps its text on submission. */
+  val wrap: AttributeKey = new AttributeKey("wrap")
+
+  /** The `accept` attribute: the file types an input accepts. */
+  val accept: AttributeKey = new AttributeKey("accept")
+
+  /**
+   * The `blocking` attribute: the operations that the element blocks until it
+   * is fetched.
+   */
+  val blocking: AttributeKey = new AttributeKey("blocking")
+
+  /**
+   * The `enterkeyhint` attribute (`enterKeyHint` in Scala): the label or icon
+   * of the enter key on virtual keyboards.
+   */
+  val enterKeyHint: AttributeKey = new AttributeKey("enterkeyhint")
+
+  /**
+   * The `exportparts` attribute (`exportParts` in Scala): the shadow parts of a
+   * nested element that a web component exposes.
+   */
+  val exportParts: AttributeKey = new AttributeKey("exportparts")
+
+  /**
+   * The `fetchpriority` attribute (`fetchPriority` in Scala): a hint for the
+   * fetch priority of a resource, such as `high` or `low`.
+   */
+  val fetchPriority: AttributeKey = new AttributeKey("fetchpriority")
+
+  /**
+   * The `inputmode` attribute (`inputMode` in Scala): a hint for the kind of
+   * virtual keyboard to show.
+   */
+  val inputMode: AttributeKey = new AttributeKey("inputmode")
+
+  /**
+   * The `inert` boolean attribute: makes the element and its content
+   * unresponsive to user interaction. It renders as the bare name.
+   */
+  val inert: Dom.Attribute.BooleanAttribute = Dom.boolAttr("inert")
+
+  /**
+   * The `itemid` attribute (`itemId` in Scala): the global identifier of a
+   * microdata item.
+   */
+  val itemId: AttributeKey = new AttributeKey("itemid")
+
+  /**
+   * The `itemprop` attribute (`itemProp` in Scala): the microdata property that
+   * the element holds.
+   */
+  val itemProp: AttributeKey = new AttributeKey("itemprop")
+
+  /**
+   * The `itemref` attribute (`itemRef` in Scala): the ids of elements that add
+   * properties to a microdata item.
+   */
+  val itemRef: AttributeKey = new AttributeKey("itemref")
+
+  /**
+   * The `itemscope` boolean attribute (`itemScope` in Scala): marks the element
+   * as a microdata item. It renders as the bare name.
+   */
+  val itemScope: Dom.Attribute.BooleanAttribute = Dom.boolAttr("itemscope")
+
+  /**
+   * The `itemtype` attribute (`itemType` in Scala): the vocabulary URL that
+   * describes a microdata item.
+   */
+  val itemType: AttributeKey = new AttributeKey("itemtype")
+
+  /**
+   * The `nonce` attribute: a one-time token that lets the element pass a
+   * content security policy.
+   */
+  val nonce: AttributeKey = new AttributeKey("nonce")
+
+  /**
+   * The `part` attribute: the name of the element as a shadow part, for styling
+   * from outside.
+   */
+  val part: AttributeKey = new AttributeKey("part")
+
+  /** The `popover` attribute: turns the element into a popover. */
+  val popover: AttributeKey = new AttributeKey("popover")
+
+  /**
+   * The `popovertarget` attribute (`popoverTarget` in Scala): the id of the
+   * popover that a button controls.
+   */
+  val popoverTarget: AttributeKey = new AttributeKey("popovertarget")
+
+  /**
+   * The `popovertargetaction` attribute (`popoverTargetAction` in Scala): what
+   * a button does to its popover: `show`, `hide` or `toggle`.
+   */
+  val popoverTargetAction: AttributeKey = new AttributeKey("popovertargetaction")
+
+  /**
+   * The `writingsuggestions` attribute (`writingSuggestions` in Scala): whether
+   * the browser may offer writing suggestions in the element.
+   */
+  val writingSuggestions: AttributeKey = new AttributeKey("writingsuggestions")
+
+  /**
+   * The `accesskey` attribute: a keyboard shortcut that activates or focuses
+   * the element.
+   */
+  val accesskey: AttributeKey = new AttributeKey("accesskey")
+
+  /**
+   * The `async` boolean attribute: runs a script as soon as it loads, without
+   * blocking the page. It renders as the bare name.
+   */
+  val async: Dom.Attribute.BooleanAttribute = Dom.boolAttr("async")
+
+  /**
+   * The `autoplay` boolean attribute: starts media playback as soon as it can.
+   * It renders as the bare name.
+   */
+  val autoplay: Dom.Attribute.BooleanAttribute = Dom.boolAttr("autoplay")
+
+  /**
+   * The `charset` attribute: the character encoding of the document or of a
+   * script.
+   */
+  val charset: AttributeKey = new AttributeKey("charset")
+
+  /** The `content` attribute: the value of a `meta` element. */
+  val content: AttributeKey = new AttributeKey("content")
+
+  /**
+   * The `controls` boolean attribute: shows the playback controls of `audio` or
+   * `video`. It renders as the bare name.
+   */
+  val controls: Dom.Attribute.BooleanAttribute = Dom.boolAttr("controls")
+
+  /**
+   * The `crossorigin` attribute: how the element makes cross-origin requests,
+   * such as `anonymous`.
+   */
+  val crossorigin: AttributeKey = new AttributeKey("crossorigin")
+
+  /**
+   * The `datetime` attribute: the date, time or duration that a `time`, `ins`
+   * or `del` element represents.
+   */
+  val datetime: AttributeKey = new AttributeKey("datetime")
+
+  /**
+   * The `defer` boolean attribute: runs a script after the page is parsed. It
+   * renders as the bare name.
+   */
+  val defer: Dom.Attribute.BooleanAttribute = Dom.boolAttr("defer")
+
+  /**
+   * The `form` attribute (`formAttr` in Scala): the id of the form that a
+   * control belongs to.
+   */
+  val formAttr: AttributeKey = new AttributeKey("form")
+
+  /**
+   * The `formnovalidate` boolean attribute (`formNoValidate` in Scala): submits
+   * the form without validation when a button carries it. It renders as the
+   * bare name.
+   */
   val formNoValidate: Dom.Attribute.BooleanAttribute = Dom.boolAttr("formnovalidate")
-  val high: AttributeKey                             = new AttributeKey("high")
-  val httpEquiv: AttributeKey                        = new AttributeKey("http-equiv")
-  val integrity: AttributeKey                        = new AttributeKey("integrity")
-  val labelAttr: AttributeKey                        = new AttributeKey("label")
-  val list: AttributeKey                             = new AttributeKey("list")
-  val loop: Dom.Attribute.BooleanAttribute           = Dom.boolAttr("loop")
-  val low: AttributeKey                              = new AttributeKey("low")
-  val media: AttributeKey                            = new AttributeKey("media")
-  val muted: Dom.Attribute.BooleanAttribute          = Dom.boolAttr("muted")
-  val noValidate: Dom.Attribute.BooleanAttribute     = Dom.boolAttr("novalidate")
-  val open: Dom.Attribute.BooleanAttribute           = Dom.boolAttr("open")
-  val optimum: AttributeKey                          = new AttributeKey("optimum")
-  val poster: AttributeKey                           = new AttributeKey("poster")
-  val preload: AttributeKey                          = new AttributeKey("preload")
-  val referrerpolicy: AttributeKey                   = new AttributeKey("referrerpolicy")
-  val reversed: Dom.Attribute.BooleanAttribute       = Dom.boolAttr("reversed")
-  val sandbox: AttributeKey                          = new AttributeKey("sandbox")
-  val spanAttr: AttributeKey                         = new AttributeKey("span")
-  val spellcheck: AttributeKey                       = new AttributeKey("spellcheck")
-  val summaryAttr: AttributeKey                      = new AttributeKey("summary")
-  val translate: AttributeKey                        = new AttributeKey("translate")
-  val citeAttr: AttributeKey                         = new AttributeKey("cite")
-  val slotAttr: AttributeKey                         = new AttributeKey("slot")
-  val xmlns: AttributeKey                            = new AttributeKey("xmlns")
+
+  /** The `high` attribute: the lower bound of the high range of a `meter`. */
+  val high: AttributeKey = new AttributeKey("high")
+
+  /**
+   * The `http-equiv` attribute (`httpEquiv` in Scala): the HTTP header that a
+   * `meta` element stands in for.
+   */
+  val httpEquiv: AttributeKey = new AttributeKey("http-equiv")
+
+  /**
+   * The `integrity` attribute: the hash a fetched script or stylesheet has to
+   * match.
+   */
+  val integrity: AttributeKey = new AttributeKey("integrity")
+
+  /**
+   * The `label` attribute (`labelAttr` in Scala): the visible label of an
+   * `option`, `optgroup` or `track`.
+   */
+  val labelAttr: AttributeKey = new AttributeKey("label")
+
+  /**
+   * The `list` attribute: the id of the `datalist` that suggests values for an
+   * input.
+   */
+  val list: AttributeKey = new AttributeKey("list")
+
+  /**
+   * The `loop` boolean attribute: restarts media playback at the end. It
+   * renders as the bare name.
+   */
+  val loop: Dom.Attribute.BooleanAttribute = Dom.boolAttr("loop")
+
+  /** The `low` attribute: the upper bound of the low range of a `meter`. */
+  val low: AttributeKey = new AttributeKey("low")
+
+  /** The `media` attribute: the media query a resource applies to. */
+  val media: AttributeKey = new AttributeKey("media")
+
+  /**
+   * The `muted` boolean attribute: mutes the audio of a media element. It
+   * renders as the bare name.
+   */
+  val muted: Dom.Attribute.BooleanAttribute = Dom.boolAttr("muted")
+
+  /**
+   * The `novalidate` boolean attribute (`noValidate` in Scala): submits the
+   * form without validating it. It renders as the bare name.
+   */
+  val noValidate: Dom.Attribute.BooleanAttribute = Dom.boolAttr("novalidate")
+
+  /**
+   * The `open` boolean attribute: shows the content of a `details` or `dialog`
+   * element. It renders as the bare name.
+   */
+  val open: Dom.Attribute.BooleanAttribute = Dom.boolAttr("open")
+
+  /** The `optimum` attribute: the optimum value of a `meter`. */
+  val optimum: AttributeKey = new AttributeKey("optimum")
+
+  /** The `poster` attribute: the image shown for a `video` before it plays. */
+  val poster: AttributeKey = new AttributeKey("poster")
+
+  /**
+   * The `preload` attribute: how much of a media resource the browser loads up
+   * front.
+   */
+  val preload: AttributeKey = new AttributeKey("preload")
+
+  /** The `referrerpolicy` attribute: which referrer a request sends. */
+  val referrerpolicy: AttributeKey = new AttributeKey("referrerpolicy")
+
+  /**
+   * The `reversed` boolean attribute: numbers the items of an `ol` in
+   * descending order. It renders as the bare name.
+   */
+  val reversed: Dom.Attribute.BooleanAttribute = Dom.boolAttr("reversed")
+
+  /**
+   * The `sandbox` attribute: restrictions that apply to the content of an
+   * `iframe`.
+   */
+  val sandbox: AttributeKey = new AttributeKey("sandbox")
+
+  /**
+   * The `span` attribute (`spanAttr` in Scala): the number of columns that a
+   * `col` or `colgroup` spans.
+   */
+  val spanAttr: AttributeKey = new AttributeKey("span")
+
+  /**
+   * The `spellcheck` attribute: whether the browser checks the spelling of the
+   * element content.
+   */
+  val spellcheck: AttributeKey = new AttributeKey("spellcheck")
+
+  /**
+   * The `summary` attribute (`summaryAttr` in Scala): a summary of the content
+   * of a table.
+   */
+  val summaryAttr: AttributeKey = new AttributeKey("summary")
+
+  /**
+   * The `translate` attribute: whether the content of the element is translated
+   * with the page.
+   */
+  val translate: AttributeKey = new AttributeKey("translate")
+
+  /**
+   * The `cite` attribute (`citeAttr` in Scala): the URL of the source of a
+   * quotation or change.
+   */
+  val citeAttr: AttributeKey = new AttributeKey("cite")
+
+  /**
+   * The `slot` attribute (`slotAttr` in Scala): the name of the web component
+   * slot that the element fills.
+   */
+  val slotAttr: AttributeKey = new AttributeKey("slot")
+
+  /** The `xmlns` attribute: the XML namespace of the element. */
+  val xmlns: AttributeKey = new AttributeKey("xmlns")
 
   // --- Multi-value attribute helpers ---
 
+  /**
+   * The `ariaDescribedby` attribute: the ids of the elements that describe this
+   * one, for assistive technology. Several values join with spaces.
+   */
   val ariaDescribedby: MultiAttributeKey =
     new MultiAttributeKey("aria-describedby", Dom.AttributeSeparator.Space)
+
+  /**
+   * The `aria-labelledby` attribute (`ariaLabelledby` in Scala): the ids of the
+   * elements that label this one, for assistive technology. Several values join
+   * with spaces.
+   */
   val ariaLabelledby: MultiAttributeKey = new MultiAttributeKey("aria-labelledby", Dom.AttributeSeparator.Space)
 
-  def multiAttr(name: String): MultiAttributeKey                                                              = Dom.multiAttr(name)
-  def multiAttr(name: String, separator: Dom.AttributeSeparator): MultiAttributeKey                           = Dom.multiAttr(name, separator)
-  def multiAttr(name: String, values: Iterable[String]): Dom.Attribute                                        = Dom.multiAttr(name, values)
+  /**
+   * Returns a key for the multi-valued attribute `name`; its values join with
+   * spaces.
+   */
+  def multiAttr(name: String): MultiAttributeKey = Dom.multiAttr(name)
+
+  /**
+   * Returns a key for the multi-valued attribute `name`; its values join with
+   * `separator`.
+   */
+  def multiAttr(name: String, separator: Dom.AttributeSeparator): MultiAttributeKey = Dom.multiAttr(name, separator)
+
+  /** Creates the attribute `name` with `values` joined by spaces. */
+  def multiAttr(name: String, values: Iterable[String]): Dom.Attribute = Dom.multiAttr(name, values)
+
+  /**
+   * Creates the attribute `name` with the given values joined by `separator`.
+   */
   def multiAttr(name: String, separator: Dom.AttributeSeparator, value: String, rest: String*): Dom.Attribute =
     Dom.multiAttr(name, separator, value, rest: _*)
 
   // --- DOM helper functions ---
 
+  /** A [[Dom]] that renders nothing, for use as a placeholder child. */
   val empty: Dom = Dom.Empty
 
-  def aria(name: String): AttributeKey     = new AttributeKey("aria-" + name)
+  /**
+   * Returns the key for the `aria-name` attribute: `aria("label")` renders as
+   * `aria-label`.
+   */
+  def aria(name: String): AttributeKey = new AttributeKey("aria-" + name)
+
+  /**
+   * Returns the key for the `data-name` attribute: `dataAttr("id")` renders as
+   * `data-id`.
+   */
   def dataAttr(name: String): AttributeKey = new AttributeKey("data-" + name)
-  def attr(name: String): AttributeKey     = new AttributeKey(name)
+
+  /**
+   * Returns the key for the attribute `name`, for an attribute that has no
+   * predefined member.
+   */
+  def attr(name: String): AttributeKey = new AttributeKey(name)
 }
