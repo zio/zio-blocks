@@ -71,8 +71,10 @@ trait MaybeSyntax[A] {
   def orElse[B >: A](alternative: => Maybe[B]): Maybe[B]
 
   /**
-   * Returns the value, or `null` if this `Maybe` is absent. It compiles only
-   * when `null` is a valid `B`, so for a reference type.
+   * Returns the value, or `null` if this `Maybe` is absent. For a reference
+   * type `A` the result is an `A`. For a value type such as `Int`, Scala 3
+   * gives `Int | Null`, and Scala 2 compiles it only where the expected type
+   * admits `null` (otherwise it reports `Cannot prove that Null <:< Int`).
    */
   def orNull[B >: A](implicit ev: Null <:< B): B
 

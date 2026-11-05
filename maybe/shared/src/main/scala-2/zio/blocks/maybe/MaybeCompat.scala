@@ -23,16 +23,17 @@ package zio.blocks.maybe
 trait MaybeCompat extends MaybeSyntaxCompat {
 
   /**
-   * An optional value, like `Option`, that is cheaper to hold: on Scala 3 a
-   * present value is stored as the value itself, and absence is one shared
-   * object. A `Maybe[A]` is either present, holding an `A` (which may be
-   * `null`), or absent.
+   * An optional value, like `Option`. A `Maybe[A]` is either present, holding
+   * an `A` (which may be `null`), or absent, and absence is one shared object.
+   * On Scala 3 a present value is stored as the value itself, so a `Maybe` is
+   * cheaper to hold than an `Option`; on Scala 2 a present value is wrapped in
+   * a `MaybeValue.Present`, as `Option` wraps it in a `Some`.
    *
-   * Use it for optional fields and results on hot paths, such as an optional
-   * port or timeout in a config, where `Option` allocates a `Some` per value.
-   * It has the `Option` operations (`map`, `flatMap`, `filter`, `fold`,
-   * `getOrElse`, ...), converts to and from `Option`, and works in
-   * for-comprehensions.
+   * Use it for optional fields and results, such as an optional port or timeout
+   * in a config; on Scala 3 hot paths it avoids the `Some` that `Option`
+   * allocates per value. It has the `Option` operations (`map`, `flatMap`,
+   * `filter`, `fold`, `getOrElse`, ...), converts to and from `Option`, and
+   * works in for-comprehensions.
    *
    * {{{
    * final case class ServerConfig(port: Int, timeoutSeconds: Maybe[Int])
@@ -47,12 +48,13 @@ trait MaybeCompat extends MaybeSyntaxCompat {
    * The encoding depends on the Scala version. On Scala 3, `Maybe[A]` is an
    * opaque type for `A | Absent.type | Present[A]`: a present value is stored
    * as it is (on the JVM a primitive as its box), absence is the object
-   * `Absent`, and only a value that would otherwise look absent (`null`, an
-   * absent `Maybe`, or a `Present`) is wrapped in a `Present`. On Scala 2,
-   * `Maybe[A]` is an alias of the sealed trait `MaybeValue[A]`, and every
-   * present value is a `MaybeValue.Present`. So `toString` and `==` differ: on
-   * Scala 3 `Maybe.present(8080)` prints as `8080` and equals `8080`, on Scala
-   * 2 it prints as `Present(8080)`.
+   * `Absent`, and `Maybe.present` wraps only a value that would otherwise be
+   * misread (`null`, an absent `Maybe`, or a `Present`) in a `Present`. On
+   * Scala 2, `Maybe[A]` is an alias of the sealed trait `MaybeValue[A]`, and
+   * every present value is a `MaybeValue.Present`. So `toString` and `==`
+   * differ: on Scala 3 `Maybe.present(8080)` prints as `8080` and, compared as
+   * an `Any`, equals `8080`; on Scala 2 it prints as `Present(8080)` and does
+   * not equal `8080`.
    *
    * To match on a `Maybe`, use `fold`, which works on both versions, or match
    * `case Present(v)` and `case Absent` on Scala 3 and

@@ -21,11 +21,13 @@ import scala.language.implicitConversions
 
 /**
  * The wrapper for a present value. On Scala 2, `MaybeValue.Present` holds every
- * present value. On Scala 3, `Present` is a top-level class used only for a
- * value that would otherwise look absent: `Maybe.present(null)` is
- * `Present(null)`, and `Maybe.present(Maybe.absent)` is `Present(Absent)`; a
- * plain present value is stored without it. A `Present` is not itself a
- * `Maybe`: build one with `Maybe.present`.
+ * present value and is itself a `Maybe`. On Scala 3, `Present` is a top-level
+ * class that `Maybe.present` uses only for a value that would otherwise be
+ * misread: `Maybe.present(null)` is `Present(null)`,
+ * `Maybe.present(Maybe.absent)` is `Present(Absent)`, and
+ * `Maybe.present(Present(1))` is `Present(Present(1))`; a plain present value
+ * is stored without it. On Scala 3 a `Present` is not itself a `Maybe`: build
+ * one with `Maybe.present`.
  *
  * @param value
  *   the present value, possibly `null`
@@ -75,15 +77,17 @@ object Present {
 object Absent
 
 /**
- * An optional value, like `Option`, that is cheaper to hold: on Scala 3 a
- * present value is stored as the value itself, and absence is one shared
- * object. A `Maybe[A]` is either present, holding an `A` (which may be `null`),
- * or absent.
+ * An optional value, like `Option`. A `Maybe[A]` is either present, holding an
+ * `A` (which may be `null`), or absent, and absence is one shared object. On
+ * Scala 3 a present value is stored as the value itself, so a `Maybe` is
+ * cheaper to hold than an `Option`; on Scala 2 a present value is wrapped in a
+ * `MaybeValue.Present`, as `Option` wraps it in a `Some`.
  *
- * Use it for optional fields and results on hot paths, such as an optional port
- * or timeout in a config, where `Option` allocates a `Some` per value. It has
- * the `Option` operations (`map`, `flatMap`, `filter`, `fold`, `getOrElse`,
- * ...), converts to and from `Option`, and works in for-comprehensions.
+ * Use it for optional fields and results, such as an optional port or timeout
+ * in a config; on Scala 3 hot paths it avoids the `Some` that `Option`
+ * allocates per value. It has the `Option` operations (`map`, `flatMap`,
+ * `filter`, `fold`, `getOrElse`, ...), converts to and from `Option`, and works
+ * in for-comprehensions.
  *
  * {{{
  * final case class ServerConfig(port: Int, timeoutSeconds: Maybe[Int])
@@ -98,12 +102,12 @@ object Absent
  * The encoding depends on the Scala version. On Scala 3, `Maybe[A]` is an
  * opaque type for `A | Absent.type | Present[A]`: a present value is stored as
  * it is (on the JVM a primitive as its box), absence is the object `Absent`,
- * and only a value that would otherwise look absent (`null`, an absent `Maybe`,
- * or a `Present`) is wrapped in a `Present`. On Scala 2, `Maybe[A]` is an alias
- * of the sealed trait `MaybeValue[A]`, and every present value is a
- * `MaybeValue.Present`. So `toString` and `==` differ: on Scala 3
- * `Maybe.present(8080)` prints as `8080` and equals `8080`, on Scala 2 it
- * prints as `Present(8080)`.
+ * and `Maybe.present` wraps only a value that would otherwise be misread
+ * (`null`, an absent `Maybe`, or a `Present`) in a `Present`. On Scala 2,
+ * `Maybe[A]` is an alias of the sealed trait `MaybeValue[A]`, and every present
+ * value is a `MaybeValue.Present`. So `toString` and `==` differ: on Scala 3
+ * `Maybe.present(8080)` prints as `8080` and, compared as an `Any`, equals
+ * `8080`; on Scala 2 it prints as `Present(8080)` and does not equal `8080`.
  *
  * To match on a `Maybe`, use `fold`, which works on both versions, or match
  * `case Present(v)` and `case Absent` on Scala 3 and
@@ -204,9 +208,12 @@ object Maybe {
   }
 
   /**
-   * Converts an `Option` to a `Maybe` implicitly, as `fromOption` does. It
-   * applies without an import; the call site needs
-   * `scala.language.implicitConversions` to avoid a feature warning.
+   * Converts an `Option` to a `Maybe` implicitly, as `fromOption` does. On
+   * Scala 3 it is a `given Conversion` in `Maybe` that applies without an
+   * import, and the call site needs `scala.language.implicitConversions` to
+   * avoid a feature warning. On Scala 2 it is `optionToMaybe`, which the
+   * compiler finds only after `import Maybe._` (or
+   * `import Maybe.optionToMaybe`); the call site needs no language import.
    */
   given [A]: Conversion[Option[A], Maybe[A]] with {
     def apply(opt: Option[A]): Maybe[A] = fromOption(opt)
@@ -280,11 +287,11 @@ object Maybe {
     x.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent
 
   /**
-   * Returns the value, unwrapping a `Present`, or `null` if `x` is absent. Used
-   * by other ZIO Blocks modules, such as `schema`; not for public use.
-   *
-   * Inline, so a hot path makes no call: an absent `x` costs one reference
-   * comparison, and a present one a comparison and a type test.
+   * Returns the value, or `null` if `x` is absent, unwrapping the
+   * `MaybeValue.Present` on Scala 2 and a `Present` wrapper on Scala 3. Used by
+   * other ZIO Blocks modules, such as `schema`; not for public use. On Scala 3
+   * it is inline, so a hot path makes no call: an absent `x` costs one
+   * reference comparison, and a present one a comparison and a type test.
    */
   private[blocks] inline def unsafeGet(x: Maybe[Any]): Any = {
     val ref = x.asInstanceOf[AnyRef]
@@ -295,9 +302,10 @@ object Maybe {
   }
 
   /**
-   * Returns `x` as a `Maybe`, `null` giving the absent value. Unlike
-   * `Maybe.present`, it adds no `Present` wrapper. Used by other ZIO Blocks
-   * modules, such as `schema`; not for public use.
+   * Returns `x` as a `Maybe`, `null` giving the absent value. On Scala 2 any
+   * other value is wrapped in a `MaybeValue.Present`; on Scala 3 it is stored
+   * as it is, without the `Present` wrapper that `Maybe.present` adds. Used by
+   * other ZIO Blocks modules, such as `schema`; not for public use.
    */
   private[blocks] def unsafeWrap[A](x: Any): Maybe[A] =
     if (x == null) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else x.asInstanceOf[Maybe[A]]
@@ -383,8 +391,10 @@ object Maybe {
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) alternative else self
 
     /**
-     * Returns the value, or `null` if this `Maybe` is absent. It compiles only
-     * when `null` is a valid `B`, so for a reference type.
+     * Returns the value, or `null` if this `Maybe` is absent. For a reference
+     * type `A` the result is an `A`. For a value type such as `Int`, Scala 3
+     * gives `Int | Null`, and Scala 2 compiles it only where the expected type
+     * admits `null` (otherwise it reports `Cannot prove that Null <:< Int`).
      */
     inline def orNull[B >: A](using ev: Null <:< B): B =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) ev(null) else unsafeGet(self).asInstanceOf[A]
