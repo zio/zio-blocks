@@ -18,42 +18,127 @@ package zio.blocks.combinators
 
 import scala.compiletime.erasedValue
 
+/**
+ * Rewrites a nested `Either` into one canonical, left-nested shape, and back.
+ * `Either[Int, Either[String, Boolean]]` becomes
+ * `Either[Either[Int, String], Boolean]`: the alternatives keep their order
+ * from left to right, and only the nesting changes. Nested `Either`s on the
+ * left side are rewritten the same way.
+ *
+ * Use it when the same alternatives arrive with different nesting and you need
+ * one shape, to encode them or to match on them once. The `Eithers.Eithers`
+ * type class does the work, and `Eithers.combine` is the shortcut. Both Scala
+ * versions produce the same shape.
+ *
+ * {{{
+ * val failure: Either[Int, Either[String, Boolean]] = Right(Left("timeout"))
+ *
+ * Eithers.combine(failure) // Left(Right(timeout))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/combinators/ Combinators]]
+ */
 object Eithers {
 
+  /**
+   * Re-nests `Either[L, R]` to the left by peeling `Either`s off the right
+   * side: `LeftNest[Int, Either[String, Boolean]]` is
+   * `Either[Either[Int, String], Boolean]`. Unlike `CanonicalizeEither`, it
+   * leaves an `Either` inside `L` as it is.
+   */
   type LeftNest[L, R] <: Either[?, ?] = R match {
     case Either[x, y] => LeftNest[Either[L, x], y]
     case _            => Either[L, R]
   }
 
+  /**
+   * The left-nested form of `E` when `E` is an `Either`, and `E` itself
+   * otherwise.
+   */
   type Canonicalize[E] = E match {
     case Either[l, r] => CanonicalizeEither[l, r]
     case _            => E
   }
 
+  /**
+   * The left-nested form of `Either[L, R]`, with nested `Either`s on both sides
+   * rewritten too; the `Out` of the derived instance.
+   */
   type CanonicalizeEither[L, R] <: Either[?, ?] = R match {
     case Either[x, y] => CanonicalizeEither[Either[Canonicalize[L], Canonicalize[x]], y]
     case _            => Either[Canonicalize[L], Canonicalize[R]]
   }
 
+  /** The left type of the `Either` type `A`. */
   type LeftOf[A] = A match {
     case Either[l, r] => l
   }
 
+  /** The right type of the `Either` type `A`. */
   type RightOf[A] = A match {
     case Either[l, r] => r
   }
 
+  /**
+   * The type class behind `Eithers.combine`: `combine` reshapes an
+   * `Either[L, R]` into the left-nested `Out`, and `separate` restores the
+   * original nesting. The compiler derives an instance for any `L` and `R`.
+   *
+   * {{{
+   * def roundTrip[L, R](e: Either[L, R])(implicit t: Eithers.Eithers[L, R]): Either[L, R] =
+   *   t.separate(t.combine(e))
+   *
+   * val failure: Either[Int, Either[String, Boolean]] = Right(Left("timeout"))
+   * roundTrip(failure) // Right(Left(timeout))
+   * }}}
+   *
+   * @tparam L
+   *   the left type of the input `Either`
+   * @tparam R
+   *   the right type of the input `Either`
+   */
   trait Eithers[L, R] {
+
+    /**
+     * The left-nested form of `Either[L, R]`:
+     * `Either[Either[Int, String], Boolean]` for `L = Int` and
+     * `R = Either[String, Boolean]`, and `Either[L, R]` itself when neither
+     * side is an `Either`.
+     */
     type Out
 
+    /**
+     * Moves the value of `either` to the same alternative in the left-nested
+     * shape: with `R = Either[String, Boolean]`, `Left(1)` becomes
+     * `Left(Left(1))`, `Right(Left("timeout"))` becomes `Left(Right(timeout))`,
+     * and `Right(Right(true))` becomes `Right(true)`.
+     */
     def combine(either: Either[L, R]): Out
 
+    /**
+     * Moves a value of the left-nested shape back to the original nesting, so
+     * `separate(combine(e))` is `e`.
+     */
     def separate(out: Out): Either[L, R]
   }
 
+  /**
+   * Holds the derived `Eithers.Eithers` instance; `WithOut` names an instance
+   * by its result type.
+   */
   object Eithers {
+
+    /**
+     * An `Eithers.Eithers` instance whose result type is `O`, for a signature
+     * that needs to name the result.
+     */
     type WithOut[L, R, O] = Eithers[L, R] { type Out = O }
 
+    /**
+     * Derives the instance for `L` and `R` at compile time; its `Out` is
+     * `CanonicalizeEither[L, R]`.
+     */
     inline given eithers[L, R]: WithOut[L, R, CanonicalizeEither[L, R]] =
       inline erasedValue[L] match {
         case _: Either[a, b] =>
@@ -142,5 +227,14 @@ object Eithers {
     }
   }
 
+  /**
+   * Reshapes `either` into its left-nested form with the derived
+   * `Eithers.Eithers` instance.
+   *
+   * {{{
+   * val ok: Either[Int, Either[String, Boolean]] = Right(Right(true))
+   * Eithers.combine(ok) // Right(true)
+   * }}}
+   */
   def combine[L, R](either: Either[L, R])(using e: Eithers[L, R]): e.Out = e.combine(either)
 }

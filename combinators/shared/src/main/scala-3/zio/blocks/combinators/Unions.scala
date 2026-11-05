@@ -20,24 +20,75 @@ import scala.quoted.*
 import scala.reflect.TypeTest
 
 /**
- * Union operations: combining values into flat union types and separating them.
+ * Converts an `Either[L, R]` into the union `L | R`, and back. Scala 3 only.
  *
- * The `Unions` module provides a unified typeclass `Unions[L, R]` that both
- * combines an `Either[L, R]` into a union type `L | R` and separates it back.
+ * Use it to expose a union type in an API while code underneath works with
+ * `Either`, or the other way round. The `Unions.Unions` type class does the
+ * work. `combine` drops the `Left`/`Right` wrapper; `separate` decides the side
+ * with a run-time type test for `R`, so it is reliable only when no value of
+ * `L` passes that test. If `R` is a subtype of `L`, or the two differ only in
+ * erased type arguments (`List[Int]` and `List[String]`), a value that came
+ * from the left comes back as `Right`.
+ *
+ * {{{
+ * val port: Int | String = Unions.combine(Left(8080): Either[Int, String])
+ * port // 8080
+ *
+ * val u = summon[Unions.Unions[Int, String]]
+ * u.separate("localhost": Int | String) // Right(localhost)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/combinators/ Combinators]]
  */
 object Unions {
 
+  /**
+   * The type class behind `Unions.combine`: `combine` turns an `Either[L, R]`
+   * into the union `Out`, which is `L | R`, and `separate` turns it back.
+   *
+   * @tparam L
+   *   the left type; it can be a union itself
+   * @tparam R
+   *   the right type; it must not be a union
+   */
   trait Unions[L, R] {
+
+    /** The union type `L | R`. */
     type Out
 
+    /** Returns the value inside `either`, typed as the union. */
     def combine(either: Either[L, R]): Out
 
+    /**
+     * Returns `Right` when `out` passes the run-time type test for `R`, and
+     * `Left` otherwise.
+     *
+     * {{{
+     * val u = summon[Unions.Unions[Int, String]]
+     * u.separate(8080: Int | String) // Left(8080)
+     * }}}
+     */
     def separate(out: Out): Either[L, R]
   }
 
+  /**
+   * Holds the derived `Unions.Unions` instance; `WithOut` names an instance by
+   * its result type.
+   */
   object Unions {
+
+    /** A `Unions.Unions` instance whose result type is `O`. */
     type WithOut[L, R, O] = Unions[L, R] { type Out = O }
 
+    /**
+     * Derives the instance for `L` and `R`, using a `TypeTest` for `R`. It does
+     * not compile when `L` and `R` share a type (`Union types must contain
+     * unique types. Found overlapping types: Int. ...`), or when `R` is a union
+     * (`The right type of a Unions.Unions must not be a union type. ...`). Only
+     * equal types count as shared: a subtype relation between `L` and `R` is
+     * accepted.
+     */
     inline given unions[L, R](using tt: TypeTest[L | R, R]): WithOut[L, R, L | R] =
       ${ unionsMacro[L, R]('tt) }
 
@@ -94,5 +145,9 @@ object Unions {
     }
   }
 
+  /**
+   * Returns the value inside `either`, typed as `L | R`, with the derived
+   * `Unions.Unions` instance.
+   */
   def combine[L, R](either: Either[L, R])(using u: Unions[L, R]): u.Out = u.combine(either)
 }
