@@ -27,8 +27,9 @@ import zio.blocks.chunk.Chunk
  *
  * An `XmlType` is also a predicate on [[Xml]] nodes, so it can be passed to
  * `XmlSelection#filter`. Its `toString` is `<function1>`, not the case name, so
- * error messages that print it (from `XmlSelection#as`, `XmlSelection#unwrap`
- * and `XmlSelection#text`) show `<function1>`; this is a known bug.
+ * error messages that print it (from `XmlSelection#as`, `XmlSelection#unwrap`,
+ * `XmlSelection#text` and `XmlPatch` paths that reach a non-element) show
+ * `<function1>`; this is a known bug.
  */
 sealed trait XmlType extends (Xml => Boolean) {
 
