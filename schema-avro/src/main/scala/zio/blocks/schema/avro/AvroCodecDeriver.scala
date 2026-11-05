@@ -42,10 +42,12 @@ import scala.util.control.NonFatal
  * `_1` and `_2`. A wrapper uses the schema of the type it wraps. `DynamicValue`
  * becomes the record `zio.blocks.schema.DynamicValue`, whose `value` field is a
  * union of one record per kind of value (`Primitive`, `Record`, `Variant`,
- * `Sequence`, `Map` and `Null`). When one derivation creates two records with
- * the same name and namespace, the later ones get a suffix, as in `Tuple2_1`. A
- * known bug: `Array[Byte]` and `Chunk[Byte]` become an Avro array of `int`, not
- * Avro `bytes`.
+ * `Sequence`, `Map` and `Null`). Each use of a record type can create its own
+ * Avro record, and when a name and namespace come up again in one derivation,
+ * the later records get a numeric suffix: `case class Line(a: Point, b: Point)`
+ * gives the records `Point` and `Point_1`, and two maps with non-`String` keys
+ * give `Tuple2` and `Tuple2_1`. A known bug: `Array[Byte]` and `Chunk[Byte]`
+ * become an Avro array of `int`, not Avro `bytes`.
  */
 object AvroCodecDeriver extends Deriver[AvroCodec] {
   override def derivePrimitive[A](
