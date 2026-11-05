@@ -113,8 +113,17 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
    */
   def encodeKey(x: A, out: ToonWriter): Unit = error("encoding as TOON key is not supported")
 
+  /**
+   * Throws a decoding or encoding error with the message `msg` and an empty
+   * path. A `decode` call turns it into a `Left`.
+   */
   def error(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
+  /**
+   * Rethrows `error` with `span` added at the front of its path. A TOON error
+   * keeps its message; any other throwable becomes a new error with the same
+   * message.
+   */
   def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: ToonCodecError =>
       e.spans = new ::(span, e.spans)
@@ -489,6 +498,8 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
  * uses for the primitive parts of a schema, and `dynamicValueCodec`.
  */
 object ToonCodec {
+
+  /** The codec for `Unit`, written as `null`. Decoding expects `null`. */
   val unitCodec: ToonCodec[Unit] = new ToonCodec[Unit] {
     def decodeValue(in: ToonReader): Unit = {
       in.skipBlankLines()
@@ -497,6 +508,11 @@ object ToonCodec {
 
     def encodeValue(x: Unit, out: ToonWriter): Unit = out.writeNull()
   }
+
+  /**
+   * The codec for `Boolean`, written as `true` or `false`. It also writes and
+   * reads map keys.
+   */
   val booleanCodec: ToonCodec[Boolean] = new ToonCodec[Boolean] {
     def decodeValue(in: ToonReader): Boolean = {
       in.skipBlankLines()
@@ -509,6 +525,11 @@ object ToonCodec {
 
     override def encodeKey(x: Boolean, out: ToonWriter): Unit = out.writeBoolean(x)
   }
+
+  /**
+   * The codec for `Byte`, written as a decimal integer. Decoding fails for a
+   * value outside the `Byte` range.
+   */
   val byteCodec: ToonCodec[Byte] = new ToonCodec[Byte] {
     def decodeValue(in: ToonReader): Byte = {
       in.skipBlankLines()
@@ -521,6 +542,8 @@ object ToonCodec {
 
     override def encodeKey(x: Byte, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
+
+  /** The codec for `Short`, written as a decimal integer. */
   val shortCodec: ToonCodec[Short] = new ToonCodec[Short] {
     def decodeValue(in: ToonReader): Short = {
       in.skipBlankLines()
@@ -533,6 +556,8 @@ object ToonCodec {
 
     override def encodeKey(x: Short, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
+
+  /** The codec for `Int`, written as a decimal integer. */
   val intCodec: ToonCodec[Int] = new ToonCodec[Int] {
     def decodeValue(in: ToonReader): Int = {
       in.skipBlankLines()
@@ -545,6 +570,8 @@ object ToonCodec {
 
     override def encodeKey(x: Int, out: ToonWriter): Unit = out.writeInt(x)
   }
+
+  /** The codec for `Long`, written as a decimal integer. */
   val longCodec: ToonCodec[Long] = new ToonCodec[Long] {
     def decodeValue(in: ToonReader): Long = {
       in.skipBlankLines()
@@ -557,6 +584,11 @@ object ToonCodec {
 
     override def encodeKey(x: Long, out: ToonWriter): Unit = out.writeLong(x)
   }
+
+  /**
+   * The codec for `Float`, written as a decimal number. A whole value has no
+   * fraction, and `NaN` is written as `null`.
+   */
   val floatCodec: ToonCodec[Float] = new ToonCodec[Float] {
     def decodeValue(in: ToonReader): Float = {
       in.skipBlankLines()
@@ -569,6 +601,11 @@ object ToonCodec {
 
     override def encodeKey(x: Float, out: ToonWriter): Unit = out.writeFloat(x)
   }
+
+  /**
+   * The codec for `Double`, written as a decimal number. A whole value has no
+   * fraction, so `2.0` is written as `2`, and `NaN` is written as `null`.
+   */
   val doubleCodec: ToonCodec[Double] = new ToonCodec[Double] {
     def decodeValue(in: ToonReader): Double = {
       in.skipBlankLines()
@@ -581,6 +618,11 @@ object ToonCodec {
 
     override def encodeKey(x: Double, out: ToonWriter): Unit = out.writeDouble(x)
   }
+
+  /**
+   * The codec for `Char`, written as a one-character string. Decoding fails
+   * with `Expected single char, got: ab` for a longer or empty string.
+   */
   val charCodec: ToonCodec[Char] = new ToonCodec[Char] {
     def decodeValue(in: ToonReader): Char = {
       in.skipBlankLines()
@@ -599,6 +641,12 @@ object ToonCodec {
 
     override def encodeKey(x: Char, out: ToonWriter): Unit = out.writeChar(x)
   }
+
+  /**
+   * The codec for `String`, written bare when TOON allows it and quoted
+   * otherwise, such as for the empty string, `true`, `42` or a value containing
+   * `:`.
+   */
   val stringCodec: ToonCodec[String] = new ToonCodec[String] {
     def decodeValue(in: ToonReader): String = {
       in.skipBlankLines()
@@ -611,6 +659,8 @@ object ToonCodec {
 
     override def encodeKey(x: String, out: ToonWriter): Unit = out.writeString(x)
   }
+
+  /** The codec for `BigInt`, written as a decimal integer of any size. */
   val bigIntCodec: ToonCodec[BigInt] = new ToonCodec[BigInt] {
     def decodeValue(in: ToonReader): BigInt = {
       in.skipBlankLines()
@@ -623,6 +673,11 @@ object ToonCodec {
 
     override def encodeKey(x: BigInt, out: ToonWriter): Unit = out.writeBigInt(x)
   }
+
+  /**
+   * The codec for `BigDecimal`, written as a decimal number without trailing
+   * zeros, so `12.50` is written as `12.5`.
+   */
   val bigDecimalCodec: ToonCodec[BigDecimal] = new ToonCodec[BigDecimal] {
     def decodeValue(in: ToonReader): BigDecimal = {
       in.skipBlankLines()
@@ -635,6 +690,11 @@ object ToonCodec {
 
     override def encodeKey(x: BigDecimal, out: ToonWriter): Unit = out.writeBigDecimal(x)
   }
+
+  /**
+   * The codec for `java.time.DayOfWeek`, written as its upper-case name, such
+   * as `MONDAY`.
+   */
   val dayOfWeekCodec: ToonCodec[DayOfWeek] = new ToonCodec[DayOfWeek] {
     def decodeValue(in: ToonReader): DayOfWeek = {
       in.skipBlankLines()
@@ -643,6 +703,11 @@ object ToonCodec {
 
     def encodeValue(x: DayOfWeek, out: ToonWriter): Unit = out.writeString(x.name)
   }
+
+  /**
+   * The codec for `java.time.Duration`, written as an ISO-8601 duration, such
+   * as `PT1M30S`.
+   */
   val durationCodec: ToonCodec[Duration] = new ToonCodec[Duration] {
     def decodeValue(in: ToonReader): Duration = {
       in.skipBlankLines()
@@ -651,6 +716,11 @@ object ToonCodec {
 
     def encodeValue(x: Duration, out: ToonWriter): Unit = out.writeString(Json.durationRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Instant`, written as a quoted ISO-8601 string,
+   * such as `"2026-11-05T10:15:30Z"`.
+   */
   val instantCodec: ToonCodec[Instant] = new ToonCodec[Instant] {
     def decodeValue(in: ToonReader): Instant = {
       in.skipBlankLines()
@@ -659,6 +729,11 @@ object ToonCodec {
 
     def encodeValue(x: Instant, out: ToonWriter): Unit = out.writeString(Json.instantRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalDate`, written as an ISO-8601 date, such as
+   * `2026-11-05`.
+   */
   val localDateCodec: ToonCodec[LocalDate] = new ToonCodec[LocalDate] {
     def decodeValue(in: ToonReader): LocalDate = {
       in.skipBlankLines()
@@ -667,6 +742,11 @@ object ToonCodec {
 
     def encodeValue(x: LocalDate, out: ToonWriter): Unit = out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalDateTime`, written as a quoted ISO-8601
+   * string, such as `"2026-11-05T10:15:30"`.
+   */
   val localDateTimeCodec: ToonCodec[LocalDateTime] = new ToonCodec[LocalDateTime] {
     def decodeValue(in: ToonReader): LocalDateTime = {
       in.skipBlankLines()
@@ -676,6 +756,11 @@ object ToonCodec {
     def encodeValue(x: LocalDateTime, out: ToonWriter): Unit =
       out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalTime`, written as a quoted ISO-8601 string,
+   * such as `"10:15:30"`.
+   */
   val localTimeCodec: ToonCodec[LocalTime] = new ToonCodec[LocalTime] {
     def decodeValue(in: ToonReader): LocalTime = {
       in.skipBlankLines()
@@ -684,6 +769,11 @@ object ToonCodec {
 
     def encodeValue(x: LocalTime, out: ToonWriter): Unit = out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Month`, written as its upper-case name, such as
+   * `NOVEMBER`.
+   */
   val monthCodec: ToonCodec[Month] = new ToonCodec[Month] {
     def decodeValue(in: ToonReader): Month = {
       in.skipBlankLines()
@@ -692,6 +782,11 @@ object ToonCodec {
 
     def encodeValue(x: Month, out: ToonWriter): Unit = out.writeString(x.name)
   }
+
+  /**
+   * The codec for `java.time.MonthDay`, written as a quoted string, such as
+   * `"--11-05"`.
+   */
   val monthDayCodec: ToonCodec[MonthDay] = new ToonCodec[MonthDay] {
     def decodeValue(in: ToonReader): MonthDay = {
       in.skipBlankLines()
@@ -700,6 +795,11 @@ object ToonCodec {
 
     def encodeValue(x: MonthDay, out: ToonWriter): Unit = out.writeString(Json.monthDayRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.OffsetDateTime`, written as a quoted ISO-8601
+   * string, such as `"2026-11-05T10:15:30+01:00"`.
+   */
   val offsetDateTimeCodec: ToonCodec[OffsetDateTime] = new ToonCodec[OffsetDateTime] {
     def decodeValue(in: ToonReader): OffsetDateTime = {
       in.skipBlankLines()
@@ -709,6 +809,11 @@ object ToonCodec {
     def encodeValue(x: OffsetDateTime, out: ToonWriter): Unit =
       out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.OffsetTime`, written as a quoted ISO-8601 string,
+   * such as `"10:15:30+01:00"`.
+   */
   val offsetTimeCodec: ToonCodec[OffsetTime] = new ToonCodec[OffsetTime] {
     def decodeValue(in: ToonReader): OffsetTime = {
       in.skipBlankLines()
@@ -717,6 +822,11 @@ object ToonCodec {
 
     def encodeValue(x: OffsetTime, out: ToonWriter): Unit = out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Period`, written as an ISO-8601 period, such as
+   * `P1Y2M3D`.
+   */
   val periodCodec: ToonCodec[Period] = new ToonCodec[Period] {
     def decodeValue(in: ToonReader): Period = {
       in.skipBlankLines()
@@ -725,6 +835,11 @@ object ToonCodec {
 
     def encodeValue(x: Period, out: ToonWriter): Unit = out.writeString(Json.periodRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Year`, written as an integer such as `2026`.
+   * Decoding accepts a quoted year too.
+   */
   val yearCodec: ToonCodec[Year] = new ToonCodec[Year] {
     def decodeValue(in: ToonReader): Year = {
       in.skipBlankLines()
@@ -737,6 +852,11 @@ object ToonCodec {
 
     def encodeValue(x: Year, out: ToonWriter): Unit = out.writeInt(x.getValue)
   }
+
+  /**
+   * The codec for `java.time.YearMonth`, written as an ISO-8601 year and month,
+   * such as `2026-11`.
+   */
   val yearMonthCodec: ToonCodec[YearMonth] = new ToonCodec[YearMonth] {
     def decodeValue(in: ToonReader): YearMonth = {
       in.skipBlankLines()
@@ -745,6 +865,11 @@ object ToonCodec {
 
     def encodeValue(x: YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
   }
+
+  /**
+   * The codec for `java.time.ZoneId`, written as the zone id, such as
+   * `Europe/Paris`.
+   */
   val zoneIdCodec: ToonCodec[ZoneId] = new ToonCodec[ZoneId] {
     def decodeValue(in: ToonReader): ZoneId = {
       in.skipBlankLines()
@@ -753,6 +878,11 @@ object ToonCodec {
 
     def encodeValue(x: ZoneId, out: ToonWriter): Unit = out.writeString(x.getId)
   }
+
+  /**
+   * The codec for `java.time.ZoneOffset`, written as a quoted offset id, such
+   * as `"+02:00"`.
+   */
   val zoneOffsetCodec: ToonCodec[ZoneOffset] = new ToonCodec[ZoneOffset] {
     def decodeValue(in: ToonReader): ZoneOffset = {
       in.skipBlankLines()
@@ -761,6 +891,12 @@ object ToonCodec {
 
     def encodeValue(x: ZoneOffset, out: ToonWriter): Unit = out.writeString(x.getId)
   }
+
+  /**
+   * The codec for `java.time.ZonedDateTime`, written as a quoted ISO-8601
+   * string with the zone id, such as
+   * `"2026-11-05T10:15:30+01:00[Europe/Paris]"`.
+   */
   val zonedDateTimeCodec: ToonCodec[ZonedDateTime] = new ToonCodec[ZonedDateTime] {
     def decodeValue(in: ToonReader): ZonedDateTime = {
       in.skipBlankLines()
@@ -770,6 +906,11 @@ object ToonCodec {
     def encodeValue(x: ZonedDateTime, out: ToonWriter): Unit =
       out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.util.Currency`, written as its ISO 4217 code, such as
+   * `EUR`.
+   */
   val currencyCodec: ToonCodec[Currency] = new ToonCodec[java.util.Currency] {
     def decodeValue(in: ToonReader): java.util.Currency = {
       in.skipBlankLines()
@@ -778,6 +919,10 @@ object ToonCodec {
 
     def encodeValue(x: java.util.Currency, out: ToonWriter): Unit = out.writeString(x.getCurrencyCode)
   }
+
+  /**
+   * The codec for `java.util.UUID`, written in its canonical hyphenated form.
+   */
   val uuidCodec: ToonCodec[UUID] = new ToonCodec[java.util.UUID] {
     def decodeValue(in: ToonReader): java.util.UUID = {
       in.skipBlankLines()

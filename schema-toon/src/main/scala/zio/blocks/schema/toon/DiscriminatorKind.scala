@@ -35,6 +35,10 @@ package zio.blocks.schema.toon
  */
 sealed trait DiscriminatorKind
 
+/**
+ * The cases of `DiscriminatorKind`: `DiscriminatorKind.Field`,
+ * `DiscriminatorKind.Key` and `DiscriminatorKind.None`.
+ */
 object DiscriminatorKind {
 
   /**

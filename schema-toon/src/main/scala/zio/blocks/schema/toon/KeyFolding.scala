@@ -28,6 +28,7 @@ package zio.blocks.schema.toon
  */
 sealed abstract class KeyFolding
 
+/** The cases of `KeyFolding`: `KeyFolding.Off` and `KeyFolding.Safe`. */
 object KeyFolding {
 
   /** Writes every nested record as an indented block. The default. */

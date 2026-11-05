@@ -29,6 +29,10 @@ package zio.blocks.schema.toon
  */
 sealed abstract class Delimiter(val char: Char)
 
+/**
+ * The delimiters of TOON arrays: `Delimiter.Comma`, `Delimiter.Tab`,
+ * `Delimiter.Pipe` and `Delimiter.None`.
+ */
 object Delimiter {
 
   /** Separates values with `,`, the default. */

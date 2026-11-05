@@ -29,6 +29,9 @@ package zio.blocks.schema.toon
  */
 sealed abstract class PathExpansion
 
+/**
+ * The cases of `PathExpansion`: `PathExpansion.Off` and `PathExpansion.Safe`.
+ */
 object PathExpansion {
 
   /** Keeps a dotted key as one field name. The default. */

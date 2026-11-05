@@ -1436,12 +1436,25 @@ class ToonCodecDeriver private (
     super.instanceOverrides
   }
 
+  /** The element type of the sequence being derived. */
   type Elem
+
+  /** The key type of the map being derived. */
   type Key
+
+  /** The value type of the map being derived. */
   type Value
+
+  /** The underlying type of the wrapper being derived. */
   type Wrapped
+
+  /** The sequence type constructor being derived. */
   type Col[_]
+
+  /** The map type constructor being derived. */
   type Map[_, _]
+
+  /** The codec type constructor, which stands for `ToonCodec`. */
   type TC[_]
 
   private[this] val recursiveRecordCache: ThreadLocal[util.HashMap[TypeId[?], Array[FieldInfo]]] =

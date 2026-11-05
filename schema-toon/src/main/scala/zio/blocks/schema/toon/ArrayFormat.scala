@@ -31,6 +31,10 @@ package zio.blocks.schema.toon
  */
 sealed trait ArrayFormat
 
+/**
+ * The cases of `ArrayFormat`: `ArrayFormat.Auto`, `ArrayFormat.Inline`,
+ * `ArrayFormat.List` and `ArrayFormat.Tabular`.
+ */
 object ArrayFormat {
 
   /**
