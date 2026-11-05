@@ -40,9 +40,10 @@ package zio.blocks.schema.xml
  *   Character encoding named in the XML declaration, and the charset used to
  *   turn the output into bytes (`XmlWriter.writeToBytes`, `XmlCodec#encode`).
  *   An unsupported name makes the byte methods throw
- *   `java.nio.charset.UnsupportedCharsetException`. The decoding methods read
- *   bytes as UTF-8 whatever this says, so bytes written with another encoding
- *   do not decode back correctly.
+ *   `java.nio.charset.UnsupportedCharsetException`, and a malformed one
+ *   `java.nio.charset.IllegalCharsetNameException`. The decoding methods read
+ *   bytes as UTF-8 whatever this says, so with another encoding non-ASCII text
+ *   does not decode back correctly, and UTF-16 output does not decode at all.
  */
 final case class WriterConfig(
   indentStep: Int = 0,

@@ -67,6 +67,8 @@ object XmlWriter {
    *   XML byte array in the specified encoding
    * @throws java.nio.charset.UnsupportedCharsetException
    *   if `config.encoding` names a charset the platform does not support
+   * @throws java.nio.charset.IllegalCharsetNameException
+   *   if `config.encoding` is not a legal charset name
    */
   def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] =
     write(xml, config).getBytes(Charset.forName(config.encoding))

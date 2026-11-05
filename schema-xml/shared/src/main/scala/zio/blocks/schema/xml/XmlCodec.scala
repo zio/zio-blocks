@@ -164,6 +164,10 @@ abstract class XmlCodec[A] extends BinaryCodec[A] {
    *
    * @throws java.nio.BufferOverflowException
    *   if `output` has less room than the encoded bytes
+   * @throws java.nio.charset.UnsupportedCharsetException
+   *   if `config.encoding` names a charset the platform does not support
+   * @throws java.nio.charset.IllegalCharsetNameException
+   *   if `config.encoding` is not a legal charset name
    */
   def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = output.put(encode(value, config))
 
@@ -192,6 +196,8 @@ abstract class XmlCodec[A] extends BinaryCodec[A] {
    *
    * @throws java.nio.charset.UnsupportedCharsetException
    *   if `config.encoding` names a charset the platform does not support
+   * @throws java.nio.charset.IllegalCharsetNameException
+   *   if `config.encoding` is not a legal charset name
    */
   def encode(value: A, config: WriterConfig): Array[Byte] = XmlWriter.writeToBytes(encodeValue(value), config)
 
