@@ -22,23 +22,29 @@ import zio.blocks.async.internal.AsyncRunner
 import zio.blocks.async.AsyncEncoding.WrappedPollable
 
 /**
- * Scala 3 surface for [[Async]]: extension methods on `Async[A]` and a
- * context-function `promise`/`succeed`/`fail` builder. Mixed into the `async`
- * package object so `import zio.blocks.async.*` exposes the full DSL.
- *
- * Failure propagation: a failed `Async` short-circuits `map` / `flatMap` /
- * `zipWith` (the function is not invoked) and is intercepted by `catchAll`.
- *
- * Note: exceptions thrown by the functions passed to these operators are NOT
- * caught — wrap throwing work in [[Async.attempt]] to surface it as a failure.
+ * The Scala 3 operators on [[Async]]: extension methods on `Async[A]`,
+ * `flatten` on a nested `Async`, the `succeed` and `fail` helpers for an
+ * `Async.promise` body, and `when` and `unless`. Mixed into the `async` package
+ * object, so `import zio.blocks.async.*` brings them into scope. Most operators
+ * are `inline`.
  */
 private[async] trait AsyncSyntaxVersionSpecific {
 
   extension [A](inline fa: Async[A]) {
 
     /**
-     * Sequence `fa` with `f`: when `fa` succeeds, continue with `f` applied to
-     * its value. A failure short-circuits and is propagated unchanged.
+     * Continues with `f` applied to the value: `f` returns the next `Async`,
+     * and the result follows it. On a ready value `f` runs at once; on a
+     * pending value it runs when a driver settles the value. A failure passes
+     * through without calling `f`. A throw from `f` is not caught by a later
+     * `catchAll` (see [[Failure]]).
+     *
+     * {{{
+     * def findUser(id: Int): Async[String] = Async.succeed("user-" + id)
+     * def orderCount(user: String): Async[Int] = Async.succeed(user.length)
+     *
+     * Async.succeed(7).flatMap(findUser).flatMap(orderCount).block // 6
+     * }}}
      */
     inline def flatMap[B](inline f: A => Async[B]): Async[B] = {
       val r: Any = fa
@@ -49,8 +55,15 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Transform the success value of `fa` with `f`. A failure short-circuits
-     * and is propagated unchanged.
+     * Applies `f` to the value. On a ready value `f` runs at once; on a pending
+     * value it runs when a driver settles the value. A failure passes through
+     * without calling `f`. A throw from `f` is not caught by a later `catchAll`
+     * (see [[Failure]]): for code that throws, use `flatMap` with
+     * `Async.attempt`.
+     *
+     * {{{
+     * Async.succeed(1200).map(_ * 2).block // 2400
+     * }}}
      */
     inline def map[B](inline f: A => B): Async[B] = {
       val r: Any = fa
@@ -61,8 +74,14 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Recover from a failure by applying `f` to its cause. A successful `fa` is
-     * returned unchanged (the handler is not invoked).
+     * Recovers from a failure by continuing with `f(cause)`. A successful value
+     * passes through without calling `f`. A throw from `f` becomes the failure
+     * of the result.
+     *
+     * {{{
+     * val price: Async[Int] = Async.fail(new java.util.concurrent.TimeoutException("price service"))
+     * price.catchAll(_ => Async.succeed(0)).block // 0
+     * }}}
      */
     inline def catchAll[A1 >: A](inline f: Throwable => Async[A1]): Async[A1] = {
       val r: Any = fa
@@ -75,30 +94,57 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Drive `fa` to its value, blocking the calling thread until it is ready. A
-     * failure is re-thrown as its cause.
+     * Waits for this `Async` to settle and returns its value, or throws its
+     * failure's cause. Use it at the edge of a program: `main`, a test, or a
+     * boundary with synchronous code. A ready value returns at once. On the JVM
+     * a pending value parks the calling thread (a virtual thread does not pin
+     * its carrier); calling `block` from inside a `poll` can deadlock the
+     * driver. On Scala.js nothing can park: a pending value that does not
+     * complete during its first poll makes `block` throw
+     * `IllegalStateException`. Inside `Async.async` use `await` instead.
      *
-     * This is the unsafe escape hatch: ready values return immediately; a
-     * pending value blocks the (Loom-friendly) calling thread on the JVM, and
-     * on JS — which cannot block — throws. Inside an `Async.async { ... }`
-     * block use the direct-style [[await]] instead, which runs without
-     * blocking.
+     * Drive a pending value from one consumer only: `block` racing another
+     * driver of the same value, such as `toFuture`, can hang forever (a known
+     * bug). Call `start` once and `block` on the `Async.Running` it returns.
+     *
+     * {{{
+     * Async.succeed(8080).map(_ + 1).block // 8081
+     * Async.succeed("80a").flatMap(s => Async.attempt(s.toInt)).either.block
+     * // Left(java.lang.NumberFormatException: For input string: "80a")
+     * }}}
      */
     inline def block: A = Async.slowPath.block[A](fa)
 
     /**
-     * Direct-style await: extract the value of `fa` without blocking, usable
-     * '''only''' directly inside an `Async.async { ... }` block. Using `.await`
-     * anywhere else is a compile error.
+     * Inside an `Async.async` block, waits for this `Async` and returns its
+     * value without blocking a thread: `Async.async` rewrites the code after
+     * the `await` into a continuation. A failure becomes the failure of the
+     * enclosing block. Anywhere else, `await` does not compile.
+     *
+     * {{{
+     * val total: Async[Int] = Async.async {
+     *   val subtotal = Async.succeed(1200).await
+     *   val shipping = Async.succeed(50).await
+     *   subtotal + shipping
+     * }
+     * total.block // 1250
+     * }}}
      */
     inline def await: A =
       ${ zio.blocks.async.internal.AsyncDirect.awaitImpl[A]('fa) }
 
     /**
-     * Combine `fa` with `that` using `f`. The two are sequenced strictly
-     * left-to-right: `fa` is driven to a value first, and only then is `that`
-     * driven. A failure in `fa` short-circuits without driving `that`; a
-     * failure in `that` is surfaced only after `fa` has succeeded.
+     * Combines this value with `that` using `f`, waiting for this value first
+     * and then for `that`. Both are already built, so work they started runs at
+     * the same time; only the waiting happens in order. A failure of this value
+     * fails the result without waiting for `that`; a failure of `that` fails it
+     * once this value has succeeded.
+     *
+     * {{{
+     * val subtotal: Async[Int] = Async.succeed(1200)
+     * val shipping: Async[Int] = Async.succeed(50)
+     * subtotal.zipWith(shipping)(_ + _).block // 1250
+     * }}}
      */
     inline def zipWith[B, C](inline that: Async[B])(inline f: (A, B) => C): Async[C] = {
       val ra: Any = fa
@@ -117,18 +163,31 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Sequentially combine `fa` with `that`, fusing the values via the
-     * `combinators` [[Tuples]] combiner: `a zip b zip c` flattens to
-     * `Async[(A, B, C)]` rather than `Async[((A, B), C)]`. `Unit` on either
-     * side is erased by the `Tuples` instances; tuple-on-tuple inputs are
-     * heterogeneously-concatenated.
+     * Pairs this value with `that`, waiting for this value first, like
+     * `zipWith`. The `Tuples` combiner of the combinators module builds the
+     * result: a tuple on the left is extended, so `a.zip(b).zip(c)` gives
+     * `(A, B, C)`, and a `Unit` on either side is dropped. A tuple on the right
+     * is concatenated on Scala 3 (`(1, 2)` with `(3, 4)` gives `(1, 2, 3, 4)`)
+     * but nested on Scala 2 (`(1, 2, (3, 4))`).
+     *
+     * {{{
+     * Async.succeed(8080).zip(Async.succeed("localhost")).zip(Async.succeed(true)).block
+     * // (8080,localhost,true)
+     * }}}
      */
     inline def zip[B](inline that: Async[B])(using t: Tuples[A, B]): Async[t.Out] =
       zipWith(that)((a, b) => t.combine(a, b))
 
     /**
-     * Run `f` for its effect when `fa` succeeds, then yield `fa`'s original
-     * value. A failure in `fa` (or in `f`) is propagated.
+     * Runs `f` on the value for its effect and keeps the original value. If the
+     * `Async` that `f` returns fails, the result fails; a failure of this value
+     * skips `f`.
+     *
+     * {{{
+     * val lastSeen = new java.util.concurrent.atomic.AtomicInteger
+     * Async.succeed(42).tap(id => Async.attempt(lastSeen.set(id))).block // 42
+     * lastSeen.get() // 42
+     * }}}
      */
     inline def tap(inline f: A => Async[Any]): Async[A] = {
       val r: Any = fa
@@ -149,9 +208,24 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Run `finalizer` after `fa` completes — success, failure, or suspension —
-     * and propagate the original outcome. A failure in `finalizer` is
-     * suppressed (the original outcome wins).
+     * Returns an `Async` with this value's outcome that, once this value
+     * settles, also waits for `finalizer` if the finalizer is pending. The
+     * finalizer never changes the outcome: its failure is dropped after a
+     * success, and added to the cause's suppressed exceptions after a failure.
+     *
+     * `finalizer` is a value, not a function: building it runs its synchronous
+     * part at once, before this value settles. To run cleanup only after a
+     * pending value completes, put it in a `flatMap`, `tap` or `foldCause`
+     * function.
+     *
+     * {{{
+     * val released = new java.util.concurrent.atomic.AtomicBoolean(false)
+     * val read: Async[String] =
+     *   Async.attempt[String](throw new java.io.IOException("read failed"))
+     *     .ensuring(Async.attempt(released.set(true)))
+     * read.either.block // Left(java.io.IOException: read failed)
+     * released.get() // true
+     * }}}
      */
     inline def ensuring(inline finalizer: Async[Any]): Async[A] = {
       val r: Any = fa
@@ -167,7 +241,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
-    /** Transform the cause of any [[Failure]]; values pass through. */
+    /**
+     * Replaces a failure's cause with `f(cause)`; a value passes through. A
+     * throw from `f` becomes the failure of the result.
+     */
     inline def mapError(inline f: Throwable => Throwable): Async[A] = {
       val r: Any = fa
       if (r.isInstanceOf[Failure])
@@ -181,9 +258,14 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Fold a possibly-failed [[Async]] into a guaranteed-success value by
-     * handling both branches. Equivalent to
+     * Turns both outcomes into a value: `onFailure(cause)` for a failure,
+     * `onSuccess(value)` for a success, so the result succeeds unless a
+     * function throws. For functions that do not throw, it equals
      * `fa.map(onSuccess).catchAll(t => Async.succeed(onFailure(t)))`.
+     *
+     * {{{
+     * Async.attempt("8o80".toInt).foldCause(_ => 8080)(port => port).block // 8080
+     * }}}
      */
     inline def foldCause[B](inline onFailure: Throwable => B)(inline onSuccess: A => B): Async[B] = {
       val r: Any = fa
@@ -200,7 +282,15 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
-    /** Convert any [[Failure]] into a `Left`; any value into a `Right`. */
+    /**
+     * Turns a failure into `Left(cause)` and a value into `Right(value)`, so
+     * the failure becomes data you can match on.
+     *
+     * {{{
+     * Async.fail(new RuntimeException("no quote")).either.block
+     * // Left(java.lang.RuntimeException: no quote)
+     * }}}
+     */
     inline def either: Async[Either[Throwable, A]] = {
       val r: Any = fa
       if (r.isInstanceOf[Failure]) Async.succeed(Left(r.asInstanceOf[Failure].cause))
@@ -216,43 +306,87 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
-    /** Replace the value with `b`. Equivalent to `fa.map(_ => b)`. */
+    /**
+     * Replaces the value with `b` once this value succeeds; a failure passes
+     * through. `b` is evaluated then, not before.
+     *
+     * {{{
+     * Async.succeed(8080).as("ready").block // ready
+     * }}}
+     */
     inline def as[B](inline b: B): Async[B] = map((_: A) => b)
 
-    /** Discard the value. Equivalent to `fa.as(())`. */
+    /**
+     * Replaces the value with `()`. Equivalent to `as(())`.
+     */
     inline def unit: Async[Unit] = as(())
 
-    /** Sequence then return `that`'s value (`zipRight`, ZIO's `*>`). */
+    /**
+     * Waits for this value and then for `that`, and returns `that`'s value; a
+     * failure of either fails the result. Equivalent to `zipWith(that)((_, b) =>
+     * b)`.
+     */
     inline def *>[B](inline that: Async[B]): Async[B] = zipWith(that)((_, b) => b)
 
-    /** Sequence then return `fa`'s value (`zipLeft`, ZIO's `<*`). */
+    /**
+     * Waits for this value and then for `that`, and returns this value; a
+     * failure of either fails the result. Equivalent to `zipWith(that)((a, _) =>
+     * a)`.
+     */
     inline def <*[B](inline that: Async[B]): Async[A] = zipWith(that)((a, _) => a)
   }
 
-  /**
-   * Eagerly drive an already-built `fa` and return a [[Async.Running]] handle.
-   * Separate (non-`inline`) extension so it can reach the in-package
-   * `internal.AsyncRunner` driver directly — driving an existing `Async` is
-   * distinct from the companion `Async.start(body)`, which evaluates a by-name
-   * body (`Future.apply`-style).
-   */
+  // A separate, non-`inline` extension so `start` can reach the in-package
+  // `internal.AsyncRunner` driver directly.
   extension [A](fa: Async[A]) {
+
+    /**
+     * Hands this `Async` to a driver and returns an `Async.Running` without
+     * waiting. A ready or failed value gives a handle that is already complete.
+     * A pending value is driven in the background: on the JVM by tasks on
+     * `ForkJoinPool.commonPool()` that hold no thread while the value waits; on
+     * Scala.js the first poll runs on the calling thread and later steps run as
+     * microtasks. Operators applied before `start` are part of what the driver
+     * runs; operators applied to the handle afterwards build a new value that
+     * runs only when you drive it. `fa.start` cannot move work off the calling
+     * thread that `fa` already did while it was built: use `Async.start(body)`
+     * for that.
+     *
+     * {{{
+     * val gate = new Completer[Int]
+     * val running: Async.Running[Int] = gate.peek.map(_ * 2).start
+     * gate.succeed(21)
+     * running.block // 42
+     * }}}
+     */
     def start: Async.Running[A] = AsyncRunner.start(fa)
 
     /**
-     * Fall back to `that` if `fa` fails, widening the two success types through
-     * the `combinators` [[Concat]] instance: on Scala 3 the result is the
-     * native union `A | B` (so `Async[Int].orElse(Async[String])` is
-     * `Async[Int | String]`), rather than collapsing both sides to their least
-     * upper bound. `that` is by-name, so the fallback is built only on failure.
+     * Falls back to `that` when this value fails. `that` is by-name and is
+     * built only on failure. The `Concat` combiner of the combinators module
+     * merges the two success types: the same type, or a type and its supertype,
+     * give that type. Other pairs give the union `A | B` on Scala 3; on Scala 2
+     * they give their shared supertype when there is exactly one besides
+     * general types such as `Any`, `AnyRef`, `Product` and `Serializable`, and
+     * `Either[A, B]` otherwise (`Left` for this value, `Right` for the
+     * fallback).
      *
-     * The common case is allocation-free: when `Concat.isIdentityLike` (always
-     * so for a union, and for same-type / sub-/supertype / shared-supertype
-     * derivations), both sides are already valid `Out` values, so we skip the
-     * per-value `left`/`right` projections (no `map` wrappers) and just recover
-     * with a cast — for a ready `fa` this collapses to a no-op. Only a disjoint
-     * Scala 2 `Either` widening (`isIdentityLike == false`) actually projects
-     * each side through `c.left` / `c.right`.
+     * {{{
+     * val primary: Async[Int] = Async.fail(new RuntimeException("primary down"))
+     * primary.orElse(Async.succeed(8443)).block // 8443
+     * }}}
+     *
+     * {{{
+     * // scala-2-only
+     * val port: Async[Either[Int, String]] = Async.succeed(8080).orElse(Async.succeed("unknown"))
+     * port.block // Left(8080)
+     * }}}
+     *
+     * {{{
+     * // scala-3-only
+     * val port: Async[Int | String] = Async.succeed(8080).orElse(Async.succeed("unknown"))
+     * port.block // 8080
+     * }}}
      */
     def orElse[B](that: => Async[B])(using c: Concat[A, B]): Async[c.Out] =
       if (c.isIdentityLike)
@@ -261,8 +395,12 @@ private[async] trait AsyncSyntaxVersionSpecific {
         fa.map(c.left).catchAll((_: Throwable) => that.map(c.right))
   }
 
-  /** Flatten an `Async[Async[A]]` one level. */
   extension [A](inline ffa: Async[Async[A]]) {
+
+    /**
+     * Removes one level of nesting from an `Async[Async[A]]`: the result
+     * follows the inner `Async`.
+     */
     inline def flatten: Async[A] = {
       val any = ffa.asInstanceOf[Any]
       if (any.isInstanceOf[Pollable[?]]) Async.slowPath.flattenAsync[A](any)
@@ -271,14 +409,17 @@ private[async] trait AsyncSyntaxVersionSpecific {
   }
 
   /**
-   * Conditionally evaluate `fa`. Returns `fa.unit` when `cond` is true,
-   * `Async.succeed(())` otherwise. The unevaluated `fa` is by-name so it is not
-   * constructed when the condition is false.
+   * Returns `fa` with its value discarded when `cond` is true, and a ready `()`
+   * otherwise. `fa` is not built when `cond` is false.
    */
   inline def when(inline cond: Boolean)(inline fa: Async[Any]): Async[Unit] =
     if (cond) fa.unit else Async.succeed(())
 
-  /** Inverse of [[when]]: evaluate `fa` only when `cond` is false. */
+  /**
+   * Returns `fa` with its value discarded when `cond` is false, and a ready
+   * `()` otherwise: the opposite of `when`. `fa` is not built when `cond` is
+   * true.
+   */
   inline def unless(inline cond: Boolean)(inline fa: Async[Any]): Async[Unit] =
     if (!cond) fa.unit else Async.succeed(())
 
@@ -288,9 +429,17 @@ private[async] trait AsyncSyntaxVersionSpecific {
   // context function and let users write `succeed(x)` / `fail(t)` at top
   // level inside an `Async.promise { ... }` body.
 
-  /** Complete the surrounding [[Async.promise]] block with `value`. */
+  /**
+   * Completes the `Completer` of the enclosing `Async.promise` body with
+   * `value`. On Scala 3 the body supplies the `Completer` as a context
+   * parameter; on Scala 2 the body must bind it as `implicit c => ...`.
+   */
   def succeed[A](value: A)(using c: Completer[A]): Unit = c.succeed(value)
 
-  /** Complete the surrounding [[Async.promise]] block with a failure. */
+  /**
+   * Completes the `Completer` of the enclosing `Async.promise` body with the
+   * failure `cause`. On Scala 3 the body supplies the `Completer` as a context
+   * parameter; on Scala 2 the body must bind it as `implicit c => ...`.
+   */
   def fail[A](cause: Throwable)(using c: Completer[A]): Unit = c.fail(cause)
 }
