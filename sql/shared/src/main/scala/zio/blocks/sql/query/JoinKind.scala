@@ -16,8 +16,15 @@
 
 package zio.blocks.sql.query
 
+/** The kind of a join, for [[SqlQuery#join]]. */
 sealed trait JoinKind
+
+/** The join kinds. */
 object JoinKind {
+
+  /** `INNER JOIN`: keeps only rows with a match in both tables. */
   case object Inner extends JoinKind
-  case object Left  extends JoinKind
+
+  /** `LEFT JOIN`: keeps every row of the query so far. */
+  case object Left extends JoinKind
 }

@@ -18,8 +18,13 @@ package zio.blocks.sql
 
 import scala.quoted._
 
+/** The macros behind the `sql"..."` interpolators. */
 private[sql] object SqlMacros {
 
+  /**
+   * Expands `sql"..."`: checks the parts with `SqlValidator`, writes the SQL to
+   * `Dump` when the `zib.sql.dumpDir` property is set, and builds the [[Frag]].
+   */
   def sqlImpl(sc: Expr[StringContext], tables: Expr[Seq[Table[?]]], args: Expr[Seq[Any]])(using
     Quotes
   ): Expr[Frag] = {
@@ -73,6 +78,10 @@ private[sql] object SqlMacros {
     buildFragExpr(partsOpt, args, sc)
   }
 
+  /**
+   * Expands `StringContext(...).sql(table, ...)(...)`: like `sqlImpl`, plus the
+   * identifier check against the tables' names and fields.
+   */
   def sqlImplChecked(
     sc: Expr[StringContext],
     first: Expr[Table[?]],

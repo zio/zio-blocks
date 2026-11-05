@@ -17,7 +17,8 @@ object ScaladocSnippets {
    * @param line
    *   1-based line of the opening marker
    * @param code
-   *   the example, with the comment margin removed
+   *   the example, with the comment margin removed and each `\$` read as `$`,
+   *   as Scaladoc renders it
    * @param onlyScalaMajor
    *   `Some(3)` for a `// scala-3-only` example, `Some(2)` for a
    *   `// scala-2-only` one
@@ -55,7 +56,9 @@ object ScaladocSnippets {
                   start,
                   "a code line contains }}}, which ends the Scaladoc code block early; reword it (e.g. split the braces or drop the output comment)"
                 )
-              code += stripMargin(lines(i))
+              // Scaladoc renders `\$` as `$` (`$name` alone would be a doc variable), so compile what
+              // the reader sees: `sql"... \$id"` is the interpolation `sql"... $id"`.
+              code += stripMargin(lines(i)).replace("\\$", "$")
               i += 1
             }
             if (i == lines.length) fail(sourcePath, start, "code block is never closed")
@@ -99,9 +102,18 @@ object ScaladocSnippets {
   /**
    * The import that every example of a module gets: its package, from
    * `modulePackage`, as in `zio.blocks.streams._` or `zio.http._`.
+   *
+   * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
+   * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
+   * scope as `zio`, so an example's own `import zio.blocks.schema._` would
+   * fail. Its examples get `zio.blocks.sql.{zio => _, _}` and compile as for a
+   * user without `sql-zio`.
    */
   def moduleImport(sourcePath: String): String =
-    modulePackage(sourcePath) + "._"
+    moduleOf(sourcePath) match {
+      case "sql" => "zio.blocks.sql.{zio => _, _}"
+      case _     => modulePackage(sourcePath) + "._"
+    }
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.
