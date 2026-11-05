@@ -37,8 +37,8 @@ import scala.util.control.NonFatal
  * the encoding of the type it wraps, but a known bug labels a wrapper field,
  * list element or map entry with the Thrift type `struct` even when the wrapped
  * type is not a struct, so a reader that skips it, or another Thrift library,
- * misreads it; a `Unit` field is labelled `void`, which libthrift cannot skip.
- * `DynamicValue` encodes, but decoding it always fails with
+ * can misread it; a `Unit` field is labelled `void`, which libthrift cannot
+ * skip. `DynamicValue` encodes, but decoding it always fails with
  * `Cannot decode DynamicValue without schema`. Known bugs: a record field
  * missing from the input decodes as `null`, `0` or `false`, and decoding does
  * not check the Thrift type written before each field.

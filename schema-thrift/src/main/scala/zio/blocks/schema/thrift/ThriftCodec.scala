@@ -40,7 +40,7 @@ import java.math.{BigInteger, MathContext, RoundingMode}
  * bug breaks this for a field of type `Unit`, or of a wrapper type (such as one
  * built with `Schema#transform`) over a type that is not a struct: the field's
  * header names the wrong Thrift type, so a reader that does not know the field
- * fails or misreads it.
+ * can fail or misread it.
  *
  * Decoding returns `Left` with a `SchemaError` whose message ends with the path
  * of the part that failed; errors that come from the Thrift library start with
