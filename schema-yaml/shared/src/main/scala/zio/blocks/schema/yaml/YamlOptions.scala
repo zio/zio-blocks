@@ -17,14 +17,43 @@
 package zio.blocks.schema.yaml
 
 /**
- * Configuration for [[YamlWriter]] output formatting.
+ * Formatting options for `YamlWriter.write`: indentation, flow style and the
+ * `---` document marker. `Yaml#print` uses `YamlOptions.default` and
+ * `Yaml#printPretty` uses `YamlOptions.pretty`. `YamlCodec#encodeToString` and
+ * `YamlCodec#encode` take no options and always use the default, so to write a
+ * value with other options, encode it with `YamlCodec#encodeValue` and pass the
+ * tree to `YamlWriter.write`.
+ *
+ * {{{
+ * val endpoint = Yaml.Mapping.fromStringKeys(
+ *   "path"    -> Yaml.Scalar("/health"),
+ *   "methods" -> Yaml.Sequence(Yaml.Scalar("GET"), Yaml.Scalar("HEAD"))
+ * )
+ *
+ * YamlWriter.write(endpoint, YamlOptions(indentStep = 4, documentMarkers = true))
+ * // ---
+ * // path: /health
+ * // methods:
+ * //     - GET
+ * //     - HEAD
+ *
+ * YamlWriter.write(endpoint, YamlOptions.flow) // {path: /health, methods: [GET, HEAD]}
+ * }}}
  *
  * @param indentStep
- *   number of spaces per indentation level (default: 2)
+ *   the number of spaces added for each nesting level in block style (default
+ *   `2`). The entries of a mapping that is a sequence item line up after its
+ *   `- `.
  * @param flowStyle
- *   when true, emit collections in inline flow style
+ *   when `true`, writes every mapping as `{k: v}` and every sequence as
+ *   `[a, b]`, on one line (default `false`). A string that contains `,`, `]` or
+ *   `}` is written without quotes, so other YAML readers reject the output and
+ *   `YamlReader` splits the value (a known bug).
  * @param documentMarkers
- *   when true, prepend `---` document start marker
+ *   when `true`, starts the output with a `---` line (default `false`).
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 final case class YamlOptions(
   indentStep: Int = 2,
@@ -32,8 +61,18 @@ final case class YamlOptions(
   documentMarkers: Boolean = false
 )
 
+/** Ready-made [[YamlOptions]]. */
 object YamlOptions {
+
+  /** Block style, two-space indentation, no `---` line. */
   val default: YamlOptions = YamlOptions()
-  val pretty: YamlOptions  = YamlOptions(indentStep = 2, documentMarkers = true)
-  val flow: YamlOptions    = YamlOptions(flowStyle = true)
+
+  /**
+   * The default options with `documentMarkers` on, so the output starts with
+   * `---`.
+   */
+  val pretty: YamlOptions = YamlOptions(indentStep = 2, documentMarkers = true)
+
+  /** The default options with `flowStyle` on, so the output is one line. */
+  val flow: YamlOptions = YamlOptions(flowStyle = true)
 }

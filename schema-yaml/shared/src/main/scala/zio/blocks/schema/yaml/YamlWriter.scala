@@ -20,11 +20,42 @@ import zio.blocks.chunk.Chunk
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * Serializer for the [[Yaml]] AST, producing YAML 1.2 text output. Formatting
- * behavior (indentation, flow style, document markers) is controlled via
- * [[YamlOptions]].
+ * Writes a [[Yaml]] tree as YAML text, in block or flow style as
+ * [[YamlOptions]] selects. An empty mapping is written as `{}` and an empty
+ * sequence as `[]` in both styles, [[Yaml.NullValue]] as `null`, and tags are
+ * never written.
+ *
+ * A scalar is written in double quotes, with escapes such as `\n`, when it is
+ * empty, is a YAML keyword (`null`, `~`, `true`, `yes`, `on`, `.inf`, `.nan`
+ * and their capitalized forms), starts with a quote or an indicator such as
+ * `[`, `{`, `&`, `*`, `!`, `|` or `>`, looks like a number, or contains a line
+ * break, a control character, `: ` or ` #`. An `Int`, `Float`, `Bool` or `Null`
+ * tag turns quoting off for non-empty text. Known bugs in 0.0.56: a value that
+ * starts with `#` is not quoted, so other YAML readers drop it as a comment,
+ * and flow style does not quote `,`, `]` or `}`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 object YamlWriter {
+
+  /**
+   * Writes a tree as YAML text with the given options, `YamlOptions.default`
+   * when omitted. The text has no trailing line break.
+   *
+   * {{{
+   * val probe = Yaml.Mapping.fromStringKeys(
+   *   "path"    -> Yaml.Scalar("/ready"),
+   *   "timeout" -> Yaml.Scalar("5", Some(YamlTag.Int))
+   * )
+   *
+   * YamlWriter.write(probe)
+   * // path: /ready
+   * // timeout: 5
+   *
+   * YamlWriter.write(probe, YamlOptions.flow) // {path: /ready, timeout: 5}
+   * }}}
+   */
   def write(yaml: Yaml, options: YamlOptions = YamlOptions.default): String = {
     val sb = new java.lang.StringBuilder
     if (options.documentMarkers) sb.append("---\n")
@@ -32,6 +63,7 @@ object YamlWriter {
     sb.toString
   }
 
+  /** Writes a tree as the UTF-8 bytes of the text that `write` returns. */
   def writeToBytes(yaml: Yaml, options: YamlOptions = YamlOptions.default): Array[Byte] =
     write(yaml, options).getBytes(UTF_8)
 
