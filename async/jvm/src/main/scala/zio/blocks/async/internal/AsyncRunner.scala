@@ -21,14 +21,19 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
 /**
- * JVM implementation of [[Async.start]].
+ * JVM implementation of `fa.start` and `Async.start(body)`.
  *
  * Ready values settle synchronously. Suspended values are driven by serialized
- * tasks on the shared scheduler; a task exits whenever its current pollable is
- * still pending and its registered waker submits the next task. Cancellation
- * suppresses terminal publication and signals the active pending pollable.
+ * tasks on `ForkJoinPool.commonPool()` (inline when the caller is already a
+ * worker of that pool); a task exits whenever its current pollable is still
+ * pending, and its registered waker submits the next task. Cancellation
+ * suppresses terminal publication and signals the active pending pollable. A
+ * cancel that lands after the source completed but before the next task ran
+ * still wins, so the result is never delivered.
  */
 private[async] object AsyncRunner {
+
+  /** Implements `fa.start`. */
   def start[A](fa: Async[A]): Async.Running[A] =
     startRegisteredOwned(fa, PlatformAsync.currentExecutionOwner)(_ => ())
 
@@ -89,6 +94,10 @@ private[async] object AsyncRunner {
     }
   }
 
+  /**
+   * Implements `Async.start(body)`: evaluates `body` on a new daemon thread
+   * named `zio-blocks-async-eval`.
+   */
   def startEval[A](body: => A): Async.Running[A] = {
     val owner             = PlatformAsync.currentExecutionOwner
     val cancellationBatch = PlatformAsync.currentCancellationBatch
@@ -276,7 +285,7 @@ private[async] object AsyncRunner {
 
     // Single-winner CAS against the driver's publish: if cancel wins, the
     // publish loses and is suppressed; if the run already settled, cancel is a
-    // clean no-op (no spurious interrupt).
+    // no-op.
     override def cancel(): Unit = {
       val caller  = Thread.currentThread()
       val handler = caller.getUncaughtExceptionHandler

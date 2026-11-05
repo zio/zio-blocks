@@ -19,20 +19,28 @@ package zio.blocks.async.internal
 import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
 /**
- * Scala.js implementation of [[Async.start]].
+ * Scala.js implementation of `fa.start` and `Async.start(body)`.
  *
- * Suspended values are driven by a microtask polling loop (the same pattern as
- * `AsyncInterop.drive`). Cancellation suppresses publishing a terminal value
- * and signals the active pending pollable.
+ * Ready values settle synchronously. A suspended value takes its first poll in
+ * the caller; later polls run on `JSExecutionContext.queue` microtasks, with a
+ * `setTimeout` macrotask after `PlatformAsync.ReadyResumptionLimit` resumptions
+ * in a row without a fresh wake (the same pattern as `AsyncInterop.drive`).
+ * Cancellation suppresses publishing a terminal value and signals the active
+ * pending pollable.
  */
 private[async] object AsyncRunner {
 
+  /** Implements `fa.start`. */
   def start[A](fa: Async[A]): Async.Running[A] =
     startRegisteredOwned(fa, PlatformAsync.currentExecutionOwner)(_ => ())
 
   def startRegistered[A](fa: Async[A])(register: Async.Running[A] => Unit): Async.Running[A] =
     startRegisteredOwned(fa, PlatformAsync.currentExecutionOwner)(register)
 
+  /**
+   * The same as `startRegistered`: on Scala.js the first poll always runs
+   * inline.
+   */
   def startRegisteredInline[A](fa: Async[A])(register: Async.Running[A] => Unit): Async.Running[A] =
     startRegistered(fa)(register)
 
@@ -80,6 +88,7 @@ private[async] object AsyncRunner {
     }
   }
 
+  /** Implements `Async.start(body)`: evaluates `body` on the next microtask. */
   def startEval[A](body: => A): Async.Running[A] = {
     val owner             = PlatformAsync.currentExecutionOwner
     val cancellationBatch = PlatformAsync.currentCancellationBatch
@@ -122,13 +131,12 @@ private[async] object AsyncRunner {
     private var cancellationCleanup: CancellationCleanup = null
     private var cancellationEffect: Async[Unit]          = null
 
-    // Re-arm on the next microtask via a cached `Runnable` scheduled directly
-    // onto the JS microtask queue (`ec.execute`, which Scala.js implements as
-    // `Promise.resolve().then(...)`), instead of allocating a
+    // Re-arm through a cached `Runnable` handed to `PlatformAsync.schedule` (a
+    // `JSExecutionContext.queue` microtask, or a `setTimeout` macrotask after
+    // `ReadyResumptionLimit` resumptions in a row), instead of allocating a
     // Promise + Future + `Try` bridge (`Promise.resolve().toFuture.onComplete`)
-    // on every wakeup. Same "one synchronous chance, then resume on the next
-    // microtask" semantics; `cancelled` is still re-checked at both the wakeup
-    // and the resumption.
+    // on every wakeup. `cancelled` is still re-checked at both the wakeup and
+    // the resumption.
     private def runSignalled(): Unit =
       if (!cancelled && !settled && !polling && signalled) {
         signalled = false

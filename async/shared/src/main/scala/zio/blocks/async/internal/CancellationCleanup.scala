@@ -20,9 +20,12 @@ import java.util.concurrent.atomic.AtomicInteger
 import zio.blocks.async._
 
 /**
- * Joins cleanup discovered after cancellation raced an in-flight poll. The
- * cleanup protocol is driven once independently of its observers, all of which
- * join and replay the same completion.
+ * Joins the cleanup of a cancelled run: the cleanup of the leaf it was waiting
+ * on (`primary`) and that of a replacement an in-flight poll returned after the
+ * cancel (`replacement`, `claimedReplacement` or `noReplacement`). Once both
+ * are supplied and `effect` has been polled, it runs them once, primary first,
+ * and every poll of `effect` sees the same outcome; when both fail, the
+ * replacement's failure is added to the primary's as suppressed.
  */
 private[async] final class CancellationCleanup {
   private final class Supplied(val value: Async[Unit])
@@ -33,6 +36,7 @@ private[async] final class CancellationCleanup {
   private var primaryCleanup: Supplied = null
   private var started                  = false
 
+  /** The joined cleanup, as the `Async` that the cancel returns. */
   val effect: Async[Unit] = new Pollable[Unit] {
     def poll(onComplete: Runnable): Async[Unit] = {
       val cleanups = CancellationCleanup.this.synchronized {
@@ -47,6 +51,7 @@ private[async] final class CancellationCleanup {
     override private[async] def cancelWithCleanup(): Async[Unit] = this
   }
 
+  /** Supplies the cleanup of the leaf the run was waiting on. */
   def primary(value: Async[Unit]): Unit = {
     val cleanups = synchronized {
       if (primaryCleanup eq null) primaryCleanup = new Supplied(value)
@@ -70,6 +75,7 @@ private[async] final class CancellationCleanup {
    */
   def claimedReplacement(value: Async[Unit]): Unit = supplyHandoff(value)
 
+  /** Records that the in-flight poll returned no replacement to clean up. */
   def noReplacement(): Unit = supplyHandoff(Async.succeed(()))
 
   private def claimCleanups(): (Async[Unit], Async[Unit]) =

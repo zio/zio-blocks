@@ -20,14 +20,14 @@ import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import java.util.concurrent.locks.LockSupport
 
 /**
- * JVM platform helpers for the async runtime.
+ * JVM hooks for the async runtime: thread-local execution context, scheduling
+ * on `ForkJoinPool.commonPool()`, and the parker behind `block`.
  *
  * The parker uses [[LockSupport]] `park`/`unpark` rather than
  * `Object.synchronized` / `Object.wait` so that virtual threads (Project Loom,
- * JDK 21+) properly unmount their carrier while parked instead of pinning it —
- * and, unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no AQS
- * wait-queue node per park, which is the bulk of the per-async-boundary garbage
- * on the genuinely-suspended (off-thread completion) path.
+ * JDK 21+) unmount their carrier while parked instead of pinning it, and,
+ * unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no wait-queue
+ * node per park.
  */
 private[async] object PlatformAsync {
 
@@ -95,6 +95,10 @@ private[async] object PlatformAsync {
     finally executionOwner.set(previous)
   }
 
+  /**
+   * Runs `runnable` on `ForkJoinPool.commonPool()` with the caller's execution
+   * owner and cancellation batch; `forceMacrotask` matters only on Scala.js.
+   */
   def schedule(runnable: Runnable, forceMacrotask: Boolean): Unit = {
     val _     = forceMacrotask
     val owner = currentExecutionOwner
@@ -110,6 +114,7 @@ private[async] object PlatformAsync {
       )
   }
 
+  /** True on a worker thread of `ForkJoinPool.commonPool()`. */
   def isSchedulerThread: Boolean = Thread.currentThread() match {
     case worker: ForkJoinWorkerThread => worker.getPool eq ForkJoinPool.commonPool()
     case _                            => false
@@ -130,8 +135,8 @@ private[async] object PlatformAsync {
   //   - otherwise (first await on this thread, OR a NESTED await whose outer
   //     frame still owns the pooled parker — e.g. a `flatMap` continuation that
   //     itself calls `.block`) allocate a fresh, un-pooled parker.
-  // `owner` is re-captured here because a pooled parker created on this thread
-  // is only ever handed back out on this same thread.
+  // A parker records its creating thread as the one to unpark; a pooled
+  // parker is only handed back out on that same thread.
   def newParker(): Parker = {
     val p = pooled.get()
     if ((p ne null) && !p.busy) {
@@ -182,16 +187,14 @@ private[async] object PlatformAsync {
 
     def park(): Unit =
       // `while (!ready)` + unpark-permit semantics are lost-wakeup-free: a
-      // synchronous wakeup sets `ready` so we never block (the old fast path); a
-      // leftover permit from a prior round causes at most one spurious return the
-      // loop absorbs.
+      // synchronous wakeup sets `ready` so we never block; a leftover permit
+      // from a prior round causes at most one spurious return the loop absorbs.
       while (!ready) {
         LockSupport.park()
-        // A worker cancel interrupts the parked thread (AsyncRunner.cancel ->
-        // worker.interrupt()); `LockSupport.park` returns with the interrupt flag
-        // set, so re-throw `InterruptedException` exactly as the old `cond.await`
-        // did, for `drive` to unwind into a suppressed/cancelled outcome. Checked
-        // before `ready` so a cancel racing a completion still surfaces as
+        // An interrupt of the parked thread (by its owner; the async runtime
+        // interrupts no thread) makes `LockSupport.park` return with the flag
+        // set, so `block` ends with `InterruptedException`. Checked before
+        // `ready`, so an interrupt racing a completion still surfaces as
         // interruption.
         if (Thread.interrupted()) throw new InterruptedException()
       }
