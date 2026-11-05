@@ -169,7 +169,7 @@ lazy val testJVMScala2Command =
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
+    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; scaladoc-check-scala3/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
@@ -331,6 +331,7 @@ lazy val root = project
     scalaNextTests.jvm,
     scalaNextTests.js,
     `scaladoc-check`,
+    `scaladoc-check-scala3`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -1425,59 +1426,82 @@ lazy val `scaladoc-check` = project
   .in(file("scaladoc-check"))
   .settings(stdSettings("zio-blocks-scaladoc-check"))
   .dependsOn(scaladocCheckedModules.map(p => p: ClasspathDep[ProjectReference]): _*)
+  .settings(scaladocCheckSettings(scaladocCheckedModules))
   .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-test"     % "2.1.27" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
     ),
     Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala",
-    // Examples are user code: a warning in one (an unused import, say) must not fail the build.
-    Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
-    // Examples are also compiled the way a user compiles them. A Scala 3 user of the main line
-    // (3.9.x, `zio-blocks-*`) does not enable experimental mode, so drop -experimental and
-    // -language:experimental.* below the next line: if a main-line module is ever built with
-    // them again, scalac marks every top-level definition in it @experimental and these examples
-    // fail with "... is marked @experimental". The next line (3.10+, `zio-blocks-next-*`) is
-    // built with -experimental, so its users need the flag too: keep it.
-    Compile / scalacOptions := {
-      val options = (Compile / scalacOptions).value
-      if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
-        options.flatMap {
-          case "-experimental"                               => None
-          case language if language.startsWith("-language:") =>
-            // `-language:a,experimental.b` keeps `a` and drops `experimental.b`
-            val features = language.stripPrefix("-language:").split(',').filterNot(_.startsWith("experimental."))
-            if (features.isEmpty) None else Some(features.mkString("-language:", ",", ""))
-          case option => Some(option)
-        }
-      else options
-    },
     // `Test / scalacOptions` delegates to the Compile ones, so put the fatal flags back: the spec and
     // project/ScaladocSnippets.scala are ordinary code. (The generated snippets are Compile sources.)
     Test / scalacOptions := (Test / scalacOptions).value ++ (schema.jvm / Compile / scalacOptions).value
-      .filter(fatalWarningFlags),
-    Compile / sourceGenerators += Def.task {
-      val root       = (ThisBuild / baseDirectory).value
-      val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
-      val scalaMajor = CrossVersion.partialVersion(scalaVersion.value).fold(3)(_._1.toInt)
-      // Each module's own source list already holds exactly the shared, jvm and version-specific
-      // (scala-2, scala-3, scala-3.5+ ...) files for the current Scala version.
-      val sources = scaladocCheckedModules.map(m => m / Compile / unmanagedSources).join.value.flatten.collect {
-        case file if file.getName.endsWith(".scala") =>
-          (IO.relativize(root, file).getOrElse(file.getPath).replace('\\', '/'), IO.read(file))
-      }
-      IO.delete(outDir) // drop wrappers of snippets that were removed or moved
-      ScaladocSnippets.generate(sources, scalaMajor).map { case (name, content) =>
-        val file = outDir / name
-        IO.write(file, content)
-        file
-      }
-    }.taskValue
+      .filter(fatalWarningFlags)
   )
+
+// Compiles the Scaladoc examples of the Scala-3-only modules listed in `scaladocCheckedScala3Modules`
+// the way `scaladoc-check` does for the others (same settings, same package rule), on 3.9.x and
+// 3.10.x only. `sql` examples get `import zio.blocks.sql.{zio => _, _}` (see
+// `ScaladocSnippets.moduleImport`), because `sql-zio` shares this classpath. The extractor's unit
+// tests run in `scaladoc-check`. Not published.
+lazy val scaladocCheckedScala3Modules: Seq[Project] =
+  Seq(
+    sql.jvm,
+    `sql-zio`
+  )
+
+lazy val `scaladoc-check-scala3` = project
+  .in(file("scaladoc-check-scala3"))
+  .settings(stdSettings("zio-blocks-scaladoc-check-scala3", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
+  .dependsOn(scaladocCheckedScala3Modules.map(p => p: ClasspathDep[ProjectReference]): _*)
+  .settings(scaladocCheckSettings(scaladocCheckedScala3Modules))
+
+// Settings shared by the example checkers. `modules` are the projects whose Scaladoc examples the
+// checker compiles; the checker must also `dependsOn` them.
+def scaladocCheckSettings(modules: Seq[Project]): Seq[Def.Setting[_]] = Seq(
+  publish / skip             := true,
+  mimaPreviousArtifacts      := Set(),
+  coverageMinimumStmtTotal   := 0,
+  coverageMinimumBranchTotal := 0,
+  // Examples are user code: a warning in one (an unused import, say) must not fail the build.
+  Compile / scalacOptions ~= (_.filterNot(fatalWarningFlags)),
+  // Examples are also compiled the way a user compiles them. A Scala 3 user of the main line
+  // (3.9.x, `zio-blocks-*`) does not enable experimental mode, so drop -experimental and
+  // -language:experimental.* below the next line: if a main-line module is ever built with
+  // them again, scalac marks every top-level definition in it @experimental and these examples
+  // fail with "... is marked @experimental". The next line (3.10+, `zio-blocks-next-*`) is
+  // built with -experimental, so its users need the flag too: keep it.
+  Compile / scalacOptions := {
+    val options = (Compile / scalacOptions).value
+    if (scalaVersion.value.startsWith("3.") && !BuildHelper.isScala3NextLine(scalaVersion.value))
+      options.flatMap {
+        case "-experimental"                               => None
+        case language if language.startsWith("-language:") =>
+          // `-language:a,experimental.b` keeps `a` and drops `experimental.b`
+          val features = language.stripPrefix("-language:").split(',').filterNot(_.startsWith("experimental."))
+          if (features.isEmpty) None else Some(features.mkString("-language:", ",", ""))
+        case option => Some(option)
+      }
+    else options
+  },
+  Compile / sourceGenerators += Def.task {
+    val root       = (ThisBuild / baseDirectory).value
+    val outDir     = (Compile / sourceManaged).value / "scaladoc-snippets"
+    val scalaMajor = CrossVersion.partialVersion(scalaVersion.value).fold(3)(_._1.toInt)
+    // Each module's own source list already holds exactly the shared, jvm and version-specific
+    // (scala-2, scala-3, scala-3.5+ ...) files for the current Scala version.
+    val sources = modules.map(m => m / Compile / unmanagedSources).join.value.flatten.collect {
+      case file if file.getName.endsWith(".scala") =>
+        (IO.relativize(root, file).getOrElse(file.getPath).replace('\\', '/'), IO.read(file))
+    }
+    IO.delete(outDir) // drop wrappers of snippets that were removed or moved
+    ScaladocSnippets.generate(sources, scalaMajor).map { case (name, content) =>
+      val file = outDir / name
+      IO.write(file, content)
+      file
+    }
+  }.taskValue
+)
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))

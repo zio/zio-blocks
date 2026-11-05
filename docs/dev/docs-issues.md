@@ -53,59 +53,72 @@ Flags read `System.getProperty` and do see such properties on Scala.js (a `Stati
 
 **Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
 
-### typeid.md: four claims contradict the library (kinds, opaque normalization, `construct`, `unapplied`)
+### `reference/http-model/model.md`, `headers.md` and `server-sent-event.md`: eleven statements that contradict http-model 0.0.56
 
-Found 2026-11-04 while fact-checking the typeid Scaladoc against `docs/reference/typeid.md` (base `7b51118b7`). Same at v0.0.56.
+Found 2026-11-04 while fact-checking the reference pages against the source for the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`; the http-model sources are identical at tag `v0.0.56`). Each item was checked with the reproduction below or by compiling the snippet.
 
-**Summary.**
-1. "TypeId captures kind information at runtime" (Kind section, around line 1615) and the `TypeParam` section (around lines 395-430, `paramF.kind`, `paramF.isTypeConstructor`) present the kind of `F[_]` as captured. Derived parameters always have `Kind.Type` (library entry 5 above), so the rendered mdoc output shows `Type` and `false` under prose that says otherwise; the Kind table lists `Runnable` as `(* -> *) -> *`.
-2. "an opaque type like `opaque type Email = String` normalizes to `String`" (Semantic Predicates, around line 760) and "Opaque types such as `opaque type UserId = String` normalize to their representation" (Normalization and Equality, around line 1368): `TypeId.normalize` returns an opaque id unchanged (`TypeIdOps.normalizeWithArgs` follows only `aliasedTo`, `typeid/shared/src/main/scala/zio/blocks/typeid/TypeIdOps.scala:54-75`).
-3. "Sequence-like types (`List`, `Vector`, `Set`, `Seq`, `IndexedSeq`, `Array`, `ArraySeq`, `Chunk`) each pass a variadic sequence of elements" (`construct` → Collection Types, around line 1331): `Array`, `ArraySeq` and `Chunk` are not in `knownTypeConstructors` (`typeid/jvm/src/main/scala/zio/blocks/typeid/TypeIdPlatformMethods.scala:66-89`) and fall back to reflection, which fails.
-4. "`TypeId.unapplied(TypeId.of[List[Int]])` returns the equivalent of `TypeId.of[List]`" (around line 1431): on Scala 3 (the version mdoc runs) `TypeId.of[List]` is the `scala.package.List` alias and is not equal (library entry 3 above); it equals `TypeId.list`.
+**Items** (page:line on `5eb809c8f`, then the correct statement):
 
-**Reproduction.**
+1. `model.md:505`: "Returns: Either[ParseError, URL]". There is no `ParseError`; `URL.parse` returns `Either[String, URL]`.
+2. `model.md:567`: `Path.fromEncoded("%2Fapi%2Fv1%2Fusers") // Parse from percent-encoded string` suggests the path `/api/v1/users`. `fromEncoded` splits at `/` before decoding, so this gives one segment `/api/v1/users` and no leading slash. Use `Path.fromEncoded("/api/v1/caf%C3%A9")` to show decoding.
+3. `model.md:590`: "`QueryParams` is an immutable, case-insensitive multi-map". Keys are compared exactly: `QueryParams("Page" -> "1").get("page")` is `None`.
+4. `model.md:293-297`: "`Status` is an opaque type alias for `Int`". Only on Scala 3. On Scala 2.13 it is `final case class Status(code: Int) extends AnyVal`, and `toString` gives `Status(200)` instead of `200`. Say both.
+5. `model.md:1349-1379` ("Lazy Header Parsing"): `request.headers.get("authorization")` and `headers.get("content-type")` do not compile; `Headers#get` takes a `Header.Codec[A]`, not a name (compile error below). Use `headers.get(Header.Authorization)` and `headers.get(Header.ContentType)`, or `rawGet` for the strings. The comment "parsed and cached as: ContentType(mediaType=ApplicationJson, charset=UTF8)" names no real value either.
+6. `headers.md:569`: the catalog row for `Header.Trailer` says `value: String`; the field is `headers: Chunk[String]` (`Header.scala:768`).
+7. `headers.md:314`: "the class is immutable and the arrays are never mutated in place". A typed read stores the parsed value in the entry's cache slot in place (the page's own "The Parse Cache" section, `:262-272`, says so). Say that the names and values are never changed in place.
+8. `server-sent-event.md:110`: "Four methods produce a modified copy", followed by a table of five (`event`, `clearEvent`, `id`, `retry`, `clearRetry`).
+9. `server-sent-event.md:276`: "two envelopes are equal when they would render identically". Equality compares the payloads with `==`, so `ServerSentEvent("a")` and `ServerSentEvent(Chunk("a"))` render the same text but are not equal. Say "equal payloads and equal metadata".
+10. `model.md:293`: "predefined constants for all standard codes (1xx–5xx)". There is no constant for 208, 226, 423, 424, 506, 508 and 510, and `Status(c).text` gives `Unknown` for each (run on 3.9.0 and 2.13.18). Say "constants for the common codes".
+11. `model.md:285`: `m.ordinal // ordinal position for sorting`. `Method.ANY` and every `Method.Methods` have ordinal -1. Say "0 to 8 for the standard methods, -1 for `ANY` and `Methods`".
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `DocsRepro.scala`, run with `scala-cli run --server=false DocsRepro.scala`:
 
 ```scala
 //> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-typeid:0.0.56
-package docs
-
-import zio.blocks.typeid.*
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
 import zio.blocks.chunk.Chunk
 
-object Domain {
-  opaque type Email = String
+object DocsRepro {
+  def main(args: Array[String]): Unit = {
+    val parsed: Either[String, URL] = URL.parse("https://example.com/api/users") // compiles: the error type is String
+    println(parsed.isRight)
+    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").segments)
+    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").hasLeadingSlash)
+    println(QueryParams("Page" -> "1").get("page"))
+    println(Header.Trailer(Chunk("expires", "digest")).renderedValue)
+    println(ServerSentEvent("a") == ServerSentEvent(Chunk("a")))
+    println(ServerSentEvent("a").render == ServerSentEvent(Chunk("a")).render)
+    println(Status.Ok.toString)
+  }
 }
-
-trait Runnable[F[_]]
-
-@main def run(): Unit = {
-  val f = TypeId.of[Runnable].typeParams.head
-  println(s"kind=${f.kind} isTypeConstructor=${f.isTypeConstructor}")
-  val email = TypeId.of[Domain.Email]
-  println(s"normalize(Email)=${TypeId.normalize(email)} fullName=${TypeId.normalize(email).fullName}")
-  println(TypeId.of[Chunk[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-  println(TypeId.of[Array[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-  println(TypeId.of[scala.collection.immutable.ArraySeq[Int]].construct(Chunk[AnyRef](Int.box(1), Int.box(2))))
-}
-// kind=Type isTypeConstructor=false
-// normalize(Email)=Email fullName=docs.Domain.Email
-// Left(No matching constructor found for zio.blocks.chunk.Chunk with 2 arguments of types: java.lang.Integer, java.lang.Integer)
-// Left(No matching constructor found for scala.Array with 2 arguments of types: java.lang.Integer, java.lang.Integer)
-// Left(No matching constructor found for scala.collection.immutable.ArraySeq with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+// true
+// Chunk(/api/v1/users)
+// false
+// None
+// expires, digest
+// false
+// true
+// 200
 ```
 
-(Claim 4 is reproduced by library entry 3: `of[List] == unapplied(List[Int]): false`.)
+With `//> using scala 2.13.18` the last line prints `Status(200)`.
 
-**Expected.** The page states what the library does: kinds and bounds are not captured by derivation (a known bug); `normalize` resolves aliases only and leaves opaque types as they are; `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map` directly but not `Array`, `ArraySeq` or `Chunk`; `unapplied(TypeId.of[List[Int]])` equals `TypeId.list`.
+Item 5, `GetString.scala`, run with `scala-cli compile --server=false GetString.scala`:
 
-**Root cause.** Prose written from the data model and intent, not from the derived values; the mdoc output that contradicts it (claims 1 and 4) renders without comment.
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+object GetString { val headers = Headers("authorization" -> "Bearer abc123"); val t = headers.get("authorization") }
+// -- [E007] Type Mismatch Error: GetString.scala:4:98
+// Found:    ("authorization" : String)
+// Required: zio.http.Header.Codec[A]
+```
 
-**Impact.** Readers rely on kind information that is not there, expect opaque types to normalize, and call `construct` for `Chunk` or `Array` and get `Left`.
+**Impact.** Items 2, 3 and 5 mislead readers about behaviour they rely on (case-insensitive query keys, decoding of `%2F`, a header read by name); item 5's block is a plain fence, so mdoc never compiled it. The others are small inaccuracies.
 
-**Test gap.** mdoc evaluates the examples but does not check the prose against the output.
-
-**Suggested fix.** Rewrite the four passages as in Expected (the Scaladoc on `TypeParam`, `Kind`, `TypeId.normalize`, `TypeId#construct` and `TypeId.unapplied` now carries the correct wording), and add the `construct` claim for `Chunk` as a library feature request if wanted.
+**Suggested fix.** Apply the corrections above; turn the "Lazy Header Parsing" block into `mdoc:compile-only` so it is compiled.
 
 ## Docs tooling and examples
 
@@ -226,37 +239,11 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 
 **Suggested fix.** First reproduce with plain `sbt --client` and a small heap (`SBT_OPTS=-Xmx2g`) to find who swallows the error. Then make `docs/mdoc` fail on it, or add a post-mdoc check, for example in `docs/checkDocsOnFreshWebsite` or a website unit test, that every source page has an output.
 
-### Nine more standalone example builds don't compile on Scala 2.13
-
-Found 2026-10-29 by the `streams-examples-213` session (PR #1897), which ran `sbt "++2.13.18!" compile` in every standalone `*-examples/` build on `main` at `fa76f487f`. AGENTS.md documents this as the way to check an example on 2.13, and CI compiles the examples on Scala 3 only, so nothing catches it.
-
-**Pass on 2.13:** config, html, jwt, and streams once #1897 merges.
-
-**No `_2.13` artifact, so skipped:** datastar, htmx, sql, projection (a root subproject), and capstone and zio-blocks-examples (they need `zio-blocks-sql_2.13`).
-
-**Fail, with the first error:**
-- async: `could not find implicit value for parameter c: Completer[String]` (`AsyncShowcaseExample.scala:177`); `not found: value summon` (`gettingstarted/CompleteExample.scala:23`).
-- endpoint, http-model, mux, scope, smithy: `expected start of definition` at line 7 or later of the first file. Probably `import x.*`.
-- schema: `';' expected but '.' found` (`BindingResolverSchemaRegistryExample.scala:49`); `';' expected but identifier found` (`Step4PackagingExample.scala:14`).
-- openapi: `';' expected but identifier found` in the generated `bookstore-app` `Bookstore.scala:16`. The generator emits Scala 3 syntax.
-- telemetry: `object GlobalLogState in package telemetry cannot be accessed as a member of package zio.blocks.telemetry` (`correlatelogsandtraces/CompleteExample.scala:21`).
-
-**Impact.** Scala 2.13 users who copy these examples get compile errors, and sessions can't follow the AGENTS.md 2.13 check for these builds.
-
-**Suggested fix.** One PR per build, done the way #1897 did it: `._` imports, `implicit` instead of `given`, `implicitly` instead of `summon`, and skipping genuinely Scala 3-only files on 2.x. Look at the telemetry `GlobalLogState` and async `Completer` errors separately: they may be real 2.13 API gaps, not syntax. Then consider adding a 2.13 compile step for the supporting example builds to CI (needs Milad's approval).
-
-### `wire.md` has no mdoc-checked code blocks
-
-Found 2026-10-30 by the scope reference fixes (#1917), on `main` `8d6216d7a`. From source; the blocks were not compiled.
-
-**Summary.** Every code block on `docs/reference/resource-management/wire.md` was a plain `scala` fence, so mdoc never compiled any of them. That is how four `Context.empty[Any]` calls that don't compile (`Context.empty` is a `val`) reached the site. #1917 converts only the blocks it changes to `mdoc:compile-only`; about 17 plain fences remain unchecked (before #1917 at roughly lines 46-71, 77-85, 265-299, 309-397, 429-457 and 478-507).
-
-**Impact.** Any API drift in those examples goes unnoticed, and readers copy code that may not compile.
-
-**Suggested fix.** Convert the remaining blocks to `mdoc:compile-only` (or `mdoc:silent` where later blocks depend on them), run `docs/mdoc --include reference/resource-management/wire.md`, and fix whatever fails. Worth checking the other `resource-management` pages for plain fences at the same time.
-
 ## Resolved
 
+- Nine standalone example builds that didn't compile on Scala 2.13 (found 2026-10-29 by #1897): fixed in #1936 (merge `0c0021d61`, 2026-11-04), one commit per build. endpoint, http-model, mux, smithy, scope, schema, async, openapi and telemetry now pass `sbt "++2.13.18!" compile` (config, html, jwt and streams already did). Milad's decision: no example code was rewritten; each `build.sbt` skips Scala 3-only files on 2.x (the #1897 mechanism: a content regex plus per-file and per-package sets), so endpoint and scope compile almost nothing on 2.13 (nearly every file uses `@main`), and the generated smithy/openapi apps compile nothing on 2.x. Correction to the entry: "expected start of definition" came from `@main def`, not `import x.*`. The real 0.0.56 API gaps behind the other failures were already filed (telemetry `log.*` and `GlobalLogState`, `json"..."`, `yaml"..."`, `MigrationBuilder`); the async `Async.promise` difference is a new Usability traps entry (the Scala 2 body must bind the completer). Not done: a 2.13 compile step for the examples in CI (needs Milad's OK); trying the codegen's `EmitterConfig.scala2` to make the generated smithy/openapi apps 2.13-compatible. Opus review 8 findings, 3 applied, the rewrite-`@main` finding declined per Milad's decision.
+- `wire.md` had no mdoc-checked code blocks (found 2026-10-30 by #1917): fixed in #1934 (merge `5eb809c8f`, 2026-11-04) for all six resource-management pages. Plain ```` ```scala ```` fences 63 → 48 (wire 17 → 8, resource 19 → 18, scope 18 → 13); the rest are signatures, sbt lines, pseudocode and 5 deliberate-error fences that stay plain because `mdoc:fail` on this page also compiles the earlier blocks and reports "Conflicting definitions" (the known mdoc entry above); their error messages were confirmed in an isolated probe page. Compiling them found three `wire.md` errors, fixed in the same PR: the `Wire#isShared`/`Wire#shared` examples used `Wire.shared[String]` ("Cannot derive Wire for scala.Predef.String: not a class"); the `Wire#toResource` example passed a `Context[Config]` where `Context[String]` was needed; the motivation's manual-wiring example passed a scoped value to a constructor, which the scope checker rejects. Also fixed a Scala 3.9 pattern-narrowing warning at `scope.md:914`. Review: 0 blocking, 7 minor, 6 nits, all applied. Merged while GitHub Actions was backed up, so its PR CI never ran.
+- `typeid.md`: four claims that contradicted the library (found 2026-11-04 by the typeid Scaladoc rollout, #1924) fixed in #1933 (merge `6ee89c6b8`, 2026-11-04): (1) derived `TypeParam`s record name, index and variance only, always `Kind.Type` and unbounded (a known bug in 0.0.56), with a `TypeParam.higherKinded` example and the Kind table fixed; (2) `normalize` follows aliases only and leaves opaque types as they are, with an example; (3) `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map`, while `Chunk`, `Array` and `ArraySeq` give `Left`, with an example; (4) `unapplied(TypeId.of[List[Int]])` equals `TypeId.list` on Scala 3. Probed against 0.0.56; Opus review 6 findings, 6 applied. Merged while GitHub Actions was down, so its PR CI never ran.
 - JdkHttp adapter: an `Error` in a handler (e.g. `ExceptionInInitializerError`, `UnsupportedClassVersionError`) closed the connection with no response and no log line, because the adapter caught only `NonFatal` (found 2026-10-29 by H-57). Fixed in #1923 (merge `aa7023da6`, 2026-11-04): both catch sites are now `case error @ (NonFatal(_) | _: LinkageError) =>`, so the error is logged and answered with 500; `VirtualMachineError` and `InterruptedException` still propagate. Applied to all 10 copies (8 `JdkHttp.scala`, 2 `StreamingJdkHttp.scala` in http-model, jwt, capstone, htmx and datastar examples) and the inline code in 5 guides; the serving guide explains it. Verified with the entry's reproducer: before, `GET /price -> Failure(IOException: HTTP/1.1 header parser received no bytes)`; after, `Handler failed: java.lang.ExceptionInInitializerError` and `GET /price -> Success(500 Internal Server Error)`. **Known limit, kept on purpose (Milad):** the 500 body is built with http-model classes (`Response.text` → `Body.fromString` → `Stream`), so when the broken class is http-model or streams itself (the http-model 0.0.56 jars on JDK 17, `UnsupportedClassVersionError`), building the 500 throws again and the client still sees an empty reply; the log line now names the cause. The serving guide states this. A JDK-only 500 fallback would close it but adds code to every copy; not done.
 - Three scope reference pages that contradicted the code and the fact-checked scope Scaladoc (#1916) fixed in #1917 (merge `31563a0e1`, 2026-11-03), each confirmed first against source and with scala-cli probes on 0.0.56 (Scala 3.9.0, 2.13.18, Scala.js 1.22.0): `resource.md` no longer says `Resource.from[T]` always registers `close()` (the no-argument form skips an `AutoCloseable` whose constructor takes a `Finalizer` or `Scope`, a known bug; the wires form does close it) and no longer calls `Resource.shared` "lock-free" or its initializer "exactly once"; `wire.md` no longer promises a fresh instance from every unique wire (Scala 3 treats an explicit `Wire.unique` as shared), says `fromFunction` never closes an `AutoCloseable` result, and its four `Context.empty[Any]` blocks are now compiled `mdoc:compile-only` blocks; `scope.md` states the Scala.js behaviour of `Scope.global` and `isOwner`. `guides/resource-and-di-migration.md:441` got the same `Finalizer`/`Scope` exception. Still open: the rest of `wire.md` has no mdoc-checked blocks (Docs tooling entry).
 - Four `docs/reference/chunk.md` errors found by the chunk Scaladoc fact-check (#1908) fixed in #1913 (merge `c5cc1ec96`, 2026-10-30): `ChunkBuilder` was described as a buffer that feeds a tree; `dropUntil` was said to keep the matching element; the `reduceMapLeft`/`reduceMapRight` examples reduced a one-element chunk (now `NonEmptyChunk(10, 20, 30, 40)` and `(1, 2, 3, 4)`); the "Bitwise Operations" section documented private methods (removed). The same PR replaced the 23 Zionomicon sample-data lines in the chunk Scaladoc and changed `scaladoc-style.md:58` to the new sample-data rule.

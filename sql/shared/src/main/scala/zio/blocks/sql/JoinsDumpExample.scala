@@ -20,28 +20,43 @@ import zio.blocks.schema.Schema
 import zio.blocks.sql.query.{Rel, SqlQuery => Qry}
 
 /**
- * Canonical User/Repo/Star example for compile-time dump verification.
- *
- * Builds the two-join query on the typed query IR
- * (`zio.blocks.sql.query.SqlQuery`) and dumps it with [[Dump.dumpQuery]].
+ * A test fixture for [[Dump]]: three tables and a two-join query that
+ * `Dump.dumpQuery` and `Dump.dumpTable` write out when the library itself is
+ * compiled with `-Dzib.sql.dumpDir`. It ships in the published jar by mistake,
+ * a known bug in 0.0.56; it is not part of the API.
  */
 object JoinsDumpExample {
 
+  /** Fixture row type. */
   case class User(id: Int, name: String)
+
+  /** Fixture schema. */
   object User { implicit val schema: Schema[User] = Schema.derived }
 
+  /** Fixture row type. */
   case class Repo(id: Int, ownerId: Int, name: String)
+
+  /** Fixture schema. */
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
 
+  /** Fixture row type. */
   case class Star(userId: Int, repoId: Int)
+
+  /** Fixture schema. */
   object Star { implicit val schema: Schema[Star] = Schema.derived }
 
+  /** Fixture table. */
   val userTable: Table[User] = Table.derived[User]
+
+  /** Fixture table. */
   val repoTable: Table[Repo] = Table.derived[Repo]
+
+  /** Fixture table. */
   val starTable: Table[Star] = Table.derived[Star]
 
   // Rels stay inline in each dumped chain below so the dump macro can peel
   // the join tree; keep them as the canonical two-join shape.
+  /** The fixture query: users joined to their repos and stars. */
   inline def joins: Qry[User] = Qry
     .from(userTable)
     .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
@@ -72,6 +87,9 @@ object JoinsDumpExample {
   //   StringContext("SELECT * FROM user INNER JOIN repo ON user.id = repo.owner_id")
   //     .sqlChecked(userTable, repoTable)()
 
-  val pg: SqlDialect     = SqlDialect.PostgreSQL
+  /** Fixture dialect. */
+  val pg: SqlDialect = SqlDialect.PostgreSQL
+
+  /** Fixture dialect. */
   val sqlite: SqlDialect = SqlDialect.SQLite
 }
