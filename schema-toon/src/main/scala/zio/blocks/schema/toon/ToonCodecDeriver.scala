@@ -206,8 +206,9 @@ class ToonCodecDeriver private (
    * Returns a deriver that separates inline array values, table rows and table
    * header fields with `delimiter`, and records it in each array header when it
    * is not the comma, as in `codes[2|]: 3|7`. The default is `Delimiter.Comma`.
-   * Decoding takes the delimiter from each header, so it reads any of them
-   * whatever the setting.
+   * Decoding takes the delimiter from each header, so a record field reads any
+   * of them whatever the setting. A known bug: a top-level sequence written
+   * with `Delimiter.Tab` cannot be decoded, even by the codec that wrote it.
    */
   def withDelimiter(delimiter: Delimiter): ToonCodecDeriver = copy(delimiter = delimiter)
 
@@ -1436,25 +1437,25 @@ class ToonCodecDeriver private (
     super.instanceOverrides
   }
 
-  /** The element type of the sequence being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Elem
 
-  /** The key type of the map being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Key
 
-  /** The value type of the map being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Value
 
-  /** The underlying type of the wrapper being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Wrapped
 
-  /** The sequence type constructor being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Col[_]
 
-  /** The map type constructor being derived. */
+  /** Internal placeholder type of the derived codecs. */
   type Map[_, _]
 
-  /** The codec type constructor, which stands for `ToonCodec`. */
+  /** Internal placeholder type of the derived codecs. */
   type TC[_]
 
   private[this] val recursiveRecordCache: ThreadLocal[util.HashMap[TypeId[?], Array[FieldInfo]]] =

@@ -22,7 +22,8 @@ package zio.blocks.schema.toon
  * from [[ToonCodecDeriver.withDelimiter]], the `DynamicValue` codec from
  * [[WriterConfig.withDelimiter]]. A delimiter other than the comma is written
  * into the array header, as in `codes[2|]: 3|7`, and the reader takes each
- * array's delimiter from its header.
+ * array's delimiter from its header, except the tab of a top-level sequence, a
+ * known bug.
  *
  * @param char
  *   the delimiter character
@@ -30,15 +31,18 @@ package zio.blocks.schema.toon
 sealed abstract class Delimiter(val char: Char)
 
 /**
- * The delimiters of TOON arrays: `Delimiter.Comma`, `Delimiter.Tab`,
- * `Delimiter.Pipe` and `Delimiter.None`.
+ * The delimiters `Delimiter.Comma`, `Delimiter.Tab` and `Delimiter.Pipe`, and
+ * `Delimiter.None`, which the reader uses internally.
  */
 object Delimiter {
 
   /** Separates values with `,`, the default. */
   case object Comma extends Delimiter(',')
 
-  /** Separates values with a tab character. */
+  /**
+   * Separates values with a tab character. A top-level sequence written with it
+   * cannot be decoded, a known bug.
+   */
   case object Tab extends Delimiter('\t')
 
   /** Separates values with `|`. */
