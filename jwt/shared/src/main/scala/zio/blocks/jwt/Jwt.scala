@@ -26,11 +26,11 @@ import zio.blocks.chunk.Chunk
  * Three backends come with the module. The default one, active until another is
  * installed, is written in pure Scala and supports `HS256`, `HS384` and `HS512`
  * only. `JvmJwtCryptoBackend` (JVM, on the JDK's `java.security`) supports all
- * 13 algorithms of [[Algorithm]], and `JsJwtCryptoBackend` (Scala.js, on
- * Node.js's `crypto` module) supports the `HS*`, `RS*` and `ES*` algorithms.
- * Install a platform backend once at startup with its `install()` method, or
- * pass one for a single call in [[JwtSignOptions]] or [[JwtDecodeOptions]];
- * [[JwtCrypto]] holds the installed one.
+ * 13 algorithms of [[Algorithm]], and `JsJwtCryptoBackend` (Scala.js) supports
+ * the `HS*` algorithms in pure Scala and the `RS*` and `ES*` algorithms through
+ * Node.js's `crypto` module. Install a platform backend once at startup with
+ * its `install()` method, or pass one for a single call in [[JwtSignOptions]]
+ * or [[JwtDecodeOptions]]; [[JwtCrypto]] holds the installed one.
  *
  * @see
  *   [[https://zioblocks.com/reference/jwt/#supported-algorithms-and-key-strength JWT]]
@@ -125,13 +125,15 @@ object JwtCrypto {
  *
  * `Jwt.decode` and `Jwt.decodeWithoutVerification` apply all six limits;
  * `JwtHeader.parse` and `JwtClaims.parse` apply all but `maxTokenChars`. On
- * decode, the three size limits run before any parsing, and the header's JSON
- * limits before the signature check. `Jwt.sign` applies only the three size
- * limits (`maxTokenChars`, `maxSegmentChars`, `maxJsonChars`), a known bug, so
- * it can sign a token that a decoder with the same limits rejects. Every value
- * is an inclusive maximum, and the constructor throws
- * `IllegalArgumentException` ("requirement failed: maxDepth must be positive")
- * for a value that is not positive.
+ * decode, `maxTokenChars` and `maxSegmentChars` run before anything is decoded,
+ * the header's JSON limits before the signature check, and the payload's JSON
+ * limits, `maxJsonChars` included, only after the signature verifies.
+ * `Jwt.sign` applies only the three size limits (`maxTokenChars`,
+ * `maxSegmentChars`, `maxJsonChars`), a known bug, so it can sign a token that
+ * a decoder with the same limits rejects. Every value is an inclusive maximum,
+ * and the constructor throws `IllegalArgumentException` (for example
+ * "requirement failed: maxDepth must be positive") for a value that is not
+ * positive.
  *
  * {{{
  * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
@@ -159,7 +161,9 @@ object JwtCrypto {
  * @param maxFields
  *   the maximum number of fields in any one JSON object, the header and the
  *   payload included (default 512); returns `TooManyFields`. The registered
- *   claims count, and a repeated field name counts once.
+ *   claims count. A repeated field name keeps one entry, but the check runs
+ *   before each field is read, so a field that follows `maxFields` distinct
+ *   names is rejected even when it repeats one of them.
  * @param maxArrayElements
  *   the maximum number of elements in any one JSON array (default 512); returns
  *   `TooManyElements`
@@ -202,10 +206,11 @@ object JwtLimits {
  * returns the first failure: `exp`, `nbf`, then `iss` (if `issuer` is set) and
  * `aud` (if `expectedAudience` is set). `exp` and `nbf` are checked only when
  * the token has them, so a token without `exp` never expires, and `iat` is not
- * checked. The audience check follows RFC 7519 §4.1.3: the token's `aud` must
- * be present (else `MissingClaim("aud")`) and equal the expected value, or
- * contain it when `aud` is an array (else `InvalidClaim("aud", ...)`, with the
- * reason "expected notes-api but found billing-api").
+ * compared with the clock (only its type and sign are checked). The audience
+ * check follows RFC 7519 §4.1.3: the token's `aud` must be present (else
+ * `MissingClaim("aud")`) and equal the expected value, or contain it when `aud`
+ * is an array (else `InvalidClaim("aud", ...)`, with the reason "expected
+ * notes-api but found billing-api").
  *
  * {{{
  * val key   = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
@@ -315,10 +320,11 @@ object JwtSignOptions {
  *
  * `sign` renders a [[JwtHeader]] and [[JwtClaims]] as JSON, encodes them and
  * signs them with a key; `decode` checks a token and returns its claims; and
- * `decodeWithoutVerification` reads a token without checking it. Each operation
- * returns its failure as a `Left` of [[JwtError]]. The signing work is done by
- * a [[JwtCryptoBackend]]: the HMAC algorithms (`HS256`, `HS384`, `HS512`) work
- * with the built-in default, and the others need a platform backend.
+ * `decodeWithoutVerification` reads a token without verifying its signature or
+ * claims. Each operation returns its failure as a `Left` of [[JwtError]]. The
+ * signing work is done by a [[JwtCryptoBackend]]: the HMAC algorithms (`HS256`,
+ * `HS384`, `HS512`) work with the built-in default, and the others need a
+ * platform backend.
  *
  * The caller, not the token, chooses the algorithm: `decode` rejects a token
  * whose header names another algorithm with `AlgorithmMismatch`, and one whose
@@ -347,11 +353,13 @@ object Jwt {
    *
    * For the `HS*` algorithms `key` is the shared secret, at least 32, 48 or 64
    * bytes long for `HS256`, `HS384` or `HS512`; for the others it is the
-   * private key in PKCS#8 DER form. A shorter secret, or a key the backend
-   * cannot use, gives `Left(JwtError.InvalidKey(...))`, and an algorithm the
-   * backend does not support gives `Left(JwtError.UnsupportedAlgorithm(...))`.
-   * A registered claim name in `claims.extra` is written a second time after
-   * the typed field, and decoders read the later value, a known bug.
+   * private key in PKCS#8 DER form. A shorter secret, or a key the JVM backend
+   * cannot use, gives `Left(JwtError.InvalidKey(...))`. On Scala.js an
+   * unreadable private key gives `Left(JwtError.InvalidToken(...))` and the key
+   * type is not checked, a known bug. An algorithm the backend does not support
+   * gives `Left(JwtError.UnsupportedAlgorithm(...))`. A registered claim name
+   * in `claims.extra` is written a second time after the typed field, and
+   * decoders read the later value, a known bug.
    *
    * {{{
    * val key    = "demo-secret-do-not-use-0123456789".getBytes("UTF-8")
@@ -535,14 +543,17 @@ object Jwt {
    *
    * The checks run in this order, and the first failure is returned: the token
    * size (`TokenTooLarge`), its three non-empty segments (`InvalidToken`,
-   * `SegmentTooLarge`), the header (`InvalidToken`, `UnsupportedAlgorithm` for
-   * an unknown `alg`, the JSON limits), the header's `alg` against `alg`
-   * (`AlgorithmMismatch`), the signature (`InvalidSignature`, or `InvalidKey`
-   * for a key the backend cannot use), and only then the payload and its claims
-   * (`InvalidToken`, `InvalidClaim`, `ExpiredToken`, `NotYetValid`,
-   * `MissingClaim`). A tampered payload is therefore reported as
-   * `InvalidSignature`. The header fields other than `alg`, `typ` and `kid` are
-   * not read.
+   * `SegmentTooLarge`), the header (`InvalidToken`, the JSON limits,
+   * `MissingClaim("alg")` or `InvalidClaim` for a missing or non-string field,
+   * `UnsupportedAlgorithm` for an unknown `alg`), the header's `alg` against
+   * `alg` (`AlgorithmMismatch`), the signature (`InvalidToken` for a segment
+   * that is not Base64URL, `UnsupportedAlgorithm` when the backend does not
+   * support `alg`, for example the default backend with `RS256`, `InvalidKey`
+   * for a key the backend cannot use, and `InvalidSignature`), and only then
+   * the payload and its claims (`InvalidToken`, the JSON limits,
+   * `InvalidClaim`, `ExpiredToken`, `NotYetValid`, `MissingClaim`). A tampered
+   * payload is therefore reported as `InvalidSignature`. The header fields
+   * other than `alg`, `typ` and `kid` are not read.
    */
   def decode(
     token: String,
