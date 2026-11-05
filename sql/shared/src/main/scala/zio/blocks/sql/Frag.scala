@@ -23,26 +23,47 @@ import zio.blocks.streams.Stream
 import zio.blocks.streams.io.Reader
 
 /**
- * A SQL fragment composed of literal text interleaved with typed parameter
- * values.
+ * A piece of SQL: literal text with typed parameter values kept apart from it.
+ * Build one with the `sql"..."` interpolator, join fragments with `++`, and run
+ * the result with the extension methods in the companion (`query`, `queryOne`,
+ * `update`, `queryStream`) inside `Transactor#connect` or
+ * `Transactor#transact`. Interpolated values never enter the SQL text: each one
+ * becomes a `?` placeholder and is bound through JDBC when the fragment runs.
  *
- * `parts(i)` is a literal SQL string and `params(i)` is the value bound at the
- * `?` placeholder that follows it. The invariant is
- * `parts.length == params.length + 1`: the fragment begins and ends with a
- * literal segment (which may be empty).
+ * `parts(i)` is literal SQL and `params(i)` is the value bound at the `?` that
+ * follows it, so a well-formed fragment has `parts.length == params.length + 1`
+ * (the first and last parts may be empty).
  *
- * Fragments are assembled via `++` and rendered to a dialect-specific SQL
- * string with `sql`. Use the extension methods on [[Frag]] (e.g. `query`,
- * `queryOne`, `update`) to execute them against a live [[DbCon]].
+ * {{{
+ * val minTotal = 50
+ * val frag     = sql"SELECT id, total FROM orders WHERE total >= \$minTotal" ++ Frag.literal(" ORDER BY total DESC")
  *
- * The `sql"..."` string interpolator is the primary way to construct fragments;
- * use [[Frag.literal]] for parameter-free SQL.
+ * frag.sql(SqlDialect.PostgreSQL) // SELECT id, total FROM orders WHERE total >= ? ORDER BY total DESC
+ * frag.params                     // Vector(DbInt(50))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
  */
 final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 
   /**
-   * Concatenates two fragments, merging the adjacent literal boundary so the
-   * result remains a valid `Frag` (i.e. `parts.length == params.length + 1`).
+   * Appends `other` to this fragment. The last literal part of this fragment
+   * and the first of `other` join into one, so the result keeps
+   * `parts.length == params.length + 1`. No space is added between them.
+   *
+   * {{{
+   * def search(city: Option[String]): Frag = {
+   *   val filter = city match {
+   *     case Some(c) => sql" WHERE city = \$c"
+   *     case None    => Frag.empty
+   *   }
+   *   sql"SELECT name FROM customer" ++ filter
+   * }
+   *
+   * search(Some("Oslo")).sql(SqlDialect.SQLite) // SELECT name FROM customer WHERE city = ?
+   * search(None).sql(SqlDialect.SQLite)         // SELECT name FROM customer
+   * }}}
    */
   def ++(other: Frag): Frag =
     if (parts.isEmpty) other
@@ -53,14 +74,13 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
     }
 
   /**
-   * Renders the fragment to a SQL string using the given dialect's placeholder
-   * syntax.
+   * Returns the SQL text this fragment sends to the database: the literal parts
+   * with one `dialect.paramPlaceholder` between each pair. Both built-in
+   * dialects, `SqlDialect.SQLite` and `SqlDialect.PostgreSQL`, write `?`.
    *
-   * The rendered SQL depends only on the fragment's literal `parts`, the number
-   * of params, and the dialect — param *values* are bound separately — so the
-   * result is memoized per shape in [[Frag.renderedSql]] and reused across
-   * executions. Repeated execution of the same fragment therefore returns the
-   * cached `String` instead of rebuilding it with a `StringBuilder` each time.
+   * The text depends only on the literal parts, the number of parameters and
+   * the dialect, not on the parameter values, so it is cached by those three
+   * and reused by later calls; the cache is cleared once it holds 1024 entries.
    */
   def sql(dialect: SqlDialect): String =
     Frag.synchronized {
@@ -90,34 +110,36 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
     sb.toString()
   }
 
+  /** Returns the values bound to the `?` placeholders, in order: `params`. */
   def queryParams: IndexedSeq[DbValue] = params
 
+  /**
+   * Returns `true` when this fragment has no parameters and every literal part
+   * is the empty string, as for [[Frag.empty]].
+   */
   def isEmpty: Boolean = parts.forall(_.isEmpty) && params.isEmpty
 }
 
+/**
+ * Constructors for [[Frag]] (`empty`, `literal`, `sequence`, `values`,
+ * `keysetAfter`) and the extension methods that run a fragment against a
+ * [[DbCon]].
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+ */
 object Frag {
 
   /**
-   * Memoized rendered SQL, keyed by the fragment's shape — its literal `parts`,
-   * param count, and dialect. The rendered SQL does not depend on param values
-   * (they bind separately), so every execution of a fragment with the same
-   * shape reuses the same `String` instead of rebuilding it with a
-   * `StringBuilder`.
-   *
-   * A plain `HashMap` guarded by `synchronized` is used instead of a concurrent
-   * map because `scala.collection.concurrent.TrieMap` cannot be linked by
-   * Scala.js (its internal node classes do not exist on that platform). The
-   * critical section is a single map lookup, so contention is negligible.
-   *
-   * The cache is bounded: workloads that build fragments from runtime strings
-   * (per-tenant, per-request SQL) would otherwise retain every distinct shape
-   * forever. On overflow the cache is cleared and hot shapes are re-rendered on
-   * their next execution.
+   * Rendered SQL keyed by literal parts, parameter count and dialect, guarded
+   * by `Frag.synchronized` and cleared when it reaches
+   * `RenderedSqlCacheMaxEntries`, so fragments built from runtime strings
+   * cannot grow it without bound.
    */
   private val renderedSql: mutable.HashMap[(IndexedSeq[String], Int, SqlDialect), String] =
     mutable.HashMap.empty
 
-  /** Upper bound on [[renderedSql]] entries before it is cleared. */
+  /** Number of `renderedSql` entries at which the cache is cleared. */
   private val RenderedSqlCacheMaxEntries = 1024
 
   /**
@@ -130,34 +152,55 @@ object Frag {
     val logged: java.util.concurrent.atomic.AtomicBoolean = new java.util.concurrent.atomic.AtomicBoolean(false)
   }
 
-  /** An empty fragment that contributes no SQL text and no parameters. */
+  /**
+   * The fragment with no SQL text and no parameters. Appending it with `++`
+   * changes nothing, which makes it the "no clause" case of an optional filter.
+   */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
-  /** Default chunk size for [[queryStream]] batch emission. */
+  /** Rows per chunk that `queryStream` asks `queryChunked` for. */
   private val DefaultQueryChunkSize = 64
 
-  /** Wraps a parameter-free SQL string as a fragment. */
+  /**
+   * Wraps SQL text that has no parameters as a fragment. The text is used as
+   * written, so never pass it a value that comes from a user; interpolate such
+   * values with `sql"..."` instead.
+   */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
 
   /**
-   * Concatenates multiple fragments with no separator between them. Returns
+   * Joins the fragments with `++`, adding no separator between them. Returns
    * [[Frag.empty]] when called with no arguments.
    */
   def sequence(frags: Frag*): Frag = frags.foldLeft(Frag.empty)(_ ++ _)
 
   /**
-   * Keyset pagination fragment for a single ordering column.
-   *
-   * Produces `WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT n` as a `Frag`
-   * with one bound parameter (`lastValue`). The ordering column is validated as
-   * a SQL identifier; when a `table` is supplied the column must also exist in
+   * Returns the clause that fetches the page after `lastValue` in keyset
+   * pagination: ` WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT <limit>`,
+   * with `lastValue` bound to the `?` and a leading space, ready to append to a
+   * `SELECT`. This overload also checks that `orderCol` is one of
    * `table.columns`.
    *
-   * Single column only — composite cursors are intentionally unsupported (v2).
+   * {{{
+   * import zio.blocks.schema.Schema
    *
-   * @throws IllegalArgumentException
-   *   if `orderCol` is not a valid identifier, not in `table.columns` (when a
-   *   table is supplied), or if `limit <= 0`
+   * case class Product(id: Int, name: String)
+   * object Product { implicit val schema: Schema[Product] = Schema.derived }
+   *
+   * val products = Table.derived[Product]
+   * val page     = sql"SELECT id, name FROM product" ++ Frag.keysetAfter(products, "id", DbValue.DbInt(40), 20)
+   *
+   * page.sql(SqlDialect.SQLite) // SELECT id, name FROM product WHERE id > ? ORDER BY id ASC LIMIT 20
+   * }}}
+   *
+   * The column is written without quotes, so a column whose name is an SQL
+   * keyword, such as `order`, passes the checks and then fails when the
+   * statement runs: a known bug in 0.0.56. It orders by one column only.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `orderCol` is not made of ASCII letters, digits and underscores
+   *   (starting with a letter or underscore), is not one of `table.columns`, or
+   *   if `limit` is not positive
    */
   def keysetAfter(table: Table[_], orderCol: String, lastValue: DbValue, limit: Int): Frag = {
     require(limit > 0, s"Frag.keysetAfter: limit must be > 0, got $limit")
@@ -173,13 +216,25 @@ object Frag {
   }
 
   /**
-   * Keyset pagination fragment without a table binding.
+   * Returns the keyset-pagination clause
+   * ` WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT <limit>`, with
+   * `lastValue` bound to the `?`. Unlike the overload that takes a [[Table]],
+   * it does not check that the column exists.
    *
-   * Validates `orderCol` as a SQL identifier and produces
-   * `WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT n`.
+   * {{{
+   * val lastSeen = DbValue.DbInt(40)
+   * val page     = sql"SELECT id, name FROM product" ++ Frag.keysetAfter("id", lastSeen, 20)
    *
-   * @throws IllegalArgumentException
-   *   if `orderCol` is not a valid identifier or `limit <= 0`
+   * page.sql(SqlDialect.SQLite) // SELECT id, name FROM product WHERE id > ? ORDER BY id ASC LIMIT 20
+   * page.params                 // Vector(DbInt(40))
+   * }}}
+   *
+   * The column is written without quotes, so a keyword column such as `order`
+   * fails when the statement runs: a known bug in 0.0.56.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `orderCol` is not made of ASCII letters, digits and underscores
+   *   (starting with a letter or underscore), or if `limit` is not positive
    */
   def keysetAfter(orderCol: String, lastValue: DbValue, limit: Int): Frag = {
     require(limit > 0, s"Frag.keysetAfter: limit must be > 0, got $limit")
@@ -191,12 +246,24 @@ object Frag {
   }
 
   /**
-   * Builds a VALUES clause for a multi-row INSERT. Renders as:
-   * `(?, ?), (?, ?), ...` — one tuple per row, columns within each tuple
-   * separated by `, `.
+   * Returns the row list of a multi-row `INSERT ... VALUES`: one `(?, ?, ...)`
+   * group per row, separated by `, `, with each row's values from
+   * `codec.toDbValues` bound in order.
    *
-   * @throws IllegalArgumentException
-   *   if `rows` is empty (empty VALUES is invalid SQL)
+   * {{{
+   * import zio.blocks.schema.Schema
+   *
+   * case class OrderLine(orderId: Int, sku: String, qty: Int)
+   * object OrderLine { implicit val schema: Schema[OrderLine] = Schema.derived }
+   *
+   * val insert = Frag.literal("INSERT INTO order_line (order_id, sku, qty) VALUES ") ++
+   *   Frag.values(List(OrderLine(7, "KB-01", 1), OrderLine(7, "MS-02", 2)))
+   *
+   * insert.sql(SqlDialect.SQLite) // INSERT INTO order_line (order_id, sku, qty) VALUES (?, ?, ?), (?, ?, ?)
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `rows` is empty
    */
   def values[A](rows: Seq[A])(using codec: DbCodec[A]): Frag = {
     require(rows.nonEmpty, "Frag.values: rows must be non-empty")
@@ -210,6 +277,10 @@ object Frag {
 
   extension (frag: Frag) {
 
+    /**
+     * For each codec column, the column's own label when the result set has it,
+     * else the label at the codec column's position.
+     */
     private def selectLabels[A](reader: DbResultReader, codec: DbCodec[A]): IndexedSeq[String] =
       codec.columns.zipWithIndex.map { case (expectedLabel, offset) =>
         if (reader.hasColumn(expectedLabel)) expectedLabel
@@ -217,16 +288,9 @@ object Frag {
       }
 
     /**
-     * Resolves how each result row is decoded ONCE per statement rather than
-     * once per row.
-     *
-     * When the result set exposes the codec's columns in codec order starting
-     * at position 1 (the common case for `SELECT` matching the derived column
-     * order), every row is decoded through the cheaper index-based
-     * `readValue(reader, 1)` overload, which performs no per-row label lookup
-     * and no label slicing. Otherwise the column labels are resolved once via
-     * [[selectLabels]] and shared by every row through the label-based
-     * overload.
+     * Chooses the row decoder once per statement: by position from column 1
+     * when the result set's first labels equal the codec's columns in order,
+     * otherwise by the labels `selectLabels` resolves.
      */
     private def rowDecoder[A](reader: DbResultReader, codec: DbCodec[A]): DbResultReader => A = {
       val columns = codec.columns
@@ -239,7 +303,31 @@ object Frag {
       }
     }
 
-    /** Executes this fragment as a SELECT and returns all decoded rows. */
+    /**
+     * Runs this fragment as a query and returns every row, decoded with
+     * `codec`. Each of the codec's columns is read by name when the result set
+     * has a column of that name, otherwise from the column at the same
+     * position. Reports one event to the connection's [[SqlLogger]] and
+     * rethrows any failure.
+     *
+     * {{{
+     * import zio.blocks.schema.Schema
+     *
+     * case class Customer(id: Int, name: String)
+     * object Customer { implicit val schema: Schema[Customer] = Schema.derived }
+     *
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val customers = xa.connect {
+     *   sql"CREATE TABLE customer (id INTEGER, name TEXT)".update
+     *   sql"INSERT INTO customer VALUES (1, 'Ada'), (2, 'Linus')".update
+     *   sql"SELECT id, name FROM customer ORDER BY id".query[Customer]
+     * }
+     * // List(Customer(1,Ada), Customer(2,Linus))
+     * }}}
+     *
+     * @see
+     *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+     */
     def query[A](using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
       val start  = System.nanoTime()
@@ -270,7 +358,25 @@ object Frag {
       }
     }
 
-    /** Executes this fragment as a SELECT and returns the first row, if any. */
+    /**
+     * Runs this fragment as a query and returns its first row, or
+     * `Maybe.absent` when there is none. Rows after the first are not read.
+     *
+     * {{{
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val (found, missing) = xa.connect {
+     *   sql"CREATE TABLE product (sku TEXT, price REAL)".update
+     *   sql"INSERT INTO product VALUES ('KB-01', 49.5)".update
+     *   val sku   = "KB-01"
+     *   val other = "MS-02"
+     *   (
+     *     sql"SELECT price FROM product WHERE sku = \$sku".queryOne[Double].toOption,
+     *     sql"SELECT price FROM product WHERE sku = \$other".queryOne[Double].toOption
+     *   )
+     * }
+     * // (Some(49.5),None)
+     * }}}
+     */
     def queryOne[A](using con: DbCon, codec: DbCodec[A]): Maybe[A] = {
       val sqlStr = frag.sql(con.dialect)
       val start  = System.nanoTime()
@@ -298,7 +404,12 @@ object Frag {
       }
     }
 
-    /** Executes this fragment as a SELECT with a row limit. */
+    /**
+     * Runs this fragment as a query and returns at most its first `limit` rows.
+     * The SQL is sent unchanged, so the database still produces every row; add
+     * a `LIMIT` to the SQL to stop it there. A `limit` of 0 or less returns an
+     * empty list.
+     */
     def queryLimit[A](limit: Int)(using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
       val start  = System.nanoTime()
@@ -330,68 +441,63 @@ object Frag {
     }
 
     /**
-     * Executes this fragment as a SELECT and returns the decoded rows as a
-     * stream of `Chunk`s, each holding up to [[DefaultQueryChunkSize]] rows.
+     * Runs this fragment as a query and returns its rows as a lazy stream of
+     * chunks of up to 64 rows: `queryChunked(64)`. Run the stream before the
+     * `Transactor#connect` or `Transactor#transact` block that supplied `con`
+     * returns; after that the connection is closed and the stream fails with
+     * `Left(java.sql.SQLException: database connection closed)`.
      *
-     * Equivalent to `queryChunked[A](DefaultQueryChunkSize)`.
+     * {{{
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val total = xa.connect {
+     *   sql"CREATE TABLE order_line (qty INTEGER)".update
+     *   sql"INSERT INTO order_line VALUES (2), (1), (4)".update
+     *   sql"SELECT qty FROM order_line".queryStream[Int].runFold(0)((sum, chunk) => sum + chunk.sum)
+     * }
+     * // Right(7)
+     * }}}
      *
-     * @example
-     *   {{{
-     * val chunks: Stream[Throwable, Chunk[User]] =
-     *   sql"SELECT id, name FROM users".queryStream[User]
-     * val total = chunks.runFold(0)((n, chunk) => n + chunk.size)
-     *   }}}
+     * There is no way to keep the connection open past the block, so the stream
+     * can't be handed to a consumer that runs it later: a known bug in 0.0.56.
+     * Errors behave as for `queryChunked`.
      *
-     * @tparam A
-     *   the row type, decoded through `codec`'s column mapping
-     * @param con
-     *   the connection context providing the connection, dialect, and logger
-     * @param codec
-     *   decoder for the expected row shape
-     * @return
-     *   a lazy stream of decoded row chunks; see [[queryChunked]] for the
-     *   acquisition lifetime and error behavior
+     * @see
+     *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
      */
     def queryStream[A](using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] =
       queryChunked[A](DefaultQueryChunkSize)
 
     /**
-     * Executes this fragment as a SELECT and returns the decoded rows as a
-     * stream of `Chunk`s, each holding up to `chunkSize` rows.
+     * Runs this fragment as a query and returns its rows as a lazy stream of
+     * chunks of up to `chunkSize` rows, decoding rows only as the stream is
+     * pulled. The library sets no JDBC fetch size, so the driver may still load
+     * the whole result set (the PostgreSQL driver does by default). The
+     * statement runs when the stream is first pulled, and the statement and
+     * result set close when the stream ends or is closed. Run the stream inside
+     * the `Transactor#connect` or `Transactor#transact` block that supplied
+     * `con`: the connection closes when that block returns.
      *
-     * The statement and result set are acquired lazily on the first pull and
-     * released when the stream is closed or fully drained (via
-     * `Stream.fromAcquireRelease`). Rows are batched by the streams layer's
-     * `Reader.readN` inside `Stream.chunked` rather than a manual
-     * `List.newBuilder` loop. SQL failures surface as typed errors (`Left`)
-     * from terminal operations such as `runCollect`.
-     *
-     * Because acquisition is lazy, the stream must be consumed within the scope
-     * that provides the `DbCon`: leaving `Transactor#connect`/`transact` closes
-     * the captured connection, and pulling afterwards fails.
-     *
-     * @example
-     *   {{{
-     * transactor.connect {
-     *   sql"SELECT id, name FROM users"
-     *     .queryChunked[User](500)
-     *     .runFold(0)((acc, chunk) => acc + chunk.size)
+     * {{{
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val sizes = xa.connect {
+     *   sql"CREATE TABLE visit (page TEXT)".update
+     *   sql"INSERT INTO visit VALUES ('/'), ('/cart'), ('/'), ('/help'), ('/cart')".update
+     *   sql"SELECT page FROM visit".queryChunked[String](2).map(_.size).runCollect
      * }
-     *   }}}
+     * // Right(Chunk(2,2,1))
+     * }}}
      *
-     * @tparam A
-     *   the row type, decoded through `codec`'s column mapping
-     * @param chunkSize
-     *   maximum number of rows per emitted `Chunk`; must be `>= 1`
-     * @param con
-     *   the connection context providing the connection, dialect, and logger
-     * @param codec
-     *   decoder for the expected row shape
-     * @return
-     *   a lazy stream of decoded row chunks; terminal operations answer
-     *   `Left(error)` on SQL failure
-     * @throws IllegalArgumentException
-     *   if `chunkSize` is less than 1
+     * A failing statement or a row that fails to decode ends the stream with
+     * `Left(error)` from terminal operations such as `runCollect`, and the
+     * stream reports one event to the connection's [[SqlLogger]]. When the
+     * result set has fewer columns than the row type needs, the terminal
+     * operation throws instead and the logger records a success: a known bug in
+     * 0.0.56.
+     *
+     * @throws java.lang.IllegalArgumentException
+     *   when called with a `chunkSize` below 1, before any stream is built
+     * @see
+     *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
      */
     def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
       require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
@@ -469,8 +575,21 @@ object Frag {
     }
 
     /**
-     * Executes this fragment as an INSERT/UPDATE/DELETE and returns the
-     * affected row count.
+     * Runs this fragment as a statement that returns no rows (`INSERT`,
+     * `UPDATE`, `DELETE`, or DDL such as `CREATE TABLE`) and returns the number
+     * of rows it changed, as JDBC's `executeUpdate` reports it (0 for DDL).
+     *
+     * {{{
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val shipped = xa.connect {
+     *   sql"CREATE TABLE orders (id INTEGER, status TEXT)".update
+     *   sql"INSERT INTO orders VALUES (1, 'paid'), (2, 'paid'), (3, 'new')".update
+     *   val from = "paid"
+     *   val to   = "shipped"
+     *   sql"UPDATE orders SET status = \$to WHERE status = \$from".update
+     * }
+     * // 2
+     * }}}
      */
     def update(using con: DbCon): Int = {
       val sqlStr = frag.sql(con.dialect)
@@ -492,7 +611,11 @@ object Frag {
       }
     }
 
-    /** Executes this fragment as an INSERT and returns auto-generated keys. */
+    /**
+     * Runs this fragment as an `INSERT` and returns the keys the database
+     * generated, one per inserted row, each decoded with `codec` from column 1
+     * on of the driver's generated-keys result.
+     */
     def updateReturningKeys[A](using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
       val start  = System.nanoTime()
@@ -524,9 +647,10 @@ object Frag {
     }
   }
 
+  /** The SQL type passed to `setNull` for `DbNull`: `java.sql.Types.NULL`. */
   private val SqlNullType = 0
 
-  /** Writes parameter values to a prepared statement. */
+  /** Binds `params` to the statement from JDBC position 1 on. */
   private[sql] def writeParams(writer: DbParamWriter, params: IndexedSeq[DbValue]): Unit =
     writeParams(writer, params, 1)
 

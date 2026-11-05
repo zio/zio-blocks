@@ -16,9 +16,15 @@
 
 package zio.blocks.sql
 
+/** Checks names that are written into SQL without quotes. */
 private[sql] object SqlIdentifier {
   private val Identifier = raw"[A-Za-z_][A-Za-z0-9_]*".r
 
+  /**
+   * Returns `value` when it is ASCII letters, digits and underscores, starting
+   * with a letter or underscore; otherwise throws an `IllegalArgumentException`
+   * naming `kind` (such as `column` or `savepoint`).
+   */
   def validate(kind: String, value: String): String =
     value match {
       case Identifier() => value

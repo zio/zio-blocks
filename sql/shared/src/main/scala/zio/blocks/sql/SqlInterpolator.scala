@@ -21,81 +21,130 @@ import java.util.UUID
 import scala.language.implicitConversions
 import zio.blocks.maybe.Maybe
 
+/**
+ * Turns a Scala value into the [[DbValue]] that `sql"..."` binds to a `?`
+ * placeholder. The interpolator looks up a `DbParam` for the type of each
+ * interpolated value at compile time; the companion has instances for the
+ * primitives, `String`, `BigDecimal`, byte arrays, the `java.time` types,
+ * `UUID`, `Option`, `Maybe`, and any type with a one-column [[DbCodec]]. Give
+ * your own type an instance to interpolate it:
+ *
+ * {{{
+ * final case class Sku(code: String)
+ * given DbParam[Sku] with {
+ *   def toDbValue(sku: Sku): DbValue = DbValue.DbString(sku.code.toUpperCase)
+ * }
+ *
+ * val sku = Sku("kb-01")
+ * sql"SELECT price FROM product WHERE sku = \$sku".params // Vector(DbString(KB-01))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/db-param/ DbParam]]
+ */
 trait DbParam[A] {
+
+  /** Returns the value to bind for `value`. */
   def toDbValue(value: A): DbValue
 }
 
+/**
+ * The `DbParam` instances the `sql"..."` interpolator finds without an import.
+ */
 object DbParam {
+
+  /** Returns the `DbParam[A]` in scope. */
   def apply[A](implicit p: DbParam[A]): DbParam[A] = p
 
+  /** Binds an `Int` as `DbInt`. */
   given DbParam[Int] with {
     def toDbValue(v: Int): DbValue = DbValue.DbInt(v)
   }
 
+  /** Binds a `Long` as `DbLong`. */
   given DbParam[Long] with {
     def toDbValue(v: Long): DbValue = DbValue.DbLong(v)
   }
 
+  /** Binds a `Double` as `DbDouble`. */
   given DbParam[Double] with {
     def toDbValue(v: Double): DbValue = DbValue.DbDouble(v)
   }
 
+  /** Binds a `Float` as `DbFloat`. */
   given DbParam[Float] with {
     def toDbValue(v: Float): DbValue = DbValue.DbFloat(v)
   }
 
+  /** Binds a `Boolean` as `DbBoolean`. */
   given DbParam[Boolean] with {
     def toDbValue(v: Boolean): DbValue = DbValue.DbBoolean(v)
   }
 
+  /** Binds a `String` as `DbString`. */
   given DbParam[String] with {
     def toDbValue(v: String): DbValue = DbValue.DbString(v)
   }
 
+  /** Binds a `Short` as `DbShort`. */
   given DbParam[Short] with {
     def toDbValue(v: Short): DbValue = DbValue.DbShort(v)
   }
 
+  /** Binds a `Byte` as `DbByte`. */
   given DbParam[Byte] with {
     def toDbValue(v: Byte): DbValue = DbValue.DbByte(v)
   }
 
+  /** Binds a `BigDecimal` as `DbBigDecimal`. */
   given DbParam[BigDecimal] with {
     def toDbValue(v: BigDecimal): DbValue = DbValue.DbBigDecimal(v)
   }
 
+  /** Binds a byte array as `DbBytes`. */
   given dbParamBytes: DbParam[Array[Byte]] with {
     def toDbValue(v: Array[Byte]): DbValue = DbValue.DbBytes(v)
   }
 
+  /** Binds a `LocalDate` as `DbLocalDate`. */
   given DbParam[LocalDate] with {
     def toDbValue(v: LocalDate): DbValue = DbValue.DbLocalDate(v)
   }
 
+  /** Binds a `LocalDateTime` as `DbLocalDateTime`. */
   given DbParam[LocalDateTime] with {
     def toDbValue(v: LocalDateTime): DbValue = DbValue.DbLocalDateTime(v)
   }
 
+  /** Binds a `LocalTime` as `DbLocalTime`. */
   given DbParam[LocalTime] with {
     def toDbValue(v: LocalTime): DbValue = DbValue.DbLocalTime(v)
   }
 
+  /** Binds an `Instant` as `DbInstant`. */
   given DbParam[Instant] with {
     def toDbValue(v: Instant): DbValue = DbValue.DbInstant(v)
   }
 
+  /**
+   * Binds a `java.time.Duration` as `DbDuration`, which JDBC receives as its
+   * ISO-8601 text.
+   */
   given DbParam[Duration] with {
     def toDbValue(v: Duration): DbValue = DbValue.DbDuration(v)
   }
 
+  /** Binds a `UUID` as `DbUUID`. */
   given DbParam[UUID] with {
     def toDbValue(v: UUID): DbValue = DbValue.DbUUID(v)
   }
 
+  /** Binds a [[DbValue]] as it is. */
   given DbParam[DbValue] with {
     def toDbValue(v: DbValue): DbValue = v
   }
 
+  /** Binds `Some(a)` as `a` would be bound and `None` as SQL `NULL`. */
   given [A](using inner: DbParam[A]): DbParam[Option[A]] with {
     def toDbValue(v: Option[A]): DbValue = v match {
       case Some(a) => inner.toDbValue(a)
@@ -103,12 +152,26 @@ object DbParam {
     }
   }
 
+  /**
+   * Binds a present value as it would be bound and an absent one as SQL `NULL`.
+   */
   given [A](using inner: DbParam[A]): DbParam[Maybe[A]] with {
     def toDbValue(v: Maybe[A]): DbValue =
       if (v.isAbsent) DbValue.DbNull
       else inner.toDbValue(v.asInstanceOf[A])
   }
 
+  /**
+   * Binds a value of any type whose [[DbCodec]] writes exactly one column, such
+   * as a single-field case class. A `DbCodec` is derived on the spot when none
+   * is in scope, which has two known bugs in 0.0.56: a `List` or `Set` becomes
+   * one JSON string (so `IN (\$values)` compiles and matches nothing), and a
+   * newtype with a private constructor finds no codec although its `Schema` is
+   * in scope.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the fragment is built, if the codec writes more than one column
+   */
   given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A] with {
     def toDbValue(v: A): DbValue = {
       val values = codec.toDbValues(v)
@@ -124,19 +187,70 @@ object DbParam {
 
 extension (inline sc: StringContext) {
 
-  /** Plain `sql"SELECT ... $param"` — validates quotes/parentheses only. */
+  /**
+   * Builds a [[Frag]] from SQL text with interpolated values. Each value is
+   * turned into a bound `?` parameter through its [[DbParam]] (a [[DbValue]] is
+   * bound as it is), while an interpolated [[Frag]] or [[SqlLiteral]] is
+   * spliced into the text as written. A value with none of these fails to
+   * compile with `No DbParam/Frag/SqlLiteral/DbValue instance found for type
+   * ...`.
+   *
+   * {{{
+   * val country   = "NO"
+   * val minOrders = 3
+   * val email: Option[String] = None
+   * val frag = sql"SELECT name FROM customer WHERE country = \$country AND orders >= \$minOrders AND email IS \$email"
+   *
+   * frag.sql(SqlDialect.SQLite) // SELECT name FROM customer WHERE country = ? AND orders >= ? AND email IS ?
+   * frag.params                 // Vector(DbString(NO), DbInt(3), DbNull)
+   * }}}
+   *
+   * At compile time it rejects empty SQL (`sql interpolator requires a
+   * non-empty SQL string`), an unclosed quote (`Unclosed single quote in SQL
+   * template`) and unbalanced parentheses (`Unbalanced parentheses in SQL:
+   * unclosed '('`). It does not check table or column names; the overload that
+   * takes a [[Table]] does. The text is used raw, without processing escape
+   * sequences, so `\t` reaches the database as a backslash and a `t`: a known
+   * bug in 0.0.56.
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+   */
   inline def sql(inline args: Any*): Frag =
     ${ SqlMacros.sqlImpl('sc, '{ Seq.empty[Table[?]] }, 'args) }
 
   /**
-   * Checked `sql` — `StringContext(...).sql(table, ...)(args)` also checks
-   * identifiers against the provided `Table[?]` metadata. Requires at least one
-   * table to avoid overload ambiguity with the plain `sql"..."` interpolator.
+   * Builds a [[Frag]] like `sql"..."` and also checks, at compile time, every
+   * identifier in the SQL text against the given tables' names and columns and
+   * an allow-list of SQL keywords and functions. Each unknown word is a compile
+   * error such as `Unknown identifier 'nme' at position 7; did you mean
+   * 'name'?`; at most five are reported. Pass at least one table; the
+   * interpolated values come in the second argument list.
    *
-   * Escape hatch for unchecked raw SQL: interpolate a `SqlLiteral` or `Frag` —
-   * it is spliced verbatim (not as a `?` parameter) and not identifier-checked:
-   * `sql"SELECT ${SqlLiteral("MY_FUNC()")} FROM users"`. For a standalone
-   * unchecked fragment, use `SqlLiteral("SELECT ...").toFrag`.
+   * {{{
+   * import zio.blocks.schema.Schema
+   *
+   * case class Customer(id: Int, name: String, city: String)
+   * object Customer { implicit val schema: Schema[Customer] = Schema.derived }
+   *
+   * val customers = Table.derived[Customer]
+   * val city      = "Lima"
+   * val frag      = StringContext("SELECT id, name FROM customer WHERE city = ", "").sql(customers)(city)
+   *
+   * frag.sql(SqlDialect.SQLite) // SELECT id, name FROM customer WHERE city = ?
+   * }}}
+   *
+   * Text inside quotes and interpolated values are not checked, so an
+   * interpolated [[SqlLiteral]] or [[Frag]] is the way to write SQL the check
+   * rejects. An alias is known only when it is introduced with `AS` (`FROM
+   * customer AS c`). The known names are taken from the table's type when the
+   * code compiles, which has two known bugs in 0.0.56: a column renamed with
+   * `@Modifier.rename` is rejected under its real name and accepted under the
+   * field's name, and a misspelled column can be offered an SQL keyword as its
+   * suggestion.
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
    */
   inline def sql(inline first: Table[?], inline rest: Table[?]*)(inline args: Any*): Frag =
     ${ SqlMacros.sqlImplChecked('sc, 'first, 'rest, 'args) }

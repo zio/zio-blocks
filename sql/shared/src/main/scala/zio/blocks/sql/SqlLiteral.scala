@@ -17,33 +17,49 @@
 package zio.blocks.sql
 
 /**
- * Escape hatch for unchecked raw SQL.
+ * Raw SQL text that `sql"..."` splices into a fragment as written, instead of
+ * binding it as a `?` parameter, and that the table-checked
+ * `StringContext(...).sql(table)(...)` does not check. Use it for SQL the
+ * interpolator can't express as a parameter, such as a function call or a
+ * column chosen at run time. Nothing escapes or validates the text, so never
+ * build it from user input.
  *
- * `SqlLiteral` holds a SQL string that is spliced verbatim into a `sql"..."`
- * fragment without parameter binding or identifier checking. Use it for
- * dialect-specific functions or dynamic SQL that the lint-grade checked `sql`
- * (`StringContext(...).sql(table)(...)`) cannot model. Prefer the checked
- * `StringContext(...).sql(table)(...)` form for all hand-written queries;
- * reserve `SqlLiteral` for genuinely dynamic or dialect-specific cases.
+ * Interpolated into `sql"..."`, it becomes part of the SQL text:
  *
- * Standalone usage (unchecked, no validation):
  * {{{
- *   val frag: Frag = SqlLiteral("SELECT * FROM legacy WHERE id = 1").toFrag
+ * val column = SqlLiteral("upper(name)")
+ * val minId  = 10
+ * val frag   = sql"SELECT \$column FROM customer WHERE id > \$minId"
+ *
+ * frag.sql(SqlDialect.SQLite) // SELECT upper(name) FROM customer WHERE id > ?
+ * frag.params                 // Vector(DbInt(10))
  * }}}
  *
- * Splicing into `sql` interpolator as a raw fragment (not a parameter):
+ * On its own, `toFrag` makes a fragment with no parameters:
+ *
  * {{{
- *   sql"SELECT ${SqlLiteral("MY_FUNC(id)")} FROM users"
+ * val frag: Frag = SqlLiteral("SELECT id FROM customer WHERE id = 1").toFrag
+ *
+ * frag.sql(SqlDialect.SQLite) // SELECT id FROM customer WHERE id = 1
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
  */
 final case class SqlLiteral(sql: String) {
 
-  /** Wraps this raw SQL string as a [[Frag]] with no parameters. */
+  /**
+   * Returns a [[Frag]] whose text is this SQL and that has no parameters.
+   */
   def toFrag: Frag = Frag(IndexedSeq(sql), IndexedSeq.empty)
 }
 
+/** Constructors for [[SqlLiteral]]. */
 object SqlLiteral {
 
-  /** Creates a parameter-free [[Frag]] from a raw SQL string. */
+  /**
+   * Returns a [[Frag]] whose text is `sql` and that has no parameters, like
+   * `SqlLiteral(sql).toFrag` and [[Frag.literal]].
+   */
   def frag(sql: String): Frag = Frag(IndexedSeq(sql), IndexedSeq.empty)
 }
