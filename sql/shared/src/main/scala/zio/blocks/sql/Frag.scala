@@ -27,8 +27,11 @@ import zio.blocks.streams.io.Reader
  * Build one with the `sql"..."` interpolator, join fragments with `++`, and run
  * the result with the extension methods in the companion (`query`, `queryOne`,
  * `update`, `queryStream`) inside `Transactor#connect` or
- * `Transactor#transact`. Interpolated values never enter the SQL text: each one
- * becomes a `?` placeholder and is bound through JDBC when the fragment runs.
+ * `Transactor#transact`. Each interpolated value becomes a `?` placeholder and
+ * is bound through JDBC when the fragment runs, so it never enters the SQL
+ * text. The exceptions are an interpolated [[SqlLiteral]], which is spliced
+ * into the text as written, and an interpolated `Frag`, whose literal parts
+ * join the text while its parameters stay bound.
  *
  * `parts(i)` is literal SQL and `params(i)` is the value bound at the `?` that
  * follows it, so a well-formed fragment has `parts.length == params.length + 1`
@@ -81,6 +84,11 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
    * The text depends only on the literal parts, the number of parameters and
    * the dialect, not on the parameter values, so it is cached by those three
    * and reused by later calls; the cache is cleared once it holds 1024 entries.
+   *
+   * {{{
+   * val sku = "KB-01"
+   * sql"SELECT price FROM product WHERE sku = \$sku".sql(SqlDialect.PostgreSQL) // SELECT price FROM product WHERE sku = ?
+   * }}}
    */
   def sql(dialect: SqlDialect): String =
     Frag.synchronized {
@@ -155,6 +163,13 @@ object Frag {
   /**
    * The fragment with no SQL text and no parameters. Appending it with `++`
    * changes nothing, which makes it the "no clause" case of an optional filter.
+   *
+   * {{{
+   * val onlyInStock = false
+   * val frag        = sql"SELECT sku FROM product" ++ (if (onlyInStock) sql" WHERE stock > 0" else Frag.empty)
+   *
+   * frag.sql(SqlDialect.SQLite) // SELECT sku FROM product
+   * }}}
    */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
@@ -165,12 +180,30 @@ object Frag {
    * Wraps SQL text that has no parameters as a fragment. The text is used as
    * written, so never pass it a value that comes from a user; interpolate such
    * values with `sql"..."` instead.
+   *
+   * {{{
+   * val frag = sql"SELECT name FROM supplier" ++ Frag.literal(" ORDER BY name")
+   *
+   * frag.sql(SqlDialect.SQLite) // SELECT name FROM supplier ORDER BY name
+   * }}}
    */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
 
   /**
    * Joins the fragments with `++`, adding no separator between them. Returns
    * [[Frag.empty]] when called with no arguments.
+   *
+   * {{{
+   * val country = "PE"
+   * val frag = Frag.sequence(
+   *   sql"SELECT id FROM warehouse",
+   *   sql" WHERE country = \$country",
+   *   Frag.literal(" ORDER BY id")
+   * )
+   *
+   * frag.sql(SqlDialect.SQLite) // SELECT id FROM warehouse WHERE country = ? ORDER BY id
+   * frag.params                 // Vector(DbString(PE))
+   * }}}
    */
   def sequence(frags: Frag*): Frag = frags.foldLeft(Frag.empty)(_ ++ _)
 
@@ -445,7 +478,8 @@ object Frag {
      * chunks of up to 64 rows: `queryChunked(64)`. Run the stream before the
      * `Transactor#connect` or `Transactor#transact` block that supplied `con`
      * returns; after that the connection is closed and the stream fails with
-     * `Left(java.sql.SQLException: database connection closed)`.
+     * `Left` of the driver's closed-connection error (`java.sql.SQLException:
+     * database connection closed` on SQLite).
      *
      * {{{
      * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
@@ -612,9 +646,21 @@ object Frag {
     }
 
     /**
-     * Runs this fragment as an `INSERT` and returns the keys the database
-     * generated, one per inserted row, each decoded with `codec` from column 1
-     * on of the driver's generated-keys result.
+     * Runs this fragment as an `INSERT` and returns the keys the driver reports
+     * through JDBC's `getGeneratedKeys`, each row decoded with `codec` from
+     * column 1 on. The PostgreSQL driver returns one row per inserted row; the
+     * SQLite driver returns only the key of the last inserted row, so a
+     * three-row `INSERT` gives one key.
+     *
+     * {{{
+     * val xa = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+     * val keys = xa.connect {
+     *   sql"CREATE TABLE coupon (id INTEGER PRIMARY KEY, code TEXT)".update
+     *   val code = "WELCOME10"
+     *   sql"INSERT INTO coupon (code) VALUES (\$code)".updateReturningKeys[Int]
+     * }
+     * // List(1)
+     * }}}
      */
     def updateReturningKeys[A](using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
