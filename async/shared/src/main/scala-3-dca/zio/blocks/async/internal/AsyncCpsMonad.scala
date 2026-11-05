@@ -24,19 +24,20 @@ import scala.util.{Failure as TryFailure, Success as TrySuccess, Try}
 
 /**
  * The dotty-cps-async monad instance for [[Async]]. This is the single bridge
- * between the DCA macro and our encoding: the macro emits `cps.block` /
- * `cps.async` nodes that drive these six methods, all of which delegate to the
- * zero-cost inline `Async` surface (`map` / `flatMap` / `catchAll`).
+ * between the DCA macro and our encoding: the code that `cps.async` generates
+ * calls these methods, which delegate to the `Async` surface (`succeed`,
+ * `fail`, `map`, `flatMap`, `catchAll`).
  *
- * It is an `object` (not an anonymous `given`) so the [[zio.blocks.async]]
- * macro can reference it by a stable fully-qualified name when it splices the
- * generated `cps.async[Async] { ... }` block. The companion `given` below makes
+ * It is an `object` (not an anonymous `given`) so `AsyncDcaTransform` can
+ * reference it by a stable name when it splices the generated
+ * `cps.async[Async] { ... }` block. The top-level `given asyncCpsMonad` makes
  * the same instance available for ordinary implicit search (e.g. DCA's
  * `summon[CpsMonad[Async]]`).
  *
  * `CpsTryMonadInstanceContext` provides the `Context` type and the `apply`
- * method for free; we only implement the five primitives DCA needs: `pure`,
- * `map`, `flatMap`, `error`, and `flatMapTry`.
+ * method; this object implements the five primitives DCA needs (`pure`, `map`,
+ * `flatMap`, `error` and `flatMapTry`) and overrides `apply`, `withAction` and
+ * `withAsyncAction`.
  */
 object AsyncCpsMonad extends CpsTryMonadInstanceContext[Async] {
 
@@ -46,21 +47,24 @@ object AsyncCpsMonad extends CpsTryMonadInstanceContext[Async] {
    * body is a read-only witness whose only field is a back-pointer to this
    * singleton monad; our [[Async]] carries no per-run state (no cancellation
    * token, no environment), so a single shared context is valid for every
-   * invocation. Caching it removes a fixed ~144 B/op heap allocation per
-   * `Async.async` block — the difference between the DCA path being elidable by
-   * escape analysis and not. The CPS-transformed body only ever reads
-   * `ctx.monad`; it never mutates, stores, or identity-compares the context.
+   * invocation. Caching it removes one heap allocation per `Async.async` block.
+   * The CPS-transformed body only ever reads `ctx.monad`; it never mutates,
+   * stores, or identity-compares the context.
    */
   private val sharedContext: Context = new CpsTryMonadInstanceContextBody[Async](this)
 
   override def apply[T](op: Context => Async[T]): Async[T] = op(sharedContext)
 
+  /** Lifts `a` into a ready `Async` with `Async.succeed`. */
   def pure[A](a: A): Async[A] = Async.succeed(a)
 
+  /** Delegates to the `map` extension method of `Async`. */
   def map[A, B](fa: Async[A])(f: A => B): Async[B] = fa.map(f)
 
+  /** Delegates to the `flatMap` extension method of `Async`. */
   def flatMap[A, B](fa: Async[A])(f: A => Async[B]): Async[B] = fa.flatMap(f)
 
+  /** Fails with `e` through `Async.fail`. */
   def error[A](e: Throwable): Async[A] = Async.fail(e)
 
   /**
