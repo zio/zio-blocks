@@ -55,7 +55,7 @@ object JwtValue {
      * Parses the raw text as a Double (Infinity if out of range).
      *
      * @throws java.lang.NumberFormatException
-     *   when the text is not a number
+     *   when the text is not a number that `String#toDouble` accepts
      */
     def toDouble: Double = raw.toDouble
   }

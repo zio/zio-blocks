@@ -544,16 +544,17 @@ object Jwt {
    * The checks run in this order, and the first failure is returned: the token
    * size (`TokenTooLarge`), its three non-empty segments (`InvalidToken`,
    * `SegmentTooLarge`), the header (`InvalidToken`, the JSON limits,
-   * `MissingClaim("alg")` or `InvalidClaim` for a missing or non-string field,
-   * `UnsupportedAlgorithm` for an unknown `alg`), the header's `alg` against
-   * `alg` (`AlgorithmMismatch`), the signature (`InvalidToken` for a segment
-   * that is not Base64URL, `UnsupportedAlgorithm` when the backend does not
-   * support `alg`, for example the default backend with `RS256`, `InvalidKey`
-   * for a key the backend cannot use, and `InvalidSignature`), and only then
-   * the payload and its claims (`InvalidToken`, the JSON limits,
-   * `InvalidClaim`, `ExpiredToken`, `NotYetValid`, `MissingClaim`). A tampered
-   * payload is therefore reported as `InvalidSignature`. The header fields
-   * other than `alg`, `typ` and `kid` are not read.
+   * `MissingClaim("alg")` for a missing `alg`, `InvalidClaim` for an `alg`,
+   * `typ` or `kid` that is not a string, `UnsupportedAlgorithm` for an unknown
+   * `alg`), the header's `alg` against `alg` (`AlgorithmMismatch`), the
+   * signature (`InvalidToken` for a segment that is not Base64URL,
+   * `UnsupportedAlgorithm` when the backend does not support `alg`, for example
+   * the default backend with `RS256`, `InvalidKey` for a key the backend cannot
+   * use, and `InvalidSignature`), and only then the payload and its claims
+   * (`InvalidToken`, the JSON limits, `InvalidClaim`, `ExpiredToken`,
+   * `NotYetValid`, `MissingClaim`). A tampered payload is therefore reported as
+   * `InvalidSignature`. The header fields other than `alg`, `typ` and `kid` are
+   * not read.
    */
   def decode(
     token: String,
