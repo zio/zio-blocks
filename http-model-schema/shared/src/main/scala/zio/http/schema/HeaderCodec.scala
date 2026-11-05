@@ -34,7 +34,7 @@ import zio.http.{Headers, HeadersBuilder}
  * wrappers of these; field default values are ignored, a known bug. Error
  * messages use the name before lower-casing, as in
  * `Missing field 'API-VERSION'`. A schema that is not a record uses the single
- * header `value`.
+ * header `Value` (stored as `value`).
  *
  * {{{
  * import zio.blocks.schema.Schema

@@ -32,9 +32,9 @@ import zio.blocks.schema.binding.Binding
  * `Malformed`.
  *
  * Every other schema fails on every value, a known bug: a primitive type such
- * as `java.time.Instant` or `Unit` gives `Unsupported primitive type for string
- * decoding`, and an `Option`, a collection, a wrapper or a record gives
- * `Unsupported schema type for string decoding`. The schema's `Validation` is
+ * as `java.time.Instant` or `Unit` gives "Unsupported primitive type for string
+ * decoding", and an `Option`, a collection, a wrapper or a record gives
+ * "Unsupported schema type for string decoding". The schema's `Validation` is
  * never checked.
  *
  * {{{

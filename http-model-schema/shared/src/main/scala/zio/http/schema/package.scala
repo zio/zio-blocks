@@ -21,13 +21,13 @@ import scala.language.implicitConversions
 import zio.http.{Headers, QueryParams, Request, Response}
 
 /**
- * Typed, schema-based access to query parameters and headers. `import
- * zio.http.schema._` adds `query`, `queryAll` and `queryOrElse` to
- * [[zio.http.QueryParams]] and [[zio.http.Request]], and `header`, `headerAll`
- * and `headerOrElse` to [[zio.http.Headers]], `Request` and
- * [[zio.http.Response]]; on `Request` and `Response`, `header[T](name)` does
- * not compile, a known bug, so call it on `request.headers`. Failures are a
- * [[QueryParamError]] or a [[HeaderError]].
+ * Typed, schema-based access to query parameters and headers. With
+ * `import zio.http.schema._` in scope, it adds `query`, `queryAll` and
+ * `queryOrElse` to [[zio.http.QueryParams]] and [[zio.http.Request]], and
+ * `header`, `headerAll` and `headerOrElse` to [[zio.http.Headers]], `Request`
+ * and [[zio.http.Response]]; on `Request` and `Response`, `header[T](name)`
+ * does not compile, a known bug, so call it on `request.headers`. Failures are
+ * a [[QueryParamError]] or a [[HeaderError]].
  *
  * To read or write a whole case class at once, derive a [[QueryCodec]] with
  * `Schema[A].derive(DefaultQueryFormat)` or a [[HeaderCodec]] with

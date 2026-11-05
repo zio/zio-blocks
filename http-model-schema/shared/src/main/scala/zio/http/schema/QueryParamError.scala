@@ -44,9 +44,10 @@ object QueryParamError {
   /**
    * The query parameter `key` is present but its `value` does not decode;
    * `cause` says why, for example `Cannot parse 'abc' as Int`. Its `message`
-   * reads `Malformed query parameter 'limit' value 'abc': Cannot parse 'abc' as
-   * Int`. A derived [[QueryCodec]] reports a bad value with this same message
-   * inside its [[zio.blocks.schema.SchemaError]].
+   * names the key, the value and the cause, as in "Malformed query parameter
+   * 'limit' value 'abc': Cannot parse 'abc' as Int". A derived [[QueryCodec]]
+   * reports a bad value with this same message inside its
+   * [[zio.blocks.schema.SchemaError]].
    */
   final case class Malformed(key: String, value: String, cause: String) extends QueryParamError {
 
