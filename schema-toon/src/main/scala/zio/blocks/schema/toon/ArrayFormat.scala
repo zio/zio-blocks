@@ -17,16 +17,25 @@
 package zio.blocks.schema.toon
 
 /**
- * Specifies how arrays should be encoded in TOON format.
+ * Chooses how a codec derived with [[ToonCodecDeriver]] writes a sequence:
+ * inline (`tags[3]: a,b,c`), as a table (`items[2]{sku,qty}:` followed by one
+ * row per record) or as a list of `- ` items. Set it with
+ * [[ToonCodecDeriver.withArrayFormat]]; the default is [[ArrayFormat.Auto]].
+ * Every format writes the length in the header. A record field decodes from any
+ * of the three forms whatever the setting, but a top-level sequence decodes
+ * only from the form its own setting writes, a known bug. The `DynamicValue`
+ * codec ignores this setting and picks the form from the elements.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
  */
 sealed trait ArrayFormat
 
 object ArrayFormat {
 
   /**
-   * Select the format from the element type:
-   *   - Inline for primitive arrays
-   *   - List for record arrays and other complex elements
+   * Picks the form from the element type: inline for primitive elements, a list
+   * for records and other elements. The default.
    *
    * An array of records with only primitive fields that is nested inside a list
    * item is written in tabular form. Use [[Tabular]] to write record arrays as
@@ -35,19 +44,31 @@ object ArrayFormat {
   case object Auto extends ArrayFormat
 
   /**
-   * Force tabular format: `items[N]{field1,field2}: val1,val2` Falls back to
-   * List if an array is not tabular-eligible.
+   * Writes a sequence of records as a table: a header with the length and the
+   * field names, such as `items[2]{sku,qty}:`, then one indented row of values
+   * per record. A sequence of other elements is written as a list.
+   *
+   * Three known bugs: a record with a field that is not primitive, such as
+   * `tags: List[String]`, is still written as a row, which the codec then fails
+   * to decode; a top-level table cannot be decoded, even when the same codec
+   * wrote it; and the header uses the case name mapper, not
+   * [[ToonCodecDeriver.withFieldNameMapper]], for the field names.
    */
   case object Tabular extends ArrayFormat
 
   /**
-   * Force inline format: `items[N]: val1,val2,val3` Only valid for primitive
-   * arrays; falls back to List for complex types.
+   * Writes a sequence of primitive values on one line after the header, such as
+   * `codes[3]: 3,7,9`, separated by the deriver's delimiter. A sequence of
+   * other elements is written as a list.
    */
   case object Inline extends ArrayFormat
 
   /**
-   * Force list format with `- ` markers.
+   * Writes every element as a `- ` item on its own line under the header, such
+   * as `codes[2]:` followed by `- 3` and `- 7`.
+   *
+   * A known bug: an array of records with only primitive fields that is nested
+   * inside a list item is still written as a table, as with [[Auto]].
    */
   case object List extends ArrayFormat
 }

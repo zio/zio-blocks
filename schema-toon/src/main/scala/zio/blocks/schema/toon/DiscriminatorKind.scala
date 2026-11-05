@@ -17,87 +17,70 @@
 package zio.blocks.schema.toon
 
 /**
- * Represents the strategy for specifying the discriminator used in a TOON
- * schema for distinguishing between different subtypes of a sealed hierarchy.
+ * Chooses how a codec derived with [[ToonCodecDeriver]] records which case of a
+ * sealed trait or enum a value is. Set it with
+ * [[ToonCodecDeriver.withDiscriminatorKind]]; the default is
+ * [[DiscriminatorKind.Key]]. A sealed trait whose cases all have no fields is
+ * written as the bare case name, such as `Low`, whatever the setting, unless
+ * [[ToonCodecDeriver.withEnumValuesAsStrings]] is `false`. For
+ * `case class Rect(width: Double, height: Double) extends Shape`:
+ *   - [[DiscriminatorKind.Key]] writes `Rect:` followed by the indented fields;
+ *   - [[DiscriminatorKind.Field]] with `"kind"` writes `kind: Rect` followed by
+ *     the fields at the same level;
+ *   - [[DiscriminatorKind.None]] writes only the fields, and decoding tries
+ *     each case in declaration order until one decodes.
  *
- * Implementations of this trait define how the discriminator is represented in
- * the serialized TOON, if any.
- *
- * The possible discriminator kinds include:
- *   - `Field` with adding a custom field named as specified in the `name`
- *     parameter that contains a value of the subtype discriminator, e.g.
- *     `type: Person` followed by the record fields for
- *     `case class Person(...) extends SealedTrait`
- *   - `Key`, where the discriminator is represented as a TOON key with wrapping
- *     of the encoded value in a nested record, e.g. `Person:` followed by
- *     indented fields for `case class Person(...) extends SealedTrait`.
- *   - `None`, where no discriminator is used, meaning subtype differentiation
- *     is handled by sequential attempts to parse all possible subtypes,
- *     starting from the first subtype, until a successful parse is found, or an
- *     error is thrown if none of the subtypes can be parsed from the input.
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
  */
 sealed trait DiscriminatorKind
 
 object DiscriminatorKind {
 
   /**
-   * Represents a discriminator strategy where a specific field in the TOON
-   * record is used to identify the subtype of a sealed hierarchy, e.g.
-   * `\$type: SubtypeIdentifier` followed by the record fields.
+   * Writes the case name in a field called `name`, followed by the case's own
+   * fields at the same level, such as `kind: Rect`. Decoding fails with
+   * `Missing discriminator field: kind` when the field is absent and with
+   * `Unknown variant case: Square` for a name no case has.
    *
-   * Can be used only for serializing sealed hierarchy subtypes of non-abstract
-   * classes only (not union types).
+   * It applies when every case is a record; otherwise the deriver uses [[Key]]
+   * for that type. The decoder buffers every line of the value and reads them
+   * again once it has found the field, so nested variants of this kind are read
+   * once per level of nesting; keep that in mind for deeply nested untrusted
+   * input.
    *
-   * Beware that parsing may be too slow for deeply nested or recursive data
-   * structures when the discriminator field is placed at the end of the TOON
-   * record.
-   *
-   * Don't use it for untrusted input that should be parsed to deeply nested or
-   * recursive data structures to avoid potential security vulnerabilities of
-   * DoS/DoW attacks.
+   * Two known bugs: a case object (a case with no fields) is written as nothing
+   * at all, not as `kind: Idle`, so decoding it fails with
+   * `Missing discriminator field`; and a variant stored in a record field that
+   * other fields follow is written with its fields at the record's level, so
+   * decoding it takes the following fields too and fails.
    *
    * @param name
-   *   The name of the discriminator field to be added to the TOON record. This
-   *   field value will contain the subtype identifier as its value.
+   *   the name of the field that holds the case name
    */
   case class Field(name: String) extends DiscriminatorKind
 
   /**
-   * Represents a discriminator strategy where the subtype identifier is encoded
-   * as the key of a TOON record.
-   *
-   * It is a default strategy for serializing and deserializing of all kinds of
-   * variants (sealed hierarchies, union types, etc.).
-   *
-   * In this strategy, the serialized representation of the subtype wraps the
-   * encoded value in a nested record keyed by the subtype's discriminator,
-   * e.g., `SubtypeIdentifier:` followed by indented fields.
-   *
-   * This approach enables subtype differentiation based solely on the key of
-   * the TOON record for the sealed hierarchy.
+   * Writes the case name as a key with the case's fields indented under it,
+   * such as `Rect:` followed by `width: 2` and `height: 3.5` one level deeper.
+   * The default. Decoding fails with `Unknown variant case: Square` for a key
+   * no case has.
    */
   case object Key extends DiscriminatorKind
 
   /**
-   * Represents the absence of a discriminator strategy for serializing and
-   * deserializing sealed hierarchy subtypes or union types.
+   * Writes only the case's fields, with no case name. Decoding tries the cases
+   * in declaration order and returns the first one that decodes, so a value of
+   * a later case comes back as an earlier case whenever the earlier case can
+   * read its fields: with extra fields skipped, `Big(1, 2)` written as `x: 1`
+   * and `y: 2` decodes as `Small(1)` when `Small(x: Int)` comes first. When no
+   * case decodes, it fails with `expected a variant value`, which hides why
+   * each case failed. Each attempt reads the input again, which is slow for
+   * many cases or deeply nested values; keep that in mind for untrusted input.
    *
-   * When this strategy is used, subtype differentiation is performed without
-   * adding any explicit discriminator field or key to the serialized TOON.
-   * Instead, deserialization attempts to match the input TOON data sequentially
-   * against all possible subtypes of the sealed hierarchy until a successful
-   * match is found.
-   *
-   * This approach relies on the order and structure of subtype definitions and
-   * may result in parsing errors if no matching subtype is found.
-   *
-   * Beware that this strategy hides error messages of underlying parsing errors
-   * and parsing be too slow for large hierarchies of subtypes or deeply nested
-   * or recursive data structures.
-   *
-   * Don't use it for untrusted input that should be parsed into deeply nested
-   * or recursive data structures to avoid potential security vulnerabilities of
-   * DoS/DoW attacks.
+   * A known bug: a variant stored in a record field that other fields follow is
+   * written with its fields at the record's level, so decoding it takes the
+   * following fields too and fails.
    */
   case object None extends DiscriminatorKind
 }

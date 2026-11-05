@@ -17,7 +17,12 @@
 package zio.blocks.schema.toon
 
 /**
- * Delimiter used to separate values in TOON inline arrays.
+ * The character that separates the values of an inline array, the values of a
+ * table row and the field names of a table header. A derived codec takes it
+ * from [[ToonCodecDeriver.withDelimiter]], the `DynamicValue` codec from
+ * [[WriterConfig.withDelimiter]]. A delimiter other than the comma is written
+ * into the array header, as in `codes[2|]: 3|7`, and the reader takes each
+ * array's delimiter from its header.
  *
  * @param char
  *   the delimiter character
@@ -25,13 +30,20 @@ package zio.blocks.schema.toon
 sealed abstract class Delimiter(val char: Char)
 
 object Delimiter {
+
+  /** Separates values with `,`, the default. */
   case object Comma extends Delimiter(',')
-  case object Tab   extends Delimiter('\t')
-  case object Pipe  extends Delimiter('|')
+
+  /** Separates values with a tab character. */
+  case object Tab extends Delimiter('\t')
+
+  /** Separates values with `|`. */
+  case object Pipe extends Delimiter('|')
 
   /**
-   * Special delimiter that won't match any character in values - used for
-   * reading complete values.
+   * The NUL character (code point 0), which the reader uses internally to read
+   * a value whole, without splitting it. Use [[Comma]], [[Tab]] or [[Pipe]] for
+   * writing.
    */
   case object None extends Delimiter('\u0000')
 }
