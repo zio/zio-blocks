@@ -439,6 +439,15 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
   .zb-chat .bg-gray-300 *,
   .zb-chat .text-gray-600 { color: var(--fg) !important; }
 
+  /* Inline code (widget 0.0.12 reads these variables; its default was a fixed blue). A 15% tint of the site's primary,
+     so the highlight follows the theme. The tint is computed from `--ifm-color-primary`, which already switches in dark
+     mode, so one rule covers both. Measured contrast of the text (--fg) on the tint: light 12.4:1 in answers, 11.0:1
+     in questions; dark 12.7:1 in answers, 11.2:1 in questions. Text colour stays inherited. */
+  .zb-chat {
+    --bytebrain-code-bg: color-mix(in srgb, var(--ifm-color-primary) 15%, transparent);
+    --bytebrain-user-code-bg: color-mix(in srgb, var(--ifm-color-primary) 15%, transparent);
+  }
+
   /* Input and send button. */
   .zb-chat #promptInput {
     background: var(--ifm-background-color) !important;
@@ -463,6 +472,10 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
     font-family: var(--ifm-font-family-base) !important;
   }
   .zb-chat #bytebrain-ask-button:hover { background: var(--ifm-color-primary-dark) !important; }
+
+  /* Maximized view: the widget centres the panel with flexbox, but its Tailwind `block` class (display: block, !important)
+     wins over that rule, so the panel stays at the left edge. Restore the flex layout so the panel is centred. */
+  .zb-chat #container.bytebrain-maximized { display: flex !important; }
 
   @media (prefers-reduced-motion: reduce) {
     .zb-chat #chat-button { transition: none !important; }
