@@ -101,11 +101,11 @@ object JwtError {
   /**
    * The signature does not match the token for the key and algorithm; then
    * `alg` is the algorithm's name. When the backend rejects the signature bytes
-   * themselves (an ECDSA signature of the wrong length, an RSA signature of the
-   * wrong size on the JVM), `alg` holds the backend's reason instead, a known
-   * bug, as in "JWT signature verification failed for algorithm invalid P1363
-   * ECDSA signature length". On Scala.js, signing an `ES*` token with a key on
-   * a larger curve also returns it.
+   * themselves (an ECDSA signature of the wrong length, or on the JVM an RSA or
+   * EdDSA signature of the wrong length), `alg` holds the backend's reason
+   * instead, a known bug, as in "JWT signature verification failed for
+   * algorithm invalid P1363 ECDSA signature length". On Scala.js, signing an
+   * `ES*` token with an RSA key or a key on a larger curve also returns it.
    */
   case class InvalidSignature(alg: String) extends JwtError {
 
@@ -121,7 +121,9 @@ object JwtError {
    * `Algorithm.fromString` does not know (`alg` is the raw value, such as
    * `"none"`), or the backend does not support it (the built-in default for
    * every algorithm but `HS*`, `JsJwtCryptoBackend` for `PS*` and `EdDSA`, or
-   * for `RS*` and `ES*` when Node's `crypto` module is missing).
+   * for `RS*` and `ES*` when Node's `crypto` module is missing). On Scala.js it
+   * also comes back for an Ed25519 key with `RS*` or `ES*`, with Node's message
+   * ("Error: Unsupported crypto operation") in `alg`, a known bug.
    */
   case class UnsupportedAlgorithm(alg: String) extends JwtError {
 
@@ -173,12 +175,13 @@ object JwtError {
 
   /**
    * The key cannot be used for the algorithm: an `HS*` secret shorter than 32,
-   * 48 or 64 bytes, or, with `JvmJwtCryptoBackend`, a key that is not in the
+   * 48 or 64 bytes; with `JvmJwtCryptoBackend`, a key that is not in the
    * expected DER form or not of the algorithm's type, an RSA key under 2048
-   * bits, an EC key on the wrong curve, or an Ed448 key for `EdDSA`. `reason`
-   * comes from the backend, as in "HMAC key too short: 5 bytes, minimum 32
-   * bytes required for HS256" (the JVM backend writes `HmacSHA256` for the
-   * algorithm).
+   * bits, a P-256, P-384 or P-521 key used with the wrong `ES*` algorithm, or
+   * an Ed448 key for `EdDSA`; with `JsJwtCryptoBackend`, a public key Node.js
+   * cannot read. `reason` comes from the backend, as in "HMAC key too short: 5
+   * bytes, minimum 32 bytes required for HS256" (the JVM backend writes
+   * `HmacSHA256` for the algorithm).
    */
   case class InvalidKey(reason: String) extends JwtError {
 
@@ -188,7 +191,7 @@ object JwtError {
 
   /**
    * The compact token is longer than `JwtLimits.maxTokenChars`; returned by
-   * `Jwt.sign` and `Jwt.decode`.
+   * `Jwt.sign`, `Jwt.decode` and `Jwt.decodeWithoutVerification`.
    */
   case class TokenTooLarge(size: Int, max: Int) extends JwtError {
 
@@ -201,7 +204,8 @@ object JwtError {
 
   /**
    * One of the three segments is longer than `JwtLimits.maxSegmentChars`;
-   * returned by `Jwt.sign`, `Jwt.decode` and the `parse` methods.
+   * returned by `Jwt.sign`, `Jwt.decode`, `Jwt.decodeWithoutVerification` and
+   * the `parse` methods.
    */
   case class SegmentTooLarge(size: Int, max: Int) extends JwtError {
 
@@ -214,7 +218,8 @@ object JwtError {
 
   /**
    * The header or payload JSON is longer than `JwtLimits.maxJsonChars`;
-   * returned by `Jwt.sign`, `Jwt.decode` and the `parse` methods.
+   * returned by `Jwt.sign`, `Jwt.decode`, `Jwt.decodeWithoutVerification` and
+   * the `parse` methods.
    */
   case class JsonTooLarge(size: Int, max: Int) extends JwtError {
 

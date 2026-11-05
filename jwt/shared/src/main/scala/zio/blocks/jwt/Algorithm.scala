@@ -140,7 +140,7 @@ object Algorithm {
 
   /**
    * ECDSA on the P-256 curve with SHA-256 (RFC 7518 §3.4); the signature is the
-   * 64-byte `r || s`. `JvmJwtCryptoBackend` rejects a key on another curve with
+   * 64-byte `r || s`. `JvmJwtCryptoBackend` rejects a P-384 or P-521 key with
    * `InvalidKey`; `JsJwtCryptoBackend` does not check the curve.
    */
   case object ES256 extends Algorithm {
@@ -151,7 +151,8 @@ object Algorithm {
 
   /**
    * ECDSA on the P-384 curve with SHA-384; the signature is the 96-byte
-   * `r || s`. The curve is checked as for `ES256`.
+   * `r || s`. `JvmJwtCryptoBackend` rejects a P-256 or P-521 key with
+   * `InvalidKey`; `JsJwtCryptoBackend` does not check the curve.
    */
   case object ES384 extends Algorithm {
 
@@ -161,7 +162,8 @@ object Algorithm {
 
   /**
    * ECDSA on the P-521 curve with SHA-512; the signature is the 132-byte
-   * `r || s`. The curve is checked as for `ES256`.
+   * `r || s`. `JvmJwtCryptoBackend` rejects a P-256 or P-384 key with
+   * `InvalidKey`; `JsJwtCryptoBackend` does not check the curve.
    */
   case object ES512 extends Algorithm {
 

@@ -47,12 +47,14 @@ object JvmJwtCryptoBackend extends JwtCryptoBackend {
    * secret bytes (at least 32, 48 or 64 for `HS256`, `HS384`, `HS512`). `RS*`
    * and `PS*` take a PKCS#8 DER RSA private key of at least 2048 bits. `ES*`
    * take a PKCS#8 DER EC private key on the curve of the algorithm, and return
-   * the signature as fixed-width `R || S` (64, 96 or 132 bytes). `EdDSA` takes
+   * the signature as fixed-width `r || s` (64, 96 or 132 bytes). `EdDSA` takes
    * a PKCS#8 DER Ed25519 private key.
    *
-   * It returns `InvalidKey` for a key that is too short or too weak, on the
-   * wrong curve or not decodable, and `UnsupportedAlgorithm` when the JDK has
-   * no implementation of the algorithm.
+   * It returns `InvalidKey` for an `HS*` secret that is too short, an RSA key
+   * under 2048 bits, a P-256, P-384 or P-521 key used with the wrong `ES*`
+   * algorithm, an Ed448 key for `EdDSA`, a key of the wrong type, and a key it
+   * cannot decode. It returns `UnsupportedAlgorithm` when the JDK has no
+   * implementation of the algorithm.
    */
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]] =
     withCrypto {
