@@ -142,8 +142,7 @@ final class ToonReader private[toon] (
   def getDepth: Int = currentDepth
 
   /**
-   * Sets the delimiter that ends a value when the reader is reading inline
-   * values.
+   * Sets the delimiter on which `readInlineArray` splits values.
    */
   def setActiveDelimiter(d: Delimiter): Unit = activeDelimiter = d
 
@@ -279,8 +278,8 @@ final class ToonReader private[toon] (
   }
 
   /**
-   * Reads one value and checks that it is `null`; any other value fails with
-   * `Expected null, got: <value>`.
+   * Reads one value and checks that it is `null`, quoted or not; any other
+   * value fails with `Expected null, got: <value>`.
    */
   def readNull(): Unit = {
     val value = readPrimitiveToken()
@@ -288,8 +287,8 @@ final class ToonReader private[toon] (
   }
 
   /**
-   * Reads one value as a `Boolean`; anything other than `true` or `false` fails
-   * with `Expected boolean, got: <value>`.
+   * Reads one value as a `Boolean`: `true` or `false`, quoted or not; anything
+   * else fails with `Expected boolean, got: <value>`.
    */
   def readBoolean(): Boolean = {
     val value = readPrimitiveToken()
@@ -426,9 +425,10 @@ final class ToonReader private[toon] (
 
   /**
    * Reads the text before the first unquoted colon, which can include array
-   * notation such as `[2]`, and consumes the colon. Only a text that starts
-   * with a quote is unescaped; a line without an unquoted colon fails with
-   * `Expected key:value, no colon found`.
+   * notation such as `[2]`, and consumes the colon. A text that starts and ends
+   * with `"` is unescaped; a quoted key followed by array notation, such as
+   * `"my key"[2]`, is returned unchanged, quotes included. A line without an
+   * unquoted colon fails with `Expected key:value, no colon found`.
    */
   def readKeyWithArrayNotation(): String = {
     skipWhitespace()
@@ -444,10 +444,14 @@ final class ToonReader private[toon] (
    * Parses an array header such as `tags[2]:` or `rows[3]{id,name}:` on the
    * current line and makes its delimiter the active delimiter.
    *
-   * A header without a `[`, `]`, or the closing `:` fails with
-   * `Expected array header with [`, `Expected closing ] in array header` or
-   * `Expected : after array header`. An empty or non-numeric length fails with
-   * `Empty array length` or `Invalid array length: <text>`.
+   * A header without a `[`, `]`, `}` or the closing `:` fails with
+   * `Expected array header with [`, `Expected closing ] in array header`,
+   * `Expected closing } in field list` or `Expected : after array header`. An
+   * empty or non-numeric length fails with `Empty array length` or
+   * `Invalid array length: <text>`. Two known bugs: a tab after the length, as
+   * in `[2\t]`, is trimmed away, so the header reads as comma-delimited; and on
+   * an indented line, such as the list item `- [1]: 3`, a valid header can fail
+   * with `Expected : after array header`.
    *
    * @param isInline
    *   when `true`, stays on the line just after the colon so that inline values
@@ -504,9 +508,9 @@ final class ToonReader private[toon] (
 
   /**
    * Converts a value token to a Scala value: `null` to `null`, `true` and
-   * `false` to `Boolean`, a token starting with a quote to its unescaped
-   * `String`, a token that looks like a number to a number, and anything else
-   * to the token itself.
+   * `false` to `Boolean`, a token that starts and ends with a quote to its
+   * unescaped `String`, a token that looks like a number to a number, and
+   * anything else to the token itself.
    */
   def inferType(token: String): Any =
     if (token == "null") null
@@ -808,7 +812,8 @@ object ToonReader {
  * @param fields
  *   the field names of a tabular header, or `null` when there are none
  * @param delimiter
- *   the delimiter the header declares
+ *   the delimiter the header declares (`parseArrayHeader` reports a tab header
+ *   as `Delimiter.Comma`, a known bug)
  */
 final case class ArrayHeader(
   key: String,
