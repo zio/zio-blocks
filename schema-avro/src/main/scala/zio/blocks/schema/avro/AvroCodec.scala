@@ -39,10 +39,11 @@ import scala.util.control.NonFatal
  * The bytes carry no field names, type name or schema, so the reader needs the
  * writer's schema. Decoding returns `Left` with a `SchemaError` whose message
  * ends with the path of the part that failed, as in
- * `Unexpected end of input at: .celsius`. Two known bugs: `decode` returns the
- * first value and ignores any bytes after it, and bytes written for one type
- * can decode without an error as a different type whose fields have a similar
- * layout.
+ * `Unexpected end of input at: .celsius`. A known bug: `decode` returns the
+ * first value and ignores any bytes after it. Because the bytes carry no type
+ * information, bytes written for one type can also decode without an error as a
+ * different type whose fields have a similar layout; this is a limitation of
+ * Avro binary, which the codec cannot detect.
  *
  * {{{
  * import zio.blocks.schema._
