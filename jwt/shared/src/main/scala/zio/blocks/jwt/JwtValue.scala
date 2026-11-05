@@ -28,6 +28,10 @@ import zio.blocks.chunk.Chunk
  */
 sealed trait JwtValue extends Product with Serializable
 
+/**
+ * The cases of [[JwtValue]]: `Str`, `Num`, `Bool`, `Null`, `Arr` and `Obj`.
+ * `Arr` and `Obj` nest, so a claim can hold any JSON structure.
+ */
 object JwtValue {
 
   /** JSON string value. */
@@ -46,6 +50,12 @@ object JwtValue {
     def toDouble: Double = raw.toDouble
   }
 
+  /**
+   * Factory methods that build a [[JwtValue.Num]] from a Scala number. They
+   * store the number's `toString` text, so `fromDouble(1e21)` stores `1.0E21`.
+   * The `Num(raw)` constructor stores its argument as given, without checking
+   * that it is a JSON number.
+   */
   object Num {
 
     /** Creates a Num from a Long. */
@@ -70,15 +80,23 @@ object JwtValue {
   /** JSON array value. */
   final case class Arr(items: Chunk[JwtValue]) extends JwtValue
 
+  /** Constructors for [[JwtValue.Arr]]. */
   object Arr {
-    val empty: Arr                   = Arr(Chunk.empty)
+
+    /** An array with no items. */
+    val empty: Arr = Arr(Chunk.empty)
+
+    /** Creates an array that holds `items` in the given order. */
     def apply(items: JwtValue*): Arr = new Arr(Chunk.from(items))
   }
 
   /** JSON object value (unordered map of fields). */
   final case class Obj(fields: Map[String, JwtValue]) extends JwtValue
 
+  /** Constructors for [[JwtValue.Obj]]. */
   object Obj {
+
+    /** An object with no fields. */
     val empty: Obj = Obj(Map.empty)
   }
 }

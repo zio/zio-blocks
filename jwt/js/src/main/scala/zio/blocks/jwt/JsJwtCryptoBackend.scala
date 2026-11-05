@@ -46,9 +46,24 @@ private[jwt] object JsCryptoCapability {
     })
 }
 
+/**
+ * A [[JwtCryptoBackend]] for Scala.js. It supports `HS*` with the built-in pure
+ * Scala implementation, and `RS*` and `ES*` through the `crypto` module of
+ * Node.js. `PS*` and `EdDSA` are not supported. Call `install()` once at
+ * startup so that [[Jwt]] uses it.
+ */
 object JsJwtCryptoBackend extends JwtCryptoBackend {
+
+  /**
+   * Makes this backend the one [[JwtCrypto]] uses, replacing the backend
+   * installed before.
+   */
   def install(): Unit = JwtCrypto.installBackend(this)
 
+  /**
+   * `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384` and
+   * `ES512`.
+   */
   val supportedAlgorithms: Set[Algorithm] =
     Set(
       Algorithm.HS256,
@@ -62,6 +77,18 @@ object JsJwtCryptoBackend extends JwtCryptoBackend {
       Algorithm.ES512
     )
 
+  /**
+   * Signs `data` with `key` and returns the raw signature bytes. `HS*` take the
+   * secret bytes (at least 32, 48 or 64 for `HS256`, `HS384`, `HS512`). `RS*`
+   * take a PKCS#8 DER RSA private key, and `ES*` a PKCS#8 DER EC private key;
+   * `ES*` return the signature as fixed-width `R || S` (64, 96 or 132 bytes).
+   * Unlike the JVM backend, it does not check RSA key size or EC curve.
+   *
+   * It returns `UnsupportedAlgorithm` for `PS*` and `EdDSA`, and for `RS*` and
+   * `ES*` when the Node.js `crypto` module is not available. A short `HS*` key
+   * gives `InvalidKey`; for a key Node.js cannot read, the case (`InvalidKey`
+   * or `InvalidToken`) depends on the Node.js error message.
+   */
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]] = alg match {
     case Algorithm.HS256 | Algorithm.HS384 | Algorithm.HS512 =>
       SharedJwtCryptoBackend.sign(data, key, alg)
@@ -76,6 +103,14 @@ object JsJwtCryptoBackend extends JwtCryptoBackend {
       Left(JwtError.UnsupportedAlgorithm(alg.name))
   }
 
+  /**
+   * Checks `signature` over `data` against `key`. The key is a raw secret for
+   * `HS*` and an X.509 SubjectPublicKeyInfo DER public key for `RS*` and `ES*`.
+   *
+   * It returns `Right(false)` for a signature that does not match, and
+   * `InvalidSignature` for an `ES*` signature of the wrong length. Algorithm
+   * and key errors are the same as in `sign`.
+   */
   def verify(data: Array[Byte], signature: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Boolean] =
     alg match {
       case Algorithm.HS256 | Algorithm.HS384 | Algorithm.HS512 =>
