@@ -17,20 +17,43 @@
 package zio.blocks.schema.csv
 
 /**
- * Configuration for CSV parsing and generation.
+ * Settings for [[CsvReader]] and [[CsvWriter]]: the delimiter, the quote
+ * character, the line terminator and whether a document starts with a header
+ * row. Codecs derived with [[CsvFormat]] ignore it and always use
+ * [[CsvConfig.default]], so use a custom config when you read or write rows
+ * of cells yourself, such as a semicolon-separated export.
+ *
+ * {{{
+ * val semicolons = CsvConfig(delimiter = ';', lineTerminator = "\n")
+ * val text = CsvWriter.writeAll(
+ *   IndexedSeq("sensor", "celsius"),
+ *   List(IndexedSeq("t-1", "21,5"), IndexedSeq("t-2", "19,0")),
+ *   semicolons
+ * )
+ * // "sensor;celsius\nt-1;21,5\nt-2;19,0\n"
+ * val parsed = CsvReader.readAll(text, semicolons)
+ * // Right((Vector(sensor, celsius),Vector(Vector(t-1, 21,5), Vector(t-2, 19,0))))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
  *
  * @param delimiter
- *   The character used to separate fields (default: ',')
+ *   The character between two cells of a row. Default: `,`.
  * @param quoteChar
- *   The character used to quote fields containing special characters (default:
- *   '"'). Escaping within quoted fields is done by doubling the quote character
- *   per RFC 4180.
+ *   The character that encloses a cell holding the delimiter, this character
+ *   or a line break; inside such a cell it is written twice, as RFC 4180 does
+ *   with `"`. Default: `"`.
  * @param lineTerminator
- *   The line terminator sequence (default: "\r\n" for RFC 4180)
+ *   What [[CsvWriter]] writes after each row. Default: `\r\n`, as in RFC 4180.
+ *   [[CsvReader]] does not read it: it ends a row at `\r`, `\n` or `\r\n`
+ *   whatever this setting is.
  * @param hasHeader
- *   Whether the first row contains column headers (default: true)
+ *   Whether [[CsvReader.readAll]] treats the first row as the header. Default:
+ *   `true`. [[CsvWriter.writeAll]] writes its header row either way.
  * @param nullValue
- *   The string representation for null values (default: "")
+ *   Meant as the text of a missing value, but no code reads it, so it has no
+ *   effect (a known bug). Default: the empty string.
  */
 final case class CsvConfig(
   delimiter: Char = ',',
@@ -40,18 +63,18 @@ final case class CsvConfig(
   nullValue: String = ""
 )
 
+/** The predefined [[CsvConfig]] values. */
 object CsvConfig {
 
   /**
-   * Default CSV configuration following RFC 4180 standard.
+   * The RFC 4180 settings: `,` between cells, `"` for quoting, `\r\n` after
+   * each row, and a header row. The derived codecs always use it.
    */
   val default: CsvConfig = CsvConfig()
 
   /**
-   * Tab-separated values (TSV) configuration preset.
-   *
-   * Uses tab ('\t') as the delimiter while maintaining RFC 4180 defaults for
-   * other settings.
+   * The tab-separated values (TSV) settings: [[CsvConfig.default]] with a tab
+   * as the delimiter. A cell that holds a tab is quoted with `"`.
    */
   val tsv: CsvConfig = CsvConfig(delimiter = '\t')
 }
