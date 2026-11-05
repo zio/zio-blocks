@@ -63,8 +63,9 @@ private[html] object Escape {
   }
 
   /**
-   * Escapes `s` for a quoted JavaScript string; `<`, `>`, `&` and control
-   * characters become Unicode escapes.
+   * Escapes `s` for a quoted JavaScript string: quotes, `\`, newline, carriage
+   * return and tab get backslash escapes; `<`, `>`, `&`, the line and paragraph
+   * separators and other control characters become Unicode escapes.
    */
   def jsString(s: String): String = {
     val len = s.length
@@ -122,8 +123,8 @@ private[html] object Escape {
     Array("javascript:", "vbscript:", "data:text/html")
 
   /**
-   * Prefixes `unsafe:` to a URL starting with `javascript:`, `vbscript:` or
-   * `data:text/html`, ignoring case and leading whitespace.
+   * Prefixes `unsafe:` to a URL that starts with a `javascript:`, `vbscript:`
+   * or `data:text/html` scheme. A best-effort check, not a sanitizer.
    */
   def sanitizeUrl(url: String): String = {
     val trimmed = url.trim.toLowerCase

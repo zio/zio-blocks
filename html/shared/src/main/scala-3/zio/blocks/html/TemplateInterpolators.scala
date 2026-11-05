@@ -59,8 +59,9 @@ trait TemplateInterpolators {
      * Builds a [[Js]] value from the template, converting each value into a
      * JavaScript literal with [[ToJs]]: a string is quoted and escaped (`<`,
      * `>` and `&` become Unicode escapes, so it cannot close a script), numbers
-     * and booleans are written as literals, `None` as `null`, and lists and
-     * maps as JSON. The template text itself is not checked.
+     * and booleans are written as literals, `None` as `null`, a `List` as an
+     * array literal and a `Map[String, V]` as an object literal. The template
+     * text itself is not checked.
      *
      * {{{
      * val shopper = "Ann \"VIP\""
@@ -79,8 +80,12 @@ trait TemplateInterpolators {
      * converted with [[ToElements]]: a string becomes a text node that is
      * escaped when rendered, and a [[Dom]] value is inserted as is. Tag and
      * attribute names are lowercased, and comments, `<!DOCTYPE ...>` and
-     * processing instructions are dropped. The parser creates plain elements,
-     * so `html"<br>"` renders like `br` but is not equal to it.
+     * processing instructions are dropped. The parser builds `Generic`
+     * elements, except for `script` and `style`, so `html"<br>"` renders like
+     * `br` but is not equal to it.
+     *
+     * Text inside `<script>` and `<style>` renders without escaping, so never
+     * interpolate untrusted values there; build scripts with `script(js"...")`.
      *
      * {{{
      * val item = "Tea & cake"
@@ -89,10 +94,13 @@ trait TemplateInterpolators {
      * // <li class="item" data-qty="2">Tea &amp; cake</li>
      * }}}
      *
-     * The template must hold exactly one root node, and text around the root, a
-     * leading newline included, counts as a node. On Scala 3 a template without
-     * values that breaks this rule does not compile; otherwise the call throws
-     * `java.lang.IllegalArgumentException` at run time.
+     * The template must not hold more than one top-level node, and text around
+     * the root, a leading newline included, counts as a node. On Scala 3 a
+     * template without values must hold exactly one, or it does not compile.
+     * Otherwise more than one top-level node throws
+     * `java.lang.IllegalArgumentException` at run time, and a template that
+     * yields no node, such as `html""` on Scala 2 or `html"\$none"` with an
+     * empty `Option`, returns [[Dom.Empty]].
      *
      * Known bugs:
      *   - string attribute values are escaped twice, so `href=\$url` with `a&b`
@@ -101,13 +109,10 @@ trait TemplateInterpolators {
      *   - a value inside a quoted attribute value, as in `id="user-\$n"`, is
      *     treated as content and leaves control characters in the attribute;
      *   - any `=` before a value makes it an attribute value, so
-     *     `<p>Total = \$n</p>` renders `Total = &quot;2&quot;`;
-     *   - content values inside `<script>` and `<style>` are inserted without
-     *     escaping, so a string there can add code; use `script(js"...")`
-     *     instead.
+     *     `<p>Total = \$n</p>` renders `Total = &quot;2&quot;`.
      *
      * @throws java.lang.IllegalArgumentException
-     *   if the template does not hold exactly one root node
+     *   if the template holds more than one top-level node
      */
     inline def html(inline args: Any*): Dom = ${ TemplateMacros.htmlImpl('sc, 'args) }
 
