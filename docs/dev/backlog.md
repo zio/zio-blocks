@@ -689,7 +689,7 @@ Phase 0 ran on `main` `5eb809c8f`. The module's main sources were byte-identical
 
 | Item | Result |
 |---|---|
-| PR | #1943 (one PR). CI green: 23 passed, 0 failed (10 skipped bot jobs), after one rerun of flakes on each head: 6 jobs on the first head (GitHub release downloads of JDK 17 and sbt 2.0.12 timed out with HTTP 504; Landing Lighthouse 0.94), 1 on the merge head (`Docker start fail`). |
+| PR | #1943 (one PR), merged 2026-11-05 as `4e916c642`. CI green: 23 passed, 0 failed (10 skipped bot jobs), after one rerun of flakes on each head: 6 jobs on the first head (GitHub release downloads of JDK 17 and sbt 2.0.12 timed out with HTTP 504; Landing Lighthouse 0.94), 1 on the merge head (`Docker start fail`). |
 | Coverage | 57 / 1113 (5%) → 1113 / 1113. `Header.scala` 2 → 648; the `Status` scala-2/scala-3 pair 0 → 133 (identical text). `--drift` empty. |
 | Examples | 65 compiled `{{{` blocks (0 before), in the 12 tier-1 types and their key methods; outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56; no `scala-2-only`, `scala-3-only` or `no-check` markers needed |
 | Tooling | `packageOverrides` and `modulePackage` in `ScaladocSnippets`, so existing modules keep their wrapper names; 2 extractor tests; `http-model.jvm` in `scaladocCheckedModules`; `build.sbt` comment; style guide (module list, tier-1 list, `@throws` needs the full name); 2 AGENTS.md lines (Milad approved) |
