@@ -29,23 +29,59 @@ sealed trait YamlTag
  * and conversions to and from tag text.
  */
 object YamlTag {
-  case object Str                      extends YamlTag
-  case object Bool                     extends YamlTag
-  case object Int                      extends YamlTag
-  case object Float                    extends YamlTag
-  case object Null                     extends YamlTag
-  case object Seq                      extends YamlTag
-  case object Map                      extends YamlTag
-  case object Timestamp                extends YamlTag
+
+  /** The `!!str` tag, for text. */
+  case object Str extends YamlTag
+
+  /** The `!!bool` tag, for `true` and `false`. */
+  case object Bool extends YamlTag
+
+  /** The `!!int` tag, for integers. */
+  case object Int extends YamlTag
+
+  /** The `!!float` tag, for floating-point numbers. */
+  case object Float extends YamlTag
+
+  /** The `!!null` tag, for the null value. */
+  case object Null extends YamlTag
+
+  /** The `!!seq` tag, for sequences. */
+  case object Seq extends YamlTag
+
+  /** The `!!map` tag, for mappings. */
+  case object Map extends YamlTag
+
+  /** The `!!timestamp` tag, for dates and times. */
+  case object Timestamp extends YamlTag
+
+  /**
+   * Any tag that is not a standard one; `uri` is the tag text, such as
+   * `!!binary` or `!local`.
+   */
   final case class Custom(uri: String) extends YamlTag
 
-  val str: YamlTag       = Str
-  val bool: YamlTag      = Bool
-  val int: YamlTag       = Int
-  val float: YamlTag     = Float
-  val `null`: YamlTag    = Null
-  val seq: YamlTag       = Seq
-  val map: YamlTag       = Map
+  /** The `!!str` tag, as a `YamlTag`. */
+  val str: YamlTag = Str
+
+  /** The `!!bool` tag, as a `YamlTag`. */
+  val bool: YamlTag = Bool
+
+  /** The `!!int` tag, as a `YamlTag`. */
+  val int: YamlTag = Int
+
+  /** The `!!float` tag, as a `YamlTag`. */
+  val float: YamlTag = Float
+
+  /** The `!!null` tag, as a `YamlTag`. */
+  val `null`: YamlTag = Null
+
+  /** The `!!seq` tag, as a `YamlTag`. */
+  val seq: YamlTag = Seq
+
+  /** The `!!map` tag, as a `YamlTag`. */
+  val map: YamlTag = Map
+
+  /** The `!!timestamp` tag, as a `YamlTag`. */
   val timestamp: YamlTag = Timestamp
 
   /**

@@ -514,6 +514,11 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[YamlCodec[DynamicValue]]]
 
+  /**
+   * Derives the codec of a wrapper type: it encodes the unwrapped value with
+   * the wrapped type's codec and wraps the decoded value. A failure while
+   * decoding or wrapping becomes a `YamlCodecError`.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -543,12 +548,25 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[YamlCodec[A]]]
 
+  /** Placeholder for a sequence element type in the deriver's casts. */
   type Elem
+
+  /** Placeholder for a map key type in the deriver's casts. */
   type Key
+
+  /** Placeholder for a map value type in the deriver's casts. */
   type Value
+
+  /** Placeholder for a wrapper's underlying type in the deriver's casts. */
   type Wrapped
+
+  /** Placeholder for a sequence type constructor in the deriver's casts. */
   type Col[_]
+
+  /** Placeholder for a map type constructor in the deriver's casts. */
   type Map[_, _]
+
+  /** Placeholder for the codec type constructor in the deriver's casts. */
   type TC[_]
 
   private[this] val recursiveRecordCache =

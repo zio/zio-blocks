@@ -337,6 +337,12 @@ object YamlCodec {
     }
     def encodeValue(x: Boolean): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Bool))
   }
+
+  /**
+   * Encodes a `Byte` as its decimal text with the `Int` tag. Decodes decimal
+   * text, trimmed, within the `Byte` range; text such as `300` or `0x1F` fails
+   * with a `YamlCodecError`.
+   */
   val byteCodec: YamlCodec[Byte] = new YamlCodec[Byte] {
     def decodeValue(yaml: Yaml): Byte = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -348,6 +354,12 @@ object YamlCodec {
     }
     def encodeValue(x: Byte): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
+
+  /**
+   * Encodes a `Short` as its decimal text with the `Int` tag. Decodes decimal
+   * text, trimmed, within the `Short` range; text such as `70000` or `0x1F`
+   * fails with a `YamlCodecError`.
+   */
   val shortCodec: YamlCodec[Short] = new YamlCodec[Short] {
     def decodeValue(yaml: Yaml): Short = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -359,6 +371,12 @@ object YamlCodec {
     }
     def encodeValue(x: Short): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
+
+  /**
+   * Encodes a `Int` as its decimal text with the `Int` tag. Decodes decimal
+   * text, trimmed, within the `Int` range; text such as `1_000` or `0x1F` fails
+   * with a `YamlCodecError`.
+   */
   val intCodec: YamlCodec[Int] = new YamlCodec[Int] {
     def decodeValue(yaml: Yaml): Int = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -370,6 +388,12 @@ object YamlCodec {
     }
     def encodeValue(x: Int): Yaml = Yaml.Scalar(x.toString, tag = Some(YamlTag.Int))
   }
+
+  /**
+   * Encodes a `Long` as its decimal text with the `Int` tag. Decodes decimal
+   * text, trimmed, within the `Long` range; text such as `9223372036854775808`
+   * or `0x1F` fails with a `YamlCodecError`.
+   */
   val longCodec: YamlCodec[Long] = new YamlCodec[Long] {
     def decodeValue(yaml: Yaml): Long = yaml match {
       case Yaml.Scalar(v, _) =>
@@ -477,6 +501,12 @@ object YamlCodec {
     }
     def encodeValue(x: BigDecimal): Yaml = Yaml.Scalar(JsonCodec.bigDecimalCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `DayOfWeek` as its upper-case name, such as `MONDAY`. Decodes the
+   * name in any letter case (`friday` gives `FRIDAY`); an unknown name throws
+   * `java.lang.IllegalArgumentException`.
+   */
   val dayOfWeekCodec: YamlCodec[DayOfWeek] = new YamlCodec[DayOfWeek] {
     def decodeValue(yaml: Yaml): DayOfWeek = yaml match {
       case Yaml.Scalar(v, _) => DayOfWeek.valueOf(v.trim.toUpperCase)
@@ -486,6 +516,10 @@ object YamlCodec {
     def encodeValue(x: DayOfWeek): Yaml = Yaml.Scalar(x.toString)
   }
 
+  /**
+   * Encodes a `Duration` as ISO-8601 text such as `PT1H30M`, with the same text
+   * format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val durationCodec: YamlCodec[Duration] = new YamlCodec[Duration] {
     def decodeValue(yaml: Yaml): Duration = yaml match {
       case Yaml.Scalar(v, _) => Json.durationRawCodec.decodeUnsafe(v.trim)
@@ -494,6 +528,11 @@ object YamlCodec {
 
     def encodeValue(x: Duration): Yaml = Yaml.Scalar(Json.durationRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes an `Instant` as ISO-8601 text such as `2026-11-05T10:15:30Z`, with
+   * the same text format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val instantCodec: YamlCodec[Instant] = new YamlCodec[Instant] {
     def decodeValue(yaml: Yaml): Instant = yaml match {
       case Yaml.Scalar(v, _) => Json.instantRawCodec.decodeUnsafe(v.trim)
@@ -502,6 +541,11 @@ object YamlCodec {
 
     def encodeValue(x: Instant): Yaml = Yaml.Scalar(Json.instantRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `LocalDate` as ISO-8601 text such as `2026-11-05`, with the same
+   * text format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val localDateCodec: YamlCodec[LocalDate] = new YamlCodec[LocalDate] {
     def decodeValue(yaml: Yaml): LocalDate = yaml match {
       case Yaml.Scalar(v, _) => Json.localDateRawCodec.decodeUnsafe(v.trim)
@@ -510,6 +554,12 @@ object YamlCodec {
 
     def encodeValue(x: LocalDate): Yaml = Yaml.Scalar(Json.localDateRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `LocalDateTime` as ISO-8601 text such as `2026-11-05T10:15:30`,
+   * with the same text format as the JSON codec. Bad text throws a
+   * `JsonCodecError`.
+   */
   val localDateTimeCodec: YamlCodec[LocalDateTime] = new YamlCodec[LocalDateTime] {
     def decodeValue(yaml: Yaml): LocalDateTime = yaml match {
       case Yaml.Scalar(v, _) => Json.localDateTimeRawCodec.decodeUnsafe(v.trim)
@@ -518,6 +568,11 @@ object YamlCodec {
 
     def encodeValue(x: LocalDateTime): Yaml = Yaml.Scalar(Json.localDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `LocalTime` as ISO-8601 text such as `10:15`, with the same text
+   * format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val localTimeCodec: YamlCodec[LocalTime] = new YamlCodec[LocalTime] {
     def decodeValue(yaml: Yaml): LocalTime = yaml match {
       case Yaml.Scalar(v, _) => Json.localTimeRawCodec.decodeUnsafe(v.trim)
@@ -526,6 +581,12 @@ object YamlCodec {
 
     def encodeValue(x: LocalTime): Yaml = Yaml.Scalar(Json.localTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `Month` as its upper-case name, such as `MARCH`. Decodes the full
+   * name in any letter case; an abbreviation such as `mar` throws
+   * `java.lang.IllegalArgumentException`.
+   */
   val monthCodec: YamlCodec[Month] = new YamlCodec[Month] {
     def decodeValue(yaml: Yaml): Month = yaml match {
       case Yaml.Scalar(v, _) => Month.valueOf(v.trim.toUpperCase)
@@ -534,6 +595,11 @@ object YamlCodec {
 
     def encodeValue(x: Month): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `MonthDay` as ISO-8601 text such as `--11-05`, with the same text
+   * format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val monthDayCodec: YamlCodec[MonthDay] = new YamlCodec[MonthDay] {
     def decodeValue(yaml: Yaml): MonthDay = yaml match {
       case Yaml.Scalar(v, _) => Json.monthDayRawCodec.decodeUnsafe(v.trim)
@@ -542,6 +608,12 @@ object YamlCodec {
 
     def encodeValue(x: MonthDay): Yaml = Yaml.Scalar(Json.monthDayRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes an `OffsetDateTime` as ISO-8601 text such as
+   * `2026-11-05T10:15:30+02:00`, with the same text format as the JSON codec.
+   * Bad text throws a `JsonCodecError`.
+   */
   val offsetDateTimeCodec: YamlCodec[OffsetDateTime] = new YamlCodec[OffsetDateTime] {
     def decodeValue(yaml: Yaml): OffsetDateTime = yaml match {
       case Yaml.Scalar(v, _) => Json.offsetDateTimeRawCodec.decodeUnsafe(v.trim)
@@ -550,6 +622,11 @@ object YamlCodec {
 
     def encodeValue(x: OffsetDateTime): Yaml = Yaml.Scalar(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes an `OffsetTime` as ISO-8601 text such as `10:15:30+02:00`, with the
+   * same text format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val offsetTimeCodec: YamlCodec[OffsetTime] = new YamlCodec[OffsetTime] {
     def decodeValue(yaml: Yaml): OffsetTime = yaml match {
       case Yaml.Scalar(v, _) => Json.offsetTimeRawCodec.decodeUnsafe(v.trim)
@@ -558,6 +635,11 @@ object YamlCodec {
 
     def encodeValue(x: OffsetTime): Yaml = Yaml.Scalar(Json.offsetTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `Period` as ISO-8601 text such as `P1Y2M3D`, with the same text
+   * format as the JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val periodCodec: YamlCodec[Period] = new YamlCodec[Period] {
     def decodeValue(yaml: Yaml): Period = yaml match {
       case Yaml.Scalar(v, _) => Json.periodRawCodec.decodeUnsafe(v.trim)
@@ -566,6 +648,12 @@ object YamlCodec {
 
     def encodeValue(x: Period): Yaml = Yaml.Scalar(Json.periodRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `Year` as its number, such as `2026`, which the writer quotes.
+   * Decodes with `Year.parse`; bad text throws
+   * `java.time.format.DateTimeParseException`.
+   */
   val yearCodec: YamlCodec[Year] = new YamlCodec[Year] {
     def decodeValue(yaml: Yaml): Year = yaml match {
       case Yaml.Scalar(v, _) => Year.parse(v.trim)
@@ -574,6 +662,12 @@ object YamlCodec {
 
     def encodeValue(x: Year): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `YearMonth` as text such as `2026-11`. Decodes with
+   * `YearMonth.parse`; bad text throws
+   * `java.time.format.DateTimeParseException`.
+   */
   val yearMonthCodec: YamlCodec[YearMonth] = new YamlCodec[YearMonth] {
     def decodeValue(yaml: Yaml): YearMonth = yaml match {
       case Yaml.Scalar(v, _) => YearMonth.parse(v.trim)
@@ -582,6 +676,11 @@ object YamlCodec {
 
     def encodeValue(x: YearMonth): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `ZoneId` as its ID, such as `Europe/Paris`. Decodes with
+   * `ZoneId.of`; an unknown ID throws `java.time.zone.ZoneRulesException`.
+   */
   val zoneIdCodec: YamlCodec[ZoneId] = new YamlCodec[ZoneId] {
     def decodeValue(yaml: Yaml): ZoneId = yaml match {
       case Yaml.Scalar(v, _) => ZoneId.of(v.trim)
@@ -590,6 +689,11 @@ object YamlCodec {
 
     def encodeValue(x: ZoneId): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `ZoneOffset` as text such as `+02:00`. Decodes with
+   * `ZoneOffset.of`; bad text throws `java.time.DateTimeException`.
+   */
   val zoneOffsetCodec: YamlCodec[ZoneOffset] = new YamlCodec[ZoneOffset] {
     def decodeValue(yaml: Yaml): ZoneOffset = yaml match {
       case Yaml.Scalar(v, _) => ZoneOffset.of(v.trim)
@@ -598,6 +702,12 @@ object YamlCodec {
 
     def encodeValue(x: ZoneOffset): Yaml = Yaml.Scalar(x.toString)
   }
+
+  /**
+   * Encodes a `ZonedDateTime` as ISO-8601 text with the zone, such as
+   * `2026-11-05T10:15:30+01:00[Europe/Paris]`, with the same text format as the
+   * JSON codec. Bad text throws a `JsonCodecError`.
+   */
   val zonedDateTimeCodec: YamlCodec[ZonedDateTime] = new YamlCodec[ZonedDateTime] {
     def decodeValue(yaml: Yaml): ZonedDateTime = yaml match {
       case Yaml.Scalar(v, _) => Json.zonedDateTimeRawCodec.decodeUnsafe(v.trim)
@@ -606,6 +716,12 @@ object YamlCodec {
 
     def encodeValue(x: ZonedDateTime): Yaml = Yaml.Scalar(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * Encodes a `Currency` as its ISO 4217 code, such as `EUR`. Decodes with
+   * `Currency.getInstance`; a code of the wrong length throws
+   * `java.lang.IllegalArgumentException`.
+   */
   val currencyCodec: YamlCodec[Currency] = new YamlCodec[Currency] {
     def decodeValue(yaml: Yaml): Currency = yaml match {
       case Yaml.Scalar(v, _) => Currency.getInstance(v.trim)
@@ -614,6 +730,12 @@ object YamlCodec {
 
     def encodeValue(x: Currency): Yaml = Yaml.Scalar(x.getCurrencyCode)
   }
+
+  /**
+   * Encodes a `UUID` as its canonical text, such as
+   * `123e4567-e89b-12d3-a456-426614174000`. Decodes with `UUID.fromString`; bad
+   * text throws `java.lang.IllegalArgumentException`.
+   */
   val uuidCodec: YamlCodec[UUID] = new YamlCodec[UUID] {
     def decodeValue(yaml: Yaml): UUID = yaml match {
       case Yaml.Scalar(v, _) => UUID.fromString(v.trim)
