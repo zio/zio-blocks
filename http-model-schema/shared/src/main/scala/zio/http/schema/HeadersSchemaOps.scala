@@ -23,18 +23,19 @@ import zio.http.{Header, Headers}
 /**
  * Typed reads of single headers. `header`, `headerAll` and `headerOrElse` look
  * a name up in [[zio.http.Headers]] and decode its value with the `Schema[T]`
- * in scope, or with a [[zio.http.Header.Codec]] such as `Header.ContentLength`.
- * `import zio.http.schema._` adds them to every `Headers`, and
- * [[RequestSchemaOps]] and [[ResponseSchemaOps]] forward to them.
+ * in scope; `header` and `headerAll` also take a [[zio.http.Header.Codec]] such
+ * as `Header.ContentLength`. `import zio.http.schema._` adds them to every
+ * `Headers`, and [[RequestSchemaOps]] and [[ResponseSchemaOps]] forward to
+ * them.
  *
  * Names match without regard to letter case, as everywhere in `Headers`. An
  * absent header gives [[HeaderError.Missing]], and a value that does not decode
  * gives [[HeaderError.Malformed]] with the raw value and the reason; both carry
- * the name as the caller spelled it. The `Schema[T]` methods decode the same
- * types as [[QueryParamsSchemaOps]]: `String`, `Boolean`, `Char`, the numeric
- * types and `java.util.UUID`. Any other schema compiles but always gives
- * `Malformed`, a known bug. To read a whole case class of headers at once,
- * derive a [[HeaderCodec]] instead.
+ * the name as the caller spelled it, or the codec's `name`. The `Schema[T]`
+ * methods decode the same types as [[QueryParamsSchemaOps]]: `String`,
+ * `Boolean`, `Char`, the numeric types and `java.util.UUID`. Any other schema
+ * compiles but gives `Malformed` for every value, a known bug. To read a whole
+ * case class of headers at once, derive a [[HeaderCodec]] instead.
  *
  * {{{
  * import zio.http.{Header, Headers}
@@ -65,10 +66,10 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * Returns [[HeaderError.Missing]] when there is none and
    * [[HeaderError.Malformed]] when its value does not decode; later headers
    * with the same name are not tried.
-   */
    *
    * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name, such as one with a space
+   */
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
     headers.rawGet(name) match {
       case None      => Left(HeaderError.Missing(name))
@@ -93,10 +94,10 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * order they appear. Returns [[HeaderError.Missing]] when there is none, and
    * stops at the first value that does not decode with
    * [[HeaderError.Malformed]] for it.
-   */
    *
    * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name, such as one with a space
+   */
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] = {
     val values = headers.rawGetAll(name)
     if (values.isEmpty) Left(HeaderError.Missing(name))
@@ -143,10 +144,10 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * without a trace, a known bug: `headerOrElse[Int]("X-Retry-After", 30)`
    * returns `30` for `X-Retry-After: soon`. `default` is evaluated only when it
    * is returned.
-   */
    *
    * @throws java.lang.IllegalArgumentException
    *   if `name` is not a valid header name, such as one with a space
+   */
   def headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T =
     header[T](name).getOrElse(default)
 }

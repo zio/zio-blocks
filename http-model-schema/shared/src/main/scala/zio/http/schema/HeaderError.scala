@@ -17,10 +17,12 @@
 package zio.http.schema
 
 /**
- * Why `header`, `headerAll` or `headerOrElse` could not read a header: it is
- * [[HeaderError.Missing]], or its value is [[HeaderError.Malformed]]. Both
- * carry the name as the caller spelled it. Match on the case to tell a client's
- * omission from a bad value, or use `message` for a ready-made sentence.
+ * Why `header` or `headerAll` could not read a header (`headerOrElse` returns
+ * its default instead): it is [[HeaderError.Missing]], or its value is
+ * [[HeaderError.Malformed]]. Both carry the name as the caller spelled it, or
+ * the codec's `name` (such as `content-length`) when the lookup used a
+ * `Header.Codec`. Match on the case to tell a client's omission from a bad
+ * value, or use `message` for a ready-made sentence.
  */
 sealed trait HeaderError extends Product with Serializable {
 

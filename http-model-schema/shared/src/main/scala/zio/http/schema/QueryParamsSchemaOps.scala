@@ -34,12 +34,12 @@ import zio.http.QueryParams
  *
  * Only these types decode: `String`, `Boolean`, `Char`, `Byte`, `Short`, `Int`,
  * `Long`, `Float`, `Double`, `BigInt`, `BigDecimal` and `java.util.UUID`. Any
- * other `Schema[T]` compiles but always gives `Malformed`, a known bug: an
- * `Option`, a collection or a wrapper type gives "Unsupported schema type for
- * string decoding", and a `java.time` type gives "Unsupported primitive type
- * for string decoding". No method checks the `Validation` a schema carries. To
- * read a whole case class of parameters at once, derive a [[QueryCodec]]
- * instead.
+ * other `Schema[T]` compiles but gives `Malformed` for every value, a known
+ * bug: an `Option`, a collection or a wrapper type gives "Unsupported schema
+ * type for string decoding", and a `java.time` type gives "Unsupported
+ * primitive type for string decoding". No method checks the `Validation` a
+ * schema carries. To read a whole case class of parameters at once, derive a
+ * [[QueryCodec]] instead.
  *
  * {{{
  * import zio.http.QueryParams

@@ -17,10 +17,10 @@
 package zio.http.schema
 
 /**
- * Why `query`, `queryAll` or `queryOrElse` could not read a query parameter:
- * the key is [[QueryParamError.Missing]], or its value is
- * [[QueryParamError.Malformed]]. Match on the case to tell a client's omission
- * from a bad value, or use `message` for a ready-made sentence.
+ * Why `query` or `queryAll` could not read a query parameter (`queryOrElse`
+ * returns its default instead): the key is [[QueryParamError.Missing]], or its
+ * value is [[QueryParamError.Malformed]]. Match on the case to tell a client's
+ * omission from a bad value, or use `message` for a ready-made sentence.
  */
 sealed trait QueryParamError extends Product with Serializable {
 
