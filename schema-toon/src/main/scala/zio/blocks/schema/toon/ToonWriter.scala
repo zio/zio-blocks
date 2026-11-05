@@ -33,11 +33,11 @@ import scala.annotation.{switch, tailrec}
  * @param indentSize
  *   the number of spaces per indentation level
  * @param delimiter
- *   the delimiter for inline arrays
+ *   the default delimiter for inline arrays and table rows
  * @param keyFolding
  *   strategy for folding nested keys
  * @param flattenDepth
- *   maximum depth for key folding
+ *   the maximum number of keys that key folding joins into one dotted key
  * @param discriminatorField
  *   optional field name to use as discriminator for DynamicValue variants
  */

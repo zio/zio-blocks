@@ -25,7 +25,8 @@ import scala.annotation.switch
  * @param indentSize
  *   the expected number of spaces per indentation level
  * @param delimiter
- *   the expected delimiter for inline arrays
+ *   the initial delimiter for inline values; each array header sets the
+ *   delimiter for that array
  * @param strict
  *   whether to enforce strict TOON parsing
  * @param expandPaths
@@ -174,8 +175,8 @@ final class ToonReader private[toon] (
   }
 
   /**
-   * Rolls back the reader to the previously marked position. Must be called
-   * after `setMark()`.
+   * Rolls back the reader to the position saved by `setMark()`. Without a mark
+   * it does nothing.
    */
   def rollbackToMark(): Unit =
     if (markedLineIndex >= 0) {
