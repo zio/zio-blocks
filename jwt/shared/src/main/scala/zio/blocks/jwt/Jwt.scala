@@ -65,9 +65,9 @@ trait JwtCryptoBackend {
 }
 
 /**
- * The global holder of the active [[JwtCryptoBackend]], used by every `Jwt`
- * call that does not pass its own backend. Such a call reads the holder once,
- * when it starts.
+ * The global holder of the active [[JwtCryptoBackend]], used by `Jwt.sign` and
+ * `Jwt.decode` when a call passes no backend of its own. Such a call reads the
+ * holder once, when it starts.
  *
  * It starts with the built-in pure Scala backend, which handles the HMAC
  * algorithms (`HS256`, `HS384`, `HS512`) only. Call

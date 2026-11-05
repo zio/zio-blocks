@@ -23,9 +23,9 @@ import zio.blocks.chunk.ChunkBuilder
  * media type `typ` and an optional key id `kid`.
  *
  * `Jwt.sign` writes `JwtHeader(alg)` unless it is given a header, and
- * `Jwt.decode` checks only that the header's `alg` is the expected algorithm:
- * it does not check `typ` and does not use `kid` to pick a key. Parsing reads
- * `alg`, `typ` and `kid` and does not read the other header fields.
+ * `Jwt.decode` compares the header's `alg` with the expected algorithm; it does
+ * not check the value of `typ` and does not use `kid` to pick a key. Parsing
+ * reads `alg`, `typ` and `kid` and ignores the other header fields.
  *
  * {{{
  * JwtHeader.render(JwtHeader(Algorithm.ES256, kid = Some("key-2026-01")))
