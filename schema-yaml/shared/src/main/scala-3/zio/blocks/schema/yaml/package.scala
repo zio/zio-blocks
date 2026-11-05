@@ -31,16 +31,17 @@ package object yaml {
      * value position, such as `port: \$port`, takes a `Yaml` tree or any value
      * with a `Schema`, encoded with its YAML codec (`null` becomes
      * `NullValue`). A key position, or a position inside a quoted string, takes
-     * the value's text, as `YamlCodec#encodeKey` writes it. A spliced type with
-     * no `Schema` does not compile.
+     * the value's text, as `YamlCodec#encodeKey` writes it (a `Yaml` tree is
+     * printed). A spliced type with no `Schema` does not compile.
      *
      * On Scala 2.13, the expansion calls a package-private object, so it
-     * compiles only inside the `zio.blocks.schema` package (a known bug). On
-     * Scala 3, known bugs: a spliced collection, record or `Yaml` mapping is
-     * misread; a splice inside a quoted string keeps its own quotes; escape
-     * sequences such as `\n` in the literal are not processed; and the
-     * compile-time check uses the lenient reader, so most malformed literals
-     * compile.
+     * compiles only inside the `zio.blocks.schema` package (a known bug). Other
+     * known bugs: a spliced collection, record or `Yaml` mapping is misread; a
+     * spliced value that the writer quotes, such as the string `8080` or a
+     * date, keeps its quotes when it is spliced into a key or into a quoted
+     * string; Scala escape sequences such as `\n` in the literal are not
+     * processed; and the compile-time check uses the lenient reader, so most
+     * malformed literals compile.
      *
      * {{{
      * // scala-3-only
