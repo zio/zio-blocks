@@ -249,8 +249,8 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       )
     },
     test("moduleImport and objectName tell http-model-schema and schema-messagepack apart from their neighbours") {
-      val codecPath  = "http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodec.scala"
-      val modelPath  = "http-model/shared/src/main/scala/zio/http/QueryParams.scala"
+      val codecPath   = "http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodec.scala"
+      val modelPath   = "http-model/shared/src/main/scala/zio/http/QueryParams.scala"
       val msgpackPath = "schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala"
       assertTrue(
         ScaladocSnippets.moduleOf(codecPath) == "http-model-schema",
