@@ -25,7 +25,7 @@ import zio.blocks.async.internal.{AsyncRunner, CancellationCleanup, PlatformAsyn
  *
  * A plain `A` is not an `Async[A]`: lift a value with `succeed`, a failure with
  * `fail`, throwing code with `attempt`, a callback API with `promise`, and a
- * block of code to run on another thread with `start`. `async` writes a
+ * block of code to run in the background with `start`. `async` writes a
  * sequence of awaits in direct style, `collectAll` gathers several values, and
  * `selector` waits on several inputs again and again. The operators (`map`,
  * `flatMap`, `catchAll`, ...) come from `import zio.blocks.async._`.
@@ -1841,11 +1841,10 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   /**
-   * Runs `body` off the calling thread and returns a [[Running]] for its
-   * result, like `Future.apply`. On the JVM each call starts a new daemon
-   * thread named `zio-blocks-async-eval`; on Scala.js `body` runs on a later
-   * microtask. A throw from `body` fails the run instead of escaping at the
-   * call site.
+   * Runs `body` in the background and returns a [[Running]] for its result,
+   * like `Future.apply`. On the JVM each call starts a new daemon thread named
+   * `zio-blocks-async-eval`; on Scala.js `body` runs on a later microtask. A
+   * throw from `body` fails the run instead of escaping at the call site.
    *
    * `body` is by-name, so `Async.start(work())` moves `work()` to the new
    * thread, while `Async.attempt(work()).start` has already run it on the
@@ -2497,8 +2496,8 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
 
     /**
      * Drive a suspended pollable to its value, parking the calling thread
-     * between polls, and throw the cause if it fails. The parker is pooled per
-     * thread; a nested call on the same thread gets a fresh one.
+     * between polls, and throw the cause if it fails. On the JVM the parker is
+     * pooled per thread, and a nested call on the same thread gets a fresh one.
      *
      *   - '''JVM:''' parks with `java.util.concurrent.locks.LockSupport`, which
      *     does not pin a virtual thread's carrier.

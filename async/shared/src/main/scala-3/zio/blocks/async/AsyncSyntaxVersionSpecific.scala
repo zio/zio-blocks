@@ -346,12 +346,13 @@ private[async] trait AsyncSyntaxVersionSpecific {
      * waiting. A ready or failed value gives a handle that is already complete.
      * A pending value is driven in the background: on the JVM by tasks on
      * `ForkJoinPool.commonPool()` that hold no thread while the value waits; on
-     * Scala.js the first poll runs on the calling thread and later steps run as
-     * microtasks. Operators applied before `start` are part of what the driver
-     * runs; operators applied to the handle afterwards build a new value that
-     * runs only when you drive it. `fa.start` cannot move work off the calling
-     * thread that `fa` already did while it was built: use `Async.start(body)`
-     * for that.
+     * Scala.js the first step runs on the calling thread and later ones on
+     * `JSExecutionContext.queue` (after a long run of ready steps, on a
+     * `setTimeout` macrotask). Operators applied before `start` are part of
+     * what the driver runs; operators applied to the handle afterwards build a
+     * new value that runs only when you drive it. `fa.start` cannot move work
+     * off the calling thread that `fa` already did while it was built: use
+     * `Async.start(body)` for that.
      *
      * {{{
      * val gate = new Completer[Int]
