@@ -60,7 +60,8 @@ object BsonSchemaCodec {
   /**
    * How a codec stores a value of a sealed trait. `Option` is a sealed trait
    * too, so the setting applies to `Option` fields as well, which are stored as
-   * a sub-document rather than as the value or `null` (a known bug).
+   * a sub-document (or, for `None` under [[SumTypeHandling.NoDiscriminator]],
+   * the string `"None"`) rather than as the value or `null` (a known bug).
    * `Modifier.discriminator` on a trait overrides the setting for that trait.
    */
   sealed trait SumTypeHandling
@@ -116,6 +117,9 @@ object BsonSchemaCodec {
    *   Has no effect (a known bug). An `org.bson.types.ObjectId` field whose
    *   schema is [[ObjectIdSupport.objectIdSchema]] is stored as a BSON
    *   `OBJECT_ID` whatever this setting is. Default: `false`.
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/built-in-codecs/bson/ BSON Codec Module]]
    */
   class Config private (
     val sumTypeHandling: SumTypeHandling,

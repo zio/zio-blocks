@@ -348,15 +348,17 @@ object BsonDecoder {
  * It does not extend `zio.blocks.schema.codec.Codec`.
  *
  * A derived codec writes a case class as a document with one field per case
- * class field, in declaration order, named after the field or its
- * `Modifier.rename`. It leaves out `Modifier.transient` fields, and on decode
- * fills a missing field with its default value or fails with
+ * class field, in declaration order, named after its `Modifier.rename`, or else
+ * after the field name as the case class's `Modifier.fieldNaming` maps it, if
+ * it has one. It leaves out `Modifier.transient` fields, and on decode fills a
+ * missing field with its default value or fails with
  * `Missing required field: <name>`. A collection becomes an array and a map
  * with `String` keys a document. A sealed trait is stored as
- * [[BsonSchemaCodec.SumTypeHandling]] says, and so is `Option`, as a
- * `{"Some": {"value": ...}}` or `{"None": {}}` sub-document rather than the
- * value or `null` (a known bug). The companion's codecs list the BSON type of
- * each primitive; `java.time` values, `UUID`, `BigInt` and `Char` are strings.
+ * [[BsonSchemaCodec.SumTypeHandling]] says, and so is `Option`: with the
+ * default setting, as a `{"Some": {"value": ...}}` or `{"None": {}}`
+ * sub-document rather than the value or `null` (a known bug). The companion's
+ * codecs list the BSON type of each primitive; `java.time` values, `UUID`,
+ * `BigInt` and `Char` are strings.
  *
  * {{{
  * import org.bson.types.ObjectId
