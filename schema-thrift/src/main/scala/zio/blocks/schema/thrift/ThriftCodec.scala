@@ -261,9 +261,11 @@ object ThriftCodec {
 
   /**
    * 2147483639 (`Int.MaxValue - 8`). The derived Thrift codecs do not check it.
-   * When `decode` reads a list or map whose declared size the remaining input
-   * cannot hold, libthrift rejects it with
-   * `Thrift protocol error: Message size exceeds limit: 104857600`.
+   * When `decode` reads a list or map that declares far more elements than the
+   * remaining input holds, such as 2147483647, libthrift rejects it with
+   * `Thrift protocol error: Message size exceeds limit: 104857600`; one that is
+   * only a little short fails later with a message such as
+   * `Thrift protocol error: There's only 0bytes, but it asks for 4`.
    * `AvroCodec.maxCollectionSize` is the limit that the Avro codecs check.
    */
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
