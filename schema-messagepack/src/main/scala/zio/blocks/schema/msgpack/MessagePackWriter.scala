@@ -19,13 +19,12 @@ package zio.blocks.schema.msgpack
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * Writes MessagePack values into a byte array that grows as needed. A
- * [[MessagePackCodec]] gets one in `encodeValue`; the constructor is private to
- * the module, so a hand-written codec uses the writer it is given. The integer
- * and header methods pick the smallest format that holds the value, except
- * `writeLong` (see there). The writer does not check the structure: after
- * `writeArrayHeader(n)` or `writeMapHeader(n)`, the codec must write `n`
- * elements or `n` key-value pairs.
+ * Writes MessagePack values into a byte array that grows as needed; a
+ * [[MessagePackCodec]] gets one in `encodeValue`, as the constructor is private
+ * to the module. The integer and header methods pick the smallest format that
+ * holds the value, except `writeLong` (see there). The writer does not check
+ * the structure: after `writeArrayHeader(n)` or `writeMapHeader(n)`, the codec
+ * must write `n` elements or `n` key-value pairs.
  */
 final class MessagePackWriter private[msgpack] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),

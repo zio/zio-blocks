@@ -19,16 +19,13 @@ package zio.blocks.schema.msgpack
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * Reads MessagePack values one at a time from a byte array, moving forward. A
- * [[MessagePackCodec]] gets one in `decodeValue`; the constructor is private to
- * the module, so a hand-written codec uses the reader it is given. Each
- * `read...` method except `readFieldNameEquals` consumes one value, or one
- * header, and fails by throwing the module's codec error, which `decode` turns
- * into a `Left`, when the next bytes have another format or the input ends. A
- * known bug: `readChar`, `readFieldNameEquals` and `skipValue` do not check the
- * end of the input, so they can read or move past the limit of a heap
- * `ByteBuffer`, and fail with an index-out-of-bounds message, or not at all, on
- * truncated input.
+ * Reads MessagePack values one at a time, moving forward through a byte array;
+ * a [[MessagePackCodec]] gets one in `decodeValue`, as the constructor is
+ * private to the module. Each `read...` method except `readFieldNameEquals`
+ * consumes one value, or one header, and fails by throwing the module's codec
+ * error, which `decode` turns into a `Left`, when the next bytes have another
+ * format or the input ends. A known bug: `readChar`, `readFieldNameEquals` and
+ * `skipValue` do not check the end of the input (see each method).
  */
 final class MessagePackReader private[msgpack] (
   private[this] var buf: Array[Byte] = null,
@@ -213,8 +210,10 @@ final class MessagePackReader private[msgpack] (
    * Returns `true` and consumes the next value when it is a string whose UTF-8
    * bytes equal `expected`; otherwise returns `false` and leaves the reader
    * where it was. `expected` holds the bytes of the name only, without a string
-   * header. A known bug: a name cut short by the end of the input fails with an
-   * index-out-of-bounds message instead of returning `false`.
+   * header. A known bug: it does not check the end of the input, so a name cut
+   * short by the end of an array fails with an index-out-of-bounds message
+   * instead of returning `false`, and on a heap `ByteBuffer` it compares the
+   * bytes past the limit.
    */
   def readFieldNameEquals(expected: Array[Byte]): Boolean = {
     val savedPos = pos
