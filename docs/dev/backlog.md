@@ -687,7 +687,7 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1942 (one PR), open; CI green: 23 pass, 10 skipping, after Landing (Lighthouse performance, min 0.95) failed at 0.94 and 0.93 and passed on a second rerun Milad asked for; the PR changes no website file |
+| PR | #1942 (one PR), merged 2026-11-05 as `fb2996da4`; CI green: 23 pass, 10 skipping, after Landing (Lighthouse performance, min 0.95) failed at 0.94 and 0.93 and passed on a second rerun Milad asked for; the PR changes no website file |
 | Coverage | sql 127 / 405 → 405 / 405 (`sql` 119/369, `sql.query` 8/36 before); sql-zio 7 / 14 → 14 / 14; `--drift` empty |
 | Examples | 13 existing `{{{` blocks (none compiled on its own) rewritten; 80 compiled blocks, no markers, no `// no-check`; shop domain on SQLite; outputs and rendered SQL from real runs against 0.0.56; PostgreSQL claims probed on `postgres:16` in Docker |
 | Tooling | `scaladoc-check-scala3` + shared settings function, in `testJVMScala3Command` and the root aggregate; `moduleImport` case for `sql`; the extractor reads `\$` as `$` (as Scaladoc renders it); 2 extractor tests; style guide and AGENTS.md (approved) |
