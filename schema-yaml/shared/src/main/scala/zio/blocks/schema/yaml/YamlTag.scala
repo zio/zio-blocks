@@ -19,7 +19,8 @@ package zio.blocks.schema.yaml
 /**
  * A YAML tag on a [[Yaml.Scalar]], such as `!!int` or `!!str`. The `Int`,
  * `Float`, `Bool` and `Null` tags stop `YamlWriter` from quoting a scalar's
- * text; the writer never prints a tag, and `YamlReader` never sets one.
+ * non-empty text; the writer never prints a tag, and `YamlReader` never sets
+ * one.
  */
 sealed trait YamlTag
 

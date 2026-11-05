@@ -46,9 +46,9 @@ package zio.blocks.schema.yaml
  *   `- `.
  * @param flowStyle
  *   when `true`, writes every mapping as `{k: v}` and every sequence as
- *   `[a, b]`, on one line (default `false`). A string that contains `,`, `]` or
- *   `}` is written without quotes, so other YAML readers reject the output and
- *   `YamlReader` splits the value (a known bug).
+ *   `[a, b]`, on one line (default `false`). A `,`, `[`, `]`, `{` or `}` inside
+ *   a string does not make the writer quote it, so other YAML readers reject
+ *   the output and `YamlReader` splits the value (a known bug).
  * @param documentMarkers
  *   when `true`, starts the output with a `---` line (default `false`).
  *

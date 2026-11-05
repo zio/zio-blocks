@@ -26,13 +26,16 @@ import java.nio.charset.StandardCharsets.UTF_8
  * never written.
  *
  * A scalar is written in double quotes, with escapes such as `\n`, when it is
- * empty, is a YAML keyword (`null`, `~`, `true`, `yes`, `on`, `.inf`, `.nan`
- * and their capitalized forms), starts with a quote or an indicator such as
- * `[`, `{`, `&`, `*`, `!`, `|` or `>`, looks like a number, or contains a line
- * break, a control character, `: ` or ` #`. An `Int`, `Float`, `Bool` or `Null`
- * tag turns quoting off for non-empty text. Known bugs in 0.0.56: a value that
- * starts with `#` is not quoted, so other YAML readers drop it as a comment,
- * and flow style does not quote `,`, `]` or `}`.
+ * empty, is a YAML keyword (`null`, `~`, `true`, `false`, `yes`, `no`, `on`,
+ * `off`, `.inf`, `-.inf`, `.nan` and their capitalized forms), starts with a
+ * quote or an indicator such as `[`, `{`, `&`, `*`, `!`, `|` or `>`, starts
+ * like a number (a digit, or `-`, `+` or `.` before a digit), or contains a
+ * line break, a control character other than tab, `: ` or ` #`. An `Int`,
+ * `Float`, `Bool` or `Null` tag turns quoting off for non-empty text. Known
+ * bugs in 0.0.56: a value that starts with `#` or `- `, ends with `:`, or
+ * starts or ends with a space is not quoted, so other YAML readers drop it,
+ * reject it or trim it; and flow style does not quote a string because it
+ * contains `,`, `[`, `]`, `{` or `}`.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
