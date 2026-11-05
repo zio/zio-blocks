@@ -11974,7 +11974,7 @@ object EeRepro {
 
 **Test gap.** `AsyncInteropSpec` ("fromCompletionStage: already-failed unwraps the cause", "pending failure is unwrapped from CompletionException", "fromCompletionStage_bareNullCauseCompletionException_surfacesTheWrapperItself") covers `CompletionException` and a plain cause in each path, never an `ExecutionException` completion.
 
-**Suggested fix.** For a done stage, read the stored outcome without `get()` (for example `cf.handle` / `cf.whenComplete`, which fires at once on a done future, or `cf.exceptionNow()` on JDK 19+), so both paths see the same exception, and unwrap only `CompletionException` there. Add one test per path with `completeExceptionally(new ExecutionException(cause))`. The Scaladoc of `Async.fromCompletionStage` names this as a known bug; update it with the fix.
+**Suggested fix.** For a done stage, read the stored outcome without `get()` (for example `cf.handle` / `cf.whenComplete`, which fire at once on a done future and also report a cancelled one, with its `CancellationException`, on JDK 17), so both paths see the same exception, and unwrap only `CompletionException` there. Add one test per path with `completeExceptionally(new ExecutionException(cause))`. The Scaladoc of `Async.fromCompletionStage` names this as a known bug; update it with the fix.
 
 ### async (Scala 3, JVM): the runtime-await fallback `asyncRuntimeAwait` is never found, so `.await` inside a user lambda fails to compile with a dotty-cps-async message
 
@@ -13728,6 +13728,8 @@ object CancelRepro {
 **Test gap.** No test checks what happens to the source when a bridged `Async` is cancelled. `AsyncInteropSpec` covers the reverse direction only: a cancelled source gives a `CancellationException`.
 
 **Suggested fix.** Add an `Async.promise` variant whose body returns a cancel callback, e.g. `def cancellable[A](register: Completer[A] => (() => Unit)): Async[A]` (essentially the guide's helper, run-verified through `map` and `Async.async`). Make `fromCompletionStage` call `toCompletableFuture.cancel(false)` on cancel, or make that opt-in. Then state the semantics in `docs/reference/async.md` under "Integration Points" and "Callback Bridge".
+
+**Addition (2026-11-05, async Scaladoc rollout).** Only `fromCompletionStage` and `Async.promise` have something to cancel: a Scala `Future` and a JS promise have no cancellation API at all, so for `fromFuture` and `fromJsPromise` not reaching the underlying call is a limitation of those types, not a bug. The async Scaladoc calls this a known bug only on `fromCompletionStage` and `Async.promise`; a fix needs to cover only those two.
 
 ### schema: `DynamicSchema.fromDynamicValue` never fails, so a damaged stored schema accepts values it should reject
 
@@ -16153,7 +16155,7 @@ Seen 2026-10-30 in CI on #1907 (H-60, a guide plus `schema-examples` files; no l
 
 **Cause.** and **Suggested fix.** paragraphs with the following (found 2026-11-05 in the async Scaladoc rollout, Task 1b, while fact-checking `AsyncRunner`; verified by running against the published 0.0.56 on Scala 2.13.18; the code is the same on `3ac1121a9`):
 
-**Cause.** The race really can let cancel win; the test assumes it cannot. After `c.succeed(99)`, the `Running` is not settled yet: the completer's waker only submits a driver task to `ForkJoinPool.commonPool()` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:356-360`, lines at v0.0.56 = 3ac1121a9), and that task polls the source, runs the `tap` and publishes the result. If the pool has not run the task within the test's 100 ms, `running.cancel()` wins the `terminal` CAS (`:288`), the later publish loses (`:262`), and the `tap` callback never runs. A busy CI runner (or anything else holding the common pool's workers) delays the task past 100 ms. Reproduction (save as `CancelRaceRepro.scala`, run `scala-cli run --server=false CancelRaceRepro.scala`):
+**Cause.** The race really can let cancel win; the test assumes it cannot. After `c.succeed(99)`, the `Running` is not settled yet: the completer's waker only submits a driver task to `ForkJoinPool.commonPool()` (`async/jvm/src/main/scala/zio/blocks/async/internal/AsyncRunner.scala:356-360`, lines at v0.0.56 = 3ac1121a9), and that task polls the source, runs the `tap` and publishes the result. If the pool has not run the task within the test's 100 ms, `running.cancel()` wins the `terminal` CAS (`:288`); the driver task, when it finally runs, returns without polling (`:186`), so the `tap` callback never runs. (A cancel that lands while the task is mid-poll makes the task's publish CAS lose instead, `:262`, with the same result.) A busy CI runner (or anything else holding the common pool's workers) delays the task past 100 ms. Reproduction (save as `CancelRaceRepro.scala`, run `scala-cli run --server=false CancelRaceRepro.scala`):
 
 ```scala
 //> using scala 2.13.18
