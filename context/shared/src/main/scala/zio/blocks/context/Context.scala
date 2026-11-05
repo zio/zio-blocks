@@ -17,17 +17,42 @@
 package zio.blocks.context
 
 /**
- * A type-indexed heterogeneous collection that stores values indexed by their
- * types.
+ * An immutable map from types to values, such as the services an application
+ * wires together (a `Config`, a `Logger`, a `Database`). The type parameter `R`
+ * records the stored types as an intersection (`Config & Logger`), so
+ * `Context#get` compiles only for a type the context provides.
  *
- * Context provides compile-time type safety for storing and retrieving values
- * of different types. The phantom type parameter `R` tracks which types are
- * present in the context, enabling the type system to verify that requested
- * values exist.
+ * Use it to pass a set of dependencies through plain synchronous code, without
+ * an effect system. `add`, `update`, `++` and `prune` return a new context.
+ * Keys are nominal types (classes, traits, objects and applied types such as
+ * `List[Int]`), which an `IsNominalType` instance proves at compile time, and a
+ * stored value cannot be `null`.
+ *
+ * {{{
+ * final case class Config(port: Int)
+ * trait Logger { def info(msg: String): Unit }
+ * final case class ConsoleLogger(prefix: String) extends Logger {
+ *   def info(msg: String): Unit = println(prefix + " " + msg)
+ * }
+ *
+ * val ctx: Context[Config & ConsoleLogger] = Context(Config(8080), ConsoleLogger("[app]"))
+ *
+ * ctx.get[Config].port // 8080
+ * ctx.get[Logger]      // ConsoleLogger([app]), found by its supertype
+ * ctx.size             // 2
+ * }}}
+ *
+ * Each context caches the values it has looked up, per requested type. On the
+ * JVM the cache is a `ConcurrentHashMap`, so several threads can read one
+ * context; on Scala.js it is a `mutable.HashMap`. Java serialization of a
+ * context fails with a `NotSerializableException`, although the class extends
+ * `Serializable` (a known bug).
  *
  * @tparam R
- *   The phantom type representing the types stored in this context. Uses
- *   intersection types (A & B) to represent multiple stored types.
+ *   the stored types, as an intersection such as `Config & Logger`; `Any` for
+ *   an empty context
+ * @see
+ *   [[https://zioblocks.com/reference/context/ Context]]
  */
 final class Context[+R] private (
   private val entries: ContextEntries,
@@ -46,25 +71,39 @@ final class Context[+R] private (
   /** Returns the number of entries in this context. */
   def size: Int = entries.size
 
-  /** Returns true if this context contains no entries. */
+  /** Returns `true` if this context contains no entries. */
   def isEmpty: Boolean = entries.isEmpty
 
-  /** Returns true if this context contains at least one entry. */
+  /** Returns `true` if this context contains at least one entry. */
   def nonEmpty: Boolean = !isEmpty
 
   /**
-   * Retrieves the value of type `A` from this context.
+   * Returns the value stored for type `A`. The bound `A >: R` makes the call
+   * compile only when the context's type provides `A`; otherwise the compiler
+   * reports that `A` does not conform to the lower bound `R`.
    *
-   * The type bound `A >: R` ensures at compile time that a value of type `A`
-   * (or a subtype) is present. Supertype lookups are supported: if you store a
-   * `Dog` and request an `Animal`, the `Dog` will be returned.
+   * A value stored under exactly `A` wins. Otherwise `get` returns a stored
+   * value whose type is a subtype of `A`, the most recently added one when
+   * several match. The result is cached in this context.
+   *
+   * {{{
+   * trait Logger
+   * final case class ConsoleLogger(prefix: String) extends Logger
+   * final case class Config(port: Int)
+   *
+   * val ctx = Context(Config(8080), ConsoleLogger("[app]"))
+   *
+   * ctx.get[Config]        // Config(8080)
+   * ctx.get[Logger]        // ConsoleLogger([app])
+   * // ctx.get[String]     // does not compile: String is not provided
+   * }}}
    *
    * @tparam A
-   *   the type to retrieve (must be a supertype of some type in R)
-   * @return
-   *   the stored value
-   * @throws scala.NoSuchElementException
-   *   if no matching value is found (indicates a bug)
+   *   the type to look up: a type in `R`, or a supertype of one
+   * @throws java.util.NoSuchElementException
+   *   if no stored value matches, with the message `Bug in Context: type <A>
+   *   was expected but not found`. The type bound rules this out, except after
+   *   `prune` with a supertype (a known bug).
    */
   def get[A >: R](implicit ev: IsNominalType[A]): A = {
     val key    = ev.typeIdErased
@@ -82,16 +121,20 @@ final class Context[+R] private (
   }
 
   /**
-   * Retrieves the value of type `A` if present, without requiring a type bound.
+   * Returns the value stored for type `A`, or `None`. Unlike `get`, it compiles
+   * for any nominal type `A`, so use it for a dependency that may be missing.
+   * It finds a value the same way as `get`: exact type first, then the most
+   * recently added subtype.
    *
-   * Unlike `get`, this method does not require `A` to be in the context's type
-   * parameter. Use this for optional lookups where the type may or may not be
-   * present.
+   * {{{
+   * final case class Config(port: Int)
+   * final case class Database(url: String)
    *
-   * @tparam A
-   *   the type to retrieve
-   * @return
-   *   Some(value) if found, None otherwise
+   * val ctx = Context(Config(8080))
+   *
+   * ctx.getOption[Config]   // Some(Config(8080))
+   * ctx.getOption[Database] // None
+   * }}}
    */
   def getOption[A](implicit ev: IsNominalType[A]): Option[A] = {
     val key    = ev.typeIdErased
@@ -107,19 +150,21 @@ final class Context[+R] private (
   }
 
   /**
-   * Adds a value to this context, returning a new context with the expanded
-   * type.
+   * Returns a new context that also holds `a`, stored under the type `A`. A
+   * value already stored under exactly `A` is replaced; a value of another
+   * type, even a subtype or supertype of `A`, stays.
    *
-   * If a value of the same type already exists, it is replaced.
+   * {{{
+   * final case class Config(port: Int)
+   * final case class Database(url: String)
    *
-   * @tparam A
-   *   the type of the value to add
-   * @param a
-   *   the value to add (must not be null)
-   * @return
-   *   a new context containing the added value
+   * val ctx = Context(Config(8080)).add(Database("jdbc:h2:mem:app"))
+   * ctx.get[Database].url              // jdbc:h2:mem:app
+   * ctx.add(Config(9090)).get[Config]  // Config(9090)
+   * }}}
+   *
    * @throws java.lang.NullPointerException
-   *   if `a` is null
+   *   if `a` is `null`
    */
   def add[A](a: A)(implicit ev: IsNominalType[A]): Context[R & A] = {
     if (a == null)
@@ -133,18 +178,24 @@ final class Context[+R] private (
   }
 
   /**
-   * Transforms an existing value in this context.
+   * Returns a new context in which the value for type `A` is replaced by `f`
+   * applied to it. The value is found as `getOption[A]` finds it; if there is
+   * none, the context is returned unchanged.
    *
-   * If the type is not present, the context is returned unchanged.
+   * The result is stored under exactly `A`. When `A` is a supertype of the
+   * stored value's type (`update[Logger]` on a stored `ConsoleLogger`), the old
+   * value stays under its own type and the result is added as a second entry,
+   * so `get[ConsoleLogger]` still returns the old value.
    *
-   * @tparam A
-   *   the type to update (must be a supertype of some type in R)
-   * @param f
-   *   the transformation function (must not return null)
-   * @return
-   *   a new context with the transformed value
+   * {{{
+   * final case class Config(port: Int)
+   *
+   * val ctx = Context(Config(8080))
+   * ctx.update[Config](c => c.copy(port = c.port + 1)).get[Config] // Config(8081)
+   * }}}
+   *
    * @throws java.lang.NullPointerException
-   *   if `f` returns null
+   *   if `f` returns `null`
    */
   def update[A >: R](f: A => A)(implicit ev: IsNominalType[A]): Context[R] =
     getOption[A] match {
@@ -162,18 +213,19 @@ final class Context[+R] private (
     }
 
   /**
-   * Combines this context with another, returning a new context containing all
-   * entries.
+   * Returns a context that holds the entries of both contexts. When both hold a
+   * value under the same type, the value from `that` wins.
    *
-   * When both contexts contain the same type, the value from `that` (right)
-   * wins.
+   * {{{
+   * final case class Config(port: Int)
+   * final case class Database(url: String)
    *
-   * @tparam R1
-   *   the type parameter of the other context
-   * @param that
-   *   the context to merge with
-   * @return
-   *   a new context containing entries from both
+   * val defaults  = Context(Config(8080), Database("jdbc:h2:mem:app"))
+   * val overrides = Context(Config(9090))
+   *
+   * (defaults ++ overrides).get[Config] // Config(9090)
+   * (defaults ++ overrides).size        // 2
+   * }}}
    */
   def ++[R1](that: Context[R1]): Context[R & R1] =
     if (that.isEmpty) self.asInstanceOf[Context[R & R1]]
@@ -184,15 +236,21 @@ final class Context[+R] private (
     }
 
   /**
-   * Narrows this context to contain only the specified types.
+   * Returns a context that keeps only the entries stored under the types that
+   * make up `A`, an intersection of types from `R`.
    *
-   * The type `A` should be an intersection of nominal types that are present in
-   * `R`. Any entries not in `A` are removed.
+   * An entry is kept only when its type is exactly one of the components of
+   * `A`. Pruning to a supertype (`prune[Logger]` on a stored `ConsoleLogger`)
+   * drops that entry, and a later `get[Logger]` throws (a known bug).
    *
-   * @tparam A
-   *   the intersection type to keep (must be a supertype of R)
-   * @return
-   *   a new context containing only entries for types in A
+   * {{{
+   * final case class Config(port: Int)
+   * final case class Database(url: String)
+   *
+   * val ctx    = Context(Config(8080), Database("jdbc:h2:mem:app"))
+   * val pruned = ctx.prune[Config]
+   * pruned.size // 1
+   * }}}
    */
   def prune[A >: R](implicit ev: IsNominalIntersection[A]): Context[A] = {
     val keys       = ev.typeIdsErased
@@ -200,6 +258,10 @@ final class Context[+R] private (
     new Context(newEntries, null)
   }
 
+  /**
+   * Lists the entries as `Context(<type name> -> <value>, ...)`, most recently
+   * added first, with each type's full name.
+   */
   override def toString: String = {
     val contents = entries.reverseIterator.map { case (k, v) =>
       s"${k.fullName} -> $v"
@@ -208,6 +270,10 @@ final class Context[+R] private (
   }
 }
 
+/**
+ * Constructors for `Context`: `Context.empty`, and `Context.apply` for one to
+ * ten values.
+ */
 object Context {
 
   /** An empty context containing no entries. */
@@ -217,20 +283,40 @@ object Context {
     new Context[R](entries, null)
 
   /**
-   * Creates a context containing a single value.
+   * Creates a context that holds one value, stored under its type `A1`.
+   *
+   * {{{
+   * final case class Config(port: Int)
+   *
+   * val ctx: Context[Config] = Context(Config(8080))
+   * }}}
    *
    * @throws java.lang.NullPointerException
-   *   if any value is null
+   *   if the value is `null`
    */
   def apply[A1](a1: A1)(implicit ev1: IsNominalType[A1]): Context[A1] =
     make(ContextEntries.fromPairs(Array((ev1.typeIdErased, a1))))
 
+  /**
+   * Creates a context that holds two values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2](a1: A1, a2: A2)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2]
   ): Context[A1 & A2] =
     make(ContextEntries.fromPairs(Array((ev1.typeIdErased, a1), (ev2.typeIdErased, a2))))
 
+  /**
+   * Creates a context that holds three values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3](a1: A1, a2: A2, a3: A3)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -246,6 +332,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds four values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4](a1: A1, a2: A2, a3: A3, a4: A4)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -263,6 +356,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds five values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -282,6 +382,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds six values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5, A6](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -303,6 +410,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds seven values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5, A6, A7](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -326,6 +440,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds eight values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5, A6, A7, A8](a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8)(implicit
     ev1: IsNominalType[A1],
     ev2: IsNominalType[A2],
@@ -351,6 +472,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds nine values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5, A6, A7, A8, A9](
     a1: A1,
     a2: A2,
@@ -388,6 +516,13 @@ object Context {
       )
     )
 
+  /**
+   * Creates a context that holds ten values, each stored under its own type.
+   * When two values have the same type, the later one wins.
+   *
+   * @throws java.lang.NullPointerException
+   *   if a value is `null`
+   */
   def apply[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10](
     a1: A1,
     a2: A2,

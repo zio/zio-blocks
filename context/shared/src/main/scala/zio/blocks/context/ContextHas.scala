@@ -19,36 +19,59 @@ package zio.blocks.context
 import scala.annotation.implicitNotFound
 
 /**
- * Compile-time evidence that a context of type `Ctx` provides all types in `A`.
+ * Compile-time evidence that a `Context[Ctx]` provides every type in `A`. It
+ * resolves when `Ctx` is a subtype of `A`; for an intersection `A`, each of its
+ * components must be in `Ctx` (or be a supertype of a type in `Ctx`).
  *
- * Resolves when `Ctx <: A`. For intersection types this means every component
- * of `A` must appear in `Ctx`:
+ * Use it as one implicit parameter that checks a whole set of services, where
+ * `Context#get` checks one type at a time. When it does not resolve, the
+ * compiler reports `Context[Ctx] does not provide A. Compare the two types —
+ * each component of A not in Ctx must be added via context.add(value).`, with
+ * the two types written out in full.
+ *
  * {{{
+ * trait Server
+ * trait Database
+ * trait Logger
+ *
  * // resolves: (Server & Database & Logger) <: (Database & Logger)
  * implicitly[ContextHas[Server & Database & Logger, Database & Logger]]
  *
- * // fails:   (Server & Database) is not <: (Database & Logger)
- * implicitly[ContextHas[Server & Database, Database & Logger]]
- * // → "Context[Server & Database] does not provide Database & Logger.
- * //    Compare the two types — each component of Database & Logger
- * //    not in Server & Database must be added via context.add(value)."
+ * // does not compile: (Server & Database) is not <: (Database & Logger)
+ * // implicitly[ContextHas[Server & Database, Database & Logger]]
  * }}}
  *
- * Typical usage — one implicit checks everything:
+ * A typical use is a method that needs a context holding its own services plus
+ * whatever its argument needs:
  * {{{
+ * trait Server
+ * trait Routes[ReqCtx]
+ * trait ServerHandle
+ *
  * def serve[ReqCtx, Ctx](routes: Routes[ReqCtx], context: Context[Ctx])(implicit
  *   ev: ContextHas[Ctx, ReqCtx & Server]
  * ): ServerHandle = ???
  * }}}
+ *
+ * @tparam Ctx
+ *   the type parameter of the context, an intersection of the stored types
+ * @tparam A
+ *   the types the context must provide
+ * @see
+ *   [[https://zioblocks.com/reference/context/ Context]]
  */
 @implicitNotFound(
   "Context[${Ctx}] does not provide ${A}. Compare the two types — each component of ${A} not in ${Ctx} must be added via context.add(value)."
 )
 trait ContextHas[Ctx, A]
 
+/** Provides the `ContextHas` evidence the compiler resolves. */
 object ContextHas {
 
-  /** Automatically available when A is part of the Ctx intersection type. */
+  /**
+   * Provides the evidence whenever `Ctx` is a subtype of `A`. It returns one
+   * shared instance, so resolving it allocates nothing.
+   */
   implicit def evidence[Ctx <: A, A]: ContextHas[Ctx, A] = instance.asInstanceOf[ContextHas[Ctx, A]]
 
   private val instance: ContextHas[Any, Any] = new ContextHas[Any, Any] {}
