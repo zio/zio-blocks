@@ -180,7 +180,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    *
    * `cancel()` stops the driver: no outcome is published, so the run never
    * completes and a `block` on it waits forever on the JVM (on Scala.js it
-   * throws, as for any pending value). The driver calls [[Pollable.cancel]] on
+   * throws `IllegalStateException`). The driver calls [[Pollable.cancel]] on
    * the pending leaf, which reaches the underlying work only when that leaf
    * overrides it. The built-in bridges (`Async.promise`, `Async.fromFuture`,
    * `Async.fromCompletionStage`, `Async.fromJsPromise`) do not override it, so

@@ -105,9 +105,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
      * boundary with synchronous code. A ready value returns at once. On the JVM
      * a pending value parks the calling thread (a virtual thread does not pin
      * its carrier); calling `block` from inside a `poll` can deadlock the
-     * driver. On Scala.js nothing can park: a pending value that does not
-     * complete during its first poll makes `block` throw
-     * `IllegalStateException`. Inside `Async.async` use `await` instead.
+     * driver. On Scala.js nothing can park: `block` throws
+     * `IllegalStateException` as soon as the value has to wait for something
+     * that happens later, such as a timer, I/O or another microtask. Inside
+     * `Async.async` use `await` instead.
      *
      * Drive a pending value from one consumer only: `block` racing another
      * driver of the same value, such as `toFuture`, can hang forever (a known
