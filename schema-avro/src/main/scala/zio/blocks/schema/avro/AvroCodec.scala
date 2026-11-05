@@ -146,8 +146,9 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
 
   /**
    * Decodes one value from the bytes between the buffer's position and limit. A
-   * heap buffer is read in place and its position does not move; a direct
-   * buffer is copied first, which moves its position to its limit. A known bug:
+   * buffer with an accessible backing array (`hasArray`) is read in place and
+   * its position does not move; any other buffer, such as a direct or read-only
+   * one, is copied first, which moves its position to its limit. A known bug:
    * for a heap buffer whose content does not start at index 0 of its backing
    * array, such as one made by `slice()`, it reads from the wrong offset. Bytes
    * after the first value are ignored, a known bug shared with the byte-array
@@ -172,7 +173,8 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
   /**
    * Writes `value` at the buffer's position and moves the position past it.
    * Throws `java.nio.BufferOverflowException` when the buffer has too little
-   * room, after writing the bytes that fit.
+   * room; the parts of the value written before the one that did not fit stay
+   * in the buffer, so a string's length can be written without its bytes.
    */
   override def encode(value: A, output: ByteBuffer): Unit = encode(
     value,
