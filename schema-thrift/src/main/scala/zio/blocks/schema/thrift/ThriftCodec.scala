@@ -143,11 +143,12 @@ abstract class ThriftCodec[A] extends BinaryCodec[A] {
 
   /**
    * Decodes one value from a copy of the bytes between the buffer's position
-   * and limit. A heap buffer's position does not move; a direct buffer's
-   * position moves to its limit. A known bug: for a heap buffer whose content
-   * does not start at index 0 of its backing array, such as one made by
-   * `slice()`, it copies from the wrong offset. Bytes after the first value are
-   * ignored, a known bug shared with the byte-array `decode`.
+   * and limit. The position of a buffer with an accessible backing array
+   * (`hasArray`) does not move; the position of any other buffer, such as a
+   * direct or read-only one, moves to its limit. A known bug: for a heap buffer
+   * whose content does not start at index 0 of its backing array, such as one
+   * made by `slice()`, it copies from the wrong offset. Bytes after the first
+   * value are ignored, a known bug shared with the byte-array `decode`.
    */
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     var pos             = input.position
