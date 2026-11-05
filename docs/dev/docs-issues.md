@@ -231,6 +231,108 @@ The same file with `//> using scala 3.9.0`, `//> using options -experimental` an
 
 **Suggested fix.** Rewrite the paragraph at `docs/reference/async.md:709` as in Expected, and add a small example that shows the order (the reproducer above, trimmed). Keep "use `Async.collectAll` when you want them overlapped" for the lazy receivers.
 
+### docs/reference/async.md "Depth Limits on Waiting Values": an iterative `map`/`flatMap` chain over a waiting value does not overflow the stack
+
+Found 2026-11-05 during the async Scaladoc rollout (worktree `async-scaladoc`, base `3ac1121a9`), while fact-checking the `collectAll` Scaladoc against the reference page. `async/` at the base equals v0.0.56 apart from an import change. Verified by running.
+
+**Summary.** `docs/reference/async.md:204` says that a chain built on a value that is still waiting "runs out of stack somewhere around 50,000–100,000 on a default JVM", and that "How you wrote the loop makes no difference — a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(...)` build the same stack of wrappers". At 0.0.56 an iterative chain of 1,000,000 `map` or `flatMap` calls over a pending `Completer` completes without a `StackOverflowError`: `Async.slowPath.ContinuationInterpreter` polls an accumulated `map`/`flatMap` spine in a loop. The recursive shape, where each continuation builds the next wrapper, still overflows. So how the loop is written does make a difference, and the table row "Direct calls | Limited by the call stack" and the paragraph after it overstate the limit for the iterative case.
+
+**Reproduction** (`DepthRepro.scala`, `scala-cli run --server=false DepthRepro.scala`; JDK 25, default stack):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+object DepthRepro {
+  def attempt(label: String)(fa: => Async[Int]): Unit =
+    println(label + ": " + (try fa.block.toString catch { case e: StackOverflowError => "StackOverflowError" }))
+
+  def main(args: Array[String]): Unit = {
+    // Iterative chain over a value that is still waiting.
+    attempt("iterative map x1,000,000") {
+      val c = new Completer[Int]
+      var fa: Async[Int] = c.peek
+      var i = 0
+      while (i < 1000000) { fa = fa.map(_ + 1); i += 1 }
+      c.succeed(0)
+      fa
+    }
+    attempt("iterative flatMap x1,000,000") {
+      val c = new Completer[Int]
+      var fa: Async[Int] = c.peek
+      var i = 0
+      while (i < 1000000) { fa = fa.flatMap(n => Async.succeed(n + 1)); i += 1 }
+      c.succeed(0)
+      fa
+    }
+    // Recursive chain: each step's continuation builds the next wrapper.
+    attempt("recursive flatMap+map x200,000") {
+      val gate = new Completer[Unit]
+      def loop(n: Int): Async[Int] =
+        if (n == 0) Async.succeed(0) else gate.peek.flatMap(_ => loop(n - 1)).map(_ + 1)
+      val l = loop(200000)
+      gate.succeed(())
+      l
+    }
+  }
+}
+// iterative map x1,000,000: 1000000
+// iterative flatMap x1,000,000: 1000000
+// recursive flatMap+map x200,000: StackOverflowError
+```
+
+On Scala 3.9.0 (`zio-blocks-next-async:0.0.56`, `-experimental`) the iterative `map` chain of 1,000,000 also prints `1000000` and the recursive one also overflows.
+
+**Expected.** The page states the limit as it is: an iterative `map`/`flatMap` chain over a waiting value is safe at any tested length, and the depth limit applies to chains whose continuations build further wrappers (recursion through `flatMap`), with `collectAll` and an `Async.async` `while` loop as the safe forms.
+
+**Root cause.** The page was written before `ContinuationInterpreter` (`async/shared/src/main/scala/zio/blocks/async/Async.scala`, `private[async] object ContinuationInterpreter`, lines 2442-2960 at v0.0.56 = 3ac1121a9), which replaces the native call stack for a spine of `map`/`flatMap` wrappers; its Scaladoc says so ("Polls an accumulated map/flatMap spine without recursively invoking each wrapper's poll").
+
+**Impact.** Readers rewrite safe iterative code into `collectAll` or direct style for no reason, and the page's explanation of why `Async` has a depth limit (no trampoline) no longer matches the implementation.
+
+**Test gap.** `AsyncSpec` "deep tap / ensuring / as spines over a PENDING source drive to the correct value below the depth bound" tests below an assumed bound only; no test drives an iterative pending `map`/`flatMap` spine of 1,000,000, and none pins the recursive overflow.
+
+**Suggested fix.** Rewrite the "On a value that is still waiting" bullet and the table: iterative `map`/`flatMap` spines are interpreted in a loop; recursion through `flatMap` (each continuation building the next layer) still grows the stack and overflows somewhere above 100,000 levels. Add a test for the iterative million-step spine.
+
+### docs/reference/async.md "Completer": `Completer#peek` does not return the `Completer` once it is complete, and a promise that completes inline still allocates one
+
+Found 2026-11-05 during the async Scaladoc rollout (worktree `async-scaladoc`, base `3ac1121a9`), while fact-checking the `Completer#peek` and `Async.promise` Scaladoc. Same at v0.0.56. Verified by running and by reading `Async.promiseInternal`.
+
+**Summary.** Two sentences of the "Completer" section are wrong. `docs/reference/async.md:1203` says "`Completer#peek` returns the `Completer` itself as an `Async[A]`"; that holds only while the completer is pending. Once it is complete, `peek` returns the value (or the `Failure`), not the completer. `docs/reference/async.md:1088` says that when the `Async.promise` body completes the completer before returning, "the result collapses to a plain ready value and no `Pollable` is allocated at all"; the result is a ready value, but `Async.promise` always allocates the `Completer` (a `Pollable`) before running the body.
+
+**Reproduction** (`PeekRepro.scala`, `scala-cli run --server=false PeekRepro.scala`; JDK 25):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+
+object PeekRepro {
+  def main(args: Array[String]): Unit = {
+    val c = new Completer[Int]
+    println("peek before completion is the Completer: " + (c.peek.asInstanceOf[AnyRef] eq c))
+    c.succeed(7)
+    println("peek after completion is the Completer: " + (c.peek.asInstanceOf[AnyRef] eq c))
+    println("peek after completion: " + c.peek.asInstanceOf[Any])
+  }
+}
+// peek before completion is the Completer: true
+// peek after completion is the Completer: false
+// peek after completion: 7
+```
+
+**Expected.** "`Completer#peek` returns the outcome if the completer is already complete, and the `Completer` itself, still pending, otherwise." and "the result is a plain ready value: drivers and combinators see no `Pollable`" (or drop the allocation claim).
+
+**Root cause.** `Completer#peek` (`async/shared/src/main/scala/zio/blocks/async/Completer.scala:106-111`, lines at v0.0.56 = 3ac1121a9) returns `this` only when the state is empty or waiting, and the stored value otherwise. `Async.promiseInternal` (`async/shared/src/main/scala/zio/blocks/async/Async.scala:1705-1709`) runs `val c = new Completer[A]; body(c); c.peek`.
+
+**Impact.** Low: a reader who keeps the result of `peek` expecting a `Completer` (for example to call `poll` on it) gets a plain value; the allocation claim misleads performance reasoning.
+
+**Test gap.** None needed for the library; the page has no test.
+
+**Suggested fix.** Replace the two sentences as in "Expected".
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

@@ -12024,6 +12024,51 @@ The same file with `import zio.blocks.async.internal.asyncRuntimeAwait` added af
 
 **Suggested fix.** Decide which behaviour is wanted. To make the fallback live, bring `asyncRuntimeAwait` into scope in the `cps.async` block that `AsyncDcaTransform.asyncImpl` splices (as it does for `AsyncCpsMonad`) and add a test. To drop it, delete `AsyncRuntimeAwait.scala` and add a named diagnostic for the shape, matching Scala 2. The Scaladoc of `asyncRuntimeAwait` names this as a known bug; update it with the fix.
 
+### combinators: on Scala 2, `Tuples` nests a tuple on the right instead of concatenating it, so `Async#zip` (and `Tuples.combine`) give different shapes on Scala 2 and Scala 3
+
+Found 2026-11-05 during the async Scaladoc rollout (worktree `async-scaladoc`, base `3ac1121a9`), while writing the Scaladoc of `Async#zip`. Same at tag `v0.0.56`: `combinators/` is identical at the tag. Verified by running.
+
+**Summary.** `Tuples` flattens a tuple on the left on both Scala versions (`(1, "a")` with `true` gives `(1, "a", true)`). A tuple on the right is concatenated on Scala 3 but kept as one nested element on Scala 2: `Tuples.combine((1, "a"), (true, 3.14))` is `(1, a, true, 3.14)` on Scala 3 and `(1, a, (true, 3.14))` on Scala 2, and `8080` with `("localhost", true)` is `(8080, localhost, true)` on Scala 3 and `(8080, (localhost, true))` on Scala 2. `docs/reference/combinators.md` ("Tuple Flattening") shows `Tuples.combine((1, "a"), (true, 3.14)) // (1, "a", true, 3.14)` with no Scala 3 restriction, and the Scaladoc of `Async#zip` at 3ac1121a9 said "tuple-on-tuple inputs are heterogeneously-concatenated" in both copies. Cross-built code that zips a tuple on the right gets a different type, and a different runtime shape, per Scala version.
+
+**Reproduction** (`TuplesRepro.scala`, `scala-cli run --server=false TuplesRepro.scala`; JDK 25):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+
+import zio.blocks.async._
+import zio.blocks.combinators.Tuples
+
+object TuplesRepro {
+  def main(args: Array[String]): Unit = {
+    println(Tuples.combine((1, "a"), (true, 3.14)))
+    println(Async.succeed((8080, "localhost")).zip(Async.succeed((true, 3))).block)
+    println(Async.succeed(8080).zip(Async.succeed(("localhost", true))).block)
+  }
+}
+// (1,a,(true,3.14))
+// (8080,localhost,(true,3))
+// (8080,(localhost,true))
+```
+
+The same file with `//> using scala 3.9.0`, `//> using dep dev.zio::zio-blocks-next-async:0.0.56` and `//> using options -experimental` prints:
+
+```scala
+// (1,a,true,3.14)
+// (8080,localhost,true,3)
+// (8080,localhost,true)
+```
+
+**Expected.** The same shape on both versions, as the combinators reference page shows: a tuple on the right is concatenated.
+
+**Root cause.** The Scala 2 macro `TuplesMacros.tuplesImpl` (`combinators/shared/src/main/scala-2/zio/blocks/combinators/Tuples.scala:71-124`, lines at v0.0.56 = 3ac1121a9) checks only whether the left type is a tuple (`isTuple(c)(lType)`, line 87). For a non-tuple or tuple left it appends `r` as one element (lines 92-108), and the final `else` (line 111) builds the pair `(l, r)`; nothing inspects `rType`. The Scala 3 `Tuples` instances flatten both sides.
+
+**Impact.** `Async#zip`, and any other API built on `Tuples` (the HTTP path and query codecs that combine parameters), returns `(A, (B, C))` on Scala 2 where Scala 3 returns `(A, B, C)`. Shared code that pattern-matches on the result compiles on one version and not the other.
+
+**Test gap.** `combinators/shared/src/test/scala/zio/blocks/combinators/TuplesSpec.scala` covers a tuple on the left only ("combine tuple with value appends to tuple"); the right-tuple cases ("flattens left-nested tuple with right tuple", "flattens deeply nested tuples - right side") live in `combinators/shared/src/test/scala-3/zio/blocks/combinators/TuplesRecursiveFlatteningSpec.scala`, which runs on Scala 3 only. No async test zips a tuple on the right.
+
+**Suggested fix.** Teach the Scala 2 macro to concatenate a right-hand tuple (arity check against 22 included), and move the right-tuple cases of `TuplesRecursiveFlatteningSpec` to the shared test directory. Until then, say on the combinators reference page that Scala 2 nests a right-hand tuple (the async Scaladoc now says so on `Async#zip`).
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
