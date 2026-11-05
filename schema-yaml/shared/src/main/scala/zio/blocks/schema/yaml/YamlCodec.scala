@@ -373,7 +373,7 @@ object YamlCodec {
   }
 
   /**
-   * Encodes a `Int` as its decimal text with the `Int` tag. Decodes decimal
+   * Encodes an `Int` as its decimal text with the `Int` tag. Decodes decimal
    * text, trimmed, within the `Int` range; text such as `1_000` or `0x1F` fails
    * with a `YamlCodecError`.
    */
@@ -679,7 +679,8 @@ object YamlCodec {
 
   /**
    * Encodes a `ZoneId` as its ID, such as `Europe/Paris`. Decodes with
-   * `ZoneId.of`; an unknown ID throws `java.time.zone.ZoneRulesException`.
+   * `ZoneId.of`; an unknown ID throws `java.time.zone.ZoneRulesException`, and
+   * a malformed one `java.time.DateTimeException`.
    */
   val zoneIdCodec: YamlCodec[ZoneId] = new YamlCodec[ZoneId] {
     def decodeValue(yaml: Yaml): ZoneId = yaml match {
@@ -719,7 +720,7 @@ object YamlCodec {
 
   /**
    * Encodes a `Currency` as its ISO 4217 code, such as `EUR`. Decodes with
-   * `Currency.getInstance`; a code of the wrong length throws
+   * `Currency.getInstance`; an unknown code, such as `XYZ` or `EURO`, throws
    * `java.lang.IllegalArgumentException`.
    */
   val currencyCodec: YamlCodec[Currency] = new YamlCodec[Currency] {
