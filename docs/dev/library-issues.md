@@ -15079,6 +15079,231 @@ object Repro {
 
 **Suggested fix.** Say in the `Async.promise` Scaladoc and the reference page that on Scala 2 the body must be `{ implicit c => succeed(v) }` (or call `c.succeed`), and show both forms in the examples. No code change needed.
 
+### http-model: `Method.ANY` renders as `*`, but its `name` is `GET`, so code that writes `method.name` sends or advertises `GET` for a wildcard
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** `Method.ANY` is the route wildcard that matches every method. `toString` and `Method.render` show it as `*`, but its `name` field is `"GET"`, so the two ways of turning a `Method` into text disagree. Any code that uses `name`, including three of the library's own header renderers, turns the wildcard into `GET`:
+
+- A request built with `.method(Method.ANY)` and written out with `method.name` gets the request line `GET /api/orders/42 HTTP/1.1`.
+- `Header.Allow(Chunk(Method.ANY))` and `Header.AccessControlAllowMethods(Method.ANY)` both render `GET`. Allowing every method is advertised as allowing only `GET`.
+- A log line written with `toString` (`*`) cannot be parsed back: `Method.fromString("*")` is `None`, while `Method.fromString(Method.ANY.name)` is `Some(GET)`.
+
+A set of methods built with `#|` (`Method.Methods`) has a similar problem. Its `name` is the method names joined with `#|`, so `Header.Allow(Chunk(Method.GET #| Method.POST))` renders `GET#|POST` instead of `GET, POST`.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `MethodAnyRepro.sc`, run with `scala-cli run --server=false MethodAnyRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+val any = Method.ANY
+println(any.toString + " | " + Method.render(any) + " | " + any.name + " | " + any.ordinal)
+println(Method.fromString(any.toString).toString + " | " + Method.fromString(any.name))
+println(any.name == Method.GET.name)
+println(any.matches(Method.DELETE))
+println(Header.Allow(Chunk(any)).renderedValue)
+println(Header.AccessControlAllowMethods(any).renderedValue)
+println(Header.AccessControlAllowMethods.parse("*"))
+val both = Method.GET #| Method.POST
+println(both.name + " | " + Header.Allow(Chunk(both)).renderedValue)
+val url = URL.parse("/api/orders/42").toOption.get
+val req = Request.get(url).method(any)
+println(req.method.name + " " + req.url.encode + " HTTP/1.1")
+// * | * | GET | -1
+// None | Some(GET)
+// true
+// true
+// GET
+// GET
+// Left(Unknown method: *)
+// GET#|POST | GET#|POST
+// GET /api/orders/42 HTTP/1.1
+```
+
+**Expected.** `name`, `toString` and `render` agree, and nothing that renders a header value turns a wildcard into one method. Specifically:
+
+- `Allow(Chunk(Method.ANY))` lists the standard methods. `Allow` has no wildcard form (RFC 9110 §10.2.1).
+- `AccessControlAllowMethods(Method.ANY)` renders `*`, which the Fetch standard accepts for requests without credentials, and `AccessControlAllowMethods.parse("*")` reads it back.
+- A `Methods` value renders as its method names joined with `, `.
+- A `Request` cannot silently carry `ANY` or `Methods` onto the wire. Either the request line uses something that fails for them, or the docs say plainly that they are for routes only.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/Method.scala:63` declares `case object ANY extends Method("GET", -1)`. `Method.render` maps `ANY` to `"*"` and everything else to `name` (`:76-79`), and `toString` calls `render` (`:50`). `fromString` looks names up only among the nine standard methods (`:68`, `:72-74`).
+- `Methods` builds its `name` by joining the rendered names with `#|` (`:65-66`).
+- `http-model/shared/src/main/scala/zio/http/Header.scala` renders header values from `name`: `AccessControlAllowMethods.render` at `:1401-1402`, `AccessControlRequestMethod.render` at `:1534` and `Allow#renderedValue` at `:1594`. `AccessControlAllowMethods.parse` (`:1384-1399`) passes each token to `Method.fromString`, so `*` is rejected.
+- The endpoint module treats `ANY` as "every method": `RoutePattern` expands it to `Method.standardMethods` (`endpoint/shared/src/main/scala/zio/blocks/endpoint/RoutePattern.scala:44`). So `name = "GET"` contradicts how the rest of the library uses the value.
+
+**Impact.**
+
+- A server adapter, client or logger that writes `request.method.name` (the obvious field) sends or logs `GET` for a wildcard, and nothing fails.
+- A CORS layer or 405 handler that builds `Allow` or `Access-Control-Allow-Methods` from a route's method tells browsers that only `GET` is allowed, so preflights for `POST`, `PUT` and `DELETE` fail. It writes `GET#|POST` for a combined route, which is not a valid header value.
+- Code that dispatches on `name` (`method.name match { case "GET" => ... }`) treats an `ANY` route as a `GET` route.
+
+The branch's Scaladoc on `Method.ANY` now says "do not put it in a request line"; nothing else warns about it.
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/MethodSpec.scala` checks `name` only for the nine standard methods (`:23-49`), and checks `ANY` only through `render` (`:143-145`), `matches` (`:111-117`) and `#|` (`:132-137`). No assertion reads `Method.ANY.name` or `Methods#name`. `headers/CorsHeadersSpec.scala:60-90` builds `AccessControlAllowMethods` only from standard methods, and no header test uses `Method.ANY` or a `Methods` value.
+
+**Suggested fix.**
+
+1. Make the header renderers handle the composite methods: `Allow` expands `ANY` to `Method.values` and `Methods` to its members, and `AccessControlAllowMethods` renders `ANY` as `*`. Make `AccessControlAllowMethods.parse` accept `*` as `ANY`.
+2. Then either set `ANY.name` to `"*"` so that `name`, `toString` and `render` agree, or keep `"GET"` (if a request-line fallback is intended) and say so on `name`.
+3. Add tests for `Method.ANY.name`, for `Allow` and `AccessControlAllowMethods` with `ANY` and with `GET #| POST`, and for `parse("*")`.
+
+### http-model: `Request.post`, `put` and `patch` add no `content-type` header, although `Request#body` and `Response.ok(body)`, `text` and `json` do
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** A `Body` carries its own `ContentType`. Some constructors copy it into a `content-type` header and some do not:
+
+- **Copy it:** `Request#body`, `Response#body`, `Response.ok(body)`, `Response.text` and `Response.json`.
+- **Do not copy it:** `Request.post(url, body)`, `Request.put` and `Request.patch` (all three use `Headers.empty`), and the `Response(...)` case-class constructor.
+
+`Request#contentType` hides the difference, because it falls back to the body's type when the header is missing. A request can therefore report `Some(application/json)` while its headers contain no `content-type`. An adapter that writes `headers` to the wire sends the request without one.
+
+Because the two families behave differently, the pattern the reference page uses has opposite results on the request side and the response side:
+
+- `Request.post(...).addHeader("content-type", ...)` gives one header. That header can disagree with `body.contentType`.
+- `Response.ok(body).addHeader("content-type", ...)` gives two headers.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `PostContentTypeRepro.sc`, run with `scala-cli run --server=false PostContentTypeRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+val url  = URL.parse("https://shop.example.com/api/orders").toOption.get
+
+def wire(h: Headers): String = h.rawGet("content-type").toString
+
+val post = Request.post(url, Body.fromArray("""{"sku":"tea-01"}""".getBytes("UTF-8"), ContentType.`application/json`))
+println("Request.post:   " + wire(post.headers) + " | contentType = " + post.contentType.map(_.render))
+val put = Request.put(url, Body.fromString("qty=3"))
+println("Request.put:    " + wire(put.headers) + " | contentType = " + put.contentType.map(_.render))
+val patch = Request.patch(url, Body.fromString("qty=4"))
+println("Request.patch:  " + wire(patch.headers))
+val viaBody = Request.get(url).method(Method.POST).body(Body.fromString("qty=5"))
+println("Request#body:   " + wire(viaBody.headers))
+println("Response.ok:    " + wire(Response.ok(Body.fromString("done")).headers))
+println("Response.text:  " + wire(Response.text("done").headers))
+println("Response.json:  " + wire(Response.json("{}").headers))
+println("Response(...):  " + wire(Response(Status.Ok, body = Body.fromString("done")).headers))
+// The docs' pattern: post, then addHeader. Fine today, but with a header already present addHeader adds a second one
+val docs = Request.post(url, Body.fromString("""{"sku":"tea-01"}""")).addHeader("content-type", "application/json")
+println("post+addHeader: " + docs.headers.rawGetAll("content-type") + " | body = " + docs.body.contentType.render)
+println("ok+addHeader:   " + Response.ok(Body.fromString("{}")).addHeader("content-type", "application/json").headers.rawGetAll("content-type"))
+// Request.post:   None | contentType = Some(application/json)
+// Request.put:    None | contentType = Some(text/plain; charset=UTF-8)
+// Request.patch:  None
+// Request#body:   Some(text/plain; charset=UTF-8)
+// Response.ok:    Some(text/plain; charset=UTF-8)
+// Response.text:  Some(text/plain; charset=UTF-8)
+// Response.json:  Some(application/json)
+// Response(...):  None
+// post+addHeader: Chunk(application/json) | body = text/plain; charset=UTF-8
+// ok+addHeader:   Chunk(text/plain; charset=UTF-8,application/json)
+```
+
+**Expected.** Every constructor that takes a `Body` treats its content type the same way. The most consistent rule is that `Request.post`, `put` and `patch` behave like `Request#body` and write `content-type: <body.contentType.render>`. Otherwise all of them, including the `Response` companion constructors, would have to leave the header out.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/Request.scala:92-102`: `post`, `put` and `patch` call the case-class constructor with `Headers.empty`. `Request#body` sets the header (`:73`), and `Request#contentType` falls back to `body.contentType` when the header is missing (`:45-46`).
+- `http-model/shared/src/main/scala/zio/http/Response.scala:94-95`, `:100-103` and `:108-113`: `ok(body)`, `text` and `json` build `Headers("content-type" -> ...)`. `Response#body` sets the header (`:73`), and the case-class constructor (`:23-28`) does not. `Response#contentType` uses the same fallback (`:42-43`).
+
+**Impact.**
+
+- A client or proxy that sends `Request.post(url, body)` through an adapter that copies `headers` sends a JSON or form body with no `content-type`. Servers then guess, usually as `application/octet-stream`, or reject the request with 415.
+- Code that checks `request.contentType` before sending sees the right type, so the omission is easy to miss.
+- The reference page (`docs/reference/http-model/model.md:214-215`, `:838-856`, `:1036-1037`) always adds the header by hand after `Request.post`. Copying that pattern onto `Response.ok(body)` produces two `content-type` headers.
+
+The branch's Scaladoc on the `Request` companion now says that none of the constructors adds the header.
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/RequestSpec.scala:68-80` asserts `request.headers == Headers.empty` for `Request.post`, so the current behaviour is pinned rather than missed. `:153-174` checks only `method` and `body` for `put` and `patch`. `ResponseSpec.scala:148-186` checks the header for `text`, `json` and `ok(body)`, and `RequestSpec.scala:260-265` checks it for `Request#body`. No test compares the two families.
+
+**Suggested fix.**
+
+1. Build `post`, `put` and `patch` as `Request(method, url, Headers.empty, Body.empty, Version.`HTTP/1.1`).body(body)`, so they share `Request#body`'s header logic. Update `RequestSpec.scala:76` and add header assertions for `put` and `patch`.
+2. In the same change, update the reference page's examples to set the type on the `Body` (`Body.fromArray(bytes, ContentType.`application/json`)`), or to use `setHeader` instead of `addHeader`. Otherwise readers get two headers.
+
+### http-model: a custom `SseDataEncoder` line that contains a line break is written as is, so payload text can add `event:`, `id:` or `retry:` fields or end the event
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. The browser side follows from the WHATWG event-stream parsing rules and was not run in a browser. Not filed on GitHub yet.
+
+**Summary.** `ServerSentEvent` protects two of the three places where text enters the stream:
+
+- **Metadata:** `event` and `id` throw on CR or LF.
+- **Built-in encoders:** `SseDataEncoder.string` and `stringChunk` split the payload at `\n`, `\r` and `\r\n` into separate `data:` lines.
+
+A custom `SseDataEncoder` gets neither protection. `ServerSentEvent#render` writes each line it returns after `data: ` without checking it. A custom encoder that puts a user-supplied field into a line therefore lets that text start new SSE fields:
+
+- `"leave at door\nevent: admin\nid: 999"` adds an `event: admin` line after the envelope's own `event:` line. The WHATWG parser keeps the last `event` value, so the event is dispatched as `admin`. The same text sets the last event ID that the browser sends back as `Last-Event-ID`.
+- `"ok\n\ndata: forged"` ends the event early and starts a second event whose data is `forged`.
+
+The reference page's own custom-encoder example (`docs/reference/http-model/server-sent-event.md:248-260`, a `Progress` encoder that writes `s"note=${value.note}"`) has exactly this shape. The page's warning below it is the only defence.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `SseEncoderRepro.sc`, run with `scala-cli run --server=false SseEncoderRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines. `\n` in the output is a real line break, shown escaped.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+final case class OrderUpdate(orderId: String, note: String)
+
+implicit val orderUpdateEncoder: SseDataEncoder[OrderUpdate] =
+  new SseDataEncoder[OrderUpdate] {
+    def lines(value: OrderUpdate): Chunk[String] =
+      Chunk("order=" + value.orderId, "note=" + value.note)
+  }
+
+def show(s: String): Unit = println(s.replace("\n", "\\n"))
+
+// A note typed by a customer, passed through unchanged
+val note = "leave at door\nevent: admin\nid: 999"
+show(ServerSentEvent(OrderUpdate("42", note), "order-status").render)
+show(ServerSentEvent(OrderUpdate("42", "ok\n\ndata: forged"), "order-status").render)
+// The built-in String encoder splits the same text into data: lines
+show(ServerSentEvent("note=" + note, "order-status").render)
+// The metadata setters reject a line break
+println(scala.util.Try(ServerSentEvent("x").event("a\nevent: admin")).failed.map(_.getMessage))
+// The splitter is reachable through the public String instance
+println(SseDataEncoder.string.lines(note))
+// event: order-status\ndata: order=42\ndata: note=leave at door\nevent: admin\nid: 999\n\n
+// event: order-status\ndata: order=42\ndata: note=ok\n\ndata: forged\n\n
+// event: order-status\ndata: note=leave at door\ndata: event: admin\ndata: id: 999\n\n
+// Success(SSE event must not contain CR or LF characters)
+// Chunk(leave at door,event: admin,id: 999)
+```
+
+**Expected.** The payload stays inside `data:` lines whatever encoder produced it, as it does for the built-in encoders. In the first case, the output should be `data: note=leave at door\ndata: event: admin\ndata: id: 999`, which the client receives as one `order-status` event with three data lines. If the library prefers not to split, it should reject the line with an `IllegalArgumentException` the way `event` and `id` do, rather than write it.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:78-85` (`renderTo`) appends every line from `encoder.lines(data)` after `data: ` with no check.
+- Only the metadata goes through `validateSingleLineField` (`:142-147`, called at `:40`, `:54`, `:116` and `:127-128`).
+- The splitting lives inside the two built-in encoders (`:164-167`, `:169-185`). Its helper `splitLines` (`:187-205`) is `private`, so a custom encoder can reach it only through `SseDataEncoder.string.lines`. Nothing in the API points to that.
+
+**Impact.**
+
+- Any SSE endpoint whose encoder copies free text into a line is affected: chat messages, order notes, log lines, or JSON from a pretty-printing encoder. That text can change the event type a page's `addEventListener` sees, set the reconnection id, change `retry`, or split one event into two. A page that trusts a named event such as `admin` can be fed forged events by any user whose text is broadcast.
+- Breaking events into the wrong pieces also corrupts the stream for every listener.
+- The trait's contract is documented only in the reference page's warning and, on the branch, in the Scaladoc of `SseDataEncoder#lines` ("must not contain CR or LF").
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/ServerSentEventSpec.scala` has one custom encoder, `Payload`, which writes `s"payload:${value.value}"` (`:25-28`). Its only test uses `Payload("x")` (`:87-90`). The line-break tests (`:47-58`, `:83-86`) cover only the built-in `String` and `Chunk[String]` encoders, and the CR/LF rejection tests (`:91-98`) cover only `event` and `id`. No test feeds a line break through a custom encoder.
+
+**Suggested fix.**
+
+1. In `renderTo`, split each line the encoder returns with the same rules as `splitLines` before writing it. A line without `\r` or `\n` takes a fast path (one `indexOf` scan for each character), so the output of well-behaved encoders does not change. A line break in payload text then always becomes another `data:` line, never a new field, in line with the reference page's promise that a payload with newlines is "correct by construction".
+2. Alternatively, throw `IllegalArgumentException("SSE data line must not contain CR or LF characters")` the way the metadata setters do.
+3. Either way, make `splitLines` public (for example `SseDataEncoder.splitLines`) so encoder authors have a named helper.
+4. Add a `ServerSentEventSpec` case with a custom encoder whose line contains `\nevent: x` and `\n\n`.
+
 ## Test and CI
 
 ### Flaky streams test: `unfoldAsync - reset invalidates a stale completion and restarts from initial state`
