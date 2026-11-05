@@ -17,25 +17,34 @@
 package zio.blocks.sql
 
 /**
- * Transaction isolation level.
+ * The isolation level to request with `Transactor#transact(isolation,
+ * readOnly)`. Each case carries the matching `java.sql.Connection` constant as
+ * `jdbcLevel` (1, 2, 4, 8), written as a number so the shared sources need no
+ * `java.sql`.
  *
- * Each value maps to the standard JDBC isolation level via [[jdbcLevel]].
- * Levels are defined as local `Int` constants matching the JDBC specification
- * (1, 2, 4, 8) to avoid a `java.sql` dependency in the shared (JS) build. This
- * keeps `sql/shared` free of `java.sql` — the JVM side interprets [[jdbcLevel]]
- * via `Connection.setTransactionIsolation` — mirroring the convention in
- * `DbCodec.scala:101` where shared sources keep `java.sql` constants local.
+ * {{{
+ * TransactionIsolation.ReadCommitted.jdbcLevel // 2
+ * }}}
  *
- * SQLite semantics: SQLite natively supports only `SERIALIZABLE` (its default).
- * Other levels are accepted by the driver and documented here but may be
- * treated as `SERIALIZABLE` by the SQLite engine — the implementation still
- * applies the requested level via `Connection.setTransactionIsolation` so
- * behaviour is uniform across dialects, with the caveat that on SQLite the
- * isolation guarantee remains serializable regardless of the requested level.
+ * The level is passed to `Connection#setTransactionIsolation`. The SQLite
+ * driver accepts all four and reports back the one set, but SQLite runs every
+ * transaction serializably (`READ UNCOMMITTED` matters only in its shared-cache
+ * mode).
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/transactor/ Transactor]]
  */
 enum TransactionIsolation(val jdbcLevel: Int) {
+
+  /** May read rows that other transactions have not committed. */
   case ReadUncommitted extends TransactionIsolation(1) // JDBC TRANSACTION_READ_UNCOMMITTED = 1
-  case ReadCommitted   extends TransactionIsolation(2) // JDBC TRANSACTION_READ_COMMITTED = 2
-  case RepeatableRead  extends TransactionIsolation(4) // JDBC TRANSACTION_REPEATABLE_READ = 4
-  case Serializable    extends TransactionIsolation(8) // JDBC TRANSACTION_SERIALIZABLE = 8
+
+  /** Reads only committed rows; PostgreSQL's default. */
+  case ReadCommitted extends TransactionIsolation(2) // JDBC TRANSACTION_READ_COMMITTED = 2
+
+  /** Rows read once read the same again within the transaction. */
+  case RepeatableRead extends TransactionIsolation(4) // JDBC TRANSACTION_REPEATABLE_READ = 4
+
+  /** Transactions behave as if they ran one after another. */
+  case Serializable extends TransactionIsolation(8) // JDBC TRANSACTION_SERIALIZABLE = 8
 }

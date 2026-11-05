@@ -17,7 +17,8 @@ object ScaladocSnippets {
    * @param line
    *   1-based line of the opening marker
    * @param code
-   *   the example, with the comment margin removed
+   *   the example, with the comment margin removed and each `\$` read as `$`,
+   *   as Scaladoc renders it
    * @param onlyScalaMajor
    *   `Some(3)` for a `// scala-3-only` example, `Some(2)` for a
    *   `// scala-2-only` one
@@ -55,7 +56,9 @@ object ScaladocSnippets {
                   start,
                   "a code line contains }}}, which ends the Scaladoc code block early; reword it (e.g. split the braces or drop the output comment)"
                 )
-              code += stripMargin(lines(i))
+              // Scaladoc renders `\$` as `$` (`$name` alone would be a doc variable), so compile what
+              // the reader sees: `sql"... \$id"` is the interpolation `sql"... $id"`.
+              code += stripMargin(lines(i)).replace("\\$", "$")
               i += 1
             }
             if (i == lines.length) fail(sourcePath, start, "code block is never closed")
@@ -81,9 +84,18 @@ object ScaladocSnippets {
    * `schema-avro` gives `zio.blocks.schema.avro._`. This holds only for a
    * module whose package follows its directory; see the comment on
    * `scaladocCheckedModules` in `build.sbt` for the ones that don't.
+   *
+   * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
+   * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
+   * scope as `zio`, so an example's own `import zio.blocks.schema._` would
+   * fail. Its examples get `zio.blocks.sql.{zio => _, _}` and compile as for a
+   * user without `sql-zio`.
    */
   def moduleImport(sourcePath: String): String =
-    "zio.blocks." + moduleOf(sourcePath).replace('-', '.') + "._"
+    moduleOf(sourcePath) match {
+      case "sql"  => "zio.blocks.sql.{zio => _, _}"
+      case module => "zio.blocks." + module.replace('-', '.') + "._"
+    }
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.

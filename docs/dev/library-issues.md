@@ -10728,6 +10728,680 @@ With `//> using scala 3.9.0` the first line is `List(List(Named(name,Const(x)), 
 
 **Suggested fix.** Match `Apply(Apply(TypeApply(Select(_, "apply"), _), elems), _)` with an `Array` module symbol check; on Scala 3, turn a `Literal(ClassOfConstant(t))` into `ClassOf`, and give the `Const` `ToExpr` a case for it; on Scala 2, add `Literal(Constant(t: Type))` → `ClassOf` and enum `Select` → `EnumValue`. Add a test with each argument kind on both versions.
 
+### typeid: `TypeId.of[Array[Int]].construct` returns a meaningless `scala.Array` object for one boxed `Int`
+
+Found 2026-11-04 in the Opus review of PR #1933 (typeid.md fixes), while checking the claim that `construct` returns `Left` for `Array`. Main at `6ee89c6b8`. Same at v0.0.56 (the reproducer runs against the published 0.0.56 on Scala 3.9.0).
+
+**Summary.** `construct` has no entry for `scala.Array` in `knownTypeConstructors`, so it falls back to `reflectiveConstruct`. `TypeId.of[Array[Int]].clazz` is `Some(class scala.Array)`, the placeholder class from the Scala library (not the JVM array class `[I`). That class has one public constructor taking an `Int`, so with a single boxed `Int` the reflection finds it, calls it, and returns `Right` of a useless `scala.Array` instance. Any other argument list gives `Left(No matching constructor ...)`. The returned value is not an array: casting it to `Array[Int]` throws `ClassCastException`.
+
+**Reproduction** (`Repro.scala`, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-typeid:0.0.56
+import zio.blocks.typeid.*
+import zio.blocks.chunk.Chunk
+
+@main def run(): Unit = {
+  val id = TypeId.of[Array[Int]]
+  println(s"clazz=${id.clazz}")
+  println(id.construct(Chunk[AnyRef](Int.box(3))))
+  println(id.construct(Chunk[AnyRef](Int.box(3), Int.box(4))))
+  println(id.construct(Chunk[AnyRef]()))
+  println(scala.util.Try(id.construct(Chunk[AnyRef](Int.box(3))).toOption.get.asInstanceOf[Array[Int]]))
+}
+// clazz=Some(class scala.Array)
+// Right(scala.Array@76f2b07d)
+// Left(No matching constructor found for scala.Array with 2 arguments of types: java.lang.Integer, java.lang.Integer)
+// Left(No matching constructor found for scala.Array with 0 arguments of types: )
+// Failure(java.lang.ClassCastException: class scala.Array cannot be cast to class [I (scala.Array is in unnamed module of loader 'app'; [I is in module java.base of loader 'bootstrap'))
+```
+
+**Expected.** Either an array built from the elements (`Right(Array(3, 4))`, which needs the element type from `typeArgs`) or `Left` for every argument list, as for `Chunk` and `ArraySeq`. Never `Right` of an object that is not an `Array`.
+
+**Root cause.** `typeid/jvm/src/main/scala/zio/blocks/typeid/TypeIdPlatformMethods.scala:66-70` (`construct`) finds no `scala.Array` key in `knownTypeConstructors` (:72-95) and calls `reflectiveConstruct` (:221-239). It takes `id.clazz`, which resolves to the `scala.Array` class, calls `clazz.getConstructors` (:226) and `findMatchingConstructor` (:244-251), which accepts the `Array(int)` constructor for one `Integer` argument (`isAssignable`, :255-258), then `c.newInstance` (:232).
+
+**Impact.** Small: a caller who builds arrays through `construct` gets a silently wrong `Right` for a one-element `Int` list (and an exception when it uses the value). Related: `Chunk` and `ArraySeq` also have no entry and always give `Left` (a feature gap, not a bug).
+
+**Test gap.** `typeid/shared/src/test/scala/zio/blocks/typeid/TypeIdSpec.scala` has no test of `construct` on `Array` (the only `Array` test, :858, checks `clazz`).
+
+**Suggested fix.** Add an `Array` case in `construct` (build with `java.lang.reflect.Array.newInstance` from the element class in `typeArgs`, or return a clear `Left`), and make `reflectiveConstruct` refuse `scala.Array`. Add tests for `Array` with 0, 1 and 2 arguments. Optionally add `Chunk`/`ArraySeq` entries to `knownTypeConstructors` as a feature request. After the fix, reword the "known bug in 0.0.56" note on the `construct` section of `docs/reference/typeid.md` (Collection Types).
+
+### http-model: `URL.parse` looks for `://`, `/` and `@` in the whole string, so a `://`, `/` or `@` in the query corrupts the scheme, host and path
+
+Found 2026-11-04 while writing the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`). The http-model sources are byte-identical at tag `v0.0.56`, so it is the same there. Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** `URL.parse` searches the whole input for the scheme separator `://`, for the first `/` that ends the authority, and for an `@` that ends the user info, instead of stopping at the first `?` or `#`. Three common inputs come out wrong, and all three return `Right`:
+
+- A relative request target whose query carries an absolute URL, the usual "return to" link after a login (`/login?next=https://shop.example.com/cart`), parses with the scheme `/login?next=https`, the host `shop.example.com`, the path `/cart` and no query. The `next` parameter is gone.
+- `http://shop.example.com?back=/cart` (no path, a `/` in the query) parses with the host `shop.example.com?back=`, the path `/cart` and no query.
+- `http://shop.example.com?to=a@b.com` (no path, an `@` in the query) treats `shop.example.com?to=a` as user info and parses with the host `b.com` and no query.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `UrlRepro.sc`, run with `scala-cli run --server=false UrlRepro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+def show(s: String): Unit =
+  println(s + " -> " + URL.parse(s).map(u => (u.scheme, u.host, u.path.render, u.queryParams.toList)))
+
+show("/login?next=https://shop.example.com/cart")
+show("http://shop.example.com?back=/cart")
+show("http://shop.example.com?to=a@b.com")
+// /login?next=https://shop.example.com/cart -> Right((Some(/login?next=https),Some(shop.example.com),/cart,List()))
+// http://shop.example.com?back=/cart -> Right((Some(http),Some(shop.example.com?back=),/cart,List()))
+// http://shop.example.com?to=a@b.com -> Right((Some(http),Some(b.com),/,List()))
+```
+
+**Expected.** `(None, None, /login, List((next, https://shop.example.com/cart)))`, `(Some(http), Some(shop.example.com), /, List((back, /cart)))` and `(Some(http), Some(shop.example.com), /, List((to, a@b.com)))`, as `java.net.URI` and the WHATWG URL parser give.
+
+**Root cause.** `http-model/shared/src/main/scala/zio/http/URL.scala` (lines at `v0.0.56`): `s.indexOf("://")` at `:117` searches the whole string, and any index above 0 becomes the scheme (`:118-121`), so a relative URL is never checked for a `?` or `#` before the `://`. In the authority step, `s.indexOf('/', pos)` (`:128`) and `s.indexOf('@', pos)` (`:129`) also search to the end of the string; only when there is no `/` at all does `authorityEnd` fall back to the first `?` or `#` (`:135-144`). The user-info skip at `:130-132` then trusts an `@` found inside the query.
+
+**Impact.** Any server that parses request targets with `URL.parse` (the JDK adapter in the guides does) loses the `next`/`returnTo` parameter of a login redirect and gets a nonsense scheme and host. `Request#path` is then `/cart` instead of `/login`, so the request can reach the wrong route. The host and user-info cases matter for clients and proxies that parse absolute URLs from configuration or links.
+
+**Test gap.** `URLSpec` (`http-model/shared/src/test/scala/zio/http/URLSpec.scala`) has "authority ends at query when no slash" (`:478`) and "userinfo is skipped during parsing" (`:189`), but no input with `/` or `@` inside the query, and no relative URL with `://` in its query. Its relative-URL tests use only plain paths and queries.
+
+**Suggested fix.** Find the first `?` and `#` first and limit every search to the text before them: accept a scheme only if `://` comes before the first `/`, `?` and `#` and the text before it matches `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` (RFC 3986 §3.1); end the authority at the first of `/`, `?` and `#`; look for `@` only inside the authority. Add the three inputs above as tests.
+
+### http-model: `Cookie.renderResponse` writes `expires`, `domain` and `path` unchecked, so a `;` in them adds cookie attributes
+
+Found 2026-11-04 while writing the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`). Same at tag `v0.0.56` (sources identical). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** `Cookie.renderResponseEither` (and `renderResponse`, `Response#addCookie`) checks the cookie name and value and the `SameSite=None` rule, but appends `expires`, `domain` and `path` as they are. A `;` in any of them ends that attribute and starts a new one, so a value can add `HttpOnly`, `Max-Age`, `SameSite=None` or another `Domain`. `Headers` rejects CR and LF, so this cannot split the response, but it does change the cookie. `path` is also written with `Path#render`, unencoded, so a space or `;` in a segment reaches the header as is.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56; the same file with `//> using scala 2.13.18` gives identical output), `CookieRepro.sc`, run with `scala-cli run --server=false CookieRepro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+println(Cookie.renderResponseEither(ResponseCookie("session", "abc123", domain = Some("shop.example.com; HttpOnly"))))
+println(Cookie.renderResponseEither(ResponseCookie("session", "abc123", expires = Some("Wed, 21 Oct 2026 07:28:00 GMT; Max-Age=999999999"))))
+println(Cookie.renderResponseEither(ResponseCookie("session", "abc123", path = Some(Path("/notes; SameSite=None")))))
+// Right(session=abc123; Domain=shop.example.com; HttpOnly)
+// Right(session=abc123; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Max-Age=999999999)
+// Right(session=abc123; Path=/notes; SameSite=None)
+```
+
+**Expected.** `Left(...)` for an attribute value that contains `;` or a control character (RFC 6265 §4.1.1: `domain-value`, `path-value` and `sane-cookie-date` exclude `;` and CTLs), the way an invalid name or value already gives `Left`.
+
+**Root cause.** `http-model/shared/src/main/scala/zio/http/Cookie.scala:218-226` (at `v0.0.56`) appends `cookie.expires`, `cookie.domain` and `cookie.path.render` with no check; only the name and value checks and the `SameSite=None` check run before (`:203-213`).
+
+**Impact.** Low when the attributes are constants. A server that takes `Domain` or `Path` from a tenant setting or a request (multi-tenant hosting, a path built from a user-named folder) lets that input add or override cookie attributes, such as downgrading `SameSite` or lengthening `Max-Age`. The new Scaladoc of `renderResponseEither` names this as a known bug.
+
+**Request side.** `Cookie.renderRequest` checks nothing at all, so `Request#addCookie` with a `;` in a value adds a second cookie: `Request.get(URL.parse("/cart").toOption.get).addCookie(RequestCookie("theme", "dark; session=forged"))` writes `cookie: theme=dark; session=forged`, and its `cookies` reads back `Chunk(RequestCookie(theme,dark),RequestCookie(session,forged))` (run on 3.9.0 and 2.13.18). Its Scaladoc describes this; fixing the response side should check request cookies the same way (`renderRequest` returning an `Either`, or `RequestCookie` validating its fields).
+
+**Test gap.** `CookieSpec` "renders cookie with all attributes" (`http-model/shared/src/test/scala/zio/http/CookieSpec.scala:201`) uses only safe attribute values; no test has a `;`, a space or a control character in `expires`, `domain` or `path`.
+
+**Suggested fix.** In `renderResponseEither`, return `Left` when `expires`, `domain` or `path.render` contains `;` or a character below 0x20 or 0x7F, and add those three cases as tests.
+
+### http-model: `ContentType.parse` ignores a quoted `charset` and keeps the quotes in a quoted `boundary`
+
+Found 2026-11-04 by the Task 3b Scaladoc session (`ContentType.scala`), confirmed by Task 2, branch `http-model-scaladoc`, base `main` `5eb809c8f`. Same at tag `v0.0.56` (sources identical). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** RFC 9110 §5.6.6 lets a media-type parameter value be a token or a quoted string, and the two forms are equivalent. `ContentType.parse` reads only the token form. `charset="utf-8"` gives no charset at all, so `Body#text` falls back to UTF-8 by luck and decodes any other quoted charset (`"iso-8859-1"`) wrongly. `boundary="abc 123"`, the form a boundary with a space requires, keeps the quotes in `Boundary#value`, so a multipart reader that searches for `--"abc 123"` never finds a part.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `ContentTypeRepro.sc`, run with `scala-cli run --server=false ContentTypeRepro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+println(ContentType.parse("text/plain; charset=\"utf-8\"").map(_.charset))
+println(ContentType.parse("text/plain; charset=utf-8").map(_.charset))
+println(ContentType.parse("multipart/form-data; boundary=\"abc 123\"").map(_.boundary.map(_.value)))
+// Right(None)
+// Right(Some(UTF-8))
+// Right(Some("abc 123"))
+```
+
+**Expected.** `Right(Some(UTF-8))` for both charset forms and `Right(Some(abc 123))` for the boundary.
+
+**Root cause.** `http-model/shared/src/main/scala/zio/http/ContentType.scala:59-63` (at `v0.0.56`) trims the value and passes it on as is: `Charset.fromString("\"utf-8\"")` finds no charset, and `Boundary(value)` stores the quotes.
+
+**Impact.** Any server that reads `content-type` from clients that quote parameters (some HTTP libraries do for `charset`, and every client must for a boundary with a space). Decoding with the wrong charset is silent.
+
+**Test gap.** `ContentTypeSpec` (`http-model/shared/src/test/scala/zio/http/ContentTypeSpec.scala:73-89`) parses only unquoted `charset=utf-8` and `boundary=abc123`.
+
+**Suggested fix.** Strip one pair of surrounding double quotes from a parameter value and unescape `\"` and `\\` inside it before using it. Render a boundary that is not a token in quotes, so `render` and `parse` round-trip.
+
+### http-model: `QueryParams.fromEncoded`, `Form.fromString` and `Path` keep empty parts between two separators but drop empty parts at the end
+
+Found 2026-11-04 by the Task 3b Scaladoc session (`Form.scala`) and by Task 2 (`QueryParams.scala`), branch `http-model-scaladoc`, base `main` `5eb809c8f`. Same at tag `v0.0.56` (sources identical). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** Both parsers split with `String#split('&')`, which keeps empty parts in the middle and drops them at the end. `page=2&&sort=price` therefore gets a third entry with an empty key and an empty value, while `page=2&&` gets none. The WHATWG `application/x-www-form-urlencoded` parser (what browsers' `URLSearchParams` use) skips every empty part. The stray entry also survives a round trip: `QueryParams#encode` writes it as `=`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `EmptyPartsRepro.sc`, run with `scala-cli run --server=false EmptyPartsRepro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+println(QueryParams.fromEncoded("page=2&&sort=price").toList)
+println(QueryParams.fromEncoded("page=2&&sort=price").encode)
+println(QueryParams.fromEncoded("page=2&&").toList)
+println(Form.fromString("page=2&&sort=price"))
+println(Form.fromString("page=2&&"))
+// List((page,2), (,), (sort,price))
+// page=2&=&sort=price
+// List((page,2))
+// Form(Chunk((page,2),(,),(sort,price)))
+// Form(Chunk((page,2)))
+```
+
+**`Path` has the same split.** `Path.apply` and `Path.fromEncoded` also split with `split('/')` after removing one leading and one trailing slash, so empty segments in the middle are kept but trailing ones are dropped, and a URL path does not round-trip. `PathSlashRepro.sc`, run with `scala-cli run --server=false PathSlashRepro.sc` (identical output with `//> using scala 2.13.18`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+println(Path("/notes//").segments)
+println(Path("/notes//").render)
+println(Path("/notes//draft").segments)
+println(URL.parse("https://shop.example.com/api/orders//").map(_.encode))
+println(Path.fromEncoded("///").segments)
+// Chunk(notes)
+// /notes/
+// Chunk(notes,,draft)
+// Right(https://shop.example.com/api/orders/)
+// Chunk()
+```
+
+Expected for `Path`: `/notes//` keeps the segments `notes` and `""` and renders back as `/notes//`. Root cause `http-model/shared/src/main/scala/zio/http/Path.scala:93,98` and `:107,112` (at `v0.0.56`). Test gap: `PathSpec` has no input with `//`. Fix: `trimmed.split('/', -1)`. The `Path.apply` Scaladoc now names this as a known bug.
+
+**Expected.** `List((page,2), (sort,price))` and `page=2&sort=price` for the first two lines, and `Form(Chunk((page,2),(sort,price)))`; the outputs for a trailing `&&` already match.
+
+**Root cause.** `http-model/shared/src/main/scala/zio/http/QueryParams.scala:190-201` and `http-model/shared/src/main/scala/zio/http/Form.scala:74` (at `v0.0.56`) split with `s.split('&')` and add every part, including the empty ones `split` keeps.
+
+**Impact.** Low: a hand-built URL with a doubled `&` gets a spurious `""` key, which code that iterates over all parameters (validation that rejects unknown keys, re-encoding for a proxy) then sees and writes back as `=`.
+
+**Test gap.** `QueryParamsSpec` and `FormSpec` have no input with `&&`; `FormSpec` checks only well-formed pairs.
+
+**Suggested fix.** Skip empty parts in both parsers (`if (pair.nonEmpty)`), and add `a=1&&b=2` and `a=1&&` tests to both specs.
+
+### http-model: `Charset.fromString`, `Scheme.fromString` and the header parsers change case with the JVM's default locale, so a Turkish locale breaks `charset=iso-8859-1`, `BASIC` and `X-Frame-Options: SAMEORIGIN`
+
+Found 2026-11-04 by the Review B session of the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`), re-run and extended by Task 2. The http-model sources are byte-identical at tag `v0.0.56`, so it is the same there. Verified with the two reproductions below, on Scala 3.9.0 and 2.13.18. Not filed on GitHub yet.
+
+**Summary.** Several parsers call `String#toUpperCase` or `toLowerCase` without a locale. On a JVM whose default locale is Turkish or Azerbaijani, `i` upper-cases to `İ` and `I` lower-cases to `ı`, so case-insensitive matching fails for any name that contains an `i`. `Charset.fromString("iso-8859-1")` and `("us-ascii")` give `None`; `ContentType.parse` then drops the charset without an error, and `Body#text` decodes Latin-1 bytes as UTF-8. `Header.Authorization` and `Header.ProxyAuthorization` read the schemes `BASIC` and `DIGEST` as `Unparsed`. `X-Frame-Options: SAMEORIGIN`, the spelling browsers and most servers use, fails to parse, as do `GZIP` and `IDENTITY` in `Content-Encoding` and `Transfer-Encoding`, `BINARY` in `Content-Transfer-Encoding`, `PRIVATE`, `IMMUTABLE` and `MIN-FRESH` in `Cache-Control`; `Accept-Encoding: IDENTITY` becomes `GZip`; `Connection: KEEP-ALIVE` becomes `Other(keep-alıve)`; `Scheme.fromString("FILE")` gives `Custom(fıle)`. `Headers` and `Cookie.parseResponse` already use `Locale.ROOT`, so the module is inconsistent with itself.
+
+**Reproduction 1** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `TurkishLocaleRepro.sc`, run with `scala-cli run --server=false TurkishLocaleRepro.sc`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using javaOpt -Duser.language=tr -Duser.country=TR
+import zio.http._
+
+println(java.util.Locale.getDefault)
+println(Charset.fromString("iso-8859-1"))
+println(ContentType.parse("text/plain; charset=us-ascii").map(_.charset))
+println(Body.fromChunk(zio.blocks.chunk.Chunk[Byte](0x63, 0x61, 0x66, 0xe9.toByte), ContentType.parse("text/plain; charset=iso-8859-1").toOption.get).text)
+println(Scheme.fromString("FILE"))
+println(Headers("authorization" -> "BASIC dXNlcjpwYXNz").get(Header.Authorization))
+// tr_TR
+// None
+// Right(None)
+// caf�
+// fıle
+// Some(Unparsed(BASIC,dXNlcjpwYXNz))
+```
+
+**Reproduction 2**, `HeaderTr.sc`, same run command:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+//> using javaOpt -Duser.language=tr -Duser.country=TR
+import zio.http._
+
+println(java.util.Locale.getDefault)
+println(Header.ProxyAuthorization.parse("DIGEST realm=\"shop\""))
+println(Header.ContentEncoding.parse("GZIP"))
+println(Header.ContentTransferEncoding.parse("BINARY"))
+println(Header.Connection.parse("KEEP-ALIVE"))
+println(Header.TransferEncoding.parse("IDENTITY"))
+println(Header.CacheControl.parse("PRIVATE"))
+println(Header.CacheControl.parse("MIN-FRESH=5"))
+println(Header.AcceptEncoding.parse("IDENTITY"))
+println(Header.XFrameOptions.parse("SAMEORIGIN"))
+println(Header.Origin.parse("NULL"))
+println(Scheme.fromString("HTTPS"))
+// tr_TR
+// Right(Unparsed(DIGEST,realm="shop"))
+// Left(Invalid content-encoding: GZIP)
+// Left(Invalid content-transfer-encoding: bınary)
+// Right(Other(keep-alıve))
+// Left(Invalid transfer-encoding: IDENTITY)
+// Left(Unknown cache-control directive: prıvate)
+// Left(Unknown cache-control directive: mın-fresh)
+// Right(GZip(None))
+// Left(Invalid x-frame-options: sameorıgın)
+// Right(Null_)
+// https
+```
+
+Both files with `//> using scala 2.13.18` print the same lines. Without the `javaOpt` line the results are `Some(ISO-8859-1)`, `Right(Some(US-ASCII))`, `café`, `file`, `Some(Basic(user,pass))`, and `Right(Digest(Map(realm -> shop)))`, `Right(GZip)`, `Right(Binary)`, `Right(KeepAlive)`, `Right(Identity)`, `Right(Private)`, `Right(MinFresh(5))`, `Right(Identity(None))`, `Right(SameOrigin)`, `Right(Null_)`, `https`. `Keep-Alive`, with a lower-case `i`, parses as `KeepAlive` under both locales.
+
+**Expected.** The same results under every default locale.
+
+**Root cause** (every call in `http-model/shared/src/main` without `Locale.ROOT`, found with `grep -rn "toLowerCase\|toUpperCase\|equalsIgnoreCase" http-model/*/src/main | grep -v Locale.ROOT`; lines at `v0.0.56`):
+
+| Site | Call | Matches | Affected |
+| --- | --- | --- | --- |
+| `Charset.scala:35` `Charset.fromString` | `s.toUpperCase` | `ISO-8859-1`, `US-ASCII`, `ASCII`, `LATIN1`, `LATIN-1`, the UTF names | yes: names with `i` in the input |
+| `Scheme.scala:62` `Scheme.fromString` | `s.toLowerCase` | `http`, `https`, `ws`, `wss` | custom schemes only (`FILE`); the four built-ins contain no `i` |
+| `ContentType.scala:58` parameter names | `.toLowerCase` | `charset`, `boundary` | no (no `i`); the charset value goes through `Charset.fromString` |
+| `Header.scala:75` `Authorization.parse` | `scheme.toLowerCase` | `basic`, `bearer`, `digest` | yes (`BASIC`, `DIGEST`) |
+| `Header.scala:144` `ProxyAuthorization.parse` | same | same | yes |
+| `Header.scala:330` `ContentEncoding` | `value.trim.toLowerCase` | `gzip`, `deflate`, `br`, `compress`, `identity` | yes (`GZIP`, `IDENTITY`) |
+| `Header.scala:495` `ContentTransferEncoding.parse` | same | `7bit`, `8bit`, `binary`, `quoted-printable`, `base64` | yes (`BINARY`, `QUOTED-PRINTABLE`) |
+| `Header.scala:733` `Connection.parse` | same | `close`, `keep-alive` | yes (`KEEP-ALIVE`) |
+| `Header.scala:805` `TransferEncoding` | same | `chunked`, `compress`, `deflate`, `gzip`, `identity` | yes (`GZIP`, `IDENTITY`) |
+| `Header.scala:902` `CacheControl` flags | `s.toLowerCase` | `no-cache` ... `private`, `must-revalidate`, `proxy-revalidate`, `immutable`, `only-if-cached`, `must-understand`, `max-stale` | yes |
+| `Header.scala:917` `CacheControl` `name=value` | `.toLowerCase` | `max-age`, `s-maxage`, `max-stale`, `min-fresh`, `stale-while-revalidate`, `stale-if-error` | yes (`MIN-FRESH`, `STALE-...`) |
+| `Header.scala:1243` `AcceptEncoding` | `raw.toLowerCase` | `gzip`, `deflate`, `br`, `compress`, `identity`, `*` | yes (falls back to `GZip`) |
+| `Header.scala:1312` `AcceptRanges.parse` | `value.trim.toLowerCase` | `bytes`, `none` | no (no `i`) |
+| `Header.scala:1442` `AccessControlAllowCredentials.parse` | same | `true`, `false` | no (no `i`) |
+| `Header.scala:1679` `XFrameOptions.parse` | same | `deny`, `sameorigin` | yes (`SAMEORIGIN`) |
+| `Header.scala:593` `Origin.parse` | `equalsIgnoreCase("null")` | `null` | no: `equalsIgnoreCase` compares characters without a locale |
+
+The "no" rows are correct today only because their keywords contain no `i`.
+
+**Impact.** Servers and clients running with a Turkish or Azerbaijani default locale (developer machines and some hosted JVMs in those countries; `-Duser.language` is often inherited from the OS) silently mis-decode bodies with a lower-case `charset=iso-8859-1` or `us-ascii`, treat `BASIC` and `DIGEST` credentials as an unknown scheme, and fail to read `X-Frame-Options: SAMEORIGIN` and upper-case encodings and cache directives. Scala.js is probably not affected, since JavaScript's case mapping does not use a locale (not probed).
+
+**Test gap.** No http-model test sets a default locale (`grep -rn Locale http-model/shared/src/test` finds nothing), so the specs only ever run under the build machine's locale.
+
+**Suggested fix.** Use `toUpperCase(java.util.Locale.ROOT)` / `toLowerCase(java.util.Locale.ROOT)` at every site in the table (as `Headers` and `Cookie.parseResponse` already do), and add one test that sets `Locale.setDefault(new Locale("tr", "TR"))` (restored afterwards) and parses `iso-8859-1`, `BASIC ...` and `SAMEORIGIN`. Scaladoc of `Charset.fromString`, `Scheme.fromString` and the parse methods of `Authorization`, `ProxyAuthorization`, `ContentEncoding`, `ContentTransferEncoding`, `Connection`, `TransferEncoding`, `CacheControl`, `AcceptEncoding` and `XFrameOptions` now names this as a known bug; remove those sentences with the fix.
+
+### http-model: `ETag.parse` throws on a lone `"`, and `If-Match` splits entity-tags that contain a comma, so a valid precondition reads as absent
+
+Found 2026-11-04 during the http-model Scaladoc rollout (task 3a, `Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** `Header.ETag.parse` returns `Either`, but a value that is only a double quote (`"`) or `W/"` throws `StringIndexOutOfBoundsException`, because the same quote counts as both the opening and the closing one. `Headers#get` does not catch it, so a client that sends `If-None-Match: "` makes `request.header(Header.IfNoneMatch)` throw inside the server's handler. Separately, `IfMatch.parse` and `IfNoneMatch.parse` split the value at every comma, including commas inside a quoted tag. RFC 9110 §8.8.3 allows a comma in an entity-tag (`etagc = %x21 / %x23-7E / obs-text`), so a valid `If-Match: "v1,2"` gives `Left`. `request.header(Header.IfMatch)` then returns `None`. A handler that guards a `PUT` with `If-Match` treats the request as unconditional and overwrites the resource, which is the lost update that RFC 9110 §13.1.1 is designed to prevent. The same lone-quote throw is in five sibling parsers (`Authorization` and `ProxyAuthorization` for `Digest`, `WWWAuthenticate`, `ProxyAuthenticate`, `ClearSiteData`); see the entry "`WWW-Authenticate`, `Proxy-Authenticate`, `Digest` credentials and `Clear-Site-Data` throw on a value that is only a double quote".
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def attempt(a: => Any): String =
+    try a.toString
+    catch { case e: Throwable => "threw " + e }
+
+  def main(args: Array[String]): Unit = {
+    // 1. A lone quote, or W/ and a lone quote, throws instead of returning Left
+    println(attempt(Header.ETag.parse("\"")))
+    println(attempt(Header.ETag.parse("W/\"")))
+
+    // 2. The same value sent by a client throws out of Request#header
+    val url = URL.parse("/books/1").toOption.get
+    val get = Request.get(url).addHeader("If-None-Match", "\"")
+    println(attempt(get.header(Header.IfNoneMatch)))
+
+    // 3. A valid entity-tag with a comma inside is split, so If-Match reads as absent
+    println(Header.IfMatch.parse("\"v1,2\""))
+    val put = Request.put(url, Body.empty).addHeader("If-Match", "\"v1,2\"")
+    println(put.header(Header.IfMatch))
+  }
+}
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [3, 2) out of bounds for length 3
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// Left(Invalid etag: "v1)
+// None
+```
+
+**Expected.** The first three lines are `Left(Invalid etag: ")`, `Left(Invalid etag: W/")` and `None`, with no exception. `IfMatch.parse("\"v1,2\"")` is `Right(ETags(Chunk(ETag(v1,2,false))))`, and `put.header(Header.IfMatch)` is `Some` of that value.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). `ETag.parse` (`http-model/shared/src/main/scala/zio/http/Header.scala:945-953`) checks `startsWith("W/\"") && endsWith("\"")` and `startsWith("\"") && endsWith("\"")`. Both checks are true when the opening quote is the last character, so `substring(3, length - 1)` (`:948`) or `substring(1, length - 1)` (`:950`) gets an end before its start. `Headers#get` (`Headers.scala:52-72`) handles only a `Left` from `parse` and lets the exception through to `Request#header` (`Request.scala:36`). `IfMatch.parse` (`Header.scala:971-988`) and `IfNoneMatch.parse` (`:1007-1024`) use `trimmed.split(",")` (`:975`, `:1011`) instead of a scanner that skips commas inside quotes. Their `if (parsed.isEmpty) Left("Empty if-match header")` / `Left("Empty if-none-match header")` branches (`:985`, `:1021`) are unreachable, because `"".split(",")` has one empty element and `ETag.parse("")` fails first. `ETag.render` (`:955-957`) writes `tag` between quotes without checking it, so `ETag("a\"b", weak = false)` renders the invalid `"a"b"`.
+
+**Impact.** Any client can make a handler that reads `If-None-Match` or `If-Match` through the typed API throw. The server answers with a 500 instead of ignoring a malformed header. A server that builds tags from content such as `"v1,2"` or `"sha:abc,def"` loses `If-Match` protection: a stale client's `PUT` is applied instead of getting `412 Precondition Failed`. Tags without commas, which are the common case, are not affected.
+
+**Test gap.** `CachingHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/CachingHeadersSpec.scala:152-242`) tests `ETag` with `"abc123"`, `W/"abc123"` and `abc123` only, `IfMatch` with `*`, one tag and two plain tags, and `IfNoneMatch` with `*`, one strong tag, one weak tag, two plain tags and the empty string (`:236`). No test has a one-character or two-character value, a comma inside a tag, or a tag containing `"`.
+
+**Suggested fix.** In `ETag.parse`, require `trimmed.length >= 2` (`>= 4` with `W/`) and check that the inner characters are `etagc`. For `IfMatch` and `IfNoneMatch`, parse the list with a small scanner that reads `[W/]"..."` items separated by `OWS "," OWS` and skips empty elements, and remove the dead `Empty ...` branches (or reach them by checking `trimmed.isEmpty` first). Make `ETag.render` reject a `tag` that contains `"` or a control character, or document that it doesn't. Add tests for `"`, `W/"`, `"v1,2"` and `"a", , "b"`. A shared `unquote` helper with a length check, like `Cookie.unquote` (`Cookie.scala:276-279`), fixes this entry's throw and the sibling entry's in one place.
+
+### http-model: `AcceptEncoding.parse` turns unknown codings into `GZip` and drops a weight written with a space, so `gzip; q=0` reads as "gzip preferred"; `AcceptLanguage` keeps `; q=` in the tag
+
+Found 2026-11-04 during the http-model Scaladoc rollout (task 3a, `Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** `AcceptEncoding.parse` maps every coding name it does not know to `GZip`, with the item's weight. Current browsers send `Accept-Encoding: gzip, deflate, br, zstd`, which parses as `Multiple(GZip, Deflate, Br, GZip)`, and a client that accepts only `zstd` is reported as accepting gzip. The weight is read only when it is written exactly as `;q=`. RFC 9110 §12.4.2 defines `weight = OWS ";" OWS "q=" qvalue`, so `gzip; q=0` is valid. Without the exact `;q=`, the whole item, `gzip; q=0`, is treated as an unknown name and becomes `GZip(None)`: an explicit refusal of gzip reads as gzip at full preference, and `deflate; q=0.5` reads as gzip. Weights are not range-checked (`q=7` is kept as `Some(7.0)`), and an unparsable weight is silently dropped. `AcceptLanguage.parse` has the same exact `;q=` check, so `en; q=0.5` becomes `LanguageRange("en; q=0.5", 1.0)`. Finally, an empty `Accept-Encoding` gives `Left`, although RFC 9110 §12.5.3 gives it a meaning: the user agent wants no content coding. `Accept.parse` is not affected by the space bug, because it looks for `q=` after the semicolon.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // 1. An unknown coding becomes GZip
+    println(Header.AcceptEncoding.parse("zstd"))
+    println(Header.AcceptEncoding.parse("gzip, deflate, br, zstd"))
+
+    // 2. A weight written with a space (allowed by RFC 9110) is lost, and the item becomes GZip
+    println(Header.AcceptEncoding.parse("br, gzip; q=0"))
+    println(Header.AcceptEncoding.parse("br;q=1, deflate; q=0.5"))
+
+    // 3. Accept-Language keeps "; q=..." as part of the tag, at quality 1.0
+    println(Header.AcceptLanguage.parse("fr, en; q=0.5"))
+
+    // 4. Out-of-range or malformed weights are kept or ignored without an error
+    println(Header.AcceptEncoding.parse("gzip;q=7"))
+    println(Header.AcceptEncoding.parse("gzip;q=abc"))
+
+    // 5. An empty Accept-Encoding (RFC 9110: "no content coding wanted") is rejected
+    println(Header.AcceptEncoding.parse(""))
+
+    // For comparison, Accept handles the space before q
+    println(Header.Accept.parse("text/html, application/json; q=0.5"))
+  }
+}
+// Right(GZip(None))
+// Right(Multiple(Chunk(GZip(None),Deflate(None),Br(None),GZip(None))))
+// Right(Multiple(Chunk(Br(None),GZip(None))))
+// Right(Multiple(Chunk(Br(Some(1.0)),GZip(None))))
+// Right(AcceptLanguage(Chunk(LanguageRange(fr,1.0),LanguageRange(en; q=0.5,1.0))))
+// Right(GZip(Some(7.0)))
+// Right(GZip(None))
+// Left(Invalid accept-encoding: )
+// Right(Accept(Chunk(MediaRange(MediaType(text,html,true,false,List(html, htm, shtml),Map(),Map()),1.0),MediaRange(MediaType(application,json,true,false,List(json, map),Map(),Map()),0.5))))
+```
+
+**Expected.** An unknown coding is kept by name, for example as a new `AcceptEncoding.Other(name, weight)` case, or the item is skipped. It never becomes `GZip`. `br, gzip; q=0` gives `Multiple(Br(None), GZip(Some(0.0)))`, and `deflate; q=0.5` gives `Deflate(Some(0.5))`. `en; q=0.5` gives `LanguageRange("en", 0.5)`. A weight outside `0..1`, or one that is not a number, gives a `Left` (or at least is not kept as `7.0`). An empty `Accept-Encoding` parses to a value meaning "identity only", such as `Multiple(Chunk.empty)`.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). `AcceptEncoding.parseSingle` (`http-model/shared/src/main/scala/zio/http/Header.scala:1233-1252`) searches for the literal `;q=` (`:1234`), so `OWS` around `;` is not allowed, and its fallback `case _ => GZip(weight)` (`:1250`) catches every unknown name, including the whole `name; q=...` text. The weight is `toDouble` with no range check and `None` on failure (`:1236-1239`). `AcceptEncoding.parse` (`:1216-1221`) returns `Left` when no items remain, including for an empty value. `AcceptLanguage.parseLangRange` (`:1286-1296`) uses the same `indexOf(";q=")` (`:1287`) and keeps the rest of the item as the tag. `Accept.parseQuality` (`:1188-1194`) uses `indexOf("q=")` on the trimmed parameters, which is why `Accept` works.
+
+**Impact.** A server that picks a response coding from `request.header(Header.AcceptEncoding)` can send gzip to a client that refused it (`gzip; q=0`, written with the space that RFC 9110 allows) or that never offered it (`zstd` only), and that client cannot decode the body. Duplicate `GZip` entries for real browser headers make "pick the best coding" logic unreliable. A locale picker that reads `AcceptLanguage` sees tags such as `en; q=0.5` that match no language, at top priority.
+
+**Test gap.** `NegotiationHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/NegotiationHeadersSpec.scala:83-154`) parses only the six known names, `gzip;q=0.8` and `gzip, br;q=0.5`. No item has a space before `q`, no name is unknown, and the empty-value test (`:147`) asserts `isLeft`. The `AcceptLanguage` suite (`:156-206`) uses only `fr;q=0.9`-style weights with no space.
+
+**Suggested fix.** Share one weight parser for `Accept`, `AcceptEncoding` and `AcceptLanguage`. It splits each item at `;`, trims each part, reads a `q` parameter case-insensitively, and accepts a `qvalue` in `0..1` with at most three decimals. In `AcceptEncoding`, add a case for an unknown coding that keeps its name, or drop the item; never map it to `GZip`. Treat an empty `Accept-Encoding` as "identity only" rather than a `Left`. Add tests for `gzip; q=0`, `zstd`, `en; q=0.5`, `q=7` and `q=abc`.
+
+### http-model: `CacheControl.parse` rejects a whole header for one extension directive or a qualified `no-cache`/`private`, and accepts negative ages
+
+Found 2026-11-04 during the http-model Scaladoc rollout (task 3a, `Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** RFC 9111 §5.2 defines `cache-directive = token [ "=" ( token / quoted-string ) ]`, and §5.2.3 says a cache "MUST ignore unrecognized cache directives". `CacheControl.parse` instead returns `Left` for the whole header as soon as one directive is unknown. Examples are RFC 9111's own extension example `community="UCI"` and the legacy `post-check=0, pre-check=0` that many PHP stacks still send. It also rejects the qualified forms `no-cache="Set-Cookie"` (§5.2.2.4) and `private="Authorization"` (§5.2.2.7), because every `name=value` directive must have an integer value. The error, `Invalid number in cache-control directive: "Set-Cookie"`, points at the wrong thing. Through `Response#header(Header.CacheControl)`, such a header reads as `None`, as if the response had no `Cache-Control` at all, so a client loses the `max-age` and `no-cache` it carried. On the other side, `max-age=-5` is accepted as `MaxAge(-5)`, although `delta-seconds = 1*DIGIT` (RFC 9111 §1.2.2) and the other typed headers with seconds (`Age`, `AccessControlMaxAge`) reject negative numbers. Splitting on `,` also cuts a quoted field list such as `no-cache="Set-Cookie, Set-Cookie2"` in two.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // 1. One unrecognised extension directive rejects the whole header (RFC 9111 §5.2.3: ignore it)
+    println(Header.CacheControl.parse("max-age=60, community=\"UCI\""))
+    println(Header.CacheControl.parse("no-store, no-cache, must-revalidate, post-check=0, pre-check=0"))
+
+    // 2. The qualified forms of no-cache and private are rejected, with a misleading message
+    println(Header.CacheControl.parse("no-cache=\"Set-Cookie\""))
+    println(Header.CacheControl.parse("private=\"Authorization\", max-age=60"))
+
+    // 3. A response that carries such a header reads as having no Cache-Control at all
+    val res = Response.ok.addHeader("Cache-Control", "no-cache=\"Set-Cookie\", max-age=60")
+    println(res.header(Header.CacheControl))
+
+    // 4. Negative delta-seconds are accepted here, but Age and AccessControlMaxAge reject them
+    println(Header.CacheControl.parse("max-age=-5"))
+    println(Header.Age.parse("-5"))
+    println(Header.AccessControlMaxAge.parse("-5"))
+  }
+}
+// Left(Invalid number in cache-control directive: "UCI")
+// Left(Unknown cache-control directive: post-check)
+// Left(Invalid number in cache-control directive: "Set-Cookie")
+// Left(Invalid number in cache-control directive: "Authorization")
+// None
+// Right(MaxAge(-5))
+// Left(Invalid age: -5)
+// Left(Invalid access-control-max-age: -5)
+```
+
+**Expected.** Unknown directives are skipped, or kept in an extension case such as `CacheControl.Extension(name, value)`, and the known ones still parse: line 1 gives `MaxAge(60)`, and line 2 gives `Multiple(NoStore, NoCache, MustRevalidate)` plus the two extensions. `no-cache="Set-Cookie"` parses as `NoCache` with its field list (or as plain `NoCache`, which is the safe reading per §5.2.2.4), and likewise for `private`. Line 3 is `Some(...)`. `max-age=-5` gives `Left`, as `Age` does.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). `CacheControl.parse` (`http-model/shared/src/main/scala/zio/http/Header.scala:859-876`) splits on every comma (`:862`) and returns the first directive error. `parseDirective` (`:899-933`) returns `Left("Unknown cache-control directive: ...")` for an unknown name, both without `=` (`:914`) and with `=` (`:928`). For any `name=value` it runs `raw.toLong` (`:920`) before it looks at the name, so a quoted value fails with `Invalid number ...` (`:931`), whatever the directive is. `toLong` accepts a sign, and no case checks `num >= 0`. The model has no case for an extension directive or for the qualified `no-cache`/`private` forms.
+
+**Impact.** Code that reads `Cache-Control` through the typed API (a caching client, a proxy, a test that asserts on response headers) sees `None` for real-world headers and loses every directive in them, including `no-store`. A cache that falls back to heuristic caching when no `Cache-Control` is present could then store a response marked `no-store`. Accepting `max-age=-5` lets an invalid lifetime through to code that does arithmetic on it.
+
+**Test gap.** `CachingHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/CachingHeadersSpec.scala:25-151`) asserts the non-RFC behaviour: "parse unknown directive returns Left" (`:90-91`) and "parse unknown with = returns Left" (`:148-149`). No test has a quoted value, a qualified `no-cache`/`private`, an unknown directive next to a known one, or a negative number.
+
+**Suggested fix.** Parse the list with a scanner that respects quoted strings. Look up the directive name first, and parse a number only for the directives that take `delta-seconds`, requiring all digits. Add `CacheControl.Extension(name: String, value: Option[String])`, or at least skip unknown directives instead of failing. Give `NoCache` and `Private` an optional field list, or accept the qualified form as the unqualified directive. Change the two tests at `:90-91` and `:148-149` to the RFC behaviour, and add tests for `no-cache="Set-Cookie, Set-Cookie2"`, `community="UCI"` and `max-age=-5`.
+
+### http-model: `Host.parse` and `Origin.parse` reject an IPv6 literal without a port, such as `[::1]`
+
+Found 2026-11-04 during the http-model Scaladoc rollout (task 3a, `Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** `Host = uri-host [ ":" port ]` (RFC 9110 §7.2), and an IPv6 `uri-host` is a bracketed `IP-literal` (RFC 3986 §3.2.2). `Host.parse` splits at the last colon in the value, so for `[::1]` or `[2001:db8::7]` it reads the colon inside the brackets as the port separator and fails with `Invalid port: 1]`. `Origin.parse` does the same after `://`, so `http://[::1]` gives `Left`. With a port, `[::1]:8080`, both work. `request.header(Header.Host)` returns `None` for such a request, although `URL.parse("http://[::1]/")` handles the same authority.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // An IPv6 literal without a port: the last ':' inside the brackets is taken as the port separator
+    println(Header.Host.parse("[::1]"))
+    println(Header.Host.parse("[2001:db8::7]"))
+    println(Header.Origin.parse("http://[::1]"))
+
+    // With a port, both work
+    println(Header.Host.parse("[::1]:8080"))
+    println(Header.Origin.parse("http://[::1]:8080"))
+
+    // Through a request, the Host header reads as absent
+    val req = Request.get(URL.parse("/").toOption.get).addHeader("Host", "[::1]")
+    println(req.header(Header.Host))
+
+    // URL.parse handles the same authority
+    println(URL.parse("http://[::1]/").map(u => (u.host, u.port)))
+  }
+}
+// Left(Invalid port: 1])
+// Left(Invalid port: 7])
+// Left(Invalid origin port: 1])
+// Right(Host([::1],Some(8080)))
+// Right(Value(http,[::1],Some(8080)))
+// None
+// Right((Some([::1]),None))
+```
+
+**Expected.** `Right(Host([::1],None))`, `Right(Host([2001:db8::7],None))`, `Right(Value(http,[::1],None))`, and `Some(Host([::1],None))` from the request.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). `Host.parse` takes `value.lastIndexOf(':')` (`http-model/shared/src/main/scala/zio/http/Header.scala:549`) without checking whether that colon is inside `[...]`. `Origin.parse` does the same with `rest.lastIndexOf(':')` (`:600`).
+
+**Impact.** A server that is reached by IPv6 address on the default port (`http://[::1]/`, a common local and container setup) cannot read its `Host` header through the typed API. Virtual-host routing and absolute-URL building that rely on it fall back to "no host". A CORS check that reads `Origin` through the typed API rejects or ignores such an origin.
+
+**Test gap.** `RoutingHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/RoutingHeadersSpec.scala:25-49` for `Host`, `:63-94` for `Origin`) uses only `example.com` and `localhost`, with and without a port. There is no IPv6 case.
+
+**Suggested fix.** When the host part starts with `[`, find the matching `]`, and treat a colon only right after it as the port separator. A value that has `[` but no `]` gives `Left`. Share the helper between `Host` and `Origin` (or reuse the authority parsing that `URL.parse` already does). Add tests for `[::1]`, `[::1]:80`, `http://[::1]` and an unclosed `[::1`.
+
+### http-model: `ContentRange` renders `bytes */*`, which is not a valid `Content-Range`, and `parse` accepts ranges that RFC 9110 calls invalid
+
+Found 2026-11-04 during the http-model Scaladoc rollout (task 3a, `Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** RFC 9110 §14.4 allows `range-unit SP first-last/(length | *)` and `range-unit SP */complete-length`, but never `*/*`. `ContentRange(unit, range: Option[(Long, Long)], size: Option[Long])` can hold `range = None, size = None`, and `render` writes it as `bytes */*`. That is an invalid header, which this library's own `parse` rejects, so render and parse disagree. `parse` is also too lenient in the other direction: §14.4 says a `Content-Range` is invalid when last-pos is less than first-pos or when complete-length is less than or equal to last-pos, and that a recipient "MUST NOT attempt to recombine" it. `parse` accepts both cases.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // 1. render writes a value that parse (correctly) rejects
+    val neither = Header.ContentRange("bytes", None, None)
+    println(neither.renderedValue)
+    println(Header.ContentRange.parse(neither.renderedValue))
+
+    // 2. parse accepts ranges RFC 9110 §14.4 calls invalid
+    println(Header.ContentRange.parse("bytes 500-100/1000")) // last-pos < first-pos
+    println(Header.ContentRange.parse("bytes 0-999/500"))    // complete-length <= last-pos
+  }
+}
+// bytes */*
+// Left(Invalid content-range: bytes */*)
+// Right(ContentRange(bytes,Some((500,100)),Some(1000)))
+// Right(ContentRange(bytes,Some((0,999)),Some(500)))
+```
+
+**Expected.** A `ContentRange` with neither a range nor a size cannot be built (smart constructor or separate cases), or `render` refuses it. The last two lines are `Left(Invalid content-range: ...)`.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). The case class (`http-model/shared/src/main/scala/zio/http/Header.scala:437-440`) allows all four `Option` combinations, and `render` has an explicit `case (None, None) => s"${h.unit} */*"` (`:465`). `parse` (`:449-459`) matches the three valid shapes with regexes (`:445-447`) but never compares `start`, `end` and `total`.
+
+**Impact.** Low. A server that builds a `416 Range Not Satisfiable` response without knowing the length sends a header that clients must treat as invalid. A client that reads `Content-Range` through the typed API to stitch partial downloads trusts impossible ranges.
+
+**Test gap.** `ContentHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/ContentHeadersSpec.scala:214-250`) asserts the invalid output: test "render */*" (`:247-250`) expects `ContentRange.render(ContentRange("bytes", None, None)) == "bytes */*"`. No test parses a range with last-pos below first-pos or a length at or below last-pos.
+
+**Suggested fix.** Model the header as two cases, `Satisfied(unit, first, last, size: Option[Long])` and `Unsatisfied(unit, size: Long)`, or keep the case class and make `render` reject `(None, None)`. In `parse`, return `Left` when `end < start` or `total <= end`. Replace the "render */*" test with one that expects a rejection, and add the two invalid-range cases.
+
+### http-model: `WWW-Authenticate`, `Proxy-Authenticate`, `Digest` credentials and `Clear-Site-Data` throw on a value that is only a double quote
+
+Found 2026-11-04 in the review of the http-model Scaladoc rollout (`Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output. It is a sibling of the entry "`ETag.parse` throws on a lone `"`, and `If-Match` splits entity-tags that contain a comma, so a valid precondition reads as absent": the same root cause in five other places.
+
+**Summary.** Four auth-parameter parsers strip the surrounding double quotes from each parameter value with `if (raw.startsWith("\"") && raw.endsWith("\"")) raw.substring(1, raw.length - 1)`. They are the `Digest` branches of `Authorization` and `ProxyAuthorization`, plus `WWWAuthenticate` and `ProxyAuthenticate`. When the value is a single `"`, both checks are true and `substring(1, 0)` throws `StringIndexOutOfBoundsException`. `ClearSiteData.parse` has the same code for each item. `parse` is meant to return `Either`, but here it throws. `Headers#get` does not catch the exception, so `request.header(Header.Authorization)` throws inside a handler when a client sends `Authorization: Digest nonce="`. On the client side, `response.header(Header.WWWAuthenticate)` throws when a server sends `WWW-Authenticate: Basic realm="`. `Cookie.parseResponse` does the same unquoting safely, because it checks `length >= 2` first.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def attempt(a: => Any): String =
+    try a.toString
+    catch { case e: Throwable => "threw " + e }
+
+  def main(args: Array[String]): Unit = {
+    // A parameter value that is only a double quote throws in all four auth-param parsers
+    println(attempt(Header.WWWAuthenticate.parse("Basic realm=\"")))
+    println(attempt(Header.ProxyAuthenticate.parse("Basic realm=\"")))
+    println(attempt(Header.Authorization.parse("Digest nonce=\"")))
+    println(attempt(Header.ProxyAuthorization.parse("Digest nonce=\"")))
+
+    // Clear-Site-Data: an item that is only a double quote throws
+    println(attempt(Header.ClearSiteData.parse("\"cache\", \"")))
+
+    // Through a request, the exception escapes Request#header
+    val url = URL.parse("/api/orders/42").toOption.get
+    val req = Request.get(url).addHeader("Authorization", "Digest username=\"ann\", nonce=\"")
+    println(attempt(req.header(Header.Authorization)))
+
+    // Cookie.parseResponse has the same unquoting but checks the length first
+    println(Cookie.parseResponse("session=\"").map(_.value))
+  }
+}
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// threw java.lang.StringIndexOutOfBoundsException: Range [1, 0) out of bounds for length 1
+// Right(")
+```
+
+**Expected.** No exception. Each parser either returns a `Left` (for example `Left(Invalid www-authenticate parameter: realm=")`) or keeps the value as the single character `"`, as `Cookie.parseResponse` does. `req.header(Header.Authorization)` returns `None` or `Some(...)`, never an exception.
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). Four `parseParams` methods in `http-model/shared/src/main/scala/zio/http/Header.scala` each run `if (raw.startsWith("\"") && raw.endsWith("\"")) raw.substring(1, raw.length - 1)` with no length check: `Authorization.parseParams` at `:112`, `ProxyAuthorization.parseParams` at `:181`, `WWWAuthenticate.parseParams` at `:227` and `ProxyAuthenticate.parseParams` at `:270`. `ClearSiteData.parse` does the same at `:1763-1764`. `Headers#get` (`Headers.scala:52-72`) handles only a `Left` from `parse`, and `Request#header` (`Request.scala:36`) calls it directly. `Cookie.unquote` (`Cookie.scala:276-279`) shows the safe form (`value.length >= 2 && ...`).
+
+**Impact.**
+- A single client header, `Digest nonce="`, makes any handler that reads `Authorization` or `Proxy-Authorization` through the typed API throw. The server answers 500 instead of 401.
+- A client that reads `WWW-Authenticate` or `Proxy-Authenticate` from a misbehaving server throws instead of treating the challenge as malformed.
+- `Clear-Site-Data` is a response header, so only clients that read it are exposed.
+- Well-formed values are not affected.
+
+**Test gap.**
+- `AuthHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/AuthHeadersSpec.scala`) parses `Digest` credentials only with complete quoted values: `username="alice", realm="example"` (`:43`) and `username="bob", realm="proxy"` (`:122`). It parses the two challenge headers only with `realm="example"` (`:159`) and `realm="proxy"` (`:195`), a bare scheme, and the empty string.
+- `SecurityHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/SecurityHeadersSpec.scala:109-120`) parses `ClearSiteData` with `"cache", "cookies"`, `"*"` and the empty string.
+- No test has a lone `"`.
+
+**Suggested fix.** Add `raw.length >= 2` to each unquoting check, or share one `unquote` helper, like `Cookie.unquote`, across these five parsers and `ETag.parse`. The auth-parameter scanner proposed in the existing entry "`WWW-Authenticate` and the other auth-parameter headers neither escape nor parse quoted strings" fixes the four auth headers at the same time. Add tests for `realm="`, `nonce="` and a `Clear-Site-Data` item `"`.
+
+### http-model: `ContentDisposition.parse` reads a quoted parameter after `filename` or `name` into the value, and drops unquoted and `filename*` file names
+
+Found 2026-11-04 in the review of the http-model Scaladoc rollout (`Header.scala`), on branch `http-model-scaladoc` at base `5eb809c8f`. The http-model main sources at `5eb809c8f` are byte-identical to tag `v0.0.56`, so the bug is the same at the latest release. Verified with the reproducer below (`scala-cli run --server=false Repro.scala`, published `0.0.56`). Scala 2.13.18 and 3.9.0 give identical output.
+
+**Summary.** `ContentDisposition.parse` matches the whole value against four regexes. Each one captures with a greedy `(.*)` that must end at the last `"` in the value, which causes these failures:
+- A quoted parameter after `filename="..."` or `name="..."` is swallowed into the file name or field name. `attachment; filename="invoice-42.pdf"; size="5120"` gives the file name `invoice-42.pdf"; size="5120`.
+- A file name that is not written exactly as `; filename="..."` at the end of the value is dropped without an error. This covers an unquoted token (`filename=invoice-42.pdf`, allowed by RFC 6266 §4.1), the RFC 6266 `filename*=` form after `filename`, and a space before the `;`.
+- The disposition type must be lower case, although RFC 6266 §4.1 makes it case-insensitive.
+- A `form-data` value must list `name` before `filename`, although RFC 7578 does not fix the order.
+
+**Reproduction** (Scala 2.13.18 and 3.9.0, `zio-blocks-http-model` 0.0.56). File `Repro.scala`, run with `scala-cli run --server=false Repro.scala`. For the Scala 3 run, change the first line to `//> using scala 3.9.0`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    // 1. A quoted parameter after filename or name ends up inside the captured text
+    println(Header.ContentDisposition.parse("attachment; filename=\"invoice-42.pdf\"; size=\"5120\""))
+    println(Header.ContentDisposition.parse("form-data; name=\"avatar\"; filename=\"me.png\"; x-note=\"a\""))
+    println(Header.ContentDisposition.parse("form-data; name=\"avatar\"; x-note=\"a\""))
+
+    // 2. A file name the regexes do not expect is dropped without an error
+    println(Header.ContentDisposition.parse("attachment; filename=invoice-42.pdf"))
+    println(Header.ContentDisposition.parse("attachment; filename=\"invoice-42.pdf\"; filename*=UTF-8''invoice-42.pdf"))
+    println(Header.ContentDisposition.parse("Attachment; filename=\"invoice-42.pdf\""))
+
+    // 3. form-data with filename before name is rejected
+    println(Header.ContentDisposition.parse("form-data; filename=\"me.png\"; name=\"avatar\""))
+  }
+}
+// Right(Attachment(Some(invoice-42.pdf"; size="5120)))
+// Right(FormData(avatar,Some(me.png"; x-note="a)))
+// Right(FormData(avatar"; x-note="a,None))
+// Right(Attachment(None))
+// Right(Attachment(None))
+// Left(Invalid content-disposition: Attachment; filename="invoice-42.pdf")
+// Left(Invalid form-data content disposition)
+```
+
+**Expected.** In order, the seven lines should be:
+1. `Attachment(Some(invoice-42.pdf))`
+2. `FormData(avatar,Some(me.png))`
+3. `FormData(avatar,None)`
+4. `Attachment(Some(invoice-42.pdf))`
+5. `Attachment(Some(invoice-42.pdf))`, or the decoded `filename*` value
+6. `Attachment(Some(invoice-42.pdf))` for the capitalised type
+7. `FormData(avatar,Some(me.png))` for the reversed order
+
+**Root cause** (lines at v0.0.56 (= 5eb809c8f)). The regexes at `http-model/shared/src/main/scala/zio/http/Header.scala:377-380` use `"(.*)"` as a full match. The capture therefore runs to the last `"` in the value, and the value must end there. When the regex does not match, `parse` (`:382-403`) falls back to `Attachment(None)` / `Inline(None)` (`:387`, `:392`). It selects the type with a case-sensitive `startsWith` (`:384`, `:389`, `:394`). `FormDataRegex` (`:379`) fixes the order: `name`, then `filename`.
+
+**Impact.** Low: nothing else in `http-model` reads `Content-Disposition`.
+- A client that saves a download under the name from `response.header(Header.ContentDisposition)` gets no name for common server output, such as `filename=report.pdf` or `filename="a.pdf"; filename*=UTF-8''a.pdf`. In other cases it gets a name that contains `"; size="5120`.
+- Code that reads multipart part headers through this codec gets a wrong field name when a part carries an extra parameter.
+
+**Test gap.** `ContentHeadersSpec` (`http-model/shared/src/test/scala/zio/http/headers/ContentHeadersSpec.scala:109-185`) parses only these values: `attachment`, `inline`, one quoted `filename`, `form-data; name="field1"`, `form-data; name="file"; filename="upload.txt"`, and two invalid values. No test has a second parameter, an unquoted or `filename*` file name, a capitalised type, or `filename` before `name`.
+
+**Suggested fix.**
+- Split the value at each `;` that is outside a quoted string.
+- Read the type case-insensitively.
+- Read `name`, `filename` and `filename*` as parameters, in any order. Accept a token or a quoted string (unescaped), and decode `filename*` per RFC 8187, or at least keep `filename` when `filename*` follows.
+- Add a test for each line of the reproducer.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -14367,6 +15041,268 @@ Repro.scala:10: error: Cannot derive IsNominalType for non-nominal type: 8080. O
 **Test gap.** No test covers the singleton type of a constant `final val` on either version (`IsNominalTypeNegativeSpec.scala` and `IsNominalTypeSpec.scala`).
 
 **Suggested fix.** Decide the intended answer; then, in the Scala 3 macro, check `ref.widenTermRefByName` (which keeps the `ConstantType`) instead of `ref.widen`, or in the Scala 2 macro widen a `ConstantType` to its underlying class. Add a shared test.
+
+### async: `Async.promise(succeed(...))` compiles on Scala 3 but not on 2.13: the Scala 2 `promise` body is a plain function, so the bare `succeed`/`fail` helpers find no implicit `Completer`
+
+Found 2026-11-04 while making async-examples compile on 2.13 (PR #1936, branch base `02856d333`; the sources are identical at 0.0.56). `AsyncShowcaseExample.scala:177`.
+
+**Summary.** The Scala 3 `Async.promise` takes a context function `Completer[A] ?=> Unit`, so the body can call the bare helpers `succeed(v)` / `fail(e)`, whose `Completer` comes from `using`. The Scala 2 `promise` takes a plain `Completer[A] => Unit`, so the lambda parameter is not implicit and `succeed(v)` (which needs an `implicit c: Completer[A]`) fails to compile. The `Completer => Unit` form works on both; the docs' bare form works on Scala 3 only. On 2.13 the body must bind the completer: `{ implicit c => succeed(v) }` or `c => c.succeed(v)`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-async` 0.0.56, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-async:0.0.56
+import zio.blocks.async._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(Async.promise[String] { implicit c => succeed("ok") }.block)
+    println(Async.promise[String](c => c.succeed("direct")).block)
+    println(Async.promise[String](succeed("bare")).block)
+  }
+}
+// Repro.scala:13: error: could not find implicit value for parameter c: zio.blocks.async.Completer[String]
+//   (at succeed("bare"))
+// With the third line deleted it prints:
+// ok
+// direct
+```
+
+**Expected.** Either the bare form works on 2.13 too, or the docs and Scaladoc say that on 2.13 the body must bind the completer: `{ implicit c => succeed(v) }`.
+
+**Root cause.** `async/shared/src/main/scala-3/zio/blocks/async/AsyncCompanionVersionSpecific.scala:38` declares `inline def promise[A](inline body: Completer[A] ?=> Unit)`; `async/shared/src/main/scala-2/zio/blocks/async/AsyncCompanionVersionSpecific.scala:40` declares `def promise[A](body: Completer[A] => Unit)`. Scala 2 has no context functions, so the lambda parameter is not implicit; `succeed`/`fail` in `async/shared/src/main/scala-2/zio/blocks/async/AsyncSyntaxVersionSpecific.scala:269,272` take `(implicit c: Completer[A])`.
+
+**Impact.** Scala 2.13 users who copy a Scala 3 `Async.promise { succeed(...) }` snippet from the docs or `AsyncShowcaseExample` get a confusing "could not find implicit value" error. In PR #1936 the example is skipped on 2.x.
+
+**Test gap.** No test compiles the documented bare form on Scala 2.
+
+**Suggested fix.** Say in the `Async.promise` Scaladoc and the reference page that on Scala 2 the body must be `{ implicit c => succeed(v) }` (or call `c.succeed`), and show both forms in the examples. No code change needed.
+
+### http-model: `Method.ANY` renders as `*`, but its `name` is `GET`, so code that writes `method.name` sends or advertises `GET` for a wildcard
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** `Method.ANY` is the route wildcard that matches every method. `toString` and `Method.render` show it as `*`, but its `name` field is `"GET"`, so the two ways of turning a `Method` into text disagree. Any code that uses `name`, including three of the library's own header renderers, turns the wildcard into `GET`:
+
+- A request built with `.method(Method.ANY)` and written out with `method.name` gets the request line `GET /api/orders/42 HTTP/1.1`.
+- `Header.Allow(Chunk(Method.ANY))` and `Header.AccessControlAllowMethods(Method.ANY)` both render `GET`. Allowing every method is advertised as allowing only `GET`.
+- A log line written with `toString` (`*`) cannot be parsed back: `Method.fromString("*")` is `None`, while `Method.fromString(Method.ANY.name)` is `Some(GET)`.
+
+A set of methods built with `#|` (`Method.Methods`) has a similar problem. Its `name` is the method names joined with `#|`, so `Header.Allow(Chunk(Method.GET #| Method.POST))` renders `GET#|POST` instead of `GET, POST`.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `MethodAnyRepro.sc`, run with `scala-cli run --server=false MethodAnyRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+val any = Method.ANY
+println(any.toString + " | " + Method.render(any) + " | " + any.name + " | " + any.ordinal)
+println(Method.fromString(any.toString).toString + " | " + Method.fromString(any.name))
+println(any.name == Method.GET.name)
+println(any.matches(Method.DELETE))
+println(Header.Allow(Chunk(any)).renderedValue)
+println(Header.AccessControlAllowMethods(any).renderedValue)
+println(Header.AccessControlAllowMethods.parse("*"))
+val both = Method.GET #| Method.POST
+println(both.name + " | " + Header.Allow(Chunk(both)).renderedValue)
+val url = URL.parse("/api/orders/42").toOption.get
+val req = Request.get(url).method(any)
+println(req.method.name + " " + req.url.encode + " HTTP/1.1")
+// * | * | GET | -1
+// None | Some(GET)
+// true
+// true
+// GET
+// GET
+// Left(Unknown method: *)
+// GET#|POST | GET#|POST
+// GET /api/orders/42 HTTP/1.1
+```
+
+**Expected.** `name`, `toString` and `render` agree, and nothing that renders a header value turns a wildcard into one method. Specifically:
+
+- `Allow(Chunk(Method.ANY))` lists the standard methods. `Allow` has no wildcard form (RFC 9110 §10.2.1).
+- `AccessControlAllowMethods(Method.ANY)` renders `*`, which the Fetch standard accepts for requests without credentials, and `AccessControlAllowMethods.parse("*")` reads it back.
+- A `Methods` value renders as its method names joined with `, `.
+- A `Request` cannot silently carry `ANY` or `Methods` onto the wire. Either the request line uses something that fails for them, or the docs say plainly that they are for routes only.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/Method.scala:63` declares `case object ANY extends Method("GET", -1)`. `Method.render` maps `ANY` to `"*"` and everything else to `name` (`:76-79`), and `toString` calls `render` (`:50`). `fromString` looks names up only among the nine standard methods (`:68`, `:72-74`).
+- `Methods` builds its `name` by joining the rendered names with `#|` (`:65-66`).
+- `http-model/shared/src/main/scala/zio/http/Header.scala` renders header values from `name`: `AccessControlAllowMethods.render` at `:1401-1402`, `AccessControlRequestMethod.render` at `:1534` and `Allow#renderedValue` at `:1594`. `AccessControlAllowMethods.parse` (`:1384-1399`) passes each token to `Method.fromString`, so `*` is rejected.
+- The endpoint module treats `ANY` as "every method": `RoutePattern` expands it to `Method.standardMethods` (`endpoint/shared/src/main/scala/zio/blocks/endpoint/RoutePattern.scala:44`). So `name = "GET"` contradicts how the rest of the library uses the value.
+
+**Impact.**
+
+- A server adapter, client or logger that writes `request.method.name` (the obvious field) sends or logs `GET` for a wildcard, and nothing fails.
+- A CORS layer or 405 handler that builds `Allow` or `Access-Control-Allow-Methods` from a route's method tells browsers that only `GET` is allowed, so preflights for `POST`, `PUT` and `DELETE` fail. It writes `GET#|POST` for a combined route, which is not a valid header value.
+- Code that dispatches on `name` (`method.name match { case "GET" => ... }`) treats an `ANY` route as a `GET` route.
+
+The branch's Scaladoc on `Method.ANY` now says "do not put it in a request line"; nothing else warns about it.
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/MethodSpec.scala` checks `name` only for the nine standard methods (`:23-49`), and checks `ANY` only through `render` (`:143-145`), `matches` (`:111-117`) and `#|` (`:132-137`). No assertion reads `Method.ANY.name` or `Methods#name`. `headers/CorsHeadersSpec.scala:60-90` builds `AccessControlAllowMethods` only from standard methods, and no header test uses `Method.ANY` or a `Methods` value.
+
+**Suggested fix.**
+
+1. Make the header renderers handle the composite methods: `Allow` expands `ANY` to `Method.values` and `Methods` to its members, and `AccessControlAllowMethods` renders `ANY` as `*`. Make `AccessControlAllowMethods.parse` accept `*` as `ANY`.
+2. Then either set `ANY.name` to `"*"` so that `name`, `toString` and `render` agree, or keep `"GET"` (if a request-line fallback is intended) and say so on `name`.
+3. Add tests for `Method.ANY.name`, for `Allow` and `AccessControlAllowMethods` with `ANY` and with `GET #| POST`, and for `parse("*")`.
+
+### http-model: `Request.post`, `put` and `patch` add no `content-type` header, although `Request#body` and `Response.ok(body)`, `text` and `json` do
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. Not filed on GitHub yet.
+
+**Summary.** A `Body` carries its own `ContentType`. Some constructors copy it into a `content-type` header and some do not:
+
+- **Copy it:** `Request#body`, `Response#body`, `Response.ok(body)`, `Response.text` and `Response.json`.
+- **Do not copy it:** `Request.post(url, body)`, `Request.put` and `Request.patch` (all three use `Headers.empty`), and the `Response(...)` case-class constructor.
+
+`Request#contentType` hides the difference, because it falls back to the body's type when the header is missing. A request can therefore report `Some(application/json)` while its headers contain no `content-type`. An adapter that writes `headers` to the wire sends the request without one.
+
+Because the two families behave differently, the pattern the reference page uses has opposite results on the request side and the response side:
+
+- `Request.post(...).addHeader("content-type", ...)` gives one header. That header can disagree with `body.contentType`.
+- `Response.ok(body).addHeader("content-type", ...)` gives two headers.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `PostContentTypeRepro.sc`, run with `scala-cli run --server=false PostContentTypeRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.http._
+
+val url  = URL.parse("https://shop.example.com/api/orders").toOption.get
+
+def wire(h: Headers): String = h.rawGet("content-type").toString
+
+val post = Request.post(url, Body.fromArray("""{"sku":"tea-01"}""".getBytes("UTF-8"), ContentType.`application/json`))
+println("Request.post:   " + wire(post.headers) + " | contentType = " + post.contentType.map(_.render))
+val put = Request.put(url, Body.fromString("qty=3"))
+println("Request.put:    " + wire(put.headers) + " | contentType = " + put.contentType.map(_.render))
+val patch = Request.patch(url, Body.fromString("qty=4"))
+println("Request.patch:  " + wire(patch.headers))
+val viaBody = Request.get(url).method(Method.POST).body(Body.fromString("qty=5"))
+println("Request#body:   " + wire(viaBody.headers))
+println("Response.ok:    " + wire(Response.ok(Body.fromString("done")).headers))
+println("Response.text:  " + wire(Response.text("done").headers))
+println("Response.json:  " + wire(Response.json("{}").headers))
+println("Response(...):  " + wire(Response(Status.Ok, body = Body.fromString("done")).headers))
+// The docs' pattern: post, then addHeader. Fine today, but with a header already present addHeader adds a second one
+val docs = Request.post(url, Body.fromString("""{"sku":"tea-01"}""")).addHeader("content-type", "application/json")
+println("post+addHeader: " + docs.headers.rawGetAll("content-type") + " | body = " + docs.body.contentType.render)
+println("ok+addHeader:   " + Response.ok(Body.fromString("{}")).addHeader("content-type", "application/json").headers.rawGetAll("content-type"))
+// Request.post:   None | contentType = Some(application/json)
+// Request.put:    None | contentType = Some(text/plain; charset=UTF-8)
+// Request.patch:  None
+// Request#body:   Some(text/plain; charset=UTF-8)
+// Response.ok:    Some(text/plain; charset=UTF-8)
+// Response.text:  Some(text/plain; charset=UTF-8)
+// Response.json:  Some(application/json)
+// Response(...):  None
+// post+addHeader: Chunk(application/json) | body = text/plain; charset=UTF-8
+// ok+addHeader:   Chunk(text/plain; charset=UTF-8,application/json)
+```
+
+**Expected.** Every constructor that takes a `Body` treats its content type the same way. The most consistent rule is that `Request.post`, `put` and `patch` behave like `Request#body` and write `content-type: <body.contentType.render>`. Otherwise all of them, including the `Response` companion constructors, would have to leave the header out.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/Request.scala:92-102`: `post`, `put` and `patch` call the case-class constructor with `Headers.empty`. `Request#body` sets the header (`:73`), and `Request#contentType` falls back to `body.contentType` when the header is missing (`:45-46`).
+- `http-model/shared/src/main/scala/zio/http/Response.scala:94-95`, `:100-103` and `:108-113`: `ok(body)`, `text` and `json` build `Headers("content-type" -> ...)`. `Response#body` sets the header (`:73`), and the case-class constructor (`:23-28`) does not. `Response#contentType` uses the same fallback (`:42-43`).
+
+**Impact.**
+
+- A client or proxy that sends `Request.post(url, body)` through an adapter that copies `headers` sends a JSON or form body with no `content-type`. Servers then guess, usually as `application/octet-stream`, or reject the request with 415.
+- Code that checks `request.contentType` before sending sees the right type, so the omission is easy to miss.
+- The reference page (`docs/reference/http-model/model.md:214-215`, `:838-856`, `:1036-1037`) always adds the header by hand after `Request.post`. Copying that pattern onto `Response.ok(body)` produces two `content-type` headers.
+
+The branch's Scaladoc on the `Request` companion now says that none of the constructors adds the header.
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/RequestSpec.scala:68-80` asserts `request.headers == Headers.empty` for `Request.post`, so the current behaviour is pinned rather than missed. `:153-174` checks only `method` and `body` for `put` and `patch`. `ResponseSpec.scala:148-186` checks the header for `text`, `json` and `ok(body)`, and `RequestSpec.scala:260-265` checks it for `Request#body`. No test compares the two families.
+
+**Suggested fix.**
+
+1. Build `post`, `put` and `patch` as `Request(method, url, Headers.empty, Body.empty, Version.`HTTP/1.1`).body(body)`, so they share `Request#body`'s header logic. Update `RequestSpec.scala:76` and add header assertions for `put` and `patch`.
+2. In the same change, update the reference page's examples to set the type on the `Body` (`Body.fromArray(bytes, ContentType.`application/json`)`), or to use `setHeader` instead of `addHeader`. Otherwise readers get two headers.
+
+### http-model: a custom `SseDataEncoder` line that contains a line break is written as is, so payload text can add `event:`, `id:` or `retry:` fields or end the event
+
+Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. The browser side follows from the WHATWG event-stream parsing rules and was not run in a browser. Not filed on GitHub yet.
+
+**Summary.** `ServerSentEvent` protects two of the three places where text enters the stream:
+
+- **Metadata:** `event` and `id` throw on CR or LF.
+- **Built-in encoders:** `SseDataEncoder.string` and `stringChunk` split the payload at `\n`, `\r` and `\r\n` into separate `data:` lines.
+
+A custom `SseDataEncoder` gets neither protection. `ServerSentEvent#render` writes each line it returns after `data: ` without checking it. A custom encoder that puts a user-supplied field into a line therefore lets that text start new SSE fields:
+
+- `"leave at door\nevent: admin\nid: 999"` adds an `event: admin` line after the envelope's own `event:` line. The WHATWG parser keeps the last `event` value, so the event is dispatched as `admin`. The same text sets the last event ID that the browser sends back as `Last-Event-ID`.
+- `"ok\n\ndata: forged"` ends the event early and starts a second event whose data is `forged`.
+
+The reference page's own custom-encoder example (`docs/reference/http-model/server-sent-event.md:248-260`, a `Progress` encoder that writes `s"note=${value.note}"`) has exactly this shape. The page's warning below it is the only defence.
+
+**Reproduction** (`zio-blocks-http-model` 0.0.56), `SseEncoderRepro.sc`, run with `scala-cli run --server=false SseEncoderRepro.sc`. The same file with `//> using scala 3.9.0` prints the same lines. `\n` in the output is a real line break, shown escaped.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-http-model:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.http._
+
+final case class OrderUpdate(orderId: String, note: String)
+
+implicit val orderUpdateEncoder: SseDataEncoder[OrderUpdate] =
+  new SseDataEncoder[OrderUpdate] {
+    def lines(value: OrderUpdate): Chunk[String] =
+      Chunk("order=" + value.orderId, "note=" + value.note)
+  }
+
+def show(s: String): Unit = println(s.replace("\n", "\\n"))
+
+// A note typed by a customer, passed through unchanged
+val note = "leave at door\nevent: admin\nid: 999"
+show(ServerSentEvent(OrderUpdate("42", note), "order-status").render)
+show(ServerSentEvent(OrderUpdate("42", "ok\n\ndata: forged"), "order-status").render)
+// The built-in String encoder splits the same text into data: lines
+show(ServerSentEvent("note=" + note, "order-status").render)
+// The metadata setters reject a line break
+println(scala.util.Try(ServerSentEvent("x").event("a\nevent: admin")).failed.map(_.getMessage))
+// The splitter is reachable through the public String instance
+println(SseDataEncoder.string.lines(note))
+// event: order-status\ndata: order=42\ndata: note=leave at door\nevent: admin\nid: 999\n\n
+// event: order-status\ndata: order=42\ndata: note=ok\n\ndata: forged\n\n
+// event: order-status\ndata: note=leave at door\ndata: event: admin\ndata: id: 999\n\n
+// Success(SSE event must not contain CR or LF characters)
+// Chunk(leave at door,event: admin,id: 999)
+```
+
+**Expected.** The payload stays inside `data:` lines whatever encoder produced it, as it does for the built-in encoders. In the first case, the output should be `data: note=leave at door\ndata: event: admin\ndata: id: 999`, which the client receives as one `order-status` event with three data lines. If the library prefers not to split, it should reject the line with an `IllegalArgumentException` the way `event` and `id` do, rather than write it.
+
+**Root cause.** All lines are at v0.0.56 (= 5eb809c8f).
+
+- `http-model/shared/src/main/scala/zio/http/ServerSentEvent.scala:78-85` (`renderTo`) appends every line from `encoder.lines(data)` after `data: ` with no check.
+- Only the metadata goes through `validateSingleLineField` (`:142-147`, called at `:40`, `:54`, `:116` and `:127-128`).
+- The splitting lives inside the two built-in encoders (`:164-167`, `:169-185`). Its helper `splitLines` (`:187-205`) is `private`, so a custom encoder can reach it only through `SseDataEncoder.string.lines`. Nothing in the API points to that.
+
+**Impact.**
+
+- Any SSE endpoint whose encoder copies free text into a line is affected: chat messages, order notes, log lines, or JSON from a pretty-printing encoder. That text can change the event type a page's `addEventListener` sees, set the reconnection id, change `retry`, or split one event into two. A page that trusts a named event such as `admin` can be fed forged events by any user whose text is broadcast.
+- Breaking events into the wrong pieces also corrupts the stream for every listener.
+- The trait's contract is documented only in the reference page's warning and, on the branch, in the Scaladoc of `SseDataEncoder#lines` ("must not contain CR or LF").
+
+**Test gap.** `http-model/shared/src/test/scala/zio/http/ServerSentEventSpec.scala` has one custom encoder, `Payload`, which writes `s"payload:${value.value}"` (`:25-28`). Its only test uses `Payload("x")` (`:87-90`). The line-break tests (`:47-58`, `:83-86`) cover only the built-in `String` and `Chunk[String]` encoders, and the CR/LF rejection tests (`:91-98`) cover only `event` and `id`. No test feeds a line break through a custom encoder.
+
+**Suggested fix.**
+
+1. In `renderTo`, split each line the encoder returns with the same rules as `splitLines` before writing it. A line without `\r` or `\n` takes a fast path (one `indexOf` scan for each character), so the output of well-behaved encoders does not change. A line break in payload text then always becomes another `data:` line, never a new field, in line with the reference page's promise that a payload with newlines is "correct by construction".
+2. Alternatively, throw `IllegalArgumentException("SSE data line must not contain CR or LF characters")` the way the metadata setters do.
+3. Either way, make `splitLines` public (for example `SseDataEncoder.splitLines`) so encoder authors have a named helper.
+4. Add a `ServerSentEventSpec` case with a custom encoder whose line contains `\nevent: x` and `\n\n`.
 
 ## Test and CI
 
