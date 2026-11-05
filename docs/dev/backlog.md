@@ -756,9 +756,24 @@ Skill update: lessons in the `scaladoc-rollout` skill (`<h1>` breaks the 2.13 do
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%.
 
-## 13j. Scaladoc: async module (in progress)
+## 13j. Scaladoc: async module
 
-Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 105 / 144 (`async` 91/123, `async.internal` 14/21); 39 gaps, mostly `private[blocks]` StepFold helpers, internal `Parker` members, the dca `AsyncCpsMonad` and implicit-class wrappers, so the main work is the fact-check of the 105 existing comments; `--drift` lists 7 members (`toFuture`, `fromFuture`, `attempt`, `flatten`, `orElse`, `unit`), all reconcilable; one `async.jvm` list entry is enough (the checker compiles each module's own per-version sources; JS-only files are not compiled, so JS-only examples need `// no-check`); 3 existing `{{{` blocks; main equals `v0.0.56` except a 3-line import change in Scala 3 `AsyncSyntaxVersionSpecific`. Milad's Phase 1 decisions: one PR (build entry, AGENTS.md lines, all docs); tier 1 = `Async` and its companion, `Async.Running`, `Completer`, `Cancelable`, `Failure`, `AsyncSelector`, `AsyncInterop`, `Pollable`; drift: one identical text per member, with real differences stated inline (target: empty `--drift`); the fact-check of all 105 existing comments is kept. PR #1946 opened 2026-11-05 (main with #1942 and #1943 merged in): 105 → 144 / 144, `--drift` empty, comments only; reviews A 4 Important + 13 Minor, B 3 Important + 18 Minor, re-review 1 Important + 4 Minor, all fixed.
+Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 105 / 144 (`async` 91/123, `async.internal` 14/21); 39 gaps, mostly `private[blocks]` StepFold helpers, internal `Parker` members, the dca `AsyncCpsMonad` and implicit-class wrappers, so the main work is the fact-check of the 105 existing comments; `--drift` lists 7 members (`toFuture`, `fromFuture`, `attempt`, `flatten`, `orElse`, `unit`), all reconcilable; one `async.jvm` list entry is enough (the checker compiles each module's own per-version sources; JS-only files are not compiled, so JS-only examples need `// no-check`); 3 existing `{{{` blocks; main equals `v0.0.56` except a 3-line import change in Scala 3 `AsyncSyntaxVersionSpecific`. Milad's Phase 1 decisions: one PR (build entry, AGENTS.md lines, all docs); tier 1 = `Async` and its companion, `Async.Running`, `Completer`, `Cancelable`, `Failure`, `AsyncSelector`, `AsyncInterop`, `Pollable`; drift: one identical text per member, with real differences stated inline (target: empty `--drift`); the fact-check of all 105 existing comments is kept.
+
+| Item | Result |
+|---|---|
+| PR | #1946 (one PR); CI green on `be75cd226`: 23 pass, 10 skipping, no reruns; main merged in three times (#1942, #1943, #1944), both sides kept |
+| Coverage | 105 / 144 (72%; `async` 91/123, `async.internal` 14/21) → 144 / 144; `--drift` 7 → 0; comments-only: 31 files, 0 code changes |
+| Examples | 47 compiled per Scala version (2.13.18, 3.9.0, 3.10.0); none of the 3 old ones had ever compiled. `Async.promise` shows both the `// scala-2-only` `implicit c =>` form and the `// scala-3-only` context-function form |
+| Writing | Task 1a (Opus: shared files and tooling, the only sbt runner) and Task 1b (Opus: jvm/js, macros, internals; scala-cli only) in parallel; Task 2 (Sonnet) wrote 22 tier-3 one-liners |
+| Existing comments | 67 of 311 (22%): 19 false, 48 imprecise; mostly where work runs (JVM `toFuture` runs on `ForkJoinPool.commonPool()`, not `ec`), strict vs lazy inputs (`collectAll`), ready vs pending values (`ensuring`, Scala.js `block`), and `List.map` vs `Vector.map` inside `Async.async`; also 11 inline `//` comments corrected |
+| Review (2 Opus, fresh, in parallel) | A 4 Important + 13 Minor; B 3 Important + 18 Minor; Sonnet scoped re-review 1 Important + 4 Minor; 42 of 43 applied, 1 accepted as is |
+| Bugs | 4 library (`fromCompletionStage` `ExecutionException` unwrapping; Scala 3 `asyncRuntimeAwait` never found; Scala 2 `Tuples` nests a right-hand tuple; a quadratic `flatMap` chain over pending wrappers), 3 docs (`async.md` "Direct Style", "Depth Limits", "Completer"), the cause of the `AsyncInteropSpec` flake, status lines on the "two consumers" and "cancel never reaches" entries |
+| Time | about 4 h 20 min from survey to PR, including a ~20 min login outage and two main merges; green CI about 1 h later after a third main merge |
+
+Skill update: "Lessons from async" in the `scaladoc-rollout` skill's `references/lessons.md`.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%.
 
 ## 13k. Scaladoc: jwt module (in progress)
 
