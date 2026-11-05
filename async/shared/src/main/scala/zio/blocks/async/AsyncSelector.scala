@@ -541,6 +541,11 @@ final class AsyncSelector[A] private (slotCount: Int, initial: IndexedSeq[(Int, 
 /** Companion of [[AsyncSelector]]; create a selector with `Async.selector`. */
 object AsyncSelector {
   private[blocks] trait ReadyHandler[-A] {
+
+    /**
+     * Receives a ready slot index and value; returns `true` to keep consuming
+     * ready slots.
+     */
     def apply(index: Int, value: A): Boolean
   }
 

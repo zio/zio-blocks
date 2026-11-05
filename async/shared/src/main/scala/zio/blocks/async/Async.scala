@@ -62,7 +62,11 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * Representation details remain confined to this module.
    */
   private[blocks] trait StepFold[-A, +R] {
+
+    /** Receives the ready value of the step. */
     def success(value: A): R
+
+    /** Receives the cause of a failed step that is not a trusted failure. */
     def failure(cause: Throwable): R
 
     /**
@@ -72,6 +76,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
      */
     def trustedFailure(cause: Throwable): R = failure(cause)
 
+    /** Receives the suspended pollable of a step that is not ready yet. */
     def pending(pollable: Pollable[A]): R
   }
 
@@ -80,9 +85,20 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * interpreters.
    */
   private[blocks] trait DoubleStepFold[+R] {
+
+    /** Receives the ready `Double` value without boxing it again. */
     def successDouble(value: Double): R
+
+    /** Receives the cause of a failed step that is not a trusted failure. */
     def failureDouble(cause: Throwable): R
+
+    /**
+     * Receives the cause of a trusted failure; the default forwards to
+     * `failureDouble`.
+     */
     def trustedFailureDouble(cause: Throwable): R = failureDouble(cause)
+
+    /** Receives the suspended pollable of a step that is not ready yet. */
     def pendingDouble(pollable: Pollable[Double]): R
   }
 
@@ -91,9 +107,20 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * interpreters.
    */
   private[blocks] trait FloatStepFold[+R] {
+
+    /** Receives the ready `Float` value without boxing it again. */
     def successFloat(value: Float): R
+
+    /** Receives the cause of a failed step that is not a trusted failure. */
     def failureFloat(cause: Throwable): R
+
+    /**
+     * Receives the cause of a trusted failure; the default forwards to
+     * `failureFloat`.
+     */
     def trustedFailureFloat(cause: Throwable): R = failureFloat(cause)
+
+    /** Receives the suspended pollable of a step that is not ready yet. */
     def pendingFloat(pollable: Pollable[Float]): R
   }
 
@@ -102,9 +129,20 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * interpreters.
    */
   private[blocks] trait IntStepFold[+R] {
+
+    /** Receives the ready `Int` value without boxing it again. */
     def successInt(value: Int): R
+
+    /** Receives the cause of a failed step that is not a trusted failure. */
     def failureInt(cause: Throwable): R
+
+    /**
+     * Receives the cause of a trusted failure; the default forwards to
+     * `failureInt`.
+     */
     def trustedFailureInt(cause: Throwable): R = failureInt(cause)
+
+    /** Receives the suspended pollable of a step that is not ready yet. */
     def pendingInt(pollable: Pollable[Int]): R
   }
 
@@ -113,9 +151,20 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * interpreters.
    */
   private[blocks] trait LongStepFold[+R] {
+
+    /** Receives the ready `Long` value without boxing it again. */
     def successLong(value: Long): R
+
+    /** Receives the cause of a failed step that is not a trusted failure. */
     def failureLong(cause: Throwable): R
+
+    /**
+     * Receives the cause of a trusted failure; the default forwards to
+     * `failureLong`.
+     */
     def trustedFailureLong(cause: Throwable): R = failureLong(cause)
+
+    /** Receives the suspended pollable of a step that is not ready yet. */
     def pendingLong(pollable: Pollable[Long]): R
   }
 
@@ -953,6 +1002,11 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   private[blocks] trait CancelledReplacementProvenance {
+
+    /**
+     * Whether `pollable` is a replacement that a cancelled poll of this
+     * pollable already produced.
+     */
     def wasCancelledReplacement(pollable: Pollable[?]): Boolean
   }
 
@@ -961,6 +1015,8 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * output.
    */
   private[blocks] trait CancelledOutputOwnership {
+
+    /** Whether cancellation, not this wrapper, owns the output. */
     def cancellationOwnsOutput: Boolean
   }
 
