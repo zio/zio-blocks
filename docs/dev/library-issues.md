@@ -11784,6 +11784,146 @@ xa.connect {
 
 **Suggested fix.** In the `(None, None)` case, throw `IllegalArgumentException` naming both tables and the tables already in the query, and delete the unreachable name comparisons; add a test for it.
 
+### sql-zio: `transactZIO` and `connectZIO` skip the SQLite settings that `transact` applies, so two read-then-write `transactZIO` calls fail with `SQLITE_BUSY`
+
+Found 2026-11-05 while writing the Scaladoc of `TransactorZIO` (sql Scaladoc rollout, Task 1), on branch `sql-scaladoc` at base `0c0021d61`. The code is the same at tag `v0.0.56` (`git diff v0.0.56 0c0021d61 -- sql-zio/ sql/jvm/` is empty). Verified by running the reproduction below against the published 0.0.56 artifacts.
+
+**Summary.** `JdbcTransactor` gives every SQLite connection a 5-second busy timeout and `IMMEDIATE` transactions, so that a transaction takes the write lock when it starts and a second writer waits for it instead of failing (its Scaladoc explains this was added for queue workers that `SELECT` and then `DELETE`). `TransactorZIO#connect` and `#transact` delegate to a `JdbcTransactor` and get these settings. `TransactorZIO#connectZIO` and both `#transactZIO` overloads open the connection straight from the connection factory and wrap it in `JdbcConnection` themselves, so their SQLite connections keep the driver defaults: `DEFERRED` transactions and a 3-second busy timeout. Two concurrent `transactZIO` calls that each read and then write deadlock on the lock upgrade, and SQLite fails one of them at once with `SQLITE_BUSY`, where the same two bodies under `transact` both succeed. `TransactorZIO.fromUrl` also passes none of the SQLite driver properties that `JdbcTransactor.fromUrl` passes.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-sql-zio` 0.0.56, `sqlite-jdbc` 3.53.2.1, run with `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql-zio:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import _root_.zio._
+import zio.blocks.sql.zio._
+import zio.blocks.sql.{zio => _, _}
+
+object Repro extends ZIOAppDefault {
+  // Read, wait, then write: two of these at once on one SQLite file.
+  def readThenWrite(using DbTx): Int = {
+    val n = sql"SELECT count(*) FROM jobs".queryOne[Int].getOrElse(0)
+    Thread.sleep(300)
+    sql"INSERT INTO jobs (n) VALUES ($n)".update
+  }
+  def run = {
+    val db = java.nio.file.Files.createTempFile("jobs", ".db")
+    val tx = TransactorZIO.fromUrl(s"jdbc:sqlite:$db", SqlDialect.SQLite)
+    for {
+      _  <- tx.connect(sql"CREATE TABLE jobs (n INTEGER NOT NULL)".update)
+      a  <- ZIO.collectAllPar(List.fill(2)(tx.transact(readThenWrite).either))
+      _  <- Console.printLine(s"transact:    $a")
+      b  <- ZIO.collectAllPar(List.fill(2)(tx.transactZIO(ZIO.attemptBlocking(readThenWrite)).either))
+      _  <- Console.printLine(s"transactZIO: $b")
+    } yield ()
+  }
+}
+// transact:    List(Right(1), Right(1))
+// transactZIO: List(Right(1), Left(org.sqlite.SQLiteException: [SQLITE_BUSY] The database file is locked (database is locked)))
+```
+
+Run three times: `transact` printed `List(Right(1), Right(1))` every time, and one of the two `transactZIO` calls failed every time, but which one varies between runs (runs 1 and 3 printed `List(Left(...SQLITE_BUSY...), Right(1))`, run 2 the output above).
+
+The settings each method ends up with, read from the unwrapped `org.sqlite.SQLiteConnection` inside the block, show why (`scala-cli run --server=false Settings.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql-zio:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import _root_.zio._
+import zio.blocks.sql.zio._
+import zio.blocks.sql.{zio => _, _}
+
+object Settings {
+  def mode(c: DbConnection): String = {
+    val jc = c.getClass.getMethod("underlying").invoke(c).asInstanceOf[java.sql.Connection]
+    val s  = jc.unwrap(classOf[org.sqlite.SQLiteConnection])
+    s"${s.getConnectionConfig.getTransactionMode} busy=${s.getBusyTimeout}"
+  }
+  def main(a: Array[String]): Unit = {
+    val db  = java.nio.file.Files.createTempFile("jobs", ".db")
+    val tx  = TransactorZIO.fromUrl(s"jdbc:sqlite:$db", SqlDialect.SQLite)
+    val eff = for {
+      t  <- tx.transact(mode(summon[DbTx].connection))
+      tz <- tx.transactZIO(ZIO.succeed(mode(summon[DbTx].connection)))
+      c  <- tx.connect(mode(summon[DbCon].connection))
+      cz <- tx.connectZIO(ZIO.succeed(mode(summon[DbCon].connection)))
+    } yield s"transact: $t | transactZIO: $tz | connect: $c | connectZIO: $cz"
+    println(Unsafe.unsafe(implicit u => Runtime.default.unsafe.run(eff).getOrThrowFiberFailure()))
+  }
+}
+// transact: IMMEDIATE busy=5000 | transactZIO: DEFERRED busy=3000 | connect: IMMEDIATE busy=5000 | connectZIO: DEFERRED busy=3000
+```
+
+**Expected.** `transactZIO` and `connectZIO` configure a SQLite connection as `transact` and `connect` do, so the second read-then-write transaction waits for the first and both succeed.
+
+**Root cause** (lines at `v0.0.56` = `0c0021d61`). `sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala:93` (`connectZIO`) and `:144` (`transactZIOInternal`) call `connectionFactory()` and wrap the result in `new JdbcConnection(conn)` directly. The SQLite set-up lives in `JdbcTransactor.openConnection` (`sql/jvm/src/main/scala/zio/blocks/sql/JdbcTransactor.scala:218-232`, which calls `configureSQLiteConnection` at `:224`), and `JdbcTransactor#connect` also runs `PRAGMA busy_timeout = 5000` (`:36`); neither is reached from these two methods. `TransactorZIO.fromUrl` (`TransactorZIO.scala:221-222`) uses `DriverManager.getConnection(url)` without the `busy_timeout` / `transaction_mode` properties of `JdbcTransactor.fromUrl` (`JdbcTransactor.scala:234-240`).
+
+**Impact.** A ZIO service that runs the same transaction from several fibers on SQLite fails intermittently with `SQLITE_BUSY` under `transactZIO` while the equivalent `transact` code works. The reference page `transactor-zio.md` says `TransactorZIO` "wraps a `JdbcTransactor`", which holds only for `connect` and `transact`.
+
+**Test gap.** `TransactorZIOSpec` builds every `TransactorZIO` from fake or shared connections (`new TransactorZIO(() => connection(state), SqlDialect.SQLite)` at `TransactorZIOSpec.scala:108`, `:124`, `:140`, `:162`) and asserts commit, rollback, isolation and close behaviour; no test opens a real SQLite file, reads the transaction mode, or runs two `transactZIO` calls concurrently. `JdbcTransactorSQLiteSpec` covers the settings and contention for `JdbcTransactor` only.
+
+**Suggested fix.** Open the connection in `connectZIO` and `transactZIOInternal` the way `JdbcTransactor` does: make `JdbcTransactor.openConnection` `private[sql]` (it is in package `zio.blocks.sql`, which `zio.blocks.sql.zio` can see) and call it, or call `JdbcTransactor.configureSQLiteConnection(conn)` when `dialect == SqlDialect.SQLite`, closing the connection if it throws. Pass the same SQLite properties in `TransactorZIO.fromUrl`, and fix `TransactorZIO.fromDataSource` (`TransactorZIO.scala:240-241`), which also skips the `SQLiteDataSource` settings that `JdbcTransactor.fromDataSource` applies (`JdbcTransactor.scala:252-272`); routing both methods through `openConnection` covers it. Add a contention test like the reproduction.
+
+### sql: the table-checked `sql` interpolator checks field names and the type's name, not the table's columns and name, so a renamed column or a plural table name is rejected
+
+Found 2026-11-05 while writing the Scaladoc of `SqlInterpolator` (sql Scaladoc rollout, Task 1), on branch `sql-scaladoc` at base `0c0021d61`. The code is the same at tag `v0.0.56`. Verified by running the reproduction below against the published 0.0.56 artifact. Related to "`Rel.manyToOne` and `Rel.oneToMany` ignore `@Modifier.rename`" and "`Dump.dumpTable` ignores `@Modifier.rename`" (same pattern, different macro).
+
+**Summary.** `StringContext(...).sql(table)(...)` checks each identifier in the SQL against the table's known columns at compile time. It builds that list from the case class's field names, converted to snake case, not from the column names the `Table` really uses. For a field `@Modifier.rename("company") name: String`, the table's column is `company`, but the check rejects `SELECT company FROM supplier` with `Unknown identifier 'company'` and accepts `SELECT name FROM supplier`, which then fails at run time because the table has no `name` column. The table name has the same problem: it is the type name in snake case unless the table expression is `Table(...)` or `Table.derived[A](...)` with a string literal, so a table named by `TableNamingPolicy.Plural` (`categories`) is rejected and the singular `category` is accepted.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-sql` 0.0.56, run with `scala-cli run --server=false CheckedRename.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+
+import scala.compiletime.testing.typeCheckErrors
+import zio.blocks.schema.{Modifier, Schema}
+import zio.blocks.sql._
+
+case class Supplier(id: Int, @Modifier.rename("company") name: String)
+object Supplier { implicit val schema: Schema[Supplier] = Schema.derived }
+
+val suppliers = Table.derived[Supplier]
+
+case class Category(id: Int, label: String)
+object Category { implicit val schema: Schema[Category] = Schema.derived }
+
+val categories = Table.derived[Category](TableNamingPolicy.Plural)
+
+@main def run(): Unit = {
+  println(suppliers.columns)
+  // Vector(id, company)
+  // the real column: rejected
+  println(typeCheckErrors("""StringContext("SELECT company FROM supplier").sql(suppliers)()""").map(_.message))
+  // List(Unknown identifier 'company' at position 7)
+  // the field name, which is not a column: accepted
+  println(typeCheckErrors("""StringContext("SELECT name FROM supplier").sql(suppliers)()""").map(_.message))
+  // List()
+  println(categories.name)
+  // categories
+  // the real table name: rejected
+  println(typeCheckErrors("""StringContext("SELECT label FROM categories").sql(categories)()""").map(_.message))
+  // List(Unknown identifier 'categories' at position 18)
+  // the type's singular name, which is not the table: accepted
+  println(typeCheckErrors("""StringContext("SELECT label FROM category").sql(categories)()""").map(_.message))
+  // List()
+}
+```
+
+**Expected.** The check accepts `company` and rejects `name`, matching `suppliers.columns`, and accepts `categories` and rejects `category`, matching `categories.name`.
+
+**Root cause** (lines at `v0.0.56` = `0c0021d61`). `SqlMacros.addTableMeta` (`sql/shared/src/main/scala/zio/blocks/sql/SqlMacros.scala:136-191`) reads the table's type at compile time and adds `SqlNameMapper.SnakeCase(f.name)` for each of `sym.caseFields` (`:160-165`, constructor-parameter fallback at `:167-173`). It never looks at `@Modifier.rename`, so the known columns are the field names. For the table it adds the snake-case type name (`:153-158`) and replaces it only with the string literal of a `Table(...)` / `Table.derived[A](...)` call (`:177-188`), so a name from `TableNamingPolicy.Plural` or from `@Modifier.config` is never known (the plain comment at `:130-134` lists only `@Modifier.config`).
+
+**Impact.** The check exists to catch wrong column names at compile time. For any table with a renamed field it does the opposite on that column: it fails the build on correct SQL and passes SQL that fails at run time. The only way round it is to splice the column in as a `SqlLiteral`, which turns the check off for it.
+
+**Test gap.** `SqlIdentifierCheckerSpec` tests the checker with hand-written name sets, and `SqlInterpolatorSpec` has no `@Modifier` or rename case (`grep -n -i 'rename\|Modifier'` finds none in either file), so no test builds a checked `sql` from a table with a renamed field.
+
+**Suggested fix.** In `addTableMeta`, read `@Modifier.rename` from each field's annotations (as the runtime `Table` does: `suppliers.columns` has `company`) and add the renamed name instead of the snake-cased field name, and take the table name from the same place the runtime `Table` takes it (naming policy included); ideally share one column-naming function between the deriver and the macro so they can't drift. Add tests with a renamed field and with a `TableNamingPolicy.Plural` table that expect the real names to pass and the field or type names to fail.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -15685,6 +15825,46 @@ println(SseDataEncoder.string.lines(note))
 2. Alternatively, throw `IllegalArgumentException("SSE data line must not contain CR or LF characters")` the way the metadata setters do.
 3. Either way, make `splitLines` public (for example `SseDataEncoder.splitLines`) so encoder authors have a named helper.
 4. Add a `ServerSentEventSpec` case with a custom encoder whose line contains `\nevent: x` and `\n\n`.
+
+### sql: interpolating a value whose type has no real codec, such as `Object` or a class without constructor parameters, compiles and throws "multi-column type ... (got 0 columns)"
+
+Found 2026-11-05 in review of the `SqlInterpolator` Scaladoc (sql Scaladoc rollout, Task 1, fix round 1), on branch `sql-scaladoc` at base `0c0021d61`. The code is the same at tag `v0.0.56`. Verified by running the reproduction below against the published 0.0.56 artifact.
+
+**Summary.** `sql"..."` binds a value through `DbParam.fromDbCodec` when its type has a `DbCodec`, and `DbCodec.derived` is an inline given, so a codec is derived on the spot for almost any type. For `Object` or a class with no constructor parameters, the derived codec writes no columns. The interpolation compiles, and building the fragment throws `IllegalArgumentException: Cannot use multi-column type as a single SQL parameter (got 0 columns)`, which calls a zero-column type "multi-column" and suggests expanding it into several placeholders. A plain class whose constructor parameters are not `val`s fails to compile with `No DbParam/Frag/SqlLiteral/DbValue instance found`, and one with a single `val` parameter binds that value, so the trap is the zero-parameter case.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-sql` 0.0.56, run with `scala-cli run --server=false ZeroColumnParam.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-sql:0.0.56
+
+import zio.blocks.sql._
+
+// A class with no constructor parameters; its id lives in the body.
+class Session {
+  val id: String = "s-17"
+}
+
+@main def run(): Unit = {
+  val session = new Session
+  // Compiles: DbParam.fromDbCodec finds a derived DbCodec[Session] with no columns.
+  println(scala.util.Try(sql"SELECT cart FROM session WHERE id = $session"))
+  // Failure(java.lang.IllegalArgumentException: Cannot use multi-column type as a single SQL parameter (got 0 columns). Expand the value into multiple placeholders instead.)
+  val any = new Object
+  println(scala.util.Try(sql"SELECT 1 WHERE ${any} IS NULL"))
+  // Failure(java.lang.IllegalArgumentException: Cannot use multi-column type as a single SQL parameter (got 0 columns). Expand the value into multiple placeholders instead.)
+}
+```
+
+**Expected.** A compile error, as for a type with no codec at all (`No DbParam/Frag/SqlLiteral/DbValue instance found for type Session`), or at least a run-time message that names the zero-column case.
+
+**Root cause** (lines at `v0.0.56` = `0c0021d61`). `DbParam.fromDbCodec` (`sql/shared/src/main/scala/zio/blocks/sql/SqlInterpolator.scala:112-122`) accepts any `DbCodec[A]` and checks `values.size == 1` only when the fragment is built, with one message for every size other than 1. The macro (`SqlMacros.scala:247-249`) summons `DbParam[w]`, which succeeds through the derived codec.
+
+**Impact.** A mistake that could be a compile error surfaces at run time, with a message that points the wrong way.
+
+**Test gap.** `DbParamFromCodecSpec` has one test, a one-column codec (`ProductId`). `SqlInterpolatorSpec` "multi-column values fail with a clear error" (`SqlInterpolatorSpec.scala:210-219`) asserts the message for 2 columns only. No test interpolates a type whose derived codec has zero columns.
+
+**Suggested fix.** Make the zero-column case a compile error in the macro (check `codec.columns.size` when it is known statically, or require a one-column codec), and give the run-time message a separate wording for 0 columns.
 
 ## Test and CI
 
