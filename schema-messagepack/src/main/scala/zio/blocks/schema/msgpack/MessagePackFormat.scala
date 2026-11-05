@@ -18,4 +18,37 @@ package zio.blocks.schema.msgpack
 
 import zio.blocks.schema.codec.BinaryFormat
 
+/**
+ * The MessagePack format: pass it to `Schema#derive` to get a
+ * [[MessagePackCodec]] for any type that has a schema. MessagePack is a binary
+ * format with the same shapes as JSON (maps, arrays, strings, numbers, booleans
+ * and nil) and smaller payloads. The format's MIME type is
+ * `application/msgpack`, and its deriver is [[MessagePackCodecDeriver]].
+ *
+ * A derived codec writes a record as a map from field names to values, a
+ * sequence as an array, an `Option` as an array of zero or one element, and any
+ * other variant as the index of its case followed by the case's value.
+ * [[MessagePackCodecDeriver]] lists the layout of every kind of type, including
+ * what other MessagePack tools see.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Reading(sensor: String, celsius: Double)
+ * object Reading {
+ *   implicit val schema: Schema[Reading] = Schema.derived
+ * }
+ *
+ * val codec: MessagePackCodec[Reading] = Schema[Reading].derive(MessagePackFormat)
+ * val bytes = codec.encode(Reading("greenhouse-1", 21.5))
+ *
+ * bytes.length        // 38
+ * codec.decode(bytes) // Right(Reading(greenhouse-1,21.5))
+ *
+ * val mimeType = MessagePackFormat.mimeType // application/msgpack
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/messagepack/ MessagePack]]
+ */
 object MessagePackFormat extends BinaryFormat("application/msgpack", MessagePackCodecDeriver)
