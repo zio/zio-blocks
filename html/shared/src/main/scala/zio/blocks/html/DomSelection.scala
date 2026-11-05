@@ -40,7 +40,7 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
  * {{{
  * val dom = div(div(ul(li(p("Fresh bread")), li(p("Cheese")))))
  * dom.select(CssSelector.Element("div")).children.select(CssSelector.Element("p")).texts
- * // Chunk(Fresh bread, Cheese)
+ * // Chunk(Fresh bread,Cheese)
  * }}}
  *
  * Matching reads attributes in a different way from rendering, which is a known
@@ -94,11 +94,11 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
    * matches every `li`, and the sibling combinators `+` and `~` match nothing.
    *
    * Known bugs: a [[CssSelector.Raw]], which `selector"..."` builds, matches
-   * nothing; void elements such as `img` and `input` are never returned; a `>`
-   * or `>>` nested inside another selector, as in `ul > li > a` or
-   * `(nav > a) | (footer > a)`, matches nothing; an element below two nested
-   * matches of the left side of `>>` is returned twice; and attributes are read
-   * as the class description says.
+   * nothing; void elements built with the DSL, such as `img(...)` and
+   * `input(...)`, are never returned; a `>` or `>>` nested inside another
+   * selector, as in `ul > li > a` or `(nav > a) | (footer > a)`, matches
+   * nothing; an element below two nested matches of the left side of `>>` is
+   * returned twice; and attributes are read as the class description says.
    *
    * {{{
    * val shop = div(
@@ -196,8 +196,8 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Keeps only the [[Dom.Element]] nodes. Void elements such as `img` are not
-   * [[Dom.Element]] values and are dropped.
+   * Keeps only the [[Dom.Element]] nodes. Void elements built with the DSL,
+   * such as `img(...)`, are not [[Dom.Element]] values and are dropped.
    */
   def elements: DomSelection = new DomSelection(nodes.filter(_.isInstanceOf[Dom.Element]))
 
@@ -270,7 +270,9 @@ final case class DomSelection(nodes: Chunk[Dom]) extends AnyVal {
 
   /**
    * Keeps the element nodes that have attribute `name` with any value. A
-   * disabled boolean attribute does not count.
+   * disabled boolean attribute such as `disabled := false` does not count, but
+   * a `false` value set with [[AttributeKey]] `:=` does, although it renders
+   * nothing, which is a known bug.
    */
   def withAttribute(name: String): DomSelection = new DomSelection(nodes.filter {
     case el: Dom.Element => DomSelection.hasAttribute(el, name)

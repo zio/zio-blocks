@@ -31,6 +31,9 @@ import zio.blocks.chunk.Chunk
  * DomModifier.AddAttr(id := "cart").applyTo(div).render
  * // <div id="cart"></div>
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/html/#children Children]]
  */
 sealed trait DomModifier extends Product with Serializable {
 

@@ -26,9 +26,9 @@ import zio.blocks.chunk.Chunk
  * with the `html"..."` interpolator, query them with `select`, and turn them
  * into a string with `render`.
  *
- * Rendering escapes text and attribute values, so a string from a user cannot
- * add markup. Text inside `script` and `style` elements is the exception: it is
- * written as is, apart from `</` becoming `<\/`.
+ * Rendering escapes text and attribute values. Text inside `script` and `style`
+ * elements is the exception: it renders without escaping (only `</` becomes
+ * `<\/`), so never put untrusted values there.
  *
  * {{{
  * val card = div(className := "card", h2("Tea & cakes"), p("From ", strong("4.50")))
@@ -48,14 +48,12 @@ sealed trait Dom extends Product with Serializable {
    * Text and attribute values are HTML-escaped (`&`, `<`, `>`, `"` and `'`),
    * void elements close as `<br/>`, and enabled boolean attributes render as
    * the bare name. Text children of `script` and `style` elements are not
-   * escaped; only `</` becomes `<\/`. Repeated attribute names are merged as
-   * [[Dom.Attribute]] describes. A URL attribute (`href`, `src`, `action`,
-   * `formaction` and the htmx `hx-get`, `hx-post`, `hx-put`, `hx-patch`,
-   * `hx-delete`, `hx-push-url` and `hx-replace-url`) whose string value starts
-   * with `javascript:`, `vbscript:` or `data:text/html`, ignoring case and
-   * leading whitespace, gets an `unsafe:` prefix. The check misses a tab or
-   * newline inside the scheme (`java\tscript:`), which browsers skip, which is
-   * a known bug.
+   * escaped; only `</` becomes `<\/`, so never put untrusted values there.
+   * Repeated attribute names are merged as [[Dom.Attribute]] describes. Some
+   * URL attributes, such as `href` and `src`, get an `unsafe:` prefix when the
+   * value starts with a `javascript:`, `vbscript:` or `data:text/html` scheme.
+   * This is a best-effort check, not a sanitizer, so validate untrusted URLs
+   * yourself.
    *
    * {{{
    * div(id := "cart", className := "box", p("2 items & 1 offer")).render
@@ -840,8 +838,9 @@ object Dom {
      * [[Dom]] directly, not [[Dom.Element]], so it has no `children` and no
      * `apply(DomModifier*)`.
      *
-     * [[DomSelection]] never returns a void element, because selection only
-     * looks at [[Dom.Element]] nodes, which is a known bug.
+     * `Dom#select` never returns a void element, because matching only looks at
+     * [[Dom.Element]] nodes, which is a known bug. `DomSelection#children` and
+     * `DomSelection#descendants` do include void elements.
      *
      * {{{
      * img(src := "/tea.png")(alt := "Tea").render
@@ -933,9 +932,9 @@ object Dom {
 
   /**
    * A text node. It stores the raw string and escapes `&`, `<`, `>`, `"` and
-   * `'` when rendered, so user text cannot add markup. As a direct child of a
-   * `script` or `style` element it is written as is instead, apart from `</`
-   * becoming `<\/`.
+   * `'` when rendered. As a direct child of a `script` or `style` element it is
+   * written as is instead, apart from `</` becoming `<\/`, so never put
+   * untrusted text there.
    *
    * {{{
    * Dom.Text("Fish & chips").render
@@ -1024,12 +1023,7 @@ object Dom {
   /** The attribute value cases. */
   object AttributeValue {
 
-    /**
-     * A text value, HTML-escaped when rendered. In a URL attribute such as
-     * `href`, a value starting with `javascript:`, `vbscript:` or
-     * `data:text/html` gets an `unsafe:` prefix; only string values get this
-     * check.
-     */
+    /** A text value, HTML-escaped when rendered. */
     final case class StringValue(value: String) extends AttributeValue
 
     /**
@@ -1040,7 +1034,7 @@ object Dom {
 
     /**
      * JavaScript code, for event handlers such as `onclick`. It is HTML-escaped
-     * when rendered, but never URL-checked.
+     * when rendered.
      */
     final case class JsValue(js: Js) extends AttributeValue
 
