@@ -24,7 +24,9 @@ package zio.blocks.sql
  * Every table and column parameter must be a bare SQL identifier
  * (`[A-Za-z_][A-Za-z0-9_]*`): not schema-qualified and not quoted. Each method
  * checks this first and throws `IllegalArgumentException` otherwise, then
- * writes the names into the SQL without quotes.
+ * writes the names into the SQL without quotes
+ * (`Dialect.SQLite.createShadowTableDDL` throws `UnsupportedOperationException`
+ * for any input).
  *
  * @see
  *   [[https://zioblocks.com/reference/data-migration/ Data Migration]]
@@ -58,10 +60,13 @@ trait SqlMigration {
   def createShadowTableDDL(shadowName: String, sourceTable: String): String
 
   /**
-   * Returns the statements that install triggers on `sourceTable`: each insert,
-   * update or delete records the row's `sourceIdColumn` value in the queue
-   * table's `queueKeyColumn`, with `op` set to `'I'`, `'U'` or `'D'`. Running
-   * them again replaces or keeps the triggers, so they can run on every start.
+   * Returns the statements that install triggers on `sourceTable`. An insert or
+   * update adds the row's `sourceIdColumn` value to the queue table's
+   * `queueKeyColumn` with `op` set to `'I'` or `'U'`, and leaves a key that is
+   * already queued as it is; a delete writes the key with `op` set to `'D'`,
+   * replacing a queued entry (on PostgreSQL it also stores the deleted row as
+   * JSON in `payload`). Running them again replaces or keeps the triggers, so
+   * they can run on every start.
    */
   def createTriggerDDL(
     queueTable: String,

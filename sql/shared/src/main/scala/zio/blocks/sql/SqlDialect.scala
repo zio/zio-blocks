@@ -89,7 +89,7 @@ object SqlDialect {
 
   /**
    * SQLite: integers and `Boolean` are `INTEGER`, `Double` and `Float` are
-   * `REAL`, bytes are `BLOB`, and the other value types, including
+   * `REAL`, byte arrays are `BLOB`, and the other value types, including
    * `BigDecimal`, `UUID` and the `java.time` types, are `TEXT`.
    */
   case object SQLite extends SqlDialect {
