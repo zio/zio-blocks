@@ -112,15 +112,14 @@ object XmlPatch {
   object Position {
 
     /**
-     * Insert before the target element. The target must not be the root (the
-     * empty path), which fails with
-     * `Add with Before/After requires parent context`.
+     * Insert before the target node. The target must not be the root (the empty
+     * path), which fails with `Add with Before/After requires parent context`.
      */
     case object Before extends Position
 
     /**
-     * Insert after the target element. The target must not be the root (the
-     * empty path).
+     * Insert after the target node. The target must not be the root (the empty
+     * path).
      */
     case object After extends Position
 
@@ -151,13 +150,13 @@ object XmlPatch {
     final case class Add(content: Xml, position: Position) extends Operation
 
     /**
-     * Remove the element at the target path. Removing the root (the empty path)
+     * Remove the node at the target path. Removing the root (the empty path)
      * fails with `Remove operation requires parent context`.
      */
     case object Remove extends Operation
 
     /**
-     * Replace the element at the target path with new content.
+     * Replace the node at the target path with new content.
      *
      * @param content
      *   The replacement XML content
@@ -217,7 +216,8 @@ object XmlPatch {
    * }}}
    *
    * @param path
-   *   The path to the target element
+   *   The path to the target node (an element for `PrependChild` and
+   *   `AppendChild`)
    * @param content
    *   The content to add
    * @param position
@@ -229,7 +229,7 @@ object XmlPatch {
     new XmlPatch(Chunk.single(new Op(path, Operation.Add(content, position))))
 
   /**
-   * Creates a patch that removes the element at the path.
+   * Creates a patch that removes the node at the path.
    *
    * {{{
    * import zio.blocks.schema.DynamicOptic
@@ -240,7 +240,7 @@ object XmlPatch {
    * }}}
    *
    * @param path
-   *   The path to the element to remove
+   *   The path to the node to remove
    * @return
    *   A new patch with the remove operation
    */
@@ -248,11 +248,11 @@ object XmlPatch {
     new XmlPatch(Chunk.single(new Op(path, Operation.Remove)))
 
   /**
-   * Creates a patch that replaces the element at the path. With the empty path,
+   * Creates a patch that replaces the node at the path. With the empty path,
    * the patch returns `content` in place of the whole document.
    *
    * @param path
-   *   The path to the element to replace
+   *   The path to the node to replace
    * @param content
    *   The replacement content
    * @return
