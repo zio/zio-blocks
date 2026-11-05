@@ -26,20 +26,21 @@ import zio.blocks.schema.codec.TextCodec
  *
  * For a record, `encode(value, output)` writes one row, cells separated by
  * commas, quoted where needed and ending with `\r\n`, into a buffer you
- * provide. It throws `java.nio.BufferOverflowException` when the buffer has
- * too little room, and also when one cell is longer than 8192 characters (a
- * known bug). It never writes the header line: write `headerNames` yourself,
- * for example with [[CsvWriter.writeHeader]].
+ * provide. It throws `java.nio.BufferOverflowException` when the buffer has too
+ * little room, and also when one cell is longer than 8192 characters (a known
+ * bug). It never writes the header line: write `headerNames` yourself, for
+ * example with [[CsvWriter.writeHeader]].
  *
  * `decode(input)` reads the first row of `input`, ignores anything after it,
  * and expects one cell per column in the order of `headerNames`; a header line
  * is read as data. It returns `Left` with a [[zio.blocks.schema.SchemaError]]
  * when the row does not parse, has a different number of cells, or a cell does
  * not convert to its field's type. A missing cell is an error even when the
- * field has a default value, and cells are not trimmed. The error quotes the
- * bad value but does not name the column (a known bug). When a field's schema
- * comes from `Schema#transform` and its function throws, `decode` throws that
- * exception instead of returning `Left` (a known bug).
+ * field has a default value, and cells are not trimmed, so ` 42` does not
+ * decode as an `Int`. The error quotes the bad value but does not name the
+ * column (a known bug). When a field's schema comes from `Schema#transform` and
+ * its function throws, `decode` throws that exception instead of returning
+ * `Left` (a known bug).
  *
  * The derived codecs always use [[CsvConfig.default]]. To write or read another
  * delimiter, pass a [[CsvConfig]] to [[CsvWriter]] and [[CsvReader]].

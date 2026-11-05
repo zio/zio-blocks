@@ -25,10 +25,10 @@ import zio.blocks.schema.codec.TextFormat
  * Use it for flat records whose fields are primitive values, such as one line
  * of an export of sensor readings. Deriving a codec for a type that is or
  * contains a sealed trait (`Option` included), a collection, a map or a
- * `DynamicValue` throws an `UnsupportedOperationException` when
- * `Schema#derive` runs; the code still compiles. A field whose type is another
- * case class is not rejected: a known bug writes the nested record as one
- * quoted cell with a line break inside.
+ * `DynamicValue` throws an `UnsupportedOperationException` when `Schema#derive`
+ * runs; the code still compiles. A field whose type is another case class is
+ * not rejected: a known bug writes the nested record as one quoted cell with a
+ * line break inside.
  *
  * {{{
  * import java.nio.CharBuffer

@@ -17,39 +17,57 @@
 package zio.blocks.schema.csv
 
 /**
- * CSV row parsing utility using a state machine approach with proper error
- * reporting.
+ * Splits CSV text into rows of cell strings, with the delimiter and quote
+ * character of a [[CsvConfig]]. Use it to read a whole document, its header
+ * included, or a format other than the one the derived codecs use, such as TSV;
+ * then decode each row's cells yourself or with a [[CsvCodec]].
  *
- * Provides methods to parse individual rows, headers, and complete CSV
- * documents. Parsing follows RFC 4180 rules:
- *   - Unquoted fields end at delimiters, newlines, or EOF
- *   - Quoted fields preserve delimiters and newlines as literal content
- *   - Quote characters within quoted fields are escaped by doubling them
- *   - Handles CR, LF, and CRLF line endings uniformly
+ * It follows RFC 4180:
+ *   - An unquoted cell ends at the delimiter, a line break or the end of the
+ *     input. A quote character inside it is kept as text.
+ *   - A quoted cell keeps delimiters and line breaks as text, and a doubled
+ *     quote character inside it stands for one.
+ *   - A row ends at `\r`, `\n` or `\r\n`, whatever [[CsvConfig#lineTerminator]]
+ *     is.
+ *
+ * Cells are not trimmed, and rows may have different numbers of cells. Errors
+ * are [[CsvError.ParseError]] values in a `Left`; nothing is thrown.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
  */
 object CsvReader {
 
-  /**
-   * Parser states for the CSV state machine.
-   */
+  /** The states of the row parser. */
   private final val FieldStart      = 0
   private final val InUnquotedField = 1
   private final val InQuotedField   = 2
   private final val AfterQuote      = 3
 
   /**
-   * Parses a single CSV row starting at the given offset.
+   * Reads one row of `input` starting at `offset`. Call it again with the
+   * returned offset to read the next row. At or past the end of `input` it
+   * returns no cells and `offset` unchanged; an empty line gives one empty
+   * cell. The row and column of an error count from `offset`, not from the
+   * start of `input` (a known bug).
+   *
+   * {{{
+   * val text  = "sensor,celsius\r\nt-1,\"21,5\"\r\n"
+   * val first = CsvReader.readRow(text, 0, CsvConfig.default)
+   * // Right((Vector(sensor, celsius),16))
+   * val second = CsvReader.readRow(text, 16, CsvConfig.default)
+   * // Right((Vector(t-1, 21,5),28))
+   * }}}
    *
    * @param input
-   *   the full CSV input string
+   *   The CSV text.
    * @param offset
-   *   the character position to start parsing from
+   *   The index of the first character of the row.
    * @param config
-   *   the CSV configuration controlling delimiter and quoting
+   *   The delimiter and quote character to use.
    * @return
-   *   `Right((fields, newOffset))` on success where `fields` contains the
-   *   parsed field values and `newOffset` is the position after the consumed
-   *   row, or `Left(CsvError.ParseError(...))` on malformed input
+   *   The row's cells and the index just past its line break, or a
+   *   [[CsvError.ParseError]] when the row is malformed.
    */
   def readRow(input: String, offset: Int, config: CsvConfig): Either[CsvError, (IndexedSeq[String], Int)] = {
     val len       = input.length
@@ -199,30 +217,31 @@ object CsvReader {
   }
 
   /**
-   * Parses just the header row (first row) from the CSV input.
-   *
-   * @param input
-   *   the full CSV input string
-   * @param config
-   *   the CSV configuration
-   * @return
-   *   `Right((headerFields, offset))` on success, or
-   *   `Left(CsvError.ParseError(...))` on malformed input
+   * Reads the first row of `input`, the same as `readRow(input, 0, config)`,
+   * and returns its cells and the index where the next row starts. It reads
+   * that row whatever [[CsvConfig#hasHeader]] is.
    */
   def readHeader(input: String, config: CsvConfig): Either[CsvError, (IndexedSeq[String], Int)] =
     readRow(input, 0, config)
 
   /**
-   * Parses a complete CSV document including header and all data rows.
+   * Reads a whole document: the header row when [[CsvConfig#hasHeader]] is
+   * `true`, then every data row. It stops at the first malformed row and
+   * returns its error, whose row number counts from the start of that row, not
+   * of the document (a known bug).
    *
-   * @param input
-   *   the full CSV input string
-   * @param config
-   *   the CSV configuration
+   * Empty input gives no header and no rows. A blank line between rows becomes
+   * a row with one empty cell; a blank last line is dropped.
+   *
+   * {{{
+   * val lines  = "sensor,celsius\nt-1,21.5\nt-2,19.0\n"
+   * val parsed = CsvReader.readAll(lines, CsvConfig.default)
+   * // Right((Vector(sensor, celsius),Vector(Vector(t-1, 21.5), Vector(t-2, 19.0))))
+   * }}}
+   *
    * @return
-   *   `Right((header, dataRows))` on success where `header` contains column
-   *   names (empty if `config.hasHeader` is false) and `dataRows` contains all
-   *   data rows, or `Left(CsvError.ParseError(...))` on malformed input
+   *   The header (empty when `hasHeader` is `false`) and the data rows, or the
+   *   [[CsvError]] of the first malformed row.
    */
   def readAll(
     input: String,

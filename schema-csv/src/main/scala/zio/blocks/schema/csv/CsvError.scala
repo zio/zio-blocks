@@ -17,48 +17,81 @@
 package zio.blocks.schema.csv
 
 /**
- * Sealed abstract class representing errors that occur during CSV parsing and
- * processing.
+ * An error from reading CSV text. [[CsvReader]] returns it in a `Left` when a
+ * row is malformed: a quoted cell that is never closed, or a character other
+ * than the delimiter or a line break right after a closing quote. It is a
+ * `Throwable` with no stack trace and no cause, so it costs little to create.
  *
- * CSV errors are zero-overhead exceptions (no stack trace) designed for
- * performance in CSV codec operations.
+ * [[CsvCodec]]'s `decode` does not return it: it copies the text of
+ * `getMessage` into a [[zio.blocks.schema.SchemaError]]. Only
+ * [[CsvError.ParseError]] is ever produced; no code in the module constructs
+ * [[CsvError.TypeError]] (a known bug).
+ *
+ * {{{
+ * val result = CsvReader.readRow("\"t-1\"x,21.5", 0, CsvConfig.default)
+ * val text   = result.left.map(_.getMessage)
+ * // Left(CSV error at row 1, column 6: Unexpected character 'x' after closing quote)
+ * val parts = result.left.map(e => (e.row, e.column, e.message))
+ * // Left((1,6,Unexpected character 'x' after closing quote))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
+ *
+ * @param message
+ *   The description of the error, without the row and column.
  */
 sealed abstract class CsvError(val message: String) extends Throwable(message, null, false, false) {
 
-  /** Row number where the error occurred (1-based). */
+  /**
+   * The line of the error, counting from 1 at the start of the row being read,
+   * not of the document (a known bug): [[CsvReader.readAll]] reports an error
+   * on any line of a file as row 1, unless a quoted cell of the failing row
+   * spans several lines.
+   */
   def row: Int
 
-  /** Column number where the error occurred (1-based). */
+  /**
+   * The character position of the error within its line, counting from 1. For
+   * an unclosed quoted cell it is one past the last character read.
+   */
   def column: Int
 }
 
+/** The cases of [[CsvError]]. */
 object CsvError {
 
   /**
-   * Parse error - occurs when CSV format is invalid.
+   * Malformed CSV text, such as `Unclosed quoted field` or
+   * `Unexpected character 'x' after closing quote`. Its `getMessage` adds the
+   * position: `CSV error at row 1, column 6: ...`.
    *
    * @param message
-   *   The error message describing the parse failure
+   *   The description of the error, without the position.
    * @param row
-   *   Row number where the error occurred (1-based)
+   *   The line of the error; see [[CsvError#row]].
    * @param column
-   *   Column number where the error occurred (1-based)
+   *   The character position within the line, from 1.
    */
   final case class ParseError(override val message: String, row: Int, column: Int) extends CsvError(message) {
     override def getMessage: String = s"CSV error at row $row, column $column: $message"
   }
 
   /**
-   * Type error - occurs when a field cannot be converted to the expected type.
+   * Meant for a cell that does not convert to its field's type, but no code in
+   * the module constructs it (a known bug): [[CsvCodec]]'s `decode` reports
+   * such a cell as a [[zio.blocks.schema.SchemaError]] instead. Its
+   * `getMessage` is
+   * `CSV error at row R, column C: <message> (field: <fieldName>)`.
    *
    * @param message
-   *   The error message describing the type conversion failure
+   *   The description of the error.
    * @param row
-   *   Row number where the error occurred (1-based)
+   *   The line of the error.
    * @param column
-   *   Column number where the error occurred (1-based)
+   *   The character position within the line, from 1.
    * @param fieldName
-   *   The name of the field that failed type conversion
+   *   The name of the field whose cell did not convert.
    */
   final case class TypeError(override val message: String, row: Int, column: Int, fieldName: String)
       extends CsvError(message) {

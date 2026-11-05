@@ -20,8 +20,8 @@ package zio.blocks.schema.csv
  * Settings for [[CsvReader]] and [[CsvWriter]]: the delimiter, the quote
  * character, the line terminator and whether a document starts with a header
  * row. Codecs derived with [[CsvFormat]] ignore it and always use
- * [[CsvConfig.default]], so use a custom config when you read or write rows
- * of cells yourself, such as a semicolon-separated export.
+ * [[CsvConfig.default]], so use a custom config when you read or write rows of
+ * cells yourself, such as a semicolon-separated export.
  *
  * {{{
  * val semicolons = CsvConfig(delimiter = ';', lineTerminator = "\n")
@@ -41,9 +41,9 @@ package zio.blocks.schema.csv
  * @param delimiter
  *   The character between two cells of a row. Default: `,`.
  * @param quoteChar
- *   The character that encloses a cell holding the delimiter, this character
- *   or a line break; inside such a cell it is written twice, as RFC 4180 does
- *   with `"`. Default: `"`.
+ *   The character that encloses a cell holding the delimiter, this character or
+ *   a line break; inside such a cell it is written twice, as RFC 4180 does with
+ *   `"`. Default: `"`.
  * @param lineTerminator
  *   What [[CsvWriter]] writes after each row. Default: `\r\n`, as in RFC 4180.
  *   [[CsvReader]] does not read it: it ends a row at `\r`, `\n` or `\r\n`

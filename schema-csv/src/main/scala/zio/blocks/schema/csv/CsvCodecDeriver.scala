@@ -28,15 +28,34 @@ import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
 /**
- * Deriver for CSV codecs that converts between Scala types and CSV row
- * representations.
+ * The [[zio.blocks.schema.derive.Deriver]] behind [[CsvFormat]]; prefer
+ * `Schema#derive(CsvFormat)`. It builds a [[CsvCodec]] for:
+ *   - the 30 primitive types of [[zio.blocks.schema.PrimitiveType]], from
+ *     `Unit` to `UUID`. Such a codec writes the bare value, unquoted and with
+ *     no line terminator, reads the whole input as the value, and has the one
+ *     column `value`. A `Boolean`, `DayOfWeek` or `Month` cell is read in any
+ *     letter case; other cells go to the matching JDK or Scala parser, such as
+ *     `Integer.parseInt` or `Instant.parse`, and a `Currency` is its code.
+ *   - records, written as one row through [[CsvWriter]] with
+ *     [[CsvConfig.default]]. A field that is itself a record (an `AnyVal` case
+ *     class included) becomes one quoted cell holding that record's row, line
+ *     break included (a known bug). Field modifiers such as `Modifier.rename`
+ *     and `Modifier.transient` have no effect (a known bug).
+ *   - wrappers built with `Schema#transform`, through the codec of the wrapped
+ *     type.
  *
- * Supports all 27 primitive types, flat record types (case classes), and
- * wrapper/newtype types. Variant (sum types), sequence, map, and dynamic types
- * are rejected with clear error messages.
+ * Other types throw `UnsupportedOperationException` when the codec is derived:
+ * a sealed trait or `Option` (`CSV does not support variant/sum types. Use a
+ * flat case class instead.`), a collection (`CSV does not support sequence
+ * fields.`), a map (`CSV does not support map fields.`) and a `DynamicValue`
+ * (`CSV does not support dynamic values.`).
  *
- * Uses ThreadLocal caches for performance: a reusable `CharBuffer` for field
- * encoding and a recursive record cache for types with self-referential fields.
+ * A record codec encodes each cell into a per-thread buffer of 1024 characters,
+ * then retries once with 8192; a longer cell makes `encode` throw
+ * `java.nio.BufferOverflowException` (a known bug).
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/csv/ CSV Codec Module]]
  */
 object CsvCodecDeriver extends Deriver[CsvCodec] {
 
