@@ -3008,6 +3008,37 @@ object EditionRow { implicit val schema: Schema[EditionRow] = Schema.derived }
 
 **Suggested fix.** Decide on one behaviour and test it. The smaller change is to reject: in `deriveRecord`, throw `UnsupportedOperationException("CSV does not support nested record fields. Flatten them into the row type.")` when a field's `Reflect` is a record (and not a wrapper). Then update the Scaladoc of `CsvFormat` and the "Record Type Support" section of `csv.md`.
 
+**Addition (2026-11-05, schema-avro/bson/csv/thrift Scaladoc rollout).** Add to **Summary** (verified 2026-11-05 on 2.13.18 and 3.9.0, `zio-blocks-schema-csv:0.0.56`): an `AnyVal` case class field hits the same bug, because `Schema.derived` gives a value class a one-field record schema, not a wrapper, so the common "typed id" pattern breaks a CSV export. A schema built with `Schema#transform` is a wrapper, which the deriver writes as a plain cell. Reproducer, file `CsvAnyValField.scala`, run `scala-cli run --server=false CsvAnyValField.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+
+final case class SensorId(value: String) extends AnyVal
+object SensorId { implicit val schema: Schema[SensorId] = Schema.derived }
+final case class Reading(sensor: SensorId, celsius: Double)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+object CsvAnyValField {
+  def main(args: Array[String]): Unit = {
+    val codec  = Reading.schema.derive(CsvFormat)
+    val buffer = CharBuffer.allocate(64)
+    codec.encode(Reading(SensorId("t-1"), 21.5), buffer)
+    buffer.flip()
+    println(buffer.toString.replace("\r\n", "\\r\\n"))
+    // "t-1\r\n",21.5\r\n
+  }
+}
+```
+
+Add to **Test gap**: `CsvWrapperCodecSpec` derives codecs for `AnyVal` types only at the top level (`deriveCodec[Name]`, `deriveCodec[Age]`), never as a field of a record. `CsvIntegrationSpec.scala:72-76` declares `WithWrappedField(id: WrappedId, name: String)` (with `WrappedId(value: Int) extends AnyVal`, `:66`) but never derives it, and its comment wrongly says records with wrapper-typed fields "work correctly"; only the top-level `WrappedId` is tested (`:245-249`).
+
+Add to **Suggested fix**: if the fix flattens nested records, a one-field record (and so an `AnyVal` case class) should become a plain cell, not a column named `<field>.value`.
+
 ### schema-csv: decode errors never name the column, and `CsvError.TypeError` is never produced
 
 Found 2026-10-20 while writing the how-to guide `docs/guides/read-and-write-csv-and-tsv-files.md` (backlog H-11), on `main` at `b4179489`. The code is the same at tag `v0.0.56`. Verified by running.
@@ -8932,6 +8963,8 @@ object ReproNativeObjectId {
 
 **Suggested fix.** Decide the semantics. Simplest: deprecate `withNativeObjectId`/`useNativeObjectId`, drop the dead disjunct, and fix the Scaladoc and README:74/122 to say `ObjectIdSupport` selects the native type. Alternatively implement `false` as "encode as the hex string" — but that changes the default output, so it would need the default flipped to `true`.
 
+**Addition (2026-11-05, schema-avro/bson/csv/thrift Scaladoc rollout).** Append to the summary: the false documentation is now fixed in both places. `schema-bson/README.md` says the flag has no effect (`:83`, `:135`; fixed in #1878/#1883, last README commit `0f2b31d5d`), and with commit `dc7e45059` (branch `schema-formats-scaladoc`) the Scaladoc of `Config` (`useNativeObjectId`), `Config#withNativeObjectId` and `BsonCodecDeriver#withNativeObjectId` says so too. The library bug (the dead `useNativeObjectId` disjunct at `BsonCodecDeriver.scala:1032`) is still open. In **Suggested fix**, the part "fix the Scaladoc and README:74/122" is done; the title's "its Scaladoc and the README describe behaviour that doesn't exist" no longer holds and can be shortened to "has no effect".
+
 ### Streams: `Sink.count`, the `Sink.sum*` sinks and `Double`-accumulator folds box the accumulator for every element
 
 **Status.** Named as a known bug in 0.0.56 on `zero-boxing.md` (#1881); the library bug is open.
@@ -13701,6 +13734,528 @@ println(JwtClaims.parse(Base64Url.encode(Array[Byte]('{', '"', 's', '"', ':', '"
 
 **Suggested fix.** Reject a leading `0` followed by a digit, check each `\u` digit with `Character.digit(c, 16) >= 0`, skip only space, tab, LF and CR, and decode UTF-8 with a `CharsetDecoder` set to `CodingErrorAction.REPORT`.
 
+### Thrift: a struct field missing from the input decodes as `null`, `0` or `false`, not as an error
+
+Found 2026-11-05 while writing the Scaladoc of `ThriftCodecDeriver` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at v0.0.56 = `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** The Thrift record decoder reads the fields that are present and then builds the record from its registers, without checking that every field was set. A field that is absent from the bytes gets the register's initial value: `null` for a reference type (including `Option`, so a missing optional field is `null`, not `None`), `0` for numbers and `false` for `Boolean`. `decode` returns `Right` with a record that breaks its own types. This is the common case when an older writer meets a newer reader, which is the schema-evolution story that the codec's skip-unknown-fields logic is written for.
+
+**Reproduction.** File `MissingField.scala`, run with `scala-cli run --server=false MissingField.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.thrift._
+
+case class LogEvent(service: String, level: Int, traceId: Option[String])
+object LogEvent { implicit val schema: Schema[LogEvent] = Schema.derived }
+
+case class LogEventV1(service: String)
+object LogEventV1 { implicit val schema: Schema[LogEventV1] = Schema.derived }
+
+object MissingField {
+  def main(args: Array[String]): Unit = {
+    val codec = LogEvent.schema.derive(ThriftFormat)
+    // A struct with no fields at all: only the STOP byte
+    println(codec.decode(Array[Byte](0)))
+    // Bytes from an older writer that has only field 1
+    val old = LogEventV1.schema.derive(ThriftFormat).encode(LogEventV1("billing"))
+    println(codec.decode(old))
+  }
+}
+// Right(LogEvent(null,0,null))
+// Right(LogEvent(billing,0,null))
+```
+
+**Expected.** `Left` with an error such as `Missing field at: .level`, or the field's default value when the schema has one, and `None` for a missing `Option` field.
+
+**Root cause.** `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodecDeriver.scala:125-158`: `decodeValue` creates `Registers(usedRegisters)` (line 126), loops over the field headers until STOP (lines 127-156) and calls `constructor.construct(regs, 0)` (line 157). Nothing records which field ids were seen, so unset registers go into the constructor as `null`/`0`.
+
+**Impact.** Silent `null`s in Scala values (an `Option` that is `null` throws `NullPointerException` on the first `map`), and wrong zeros that look like real data. Any service that adds a field to a Thrift record and still receives messages from an older producer is affected.
+
+**Test gap.** `schema-thrift/src/test/scala/zio/blocks/schema/thrift/ThriftErrorHandlingSpec.scala:91-100` ("decode with only STOP field") decodes a STOP-only struct into `RecordWithOption` and asserts only `result.isRight`; the decoded value is `RecordWithOption(null)`. `ThriftCodecSpec.scala:489` has the comment "Simply omitting a field does not produce None - it produces null" but no assertion on it.
+
+**Suggested fix.** Track the seen field ids in a bit set during `decodeValue`; after STOP, fill a missing field from its default value (`Reflect`'s default, as the JSON deriver does), use `None` for an `Option` field, and otherwise fail with `error(...)` naming the field. Change the "only STOP field" test to assert the value.
+
+### Thrift: decoding ignores the Thrift type written before each field, so a changed field type decodes silently as a wrong value
+
+Found 2026-11-05 while writing the Scaladoc of `ThriftCodecDeriver` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at v0.0.56 = `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** Thrift binary data, unlike Avro, carries a type byte before every struct field. The derived record decoder looks only at the field id and reads the value with the reader's codec, whatever type the writer put on the wire. When a field changes type between versions (here `Long` to `Double`, both eight bytes), the old bytes decode without an error into a wrong value. When the sizes differ, decoding fails later with an unrelated message (for example `Thrift protocol error: Unrecognized type 68`).
+
+**Reproduction.** File `FieldType.scala`, run with `scala-cli run --server=false FieldType.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.thrift._
+
+// Version 1 of a metric writes its reading as an i64 (Thrift type 10) ...
+case class MetricV1(reading: Long, zone: Int)
+object MetricV1 { implicit val schema: Schema[MetricV1] = Schema.derived }
+// ... version 2 changed it to a double (Thrift type 4), keeping field id 1.
+case class MetricV2(reading: Double, zone: Int)
+object MetricV2 { implicit val schema: Schema[MetricV2] = Schema.derived }
+
+object FieldType {
+  def main(args: Array[String]): Unit = {
+    val bytes = MetricV1.schema.derive(ThriftFormat).encode(MetricV1(4614253070214989087L, 2))
+    println(s"field 1 header type byte: ${bytes(0)}")
+    println(MetricV2.schema.derive(ThriftFormat).decode(bytes))
+  }
+}
+// field 1 header type byte: 10
+// Right(MetricV2(3.14,2))
+```
+
+`4614253070214989087L` is the bit pattern of `3.14`, so the `i64` field is read as a `double` with no error.
+
+**Expected.** `Left` with an error such as `Expected Thrift type double (4), got i64 (10) at: .reading`; or, for schema evolution, skip the field (as for an unknown id) and fall back to its default.
+
+**Root cause.** `ThriftCodecDeriver.scala:127-136`: `field.id` selects the `FieldInfo` (line 129) and `fieldInfo.typeTag` picks the register setter (line 136), but `field.type` is never compared with `fieldInfo.tType`, which the encoder writes (`getThriftType`). Same in `deriveVariant` (`:214-219`), which ignores the case field's type.
+
+**Impact.** Wrong values with no error after a field type change, which is exactly the kind of change Thrift's per-field type bytes exist to catch. Messages from mismatched services are misread rather than rejected.
+
+**Test gap.** No spec in `schema-thrift/src/test` writes a field with a type that differs from the reader's (`grep -rn -i "mismatch\|wrong type" schema-thrift/src/test` returns nothing). The "skip unknown ..." specs in `ThriftErrorHandlingSpec.scala` use unknown ids only.
+
+**Suggested fix.** In `deriveRecord`'s `decodeValue`, when `field.type != fieldInfo.tType`, either `TProtocolUtil.skip` the field (treat it as unknown) or fail with `error(...)`. Do the same for the variant's case field. Add a spec per choice.
+
+### Thrift `decode` accepts input with trailing bytes and returns the first value
+
+Found 2026-11-05 while writing the Scaladoc of `ThriftCodec` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at v0.0.56 = `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** Like the Avro codec (see "Avro `decode` accepts input with trailing bytes and returns the first record"), `ThriftCodec#decode` decodes one value and returns `Right` without checking that the input is used up, both for a byte array and for a `ByteBuffer`.
+
+**Reproduction.** File `ThriftTrailing.scala`, run with `scala-cli run --server=false ThriftTrailing.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.thrift._
+
+object ThriftTrailing {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Int].derive(ThriftFormat)
+    val one   = codec.encode(42)               // 4 bytes: 00 00 00 2a
+    val extra = one ++ Array[Byte](0x01, 0x02) // two more bytes
+    println(codec.decode(one))
+    println(codec.decode(extra))
+    println(codec.decode(java.nio.ByteBuffer.wrap(extra)))
+  }
+}
+// Right(42)
+// Right(42)
+// Right(42)
+```
+
+**Expected.** `Left` for `extra`, as for the Avro entry; or the behaviour documented as the contract.
+
+**Root cause.** `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodec.scala:85-93`: `decode(input: Array[Byte])` wraps the array in a `TMemoryTransport` and calls `decodeValue` once, never checking `transport.getBytesRemainingInBuffer` (or equivalent). `decode(ByteBuffer)` (`:67-78`) copies the bytes and calls the same method.
+
+**Impact.** Framing mistakes go unnoticed: padding or two messages in one buffer read as one value.
+
+**Test gap.** `grep -rn -i "trailing\|remaining\|isEnd" schema-thrift/src/test` returns nothing.
+
+**Suggested fix.** After `decodeValue`, fail when the transport has bytes left. Fix it together with the Avro entry so the two binary codecs agree.
+
+### Avro and Thrift: `decode(ByteBuffer)` reads the wrong bytes from a heap buffer that does not start at index 0 of its array
+
+Found 2026-11-05 while writing the Scaladoc of `AvroCodec` and `ThriftCodec` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at v0.0.56 = `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** For a heap `ByteBuffer`, both codecs take `input.array()` and use `input.position` as the index into it. That is right only when `arrayOffset` is 0. A buffer made by `slice()`, `duplicate()` after `slice()`, or `ByteBuffer.wrap(array, offset, length).slice()` has a non-zero `arrayOffset`, so the codec reads bytes that are before the buffer's content and returns `Left` with a misleading error (or, with unlucky bytes, a wrong value).
+
+**Reproduction.** File `SlicedBuffer.scala`, run with `scala-cli run --server=false SlicedBuffer.scala` (same output with `//> using scala 3.9.0`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-avro:0.0.56
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import java.nio.ByteBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+import zio.blocks.schema.thrift._
+
+case class Reading(sensorId: String, celsius: Double)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+object SlicedBuffer {
+  // A heap buffer whose content starts 3 bytes into its backing array, as `slice()` makes
+  def sliced(header: Array[Byte], payload: Array[Byte]): ByteBuffer = {
+    val whole = ByteBuffer.wrap(header ++ payload)
+    whole.position(header.length)
+    whole.slice()
+  }
+
+  def main(args: Array[String]): Unit = {
+    val avro   = Reading.schema.derive(AvroFormat)
+    val thrift = Reading.schema.derive(ThriftFormat)
+    val value  = Reading("t-01", 21.5)
+    val a      = sliced(Array[Byte](9, 9, 9), avro.encode(value))
+    val t      = sliced(Array[Byte](9, 9, 9), thrift.encode(value))
+    println(s"arrayOffset=${a.arrayOffset} position=${a.position}")
+    println(avro.decode(a))
+    println(thrift.decode(t))
+    println(avro.decode(ByteBuffer.wrap(avro.encode(value))))
+  }
+}
+// arrayOffset=3 position=0
+// Left(zio.blocks.schema.SchemaError: Malformed data. Length is negative: -5 at: .sensorId)
+// Left(zio.blocks.schema.SchemaError: Thrift protocol error: Unrecognized type 9 at: .)
+// Right(Reading(t-01,21.5))
+```
+
+**Expected.** `Right(Reading(t-01,21.5))` for both sliced buffers, the same as for the unsliced one.
+
+**Root cause.** `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:57-67`: `pos = input.position` (line 58), `bs = input.array()` (line 61), then `binaryDecoder(bs, pos, len, null)` (line 67); `input.arrayOffset` is never added. Same in `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodec.scala:67-77` (`copyOfRange(bs, pos, pos + len)` at line 77).
+
+**Impact.** Decoding a message from a slice of a larger network or file buffer, a common zero-copy pattern, fails or misreads. The error message points at the data, not at the buffer handling.
+
+**Test gap.** `AvroTestUtils.scala` and the Thrift specs decode heap buffers made by `ByteBuffer.wrap(bytes)` and `allocate` only (`grep -rn -i "slice\|arrayOffset" schema-avro/src schema-thrift/src` returns nothing).
+
+**Suggested fix.** Use `input.arrayOffset + input.position` as the start index in both codecs, and add a sliced-buffer case to `AvroTestUtils.roundTrip`/`decodeError` and to the Thrift round-trip helpers. `MessagePackCodec.decode(ByteBuffer)` (`schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala:79-83`) and `ToonCodec` (`schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodec.scala:221-225`) already add `input.arrayOffset()`; copy that.
+
+### Thrift: the `DynamicValue` codec encodes but can never decode, and its bytes are not valid Thrift for generic readers
+
+Found 2026-11-05 while writing the Scaladoc of `ThriftCodecDeriver` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at v0.0.56 = `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** `Schema[DynamicValue].derive(ThriftFormat)` returns a codec whose `decodeValue` always fails with `Cannot decode DynamicValue without schema`. Its encoder writes every record field and variant case with the field type `struct` (`0c`), even when the value is a primitive, so the bytes cannot be read back by a generic Thrift reader either (`0c 00 01` is followed by the `i32` `3`, not by a struct). Any record with a `DynamicValue` field (or a `DynamicSchema`) therefore encodes but never round-trips through Thrift.
+
+**Reproduction.** File `ThriftDynamic.scala`, run with `scala-cli run --server=false ThriftDynamic.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema._
+import zio.blocks.schema.thrift._
+
+object ThriftDynamic {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[DynamicValue].derive(ThriftFormat)
+    val value = DynamicValue.Record(Chunk("level" -> DynamicValue.Primitive(PrimitiveValue.Int(3))))
+    val bytes = codec.encode(value)
+    println(bytes.map(b => f"${b & 0xff}%02x").mkString(" "))
+    println(codec.decode(bytes))
+  }
+}
+// 0c 00 01 00 00 00 03 00
+// Left(zio.blocks.schema.SchemaError: Cannot decode DynamicValue without schema at: .)
+```
+
+**Expected.** A self-describing encoding that decodes (the Avro codec uses a tagged union for `DynamicValue` and round-trips), or a derivation-time error that says `DynamicValue` is not supported by Thrift.
+
+**Root cause.** `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodecDeriver.scala:436-437`: `dynamicValueCodec.decodeValue` is `error("Cannot decode DynamicValue without schema")`. The encoder writes `new TField(name, TType.STRUCT, ...)` for every record field (`:477`) and variant (`:483`), and list and map headers with element type `STRUCT` (`:488-492`), whatever the values are.
+
+**Impact.** Users who keep a `DynamicValue` field (for extensions, or a stored `DynamicSchema`) get a codec that silently writes data nobody can read. The failure shows only at decode time.
+
+**Test gap.** `schema-thrift/src/test/scala/zio/blocks/schema/thrift/ThriftCodecSpec.scala:770-777` ("dynamic value encoding") encodes generated values and asserts only `buffer.limit() >= buffer.position()`; it never decodes.
+
+**Suggested fix.** Encode `DynamicValue` as a Thrift union struct with one field per kind (as the Avro codec does with its `zio.blocks.schema.DynamicValue` record), with correct field types, and implement `decodeValue`. Until then, document it on the Thrift reference page and in the deriver's Scaladoc (done in this rollout).
+
+### Thrift: a wrapper or `Unit` field is written with the wrong Thrift field type, so readers cannot skip it
+
+Found 2026-11-05 while reviewing the Scaladoc of `ThriftCodec` and `ThriftCodecDeriver` (schema formats Scaladoc rollout, Task 1 review 1; reproducer re-run by Task 1 on 2026-11-05), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** Each Thrift struct field, list and map header carries the Thrift type of what follows, so that a reader can skip data it does not know. The deriver computes that type with `getThriftType`, which returns `struct` for every type that is not a primitive, sequence or map, wrappers included, and `void` for `Unit`. A field of a `Schema#transform` wrapper over `Long` is written as the header "struct" followed by an 8-byte `i64`. A reader that does not know the field skips it as a struct and fails, or misreads the rest of the message. libthrift cannot skip `void` at all. So the skip-unknown-fields logic, which is how the codec supports schema evolution, fails for exactly these fields, and other Thrift libraries cannot read the data. With a small wrapped value the skip can happen to land on zero bytes and succeed, which hides the bug.
+
+**Reproduction.** File `ThriftWrapperType.scala`, run with `scala-cli run --server=false ThriftWrapperType.scala` (same output with `//> using scala 2.13.18`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+
+import org.apache.thrift.protocol.{TBinaryProtocol, TProtocolUtil, TType}
+import org.apache.thrift.transport.TMemoryInputTransport
+import zio.blocks.schema._
+import zio.blocks.schema.thrift._
+
+// A wrapper built with Schema#transform: encoded as the Long it wraps
+case class TraceId(value: Long)
+object TraceId { implicit val schema: Schema[TraceId] = Schema[Long].transform[TraceId](TraceId(_), _.value) }
+
+// Version 2 of an event adds a TraceId field; version 1 does not know it
+case class EventV2(service: String, traceId: TraceId)
+object EventV2 { implicit val schema: Schema[EventV2] = Schema.derived }
+case class EventV1(service: String)
+object EventV1 { implicit val schema: Schema[EventV1] = Schema.derived }
+
+// A Unit field is written with the field type void (01), which readers cannot skip
+case class PingV2(host: String, ack: Unit)
+object PingV2 { implicit val schema: Schema[PingV2] = Schema.derived }
+case class PingV1(host: String)
+object PingV1 { implicit val schema: Schema[PingV1] = Schema.derived }
+
+object ThriftWrapperType {
+  def hex(bs: Array[Byte]) = bs.map(b => f"${b & 0xff}%02x").mkString(" ")
+  def main(args: Array[String]): Unit = {
+    val bytes = EventV2.schema.derive(ThriftFormat).encode(EventV2("billing", TraceId(Long.MaxValue)))
+    println(hex(bytes))
+    // The older reader skips field 2 as a struct, because its header says struct (0c)
+    println(EventV1.schema.derive(ThriftFormat).decode(bytes))
+    // A generic Thrift reader that skips the whole message fails the same way
+    val protocol = new TBinaryProtocol(new TMemoryInputTransport(bytes))
+    println(scala.util.Try(TProtocolUtil.skip(protocol, TType.STRUCT)))
+    // A list of wrappers declares its element type as struct (0c) too
+    println(hex(Schema[List[TraceId]].derive(ThriftFormat).encode(List(TraceId(1L)))))
+    val ping = PingV2.schema.derive(ThriftFormat).encode(PingV2("api-1", ()))
+    println(hex(ping))
+    println(PingV1.schema.derive(ThriftFormat).decode(ping))
+  }
+}
+// 0b 00 01 00 00 00 07 62 69 6c 6c 69 6e 67 0c 00 02 7f ff ff ff ff ff ff ff 00
+// Left(zio.blocks.schema.SchemaError: Thrift protocol error: Unrecognized type 127 at: .)
+// Failure(org.apache.thrift.protocol.TProtocolException: Unrecognized type 127)
+// 0c 00 00 00 01 00 00 00 00 00 00 00 01
+// 0b 00 01 00 00 00 05 61 70 69 2d 31 01 00 02 00
+// Left(zio.blocks.schema.SchemaError: Thrift protocol error: Unrecognized type 1 at: .)
+```
+
+Field 2 of `EventV2` has the header `0c 00 02` (struct, id 2), but its body is the `i64` `7f ff ... ff`. The skip reads `7f` as a field type.
+
+**Expected.** A wrapper field gets the Thrift type of the type it wraps (`0a`, `i64`, here), so `EventV1` decodes `Right(EventV1(billing))` and generic readers can skip it. A `Unit` field is either left out of the struct or written with a type that libthrift can skip (for example an empty struct).
+
+**Root cause.** `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodecDeriver.scala:407-429`: `getThriftType` checks `isPrimitive`, `isSequence` and `isMap`, and otherwise returns `TType.STRUCT` (`:429`). It does not unwrap a `Reflect.Wrapper`, and it maps `Unit` to `TType.VOID` (`:411`). The result is used for record field headers (`:113`, written at `:167`), list element types (`:264`), map key and value types (`:315-316`) and variant case headers (`:212`). libthrift's `TProtocolUtil.skip` has no case for `VOID` and throws `Unrecognized type 1`.
+
+**Impact.** Adding a wrapper-typed field (an ID or a unit type built with `transform`) to a Thrift record breaks every older reader, which is the case the codec's skip logic exists for. The failure depends on the wrapped value's bytes, so it can pass tests with small values and fail in production. Other Thrift libraries cannot read such messages.
+
+**Test gap.** `schema-thrift/src/test/scala/zio/blocks/schema/thrift/ThriftWrapperSpec.scala:151-156` ("wrapper in record") and `:159-160` (list of wrappers) only round-trip with the same codec (`roundTrip` at `:116-121` asserts `decode(encode(x)) == Right(x)`). The skip specs in `ThriftErrorHandlingSpec.scala:102-244` and `ThriftCodecSpec.scala:391-660` write the unknown fields by hand with correct types. No spec decodes a derived wrapper or `Unit` field with a reader that does not know it, or checks the header byte.
+
+**Suggested fix.** In `getThriftType`, unwrap wrappers (`reflect.asWrapperUnknown` → the wrapped reflect, recursively) and resolve `Reflect.Deferred` before matching. For `Unit`, either write no field (and treat a missing `Unit` field as `()`) or use `TType.STRUCT` with an empty struct body. Add specs that decode `EventV2`/`PingV2` bytes with `EventV1`/`PingV1`, and that check the header byte of a wrapper field.
+
+### Thrift: decoding a `BigDecimal` rounds it to its `MathContext` precision
+
+Found 2026-11-05 while reviewing the Scaladoc of `ThriftCodec.bigDecimalCodec` (schema formats Scaladoc rollout, Task 1 review 1; reproducer re-run by Task 1 on 2026-11-05), on `main` at `c2e4a39fd`. Same at v0.0.56 (the module sources are identical; lines below are at `c2e4a39fd`). Verified by running on Scala 2.13.18 and 3.9.0 (same output).
+
+**Summary.** The Thrift codec writes a `BigDecimal` as its unscaled value, scale, and the precision and rounding mode of its `MathContext`. On decode it passes that `MathContext` to the `java.math.BigDecimal` constructor, which rounds. A Scala `BigDecimal` can carry more digits than its context's precision: `BigDecimal(javaBigDecimal)` keeps all digits and sets `MathContext.DECIMAL128` (34 digits). Such a value decodes as a different, rounded number, with no error. The Avro codec keeps it.
+
+**Reproduction.** File `ThriftBigDecimal.scala`, run with `scala-cli run --server=false ThriftBigDecimal.scala` (same output with `//> using scala 2.13.18`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-schema-thrift:0.0.56
+//> using dep dev.zio::zio-blocks-schema-avro:0.0.56
+
+import zio.blocks.schema._
+import zio.blocks.schema.avro._
+import zio.blocks.schema.thrift._
+
+object ThriftBigDecimal {
+  def main(args: Array[String]): Unit = {
+    // 41 significant digits; BigDecimal(java.math.BigDecimal) keeps them all and sets MathContext.DECIMAL128 (34 digits)
+    val amount = BigDecimal(new java.math.BigDecimal("1234567890123456789012345678901234567890.5"))
+    println(amount.mc)
+    val thrift = Schema[BigDecimal].derive(ThriftFormat)
+    val avro   = Schema[BigDecimal].derive(AvroFormat)
+    println(thrift.decode(thrift.encode(amount)))
+    println(avro.decode(avro.encode(amount)))
+  }
+}
+// precision=34 roundingMode=HALF_EVEN
+// Right(1.234567890123456789012345678901235E+39)
+// Right(1234567890123456789012345678901234567890.5)
+```
+
+**Expected.** `Right(1234567890123456789012345678901234567890.5)`, the value that was encoded, as from the Avro codec.
+
+**Root cause.** `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodec.scala:213-215` (in `bigDecimalCodec.decodeValue`, `:200-216`): `new BigDecimal(new java.math.BigDecimal(mantissa, scale, new MathContext(precision, RoundingMode.valueOf(roundingMode))))`. The three-argument Java constructor rounds the unscaled value to `precision` digits. `schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodec.scala:238` builds the exact `java.math.BigDecimal` first and attaches the context with `new BigDecimal(bd, mc)`, which does not round.
+
+**Impact.** Silent loss of digits for amounts, IDs or measurements held as `BigDecimal` with more digits than their context, for example values read from a database or another library as `java.math.BigDecimal` and wrapped with `BigDecimal(...)`. The value passes through Avro unchanged, so the two binary codecs disagree.
+
+**Test gap.** `schema-thrift/src/test/scala/zio/blocks/schema/thrift/ThriftBigDecimalSpec.scala:93-146` (the "BigDecimal precision" suite, `:93-109`, and the "BigDecimal rounding modes" suite, `:110-146`) round-trips only values whose digit count fits their `MathContext`: the longest default-context value, `:95`, has 27 digits under 34; the `DECIMAL32`/`DECIMAL64`/`DECIMAL128` cases (`:97-108`) use 7, 16 and 29 digits; the rounding-mode cases use the 9-digit `123.456789` under a 10-digit context. No case has more digits than its context's precision.
+
+**Suggested fix.** Decode as the Avro codec does: `new BigDecimal(new java.math.BigDecimal(mantissa, scale), new MathContext(precision, RoundingMode.valueOf(roundingMode)))`. Add a spec with `BigDecimal(new java.math.BigDecimal("<41 digits>"))`.
+
+### schema-bson: `BsonDecoder#fromBsonValue` and `#decode` throw instead of returning `Left` for malformed strings, and `decode` throws on a wrong BSON type
+
+Found 2026-11-05 while writing the `schema-bson` Scaladoc (branch `schema-formats-scaladoc`), at `c2e4a39fd`. Same at `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0.
+
+**Summary.** `BsonDecoder#fromBsonValue` and `BsonDecoder#decode` return `Either[BsonDecoder.Error, A]`, but they catch only `BsonDecoder.Error`. The string-based built-in codecs (`UUID`, `Currency`, `ZoneId`, `ZoneOffset`, `Year`, `YearMonth`, `DayOfWeek`, `Month`, and the `java.time` codecs that go through the JSON raw codecs) call their parser without a `try`, so a stored string the parser rejects escapes as `IllegalArgumentException`, `DateTimeException` or one of its subclasses (`DateTimeParseException` for `Year` and `YearMonth`, `ZoneRulesException` for `ZoneId`), or `SchemaError`. `DayOfWeek` and `Month` accept only the upper-case name, so `"friday"` is such a string. On the `decode` (reader) path the primitive and record codecs don't check the BSON type before calling `readString`/`readInt32`/`readStartDocument`, so a value of the wrong type throws the driver's `BsonInvalidOperationException`, and a `Char` string that is not exactly one character long throws a plain `RuntimeException`; the same documents through `fromBsonValue` give a `Left` with a path.
+
+**Reproduction.** File `BsonDecodeThrows.scala`, run `scala-cli run --server=false BsonDecodeThrows.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+
+import java.util.UUID
+import org.bson.{BsonDocument, BsonDocumentReader}
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+import scala.util.Try
+
+final case class Delivery(orderId: UUID, day: java.time.DayOfWeek, at: java.time.Instant)
+object Delivery { implicit val schema: Schema[Delivery] = Schema.derived }
+
+object BsonDecodeThrows {
+  def main(args: Array[String]): Unit = {
+    val decoder = Schema[Delivery].derive(BsonCodecDeriver).decoder
+    def doc(json: String) = BsonDocument.parse(json)
+    println(Try(decoder.fromBsonValue(doc("""{"orderId": "not-a-uuid", "day": "FRIDAY", "at": "2026-11-05T10:15:30Z"}"""))))
+    // Failure(java.lang.IllegalArgumentException: Invalid UUID string: not-a-uuid)
+    println(Try(decoder.fromBsonValue(doc("""{"orderId": "123e4567-e89b-12d3-a456-426614174000", "day": "friday", "at": "2026-11-05T10:15:30Z"}"""))))
+    // Failure(java.lang.IllegalArgumentException: No enum constant java.time.DayOfWeek.friday)
+    println(Try(decoder.fromBsonValue(doc("""{"orderId": "123e4567-e89b-12d3-a456-426614174000", "day": "FRIDAY", "at": "yesterday"}"""))))
+    // Failure(zio.blocks.schema.SchemaError: expected '-' or '+' or digit at: .)
+    // Through a BsonReader, a value of the wrong BSON type throws the driver's exception:
+    println(Try(decoder.decode(new BsonDocumentReader(doc("""{"orderId": 42, "day": "FRIDAY", "at": "2026-11-05T10:15:30Z"}""")))))
+    // Failure(org.bson.BsonInvalidOperationException: readString can only be called when CurrentBSONType is STRING, not when CurrentBSONType is INT32.)
+    // The same document through fromBsonValue returns Left, as expected:
+    println(decoder.fromBsonValue(doc("""{"orderId": 42, "day": "FRIDAY", "at": "2026-11-05T10:15:30Z"}""")))
+    // Left(zio.blocks.schema.bson.BsonDecoder$Error: Path: .orderId, error: Expected STRING but got INT32)
+  }
+}
+```
+
+**Expected.** Every malformed or mistyped value gives `Left(BsonDecoder.Error(...))` with the path to the field, for example `Path: .orderId, error: Invalid UUID string: not-a-uuid`, on both paths.
+
+**Root cause.** `BsonDecoder#decode` and `#fromBsonValue` catch only `BsonDecoder.Error` (`schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala:112-122`). `BsonCodec.stringBased` calls `fromString` unguarded on both paths (`BsonTypes.scala:219-229`, calls at `:225` and `:227`); `dayOfWeek` and `month` pass `DayOfWeek.valueOf` / `Month.valueOf` (`:445`, `:495`), and the `java.time` codecs rethrow the raw codec's `SchemaError` (`throw err`, for example `:462`). The reader-path lambdas of `BsonCodec.primitive` call `r.readString()`, `r.readInt32()` etc. without checking `reader.getCurrentBsonType` (`:225`, `:243`, `:261`, ...), and the record decoder calls `reader.readStartDocument()` directly (`BsonCodecDeriver.scala:199`). `BsonCodec.char` throws `new RuntimeException` on the reader path (`BsonTypes.scala:300`) but `BsonDecoder.Error` on the value path (`:306`). A sibling on both paths: the wrapper decoder catches only `SchemaError` from `wrap` (`BsonCodecDeriver.scala:1052`, `:1060`), so a `Schema#transform` function that throws any other exception escapes `fromBsonValue` too. Verified on 2.13.18 and 3.9.0 (same imports and run command as the reproducer above, plus `final case class Sku private (code: String)`, `object Sku { implicit val schema: Schema[Sku] = Schema[String].transform(s => if (s.nonEmpty) new Sku(s) else throw new IllegalArgumentException("empty SKU"), _.code) }`, `final case class Line(sku: Sku, qty: Int)` with a derived schema): `Try(Schema[Line].derive(BsonCodecDeriver).decoder.fromBsonValue(BsonDocument.parse("""{"sku": "", "qty": 1}""")))` prints `Failure(java.lang.IllegalArgumentException: empty SKU)`.
+
+**Impact.** One bad document in a MongoDB collection (a hand-edited `_id` string, a lower-case weekday written by another service) crashes the caller instead of producing an error it can log and skip. Code that pattern-matches on the `Either` is not enough; callers must also wrap the call in `Try`. The reference page `bson.md` promises "Precise error reporting with location traces".
+
+**Test gap.** `BsonCodecPrimitivesSpec` has only round-trip tests (`test("... round-trip")`, `:36`–`:257`); none decodes a malformed string. The `isLeft` checks in `BsonCodecDeriverSpec.scala:203-209` and `:276` use `fromBsonValue` with documents of the wrong shape, never a malformed string or the reader path with a wrong type.
+
+**Suggested fix.** In `BsonDecoder#decode`/`#fromBsonValue` (or better, in `stringBased`), catch `NonFatal` parser exceptions and rethrow `BsonDecoder.Error(trace, e.getMessage)` so the path is kept. In the reader-path lambdas, check `reader.getCurrentBsonType` against the expected type and throw `BsonDecoder.Error(trace, s"Expected X but got ...")`, as the value path does. Make `char` throw `BsonDecoder.Error` on both paths. Add negative tests for each string-based primitive on both paths.
+
+### schema-bson: `Byte` and `Short` fields decode out-of-range `INT32` values by truncating them
+
+Found 2026-11-05 while writing the `schema-bson` Scaladoc, at `c2e4a39fd`. Same at `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0.
+
+**Summary.** `BsonCodec.byte` and `BsonCodec.short` store their value as BSON `INT32` and decode with `.toByte` / `.toShort`, with no range check. A document written by another program with `300` in a `Byte` field decodes as `44`, and `70000` in a `Short` field as `4464`, silently.
+
+**Reproduction.** File `BsonByteTruncates.scala`, run `scala-cli run --server=false BsonByteTruncates.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-bson:0.0.56
+
+import org.bson.BsonDocument
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+
+final case class Shelf(level: Byte, slots: Short)
+object Shelf { implicit val schema: Schema[Shelf] = Schema.derived }
+
+object BsonByteTruncates {
+  def main(args: Array[String]): Unit = {
+    val decoder = Schema[Shelf].derive(BsonCodecDeriver).decoder
+    println(decoder.fromBsonValue(BsonDocument.parse("""{"level": 300, "slots": 70000}""")))
+    // Right(Shelf(44,4464))
+  }
+}
+```
+
+**Expected.** `Left(BsonDecoder.Error)` such as `Path: .level, error: INT32 value 300 is out of range for Byte`, as the JSON codec rejects `300` for a `Byte`.
+
+**Root cause.** `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala:243` and `:245` (`readInt32().toByte`, `getValue.toByte`), `:252` and `:254` (`.toShort`).
+
+**Impact.** Silent data corruption on decode when documents come from other writers or from a schema change that narrowed a field.
+
+**Test gap.** `BsonCodecPrimitivesSpec` "Byte round-trip" and "Short round-trip" (`:56`, `:66`) only round-trip in-range values generated for the type; no test decodes an out-of-range `INT32`.
+
+**Suggested fix.** Check the range before narrowing and throw `BsonDecoder.Error(trace, ...)` on both paths (the reader path needs the `trace`, which the `primitive` helper's `readValue` doesn't get today).
+
+### schema-csv: the CSV deriver ignores field modifiers (`Modifier.rename`, `Modifier.transient`)
+
+Found 2026-11-05 while writing the `schema-csv` Scaladoc, at `c2e4a39fd`. Same at `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0.
+
+**Summary.** `CsvCodecDeriver.deriveRecord` takes column names from `Term#name` and encodes every field. `@Modifier.rename("sensor_id")` on a field does not change its header name, and a `@Modifier.transient` field is still written and read as a column. The JSON and BSON codecs derived from the same schema honour both modifiers, so one model gives different column/field names per format.
+
+**Reproduction.** File `CsvIgnoresModifiers.scala`, run `scala-cli run --server=false CsvIgnoresModifiers.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+import zio.blocks.schema.json.JsonFormat
+
+final case class Reading(
+  @Modifier.rename("sensor_id") sensorId: String,
+  celsius: Double,
+  @Modifier.transient cachedLabel: String = ""
+)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+object CsvIgnoresModifiers {
+  def main(args: Array[String]): Unit = {
+    val codec = Reading.schema.derive(CsvFormat)
+    println(codec.headerNames)
+    // Vector(sensorId, celsius, cachedLabel)
+    val buffer = CharBuffer.allocate(64)
+    codec.encode(Reading("t-1", 21.5, "hall"), buffer)
+    buffer.flip()
+    println(buffer.toString.replace("\r\n", "\\r\\n"))
+    // t-1,21.5,hall\r\n
+    // The JSON codec from the same schema honours both modifiers:
+    println(Reading.schema.derive(JsonFormat).encodeToString(Reading("t-1", 21.5, "hall")))
+    // {"sensor_id":"t-1","celsius":21.5}
+  }
+}
+```
+
+**Expected.** `headerNames == Vector(sensor_id, celsius)` and the row `t-1,21.5`; decoding fills `cachedLabel` from its default.
+
+**Root cause.** `schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodecDeriver.scala:113` (`names(idx) = fields(idx).name`) never reads `fields(idx).modifiers`; the encode and decode loops (`:154-172`, `:188-199`) cover every field. `modifierOverrides` returns `Chunk.empty` (`:285`). `BsonCodecDeriver` reads `Modifier.rename` and `Modifier.transient` per field (`schema-bson/src/main/scala/zio/blocks/schema/bson/BsonCodecDeriver.scala:144`, `:150`), and so does `JsonCodecDeriver`.
+
+**Impact.** A CSV export of a model whose JSON field names were tuned with `rename` gets the Scala names as headers; a transient cache field leaks into the export. Nothing warns.
+
+**Test gap.** No test under `schema-csv/src/test` uses `Modifier.rename`, `Modifier.transient` or `Modifier.fieldNaming` (`grep -rn "rename\|transient\|fieldNaming" schema-csv/src/test` is empty).
+
+**Suggested fix.** In `deriveRecord`, take the header name from `Modifier.rename` (then a record-level `Modifier.fieldNaming`), skip transient fields when encoding and fill them from their default when decoding (failing derivation when there is none), and add tests. `csv.md` "Record Type Support" then needs a line on modifiers.
+
+### schema-csv: `CsvCodec#encode` throws `BufferOverflowException` for a record cell longer than 8192 characters
+
+Found 2026-11-05 while writing the `schema-csv` Scaladoc, at `c2e4a39fd`. Same at `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0.
+
+**Summary.** The record codec encodes each field into a per-thread `CharBuffer` of 1024 characters and, on overflow, retries once with a fresh buffer 8 times as large. A cell longer than 8192 characters overflows the retry buffer too, and `encode` throws `java.nio.BufferOverflowException` even though the caller's output buffer has plenty of room. (A primitive codec, such as `Schema[String].derive(CsvFormat)`, writes straight to the output buffer and is not affected.)
+
+**Reproduction.** File `CsvLongCell.scala`, run `scala-cli run --server=false CsvLongCell.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema-csv:0.0.56
+
+import java.nio.CharBuffer
+import zio.blocks.schema._
+import zio.blocks.schema.csv._
+import scala.util.Try
+
+final case class Note(sensor: String, text: String)
+object Note { implicit val schema: Schema[Note] = Schema.derived }
+
+object CsvLongCell {
+  def main(args: Array[String]): Unit = {
+    val codec = Note.schema.derive(CsvFormat)
+    for (n <- List(8192, 8193)) {
+      val buffer = CharBuffer.allocate(64 * 1024) // plenty of room for the row
+      println(s"$n: ${Try { codec.encode(Note("t-1", "x" * n), buffer); buffer.position() }}")
+    }
+    // 8192: Success(8198)
+    // 8193: Failure(java.nio.BufferOverflowException)
+  }
+}
+```
+
+**Expected.** Any cell that fits in the caller's output buffer is written.
+
+**Root cause.** `schema-csv/src/main/scala/zio/blocks/schema/csv/CsvCodecDeriver.scala:160-168`: one retry with `CharBuffer.allocate(buf.capacity() * 8)` (`:165`), not a loop; the per-thread buffer is 1024 characters (`:300-303`).
+
+**Impact.** Exporting free-text columns (notes, descriptions, JSON blobs in a cell) fails on the first long value; the exception names no field.
+
+**Test gap.** The longest cell any `schema-csv` test encodes is 500 characters (`CsvIntegrationSpec.scala:182`).
+
+**Suggested fix.** Grow in a loop until the field fits (or encode the field to a `String` through a `StringBuilder`-backed path), and add a test with a 100 000-character cell.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -16297,6 +16852,8 @@ object Trailing {
 
 **Suggested fix.** In `decode(Array[Byte])`, after `decodeValue`, check that the decoder is at the end and return `Left(new SchemaError(...))` if not. Add a spec case next to the truncated-input cases. Keep the stream variant as is, because it reads one record at a time by design.
 
+**Addition (2026-11-05, schema-avro/bson/csv/thrift Scaladoc rollout).** Add to **Root cause**: "The `ByteBuffer` variant, `AvroCodec.scala:57-71`, has the same shape (`decodeValue` once over `position..limit`, no end check)." Add to **Impact** or a new last line: "The Thrift codec has the same bug; see "Thrift `decode` accepts input with trailing bytes and returns the first value". Rechecked 2026-11-05 at `c2e4a39fd` (= v0.0.56): unchanged; the Scaladoc of `AvroCodec#decode` now names it as a known bug."
+
 ### Avro bytes from one type decode silently as a different type
 
 Found 2026-10-27 while writing the how-to guide `docs/guides/encode-and-decode-records-with-avro.md` (backlog H-13), on `main` at `b6c0c30e4`. Same at v0.0.56.
@@ -16338,6 +16895,8 @@ object CrossType {
 **Test gap.** No spec in `schema-avro/src/test` decodes bytes written by a different type and expects a result. `grep -n "mismatch\|wrong schema\|different schema" AvroFormatSpec.scala` returns nothing.
 
 **Suggested fix.** Document it on the Avro reference page as a caller responsibility, with a pointer to a registry or a version field. Do not add framing in this codec; registry framing is backlog item X-09.
+
+**Addition (2026-11-05, schema-avro/bson/csv/thrift Scaladoc rollout).** Add at the end: "Thrift, checked 2026-11-05 at `c2e4a39fd` (= v0.0.56): the same `Shipped`/`Priority` pair fails on Thrift (`Left(... Thrift protocol error: Unrecognized type 68 at: .)`), because the wrong-sized read desynchronises the stream, but a same-sized type change decodes silently; see "Thrift: decoding ignores the Thrift type written before each field". Unlike Avro, Thrift has the type on the wire, so there it is a codec bug, not a property of the format."
 
 ### openapi: an OpenAPI 3.0 document decodes without a warning, but `SchemaObject#toJsonSchema` ignores `nullable: true` and drops a boolean `exclusiveMinimum` or `exclusiveMaximum`
 
@@ -18161,6 +18720,36 @@ Seen 2026-10-30 in CI on #1913 (Scaladoc comments and docs only), run 4105297432
 **Cause.** Not investigated. The name suggests a race between an interrupt and a failing `close` when an async reader is bridged to a blocking one: which exception ends up primary may depend on thread timing.
 
 **Suggested fix.** Run it in a loop under load (`streamsJVM/testOnly *AsyncReader* -- -t "toSync interrupted close"`) to reproduce, then make the ordering deterministic in the test (latch the interrupt before triggering close) or in `toSync` itself if the primary-exception rule really depends on timing.
+
+### schema-avro: the `TrafficLight` variant test discards its schema and round-trip assertions (missing `&&`)
+
+Found 2026-11-05 while reading `schema-avro/src/test/scala/zio/blocks/schema/avro/AvroFormatSpec.scala` for the Scaladoc of `AvroCodecDeriver` (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56. Verified by reading.
+
+**Summary.** In the "constant values" test, the line `roundTrip[TrafficLight](TrafficLight.Red, 1)` has no trailing `&&`, so the test block holds two statements. The value of the block is only the last one, `decodeError[TrafficLight](...)`. The `avroSchema[TrafficLight](...)` check and the three `roundTrip` checks above it run, but their `TestResult` is discarded: if they fail, the test still passes.
+
+**Reproduction.** `AvroFormatSpec.scala:729-737`:
+
+```scala
+      test("constant values") {
+        avroSchema[TrafficLight](
+          "[{\"type\":\"record\",\"name\":\"Red\", ... }]"
+        ) &&
+        roundTrip[TrafficLight](TrafficLight.Green, 1) &&
+        roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
+        roundTrip[TrafficLight](TrafficLight.Red, 1)
+        decodeError[TrafficLight](Array[Byte](6), "Expected enum index from 0 to 2, got 3 at: .")
+      },
+```
+
+**Expected.** One `&&`-chained expression, so every assertion counts.
+
+**Root cause.** A missing `&&` at the end of `AvroFormatSpec.scala:735`. Neither Scala 2.13 nor Scala 3 warns, because the discarded expression is a method call, not a pure expression.
+
+**Impact.** The Avro schema and the round trip of case-object unions are not really tested; a regression in them would pass CI.
+
+**Test gap.** This is the gap itself. I found no other assertion chain without `&&` in `AvroFormatSpec.scala` by reading its suites; the Thrift specs use `assertTrue` blocks and were not affected in what I read.
+
+**Suggested fix.** Add `&&` at the end of line 735. Consider `-Wnonunit-statement` (Scala 2.13.9+ and 3.3+) in test scopes to catch discarded `TestResult`s.
 
 ## Resolved
 

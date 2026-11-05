@@ -553,6 +553,46 @@ for ((alg, curve) <- Seq(Algorithm.ES256 -> "secp384r1", Algorithm.ES256 -> "sec
 
 **Suggested fix.** Line 168: "On the JVM, RSA keys under 2048 bits and a P-256, P-384 or P-521 key used with the wrong `ES*` algorithm (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`". Error table: "on JVM, RSA under 2048 bits or a P-256/P-384/P-521 key with the wrong `ES*` algorithm".
 
+### `reference/schema/built-in-codecs/avro.md`: claims a configurable sum-type encoding and calls a format property a bug
+
+Found 2026-11-05 while fact-checking the Avro Scaladoc against this page (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56.
+
+**Summary and fixes.**
+- Line 17, "Configurable sum type handling (union fields with discriminators)": `AvroCodecDeriver` has no configuration at all (`object AvroCodecDeriver extends Deriver[AvroCodec]`, no options); a variant is always a union of the case records, written as the branch index and the case (`AvroCodecDeriver.scala:180-231`). Replace with "Sum types as Avro unions, one record per case".
+- Lines 8, 19 and 178, "recursive data structures with cycle detection" / "automatic cycle detection": the deriver handles recursive *types* (a record refers to itself by name in the schema, `recursiveRecordCache`), but there is no cycle detection for *values*; a cyclic value cannot exist for case classes anyway. Say "recursive types, such as trees".
+- Lines 43 and 323-325: step 4 says "Catch `SchemaError`", but `decode` returns `Either[SchemaError, A]` and never throws it; say "Handle the `Left`". Line 323 says decoding bytes of another type "is a known bug in 0.0.56, not a choice of the format", but Avro binary has no type information, so this is inherent to the format (the library-issues entry says so in its root cause). Reword: "Avro binary carries no type information, so the codec cannot detect this; zio-blocks adds no check of its own (a known limitation in 0.0.56)."
+- Missing: `decode(ByteBuffer)` on a sliced heap buffer reads the wrong bytes (see the new library entry), worth one sentence in "Decoding Trusts the Reader's Schema".
+
+### `reference/schema/built-in-codecs/thrift.md`: wrong primitive count, invented features, and no word on missing fields
+
+Found 2026-11-05 while fact-checking the Thrift Scaladoc against this page (schema formats Scaladoc rollout, Task 1), on `main` at `c2e4a39fd`. Same at v0.0.56.
+
+**Summary and fixes.**
+- Lines 6, 45, 309 and 330 say 27 primitive types; `ThriftCodecDeriver.derivePrimitive` maps all 30 `PrimitiveType`s (`ThriftCodecDeriver.scala:50-79`), and the list under line 330 itself names 30 (it includes `BigInt`, `Unit`, `Currency`, `UUID`). Say 30.
+- Line 14, "Automatic schema generation from Scala types", and line 45, "automatically generates Thrift-compatible formats": the module generates no Thrift IDL or schema object (`ThriftCodec` has no schema member, unlike `AvroCodec#avroSchema`). Drop the line or say "No `.thrift` file needed".
+- Line 73, "Automatic format detection and optimization": nothing detects a format; `TBinaryProtocol` is fixed (`ThriftCodec.scala:86-88`, `:97-99`). Drop it.
+- Lines 12 and 101, 376 say "ZIO Schema"; this module uses ZIO Blocks Schema (`zio.blocks.schema`), a different library. Replace.
+- Lines 17 and 157, "automatic cycle detection": as for Avro, recursive types, not cycle detection.
+- Line 43, "Catch `SchemaError`": `decode` returns `Either`.
+- Lines 180 and 355, "discriminated variants with type information" / "union types with discriminators": the encoding is a struct with one field whose id is the case index plus one (`ThriftCodecDeriver.scala:241-246`); the case name is not written. Say that.
+- Missing, and the most important for users: a record field absent from the input decodes as `null`/`0`/`false`; the field's wire type is not checked; `DynamicValue` cannot be decoded; trailing bytes are ignored; `Float` is written as a Thrift `double`; most `java.time` types, `UUID` and `Currency` are Thrift strings. See the new library entries; the Scaladoc of `ThriftCodec` and `ThriftCodecDeriver` now states these.
+
+### `reference/schema/built-in-codecs/bson.md`: claims about timestamps, skipping absent values and error reporting that the code does not meet
+
+Found 2026-11-05 while fact-checking the `schema-bson` Scaladoc against `docs/reference/schema/built-in-codecs/bson.md` at `c2e4a39fd` (same at `v0.0.56`).
+
+- Motivation, first bullet: "Full BSON type support (documents, arrays, strings, numbers, ObjectId, Decimal128, timestamps, etc.)". The codecs never write BSON `DATE_TIME` or `TIMESTAMP`: `Instant`, `LocalDate`, `LocalDateTime`, `OffsetDateTime`, `ZonedDateTime`, `Duration` and the other `java.time` types are written as ISO-8601 `STRING`s (`BsonTypes.scala:448-561`), `UUID` as a `STRING` (`:328-331`), and `BsonCodec.json` fails to decode a `DATE_TIME` with `Unsupported BSON type for Json: DATE_TIME` (`:440`). Verified: `{"inst": "2026-11-05T10:15:30Z"}`, BSON type `STRING`. Suggested text: list what is supported and add a type table (Scala type → BSON type), as `avro.md` has; say plainly that dates are strings, so MongoDB date queries and TTL indexes don't apply to them.
+- Introduction, step 4 (`bson.md:46`): "**Handle errors** — Catch `BsonDecoder.Error` with location traces ...". `decode` and `fromBsonValue` return it in a `Left` (`BsonTypes.scala:112-122`); only the `*Unsafe` methods throw it. Suggested: "Handle errors — `decode` and `fromBsonValue` return a `BsonDecoder.Error` in a `Left`, with the path to the bad value".
+- `BsonEncoder[A]` › Overview: "It supports skipping absent values". `isAbsent` exists but no code in the module calls it (`grep -rn isAbsent schema-bson/src/main` finds only its definition and `contramap`), so no field is ever skipped (transient fields are dropped by `Modifier.transient`, not by `isAbsent`). Suggested: drop the sentence or say `isAbsent` is unused.
+- Motivation: "Precise error reporting with location traces showing the path to errors". True only for `BsonDecoder.Error`; malformed strings and (through `decode`) wrong BSON types throw instead (library entry 1 above). Suggested: add "with a known bug in 0.0.56: ..." once entry 1 is filed.
+
+### `reference/schema/built-in-codecs/csv.md`: Introduction step 4 tells readers to catch `CsvError`; the codec never throws it
+
+Found 2026-11-05 while fact-checking the `schema-csv` Scaladoc against `docs/reference/schema/built-in-codecs/csv.md` at `c2e4a39fd` (same at `v0.0.56`).
+
+- Introduction, step 4: "Handle errors — Catch `CsvError` for malformed input, and `SchemaError` for a cell that doesn't convert". Nothing throws `CsvError`: `CsvReader` returns it in a `Left`, and `CsvCodec#decode` turns malformed CSV into a `SchemaError` whose message is the `CsvError`'s `getMessage` (`CsvCodecDeriver.scala:182`), for example `Left(SchemaError: CSV error at row 1, column 14: Unclosed quoted field at: .)`. Suggested: "Handle errors — `CsvReader` returns a `CsvError` in a `Left`; `CsvCodec#decode` returns a `SchemaError` in a `Left` for a malformed row, a wrong number of cells or a bad cell."
+- CsvCodecDeriver › Record Type Support: "Each field becomes a CSV column with the field name as the header" does not say that `Modifier.rename` and `Modifier.transient` are ignored (library entry 3), and "Flat case classes ... are supported" does not warn that an `AnyVal` case class field counts as a nested record (amendment 5). Suggested: one sentence each, naming them as known bugs in 0.0.56.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
