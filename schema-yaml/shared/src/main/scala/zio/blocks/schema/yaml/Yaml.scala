@@ -54,13 +54,13 @@ sealed trait Yaml {
   /**
    * Writes this tree as YAML text in block style with `YamlOptions.default`:
    * two-space indentation, no `---` line and no trailing line break. A scalar
-   * is quoted when it is empty, when its text starts like a number (a digit, or
-   * `-`, `+` or `.` before a digit) or is a boolean, null or other YAML keyword
-   * or syntax, or when it contains a line break, `: ` or ` #`; an `Int`,
-   * `Float`, `Bool` or `Null` tag turns quoting off for non-empty text. A value
-   * that starts with `#` or `- `, ends with `:`, or starts or ends with a space
-   * is left unquoted, so other YAML readers drop it, reject it or trim it (a
-   * known bug).
+   * is quoted when it is empty, when its text starts like a number (a digit;
+   * `-` or `+` before a digit or `.`; or `.` before a digit) or is a boolean,
+   * null or other YAML keyword or syntax, or when it contains a line break,
+   * `: ` or ` #`; an `Int`, `Float`, `Bool` or `Null` tag turns quoting off for
+   * non-empty text. A value that starts with `#` or `- `, ends with `:`, or
+   * starts or ends with a space is left unquoted, so other YAML readers drop
+   * it, reject it or trim it (a known bug).
    *
    * {{{
    * val sensor = Yaml.Mapping.fromStringKeys(
