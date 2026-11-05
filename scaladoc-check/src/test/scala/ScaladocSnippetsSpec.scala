@@ -182,6 +182,16 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport and objectName give an html example the html import and drop the html package") {
+      val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
+      val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(domPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(domPath, 12) == "Snippet_html_shared_scala_Dom_L12",
+        ScaladocSnippets.moduleImport(elementsPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(elementsPath, 30) == "Snippet_html_shared_scala_2_HtmlElements_L30"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
