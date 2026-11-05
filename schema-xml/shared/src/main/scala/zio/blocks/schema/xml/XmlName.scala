@@ -19,12 +19,26 @@ package zio.blocks.schema.xml
 /**
  * Represents an XML qualified name with an optional namespace URI and prefix.
  *
+ * [[XmlReader]] fills `localName` and `prefix` and leaves `namespace` empty: it
+ * does not resolve `xmlns` declarations, which stay ordinary attributes.
+ *
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * val feed = XmlName.parse("{http://www.w3.org/2005/Atom}atom:feed")
+ *
+ * feed.qualifiedName                            // atom:feed
+ * Xml.Element(feed, Chunk.empty, Chunk.empty).print // <atom:feed xmlns:atom="http://www.w3.org/2005/Atom"/>
+ * }}}
+ *
  * @param localName
  *   The local part of the name (without prefix)
  * @param prefix
- *   Optional namespace prefix (used for display purposes)
+ *   Optional namespace prefix. The writer prints the name as
+ *   `prefix:localName`.
  * @param namespace
- *   Optional namespace URI
+ *   Optional namespace URI. On an element name, the writer adds an `xmlns` (or
+ *   `xmlns:prefix`) declaration for it; on an attribute name it is not written.
  */
 final case class XmlName(localName: String, prefix: Option[String] = None, namespace: Option[String] = None) {
 
@@ -68,17 +82,21 @@ final case class XmlName(localName: String, prefix: Option[String] = None, names
   }
 }
 
+/** Constructors and a parser for [[XmlName]]. */
 object XmlName {
 
   /** Creates an XmlName with just a local name (no namespace or prefix). */
   def apply(localName: String): XmlName = new XmlName(localName, None, None)
 
-  /** Creates an XmlName with a namespace (backward compatible). */
+  /**
+   * Creates an XmlName with a local name and a namespace URI, without a prefix.
+   */
   def apply(localName: String, namespace: String): XmlName = new XmlName(localName, None, new Some(namespace))
 
   /**
    * Parses an XmlName from a string in the format "{namespace}localName",
-   * "{namespace}prefix:localName", "prefix:localName", or "localName".
+   * "{namespace}prefix:localName", "prefix:localName", or "localName". A string
+   * that starts with `{` but has no closing `}` becomes the local name as is.
    */
   def parse(s: String): XmlName =
     if (s.startsWith("{")) {

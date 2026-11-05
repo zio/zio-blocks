@@ -26,12 +26,18 @@ import zio.blocks.chunk.Chunk
  *
  * Example:
  * {{{
- * val elem = XmlBuilder.element("root")
+ * val elem = XmlBuilder
+ *   .element("root")
  *   .attr("id", "1")
  *   .attr("class", "main")
  *   .child(XmlBuilder.element("child").text("content").build)
  *   .build
+ *
+ * elem.print // <root id="1" class="main"><child>content</child></root>
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
  */
 object XmlBuilder {
 
@@ -120,7 +126,9 @@ object XmlBuilder {
   ) {
 
     /**
-     * Adds an attribute with a string name.
+     * Adds an attribute with a string name. The attribute is appended: an
+     * existing attribute with the same name is kept, so the element can end up
+     * with both.
      *
      * @param name
      *   The attribute name
@@ -132,7 +140,8 @@ object XmlBuilder {
     def attr(name: String, value: String): ElementBuilder = attr(XmlName(name), value)
 
     /**
-     * Adds an attribute with an XmlName (possibly namespaced).
+     * Adds an attribute with an XmlName (possibly namespaced). The writer
+     * prints the name's prefix but no `xmlns` declaration for its namespace.
      *
      * @param name
      *   The attribute name (possibly with namespace)
