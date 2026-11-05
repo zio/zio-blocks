@@ -46,7 +46,7 @@ import zio.blocks.sql.{DbValue, Frag, SqlDialect, SqlIdentifier, Table}
  * val bulkLines = SqlQuery
  *   .from(lines)
  *   .join(Rel.manyToOne(lines, _.productSku, products, _.sku))
- *   .where(sql"t0.quantity >= ${3}")
+ *   .where(sql"t0.quantity >= \${3}")
  *
  * val sqlText = bulkLines.sql(SqlDialect.SQLite)
  * // SELECT t0."line_id", t0."product_sku", t0."quantity", t1."sku", t1."name",
@@ -224,8 +224,8 @@ final case class SqlQuery[A] private[query] (
    *
    * val cheap = SqlQuery
    *   .from(Table.derived[Product])
-   *   .where(sql"t0.price_cents < ${1000L}")
-   *   .where(sql"(t0.name = ${"Cup"} OR t0.name = ${"Mug"})")
+   *   .where(sql"t0.price_cents < \${1000L}")
+   *   .where(sql"(t0.name = \${"Cup"} OR t0.name = \${"Mug"})")
    * val explained = cheap.explain(SqlDialect.SQLite)
    * // SELECT t0."sku", t0."name", t0."price_cents" FROM "product" AS t0
    * //   WHERE t0.price_cents < ?1 AND (t0.name = ?2 OR t0.name = ?3)
@@ -249,7 +249,7 @@ final case class SqlQuery[A] private[query] (
    * val popular = SqlQuery
    *   .from(Table.derived[OrderLine])
    *   .groupBy("product_sku")
-   *   .having(sql"SUM(t0.quantity) > ${10}")
+   *   .having(sql"SUM(t0.quantity) > \${10}")
    *   .sql(SqlDialect.SQLite)
    * // SELECT t0."line_id", t0."product_sku", t0."quantity" FROM "order_line" AS t0
    * //   GROUP BY t0."product_sku" HAVING SUM(t0.quantity) > ?
