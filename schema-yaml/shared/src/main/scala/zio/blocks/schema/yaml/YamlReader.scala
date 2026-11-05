@@ -30,8 +30,9 @@ import java.nio.charset.StandardCharsets.UTF_8
  * drops the rest of the document without an error; it accepts an unclosed `[`,
  * `{` or quote and drops the last character of the value; it misreads or drops
  * valid YAML that it does not support, such as a sequence at the same
- * indentation as its key, anchors, and the documents after the first in a
- * stream; and it removes the final line break of every `|` and `>` block.
+ * indentation as its key, anchors and tags (kept as part of the text), and the
+ * documents after the first in a stream; and it removes the final line break of
+ * every `|` and `>` block.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
