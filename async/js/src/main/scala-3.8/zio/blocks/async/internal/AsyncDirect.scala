@@ -34,8 +34,10 @@ import scala.quoted.*
  * DCA's AsyncShift on every other cell), so [[asyncImpl]] picks per block:
  *
  *   - every `.await` in direct position → native `js.async`/`js.await`;
- *   - any `.await` under a lambda / by-name argument / nested method or class →
- *     the shared DCA transform, identical to the Scala 3 (< 3.8) JS cell.
+ *   - any `.await` under a lambda / by-name argument / nested method or class,
+ *     in the body of a `try` that has `catch` cases, or anywhere in a `try`
+ *     that has a `finally` → the shared DCA transform, identical to the Scala 3
+ *     (< 3.8) JS cell.
  *
  * The native arm preserves the library's semantics exactly:
  *
@@ -78,9 +80,10 @@ private[async] object AsyncDirect {
   /**
    * `Async.async { body }` → a readiness-preserving `js.async` wrapper when
    * every `.await` is in direct position, [[AsyncDcaTransform.asyncImpl]] when
-   * any `.await` sits under a lambda / by-name argument / nested method, and a
-   * plain `Async.attempt` when the body contains no `.await` at all (zero
-   * suspension, no `Promise` round-trip).
+   * any `.await` sits under a lambda / by-name argument / nested method, in the
+   * body of a `try` with `catch` cases, or anywhere in a `try` with a
+   * `finally`, and a plain `Async.attempt` when the body contains no `.await`
+   * at all (zero suspension, no `Promise` round-trip).
    */
   def asyncImpl[A: Type](body: Expr[A])(using Quotes): Expr[Async[A]] = {
     import quotes.reflect.*
@@ -104,7 +107,9 @@ private[async] object AsyncDirect {
      * with catch clauses over an awaiting body must use the DCA fallback,
      * because a native throw delivers a `null` failure cause to the user catch
      * as the (internal) `NullCauseMarker` Throwable, which the handler would
-     * wrongly match; the DCA cells match handlers against the logical cause.
+     * wrongly match; the DCA cells match handlers against the logical cause. A
+     * `try` with a `finally` and an await anywhere in it falls back too, so a
+     * failing finalizer can keep the in-flight failure as suppressed.
      */
     final class Scan(indirect: Boolean) extends TreeTraverser {
       override def traverseTree(t: Tree)(owner: Symbol): Unit = t match {

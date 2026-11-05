@@ -191,6 +191,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport and objectName give an async example the async import") {
+      val asyncPath = "async/shared/src/main/scala/zio/blocks/async/Async.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(asyncPath) == "zio.blocks.async._",
+        ScaladocSnippets.objectName(asyncPath, 40) == "Snippet_async_shared_scala_Async_L40"
+      )
+    },
     test("moduleImport hides the sql.zio package from sql examples and keeps the default for sql-zio") {
       val fragPath = "sql/shared/src/main/scala/zio/blocks/sql/Frag.scala"
       val relPath  = "sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala"
