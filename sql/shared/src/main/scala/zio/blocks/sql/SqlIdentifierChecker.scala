@@ -41,7 +41,7 @@ import scala.collection.mutable
  * an SQL keyword: a known bug in 0.0.56.
  *
  * @see
- *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+ *   [[https://zioblocks.com/guides/sql-checked-interpolation/ sql(table) Checked Interpolation]]
  */
 object SqlIdentifierChecker {
 

@@ -170,7 +170,9 @@ object DbParam {
    * in scope.
    *
    * @throws java.lang.IllegalArgumentException
-   *   when the fragment is built, if the codec writes more than one column
+   *   when the fragment is built, if the codec does not write exactly one
+   *   column: a case class with several fields, or `Object` or a class without
+   *   constructor parameters, whose derived codec writes none
    */
   given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A] with {
     def toDbValue(v: A): DbValue = {
@@ -190,10 +192,10 @@ extension (inline sc: StringContext) {
   /**
    * Builds a [[Frag]] from SQL text with interpolated values. Each value is
    * turned into a bound `?` parameter through its [[DbParam]] (a [[DbValue]] is
-   * bound as it is), while an interpolated [[Frag]] or [[SqlLiteral]] is
-   * spliced into the text as written. A value with none of these fails to
-   * compile with `No DbParam/Frag/SqlLiteral/DbValue instance found for type
-   * ...`.
+   * bound as it is), while an interpolated [[SqlLiteral]] is spliced into the
+   * text as written and an interpolated [[Frag]] is spliced in with its own
+   * parameters. A value with none of these fails to compile with `No
+   * DbParam/Frag/SqlLiteral/DbValue instance found for type ...`.
    *
    * {{{
    * val country   = "NO"
@@ -240,17 +242,19 @@ extension (inline sc: StringContext) {
    * frag.sql(SqlDialect.SQLite) // SELECT id, name FROM customer WHERE city = ?
    * }}}
    *
-   * Text inside quotes and interpolated values are not checked, so an
+   * Text inside single quotes and interpolated values are not checked, so an
    * interpolated [[SqlLiteral]] or [[Frag]] is the way to write SQL the check
-   * rejects. An alias is known only when it is introduced with `AS` (`FROM
-   * customer AS c`). The known names are taken from the table's type when the
-   * code compiles, which has two known bugs in 0.0.56: a column renamed with
-   * `@Modifier.rename` is rejected under its real name and accepted under the
-   * field's name, and a misspelled column can be offered an SQL keyword as its
+   * rejects; a double-quoted identifier is checked like a bare word. An alias
+   * is known only when it is introduced with `AS` (`FROM customer AS c`). The
+   * known names are taken from the table's type when the code compiles, which
+   * has three known bugs in 0.0.56: a column renamed with `@Modifier.rename` is
+   * rejected under its real name and accepted under the field's name, a table
+   * named by `TableNamingPolicy.Plural` is known only by its type's singular
+   * name, and a misspelled column can be offered an SQL keyword as its
    * suggestion.
    *
    * @see
-   *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+   *   [[https://zioblocks.com/guides/sql-checked-interpolation/ sql(table) Checked Interpolation]]
    */
   inline def sql(inline first: Table[?], inline rest: Table[?]*)(inline args: Any*): Frag =
     ${ SqlMacros.sqlImplChecked('sc, 'first, 'rest, 'args) }

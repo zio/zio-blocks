@@ -44,7 +44,7 @@ package zio.blocks.sql
  * }}}
  *
  * @see
- *   [[https://zioblocks.com/reference/sql/frag/ Frag]]
+ *   [[https://zioblocks.com/guides/sql-checked-interpolation/ sql(table) Checked Interpolation]]
  */
 final case class SqlLiteral(sql: String) {
 

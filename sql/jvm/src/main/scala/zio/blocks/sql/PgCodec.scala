@@ -43,7 +43,7 @@ import zio.blocks.schema.json.Json
  * of `UUID`. SQLite has no arrays, so these work on PostgreSQL only.
  *
  * @see
- *   [[https://zioblocks.com/reference/sql/db-param/ DbParam]]
+ *   [[https://zioblocks.com/guides/map-custom-column-types/ How to Map Custom Column Types]]
  */
 object PgCodec {
 
