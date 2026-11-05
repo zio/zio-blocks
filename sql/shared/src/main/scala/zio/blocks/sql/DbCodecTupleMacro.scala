@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import scala.quoted._
 
+/** The macro behind `DbCodec.tupleCodec`. */
 private[sql] object DbCodecTupleMacro {
 
   def tupleCodecImpl[T <: Tuple: Type](using Quotes): Expr[DbCodec[T]] = {

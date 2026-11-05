@@ -16,7 +16,12 @@
 
 package zio.http
 
+/**
+ * Platform-specific members of [[Charset]]: `toJava` exists on the JVM only.
+ */
 private[http] trait CharsetPlatformSpecific { self: Charset =>
+
+  /** Returns the matching `java.nio.charset.Charset` (JVM only). */
   def toJava: java.nio.charset.Charset = self match {
     case Charset.UTF8       => java.nio.charset.StandardCharsets.UTF_8
     case Charset.ASCII      => java.nio.charset.StandardCharsets.US_ASCII

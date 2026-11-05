@@ -16,8 +16,15 @@
 
 package zio.blocks.sql.query
 
+/** The direction of a sort key, for [[SqlQuery#orderBy]]. */
 sealed trait SortOrder
+
+/** The sort directions. */
 object SortOrder {
-  case object Asc  extends SortOrder
+
+  /** `ASC`, the default. */
+  case object Asc extends SortOrder
+
+  /** `DESC`. */
   case object Desc extends SortOrder
 }
