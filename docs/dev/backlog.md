@@ -677,9 +677,37 @@ Skill update: "Lessons from typeid" in the `scaladoc-rollout` skill's `reference
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%.
 
-## 13e. Scaladoc: http-model module (in progress)
+## 13e. Scaladoc: http-model module
 
-Session `http-model-scaladoc` (Opus), started 2026-11-04 on `main` `5eb809c8f`. Phase 0: 57 / 1113 (5%); `Header.scala` alone has 648 items (2 documented), the `Status` scala-2/scala-3 pair 66 + 67 (0); `--drift` empty; no `{{{` blocks; http-model's main sources are byte-identical to `v0.0.56`, so probes run against the release; it compiles on 2.13.18 (JVM main and test, JS main), only its tests are missing from `testJVMScala2Command`/`testJSScala2Command` (out of scope). Milad's Phase 1 decisions: one PR (tooling plus all 1,113 members), not waves; tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie`, `ServerSentEvent`, the rest tier 2; the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with a unit test; the AGENTS.md edit approved (scaladoc-check bullet adds http-model and points new modules at `packageOverrides`; downstream line `http-model*` → `scaladoc-check`, `http-model-schema*`, `endpoint*`, `datastar*`, `htmx*`, `docs`).
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 http-model Scaladoc). Session `http-model-scaladoc` (Opus controller; an Opus subagent for tier 1, the existing-comment fact-check and the bug triage; Opus reviewers; Sonnet for tier 2 and the re-review). Milad's Phase 1 decisions:
+- one PR (tooling plus all 1,113 members), not waves;
+- tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie` and `ServerSentEvent`; everything else is tier 2;
+- the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with unit tests;
+- the AGENTS.md edit is approved.
+
+Phase 0 ran on `main` `5eb809c8f`. The module's main sources were byte-identical to `v0.0.56`, so every probe ran against the release.
+
+| Item | Result |
+|---|---|
+| PR | #1943 (one PR). CI green: 23 passed, 0 failed (10 skipped bot jobs), after one rerun of flakes on each head: 6 jobs on the first head (GitHub release downloads of JDK 17 and sbt 2.0.12 timed out with HTTP 504; Landing Lighthouse 0.94), 1 on the merge head (`Docker start fail`). |
+| Coverage | 57 / 1113 (5%) → 1113 / 1113. `Header.scala` 2 → 648; the `Status` scala-2/scala-3 pair 0 → 133 (identical text). `--drift` empty. |
+| Examples | 65 compiled `{{{` blocks (0 before), in the 12 tier-1 types and their key methods; outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56; no `scala-2-only`, `scala-3-only` or `no-check` markers needed |
+| Tooling | `packageOverrides` and `modulePackage` in `ScaladocSnippets`, so existing modules keep their wrapper names; 2 extractor tests; `http-model.jvm` in `scaladocCheckedModules`; `build.sbt` comment; style guide (module list, tier-1 list, `@throws` needs the full name); 2 AGENTS.md lines (Milad approved) |
+| Existing comments | 57 checked: 1 false, 12 imprecise (13, 23%), all fixed. Example: `Method`'s "unique ordinal", but `ANY` and every `Methods` value have -1. |
+| Parallel writing | Task 2 Opus: tier 1 + their files + fact-check, 38 min. Task 3b Sonnet: helper types, 92 members, 3 min. Task 3a Sonnet: typed headers, 635 members, 6 min, written by script. Only Task 2 ran sbt. |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A (headers, cookies): 4 Important + 5 Minor. B (everything else and tooling): 3 Important + 13 Minor. A separate Opus bug-writer turned 9 Sonnet suspects into entries and 6 comment corrections. All applied. The Sonnet re-review found 2 Important + 3 Minor (stray ` / ` and lost `"` from 3a's scripted fix round), applied by the controller. |
+| Bugs | 16 new entries: 12 Library bugs and 3 Usability traps (`library-issues.md`), 1 Documentation error covering 11 statements on `model.md`, `headers.md` and `server-sent-event.md` (`docs-issues.md`). Worst: `URL.parse` searches the whole string for `://`, so `/login?next=https://...` loses `next`. Also: lone-`"` throws in 6 header parsers, which escape through `Headers#get`; locale-dependent case conversion (a Turkish locale breaks `charset=iso-8859-1`, `BASIC` and `X-Frame-Options: SAMEORIGIN`). |
+| Time | about 1 h 50 min from survey to a pushed, gate-green branch: Phase 0+1 20 min, Task 2 38 min (3a/3b and the bug-writer in parallel), parallel review 21 min, fix rounds 2 + 12 min, re-review 7 min, controller fixes + merge + final gates 6 min. Auto mode blocked `gh pr create` twice; it went through once Milad told the session to run it itself. `sql-scaladoc` (#1942) merged first and touched the same tooling lines: three conflicts (AGENTS.md, `scaladoc-style.md`, `ScaladocSnippets.scala`) resolved by keeping both sides (`packageOverrides` plus `sql`'s import case), gates re-run (`scaladoc-check` x3, `scaladoc-check-scala3` x2, lint x2). CI about 50 min per head including the reruns. |
+
+Skill update: "Lessons from http-model" in `references/lessons.md`:
+- `sbt --client` returned exit 0 on a failed `doc` run, so read gates from the logs;
+- `@throws` needs the full name for the 2.13 doc tool;
+- `packageOverrides` for odd packages;
+- a parallel split by file with one sbt owner;
+- Sonnet suspects go to an Opus bug-writer;
+- `/*` inside Scaladoc opens a nested comment.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%.
 
 ## 13f. Scaladoc: sql and sql-zio modules
 
