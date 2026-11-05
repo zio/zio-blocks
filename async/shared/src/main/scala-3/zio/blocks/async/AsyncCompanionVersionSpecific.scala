@@ -105,19 +105,23 @@ private[async] trait AsyncCompanionVersionSpecific {
   /**
    * Writes asynchronous code in direct style: inside `body`, `fa.await` waits
    * for an `Async` and returns its value, and the value of `body` becomes the
-   * result. The block is rewritten at compile time into the `flatMap` chain you
-   * would write by hand, so awaits run in source order and no thread blocks. A
-   * throw in `body`, or an `await` on a failed `Async`, fails the result.
-   * `await` also works inside closures passed to the strict collections, such
-   * as `List.map`, which then run one element at a time.
+   * result. Awaits run in source order and no thread blocks: the block is
+   * rewritten at compile time into continuations, like the `flatMap` chain you
+   * would write by hand. A throw in `body`, or an `await` on a failed `Async`,
+   * fails the result. `await` also works inside closures passed to collection
+   * methods such as `map`, `foreach` and `filter`. `List.map` and `Array.map`
+   * call the closure on every element first and then wait for the results in
+   * order; on other collections, such as `Vector`, and for methods such as
+   * `foreach` and `filter`, the closures run one element at a time.
    *
    * Like every `Async`, the block runs at once up to its first `await` on a
    * pending value; awaits on ready values do not stop it. What happens after a
    * pending `await` depends on the platform. On the JVM, on Scala 2, and on
    * Scala.js before Scala 3.8, the rest of the block runs only when a driver
    * (`block`, `start`, `toFuture`, ...) settles the result. On Scala.js with
-   * Scala 3.8 or later, the block compiles to a JavaScript async function, so
-   * the rest runs by itself once the awaited value completes; linking it needs
+   * Scala 3.8 or later, awaits in direct position compile to a JavaScript async
+   * function, so the rest runs by itself once the awaited value completes
+   * (awaits inside closures use the compile-time rewrite); linking it needs
    * ES2017 output. The value delivered is the same everywhere.
    *
    * {{{
