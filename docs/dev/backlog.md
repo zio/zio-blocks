@@ -764,6 +764,10 @@ Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase
 
 Session `jwt-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 62 / 146 (42%); `--drift` empty; `CrossType.Full` (shared 9 files, `Jwt.scala` 1142 lines; jvm `JvmJwtCryptoBackend`, js `JsJwtCryptoBackend`), no scala-2/scala-3 split; jwt main sources unchanged since `v0.0.56`; one existing `{{{` block with `...` placeholders (to be made to compile); known entries `library-issues.md` 1429 and 1474. Milad's Phase 1 decisions: one PR (tooling plus all docs); tier 1 = `Jwt` (with `JwtSignOptions`, `JwtDecodeOptions`, `JwtLimits`), `JwtClaims`, `JwtHeader`, `Algorithm`, `JwtError`, `JwtAudience`.
 
+## 13l. Scaladoc: maybe, combinators and context (in progress)
+
+Session `maybe-combinators-context-scaladoc` (Opus), started 2026-11-05 on `main` `c2e4a39fd`. Phase 0: 25 / 251 (maybe 5/135, combinators 7/79, context 13/37); `--drift` lists 3 members in `Maybe.scala` (`class Present`, `def present`, `object Absent`); 2 existing `{{{` blocks (`ContextHas`); sources byte-identical to `v0.0.56`; packages fit `moduleImport`, so the build change is three list entries; no known entries for these modules apart from the combinators `Tuples` Scala 2 nesting bug filed by the async rollout. Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; one Opus writer for all three modules, then a fresh Opus fact-check review.
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
