@@ -20,18 +20,40 @@ import scala.quoted._
 import zio.blocks.schema.Schema
 
 /**
- * Compile-time SQL dump emission.
+ * Writes the SQL of tables and queries to `.sql` files while the code compiles,
+ * for review. When the system property `zib.sql.dumpDir` is set in the JVM that
+ * runs the compiler, [[dumpTable]] and [[dumpQuery]] write one file per dialect
+ * (PostgreSQL and SQLite) into that directory. Either way the call compiles to
+ * `()`, so it costs nothing at run time.
  *
- * When the JVM system property `zib.sql.dumpDir` is set, inline macro entry
- * points [[dumpTable]] and [[dumpQuery]] emit `.sql` files to that directory at
- * compile time. When the property is absent the calls expand to `()` with zero
- * runtime cost. Files are named `<owner>-<dialect>.sql` (owner derived from the
- * enclosing symbol or query/table name), written as UTF-8 with a trailing
- * newline, and skipped when the existing content is byte-identical
- * (content-hash skip).
+ * Files are written as UTF-8 with a trailing newline and left alone when their
+ * content is already the same. A name that is not an SQL identifier has every
+ * other character replaced by `_`. A failed write is a compiler warning, not an
+ * error.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ * import zio.blocks.sql.query.SqlQuery
+ *
+ * case class Customer(customerId: Int, name: String, city: String)
+ * object Customer { implicit val schema: Schema[Customer] = Schema.derived }
+ *
+ * val customers = Table.derived[Customer]
+ *
+ * // With -Dzib.sql.dumpDir=<dir>, writes customer-postgresql.sql and
+ * // customer-sqlite.sql:
+ * val customerDdl = Dump.dumpTable(customers)
+ * // and byCity_query-postgresql.sql and byCity_query-sqlite.sql, each with
+ * // SELECT t0."customer_id", t0."name", t0."city" FROM "customer" AS t0 ORDER BY t0."city" ASC
+ * val byCity = Dump.dumpQuery(SqlQuery.from(customers).orderBy("city"))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/dump/ Dump]]
  */
 object Dump {
 
+  /** Writes `sqlText` to `<name>-<dialect>.sql` when the property is set. */
   private[sql] def emit(name: String, dialect: SqlDialect, sqlText: String)(using Quotes): Unit = {
     import quotes.reflect._
     val dirProp = System.getProperty("zib.sql.dumpDir")
@@ -71,6 +93,7 @@ object Dump {
     }
   }
 
+  /** Returns the name of the nearest non-synthetic owner of the macro call. */
   private[sql] def ownerDerivedName(using quotes: Quotes): String = {
     import quotes.reflect._
     var sym = Symbol.spliceOwner
@@ -530,11 +553,16 @@ object Dump {
   }
 
   /**
-   * Compile-time dump of a [[Table]]'s `CREATE TABLE` DDL.
+   * Writes a `CREATE TABLE IF NOT EXISTS` statement for `table` to
+   * `<table>-postgresql.sql` and `<table>-sqlite.sql`, with each dialect's
+   * column types, when the property is set.
    *
-   * When `-Dzib.sql.dumpDir` is set, emits `<table>-<dialect>.sql` for
-   * PostgreSQL and SQLite at the macro-expansion site (owner derived from the
-   * table's type name). No-op when the property is absent.
+   * It rebuilds the statement from the fields of `A` instead of reading
+   * `table`, a known bug in 0.0.56: every column is the field name in snake
+   * case, even under `@Modifier.rename`, and the table name is the first string
+   * literal in the argument that is an SQL identifier, or else the type name in
+   * snake case, so a name from `TableNamingPolicy.Plural` or from a `val` is
+   * lost.
    */
   inline def dumpTable[A](inline table: Table[A])(using
     @scala.annotation.unused schema: Schema[A]
@@ -542,23 +570,23 @@ object Dump {
     ${ dumpTableImpl[A]('table) }
 
   /**
-   * Compile-time dump of a query-IR `SqlQuery`'s `SELECT` statement.
+   * Writes `query`'s `SELECT` statement to `<name>_query-postgresql.sql` and
+   * `<name>_query-sqlite.sql` when the property is set. `<name>` is the `val`
+   * or `def` the call is in.
    *
-   * When `-Dzib.sql.dumpDir` is set, emits `<owner>-<dialect>.sql` for each
-   * dialect at the call site (owner derived from the enclosing symbol/val
-   * name). No-op otherwise.
+   * The macro rebuilds the SQL from the source of `query`, so `query` must be
+   * an `inline def` or a `SqlQuery.from(...)` chain written in the call, with
+   * each `Rel` built in the chain. A query held in a plain `val` writes no file
+   * and gives the warning `Dump requires inline query value; ...`.
    *
-   * '''Inline-value requirement:''' the `query` argument must be an
-   * inline-constructible tree (e.g. inline val/def or a direct
-   * `SqlQuery.from(...).innerJoin(...).filter(...)` chain). A preconstructed
-   * non-inline val cannot expose its join/filter tree and will trigger
-   * `report.warning("Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable")`
-   * and emit no file (skips emit) instead of an incomplete source-only
-   * fallback.
+   * Two known bugs in 0.0.56: a `where` condition written with `sql"..."` is
+   * dumped without its `?`, and every call in an object body that is not
+   * assigned to a `val` writes the same file, so only the last one survives.
    */
   inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
 
+  /** The macro behind [[dumpTable]]; not meant to be called directly. */
   def dumpTableImpl[A: Type](table: Expr[Table[A]])(using Quotes): Expr[Unit] = {
     import quotes.reflect._
     val dirProp = System.getProperty("zib.sql.dumpDir")
@@ -586,6 +614,7 @@ object Dump {
     }
   }
 
+  /** The macro behind [[dumpQuery]]; not meant to be called directly. */
   def dumpQueryIrImpl[A: Type](query: Expr[zio.blocks.sql.query.SqlQuery[A]])(using Quotes): Expr[Unit] = {
     import quotes.reflect._
     val dirProp = System.getProperty("zib.sql.dumpDir")
