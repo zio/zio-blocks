@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 /**
  * Writes MessagePack values into a byte array that grows as needed. A
  * [[MessagePackCodec]] gets one in `encodeValue`; the constructor is private to
- * the module, so a hand-written codec uses the writer it is given. The number
+ * the module, so a hand-written codec uses the writer it is given. The integer
  * and header methods pick the smallest format that holds the value, except
  * `writeLong` (see there). The writer does not check the structure: after
  * `writeArrayHeader(n)` or `writeMapHeader(n)`, the codec must write `n`

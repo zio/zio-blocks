@@ -39,7 +39,8 @@ import scala.util.control.NonFatal
  * number after `got:` is the unexpected format byte in decimal. A `decode`
  * method reads one value from the start of its input and ignores any bytes
  * after it. The `encode` methods do not validate the value: they throw only
- * what the codecs of its parts throw.
+ * what the codecs of its parts throw, and, for a `ByteBuffer`, what
+ * `ByteBuffer#put` throws.
  *
  * {{{
  * import zio.blocks.schema._
@@ -64,7 +65,8 @@ abstract class MessagePackCodec[A] extends BinaryCodec[A] {
   /**
    * Reads one value of type `A` from `in`, which is positioned at its first
    * byte, and leaves `in` positioned after it. To fail, call `error`; `decode`
-   * turns that, and any other non-fatal exception, into a `Left`. Implement it
+   * turns that, and any other non-fatal exception, into a `Left` (an exception
+   * with no message gives a `Left` whose message is `null`). Implement it
    * together with `encodeValue` to write a codec by hand.
    *
    * {{{
@@ -137,7 +139,8 @@ abstract class MessagePackCodec[A] extends BinaryCodec[A] {
    * Encodes `value` and puts its bytes into `output` at its position, which
    * moves past them. The value is encoded in full before anything is put, so
    * when `output` has too little room this throws
-   * `java.nio.BufferOverflowException` and leaves `output` unchanged.
+   * `java.nio.BufferOverflowException` and leaves `output` unchanged; a
+   * read-only `output` throws `java.nio.ReadOnlyBufferException`.
    *
    * {{{
    * import java.nio.ByteBuffer
@@ -250,7 +253,8 @@ abstract class MessagePackCodec[A] extends BinaryCodec[A] {
  * The MessagePack codecs of the primitive types. [[MessagePackCodecDeriver]]
  * uses them for primitive values, so `Schema[Int].derive(MessagePackFormat)`
  * returns `intCodec` itself. The `decode` and `encode` methods of every codec
- * reuse one reader and one writer per thread.
+ * reuse one reader and one writer per thread, and create a new one when a call
+ * on the same thread is already using them.
  */
 object MessagePackCodec {
   private val readerPool: ThreadLocal[MessagePackReader] = new ThreadLocal[MessagePackReader] {
@@ -645,7 +649,7 @@ object MessagePackCodec {
 
   /**
    * Writes a `UUID` as its 36-character string; reading a malformed one fails
-   * with `Invalid UUID string: ...`.
+   * with the message of `UUID.fromString`, such as `Invalid UUID string: ...`.
    */
   val uuidCodec: MessagePackCodec[UUID] = new MessagePackCodec[UUID] {
     def decodeValue(in: MessagePackReader): UUID = UUID.fromString(in.readString())
