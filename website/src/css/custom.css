@@ -473,6 +473,10 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
   }
   .zb-chat #bytebrain-ask-button:hover { background: var(--ifm-color-primary-dark) !important; }
 
+  /* Maximized view: the widget centres the panel with flexbox, but its Tailwind `block` class (display: block, !important)
+     wins over that rule, so the panel stays at the left edge. Restore the flex layout so the panel is centred. */
+  .zb-chat #container.bytebrain-maximized { display: flex !important; }
+
   @media (prefers-reduced-motion: reduce) {
     .zb-chat #chat-button { transition: none !important; }
   }
