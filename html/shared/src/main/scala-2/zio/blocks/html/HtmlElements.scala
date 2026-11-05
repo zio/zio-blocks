@@ -100,13 +100,13 @@ object ListArg {
   final case class Item(value: Dom.Element.Li) extends ListArg
 
   /**
-   * Wraps an attribute as a `ListArg`, so `ul` and `ol(...)` accepts it
+   * Wraps an attribute as a `ListArg`, so `ul(...)` and `ol(...)` accept it
    * directly.
    */
   implicit def fromAttribute(attribute: Dom.Attribute): ListArg = Attribute(attribute)
 
   /**
-   * Wraps a `<li>` item as a `ListArg`, so `ul` and `ol(...)` accepts it
+   * Wraps a `<li>` item as a `ListArg`, so `ul(...)` and `ol(...)` accept it
    * directly.
    */
   implicit def fromLi(item: Dom.Element.Li): ListArg = Item(item)
@@ -214,13 +214,13 @@ object OptgroupArg {
   final case class Option(value: Dom.Element.Opt) extends OptgroupArg
 
   /**
-   * Wraps an attribute as a `OptgroupArg`, so `optgroup(...)` accepts it
+   * Wraps an attribute as an `OptgroupArg`, so `optgroup(...)` accepts it
    * directly.
    */
   implicit def fromAttribute(attribute: Dom.Attribute): OptgroupArg = Attribute(attribute)
 
   /**
-   * Wraps an `<option>` element as a `OptgroupArg`, so `optgroup(...)` accepts
+   * Wraps an `<option>` element as an `OptgroupArg`, so `optgroup(...)` accepts
    * it directly.
    */
   implicit def fromOpt(option: Dom.Element.Opt): OptgroupArg = Option(option)
@@ -1104,7 +1104,8 @@ trait HtmlElements {
 
   /**
    * The `type` attribute (`typeAttr` in Scala): the type of the element, for
-   * example the kind of an input. `type` is the same key without backticks.
+   * example the kind of an input. It is the same key as `type`, under a name
+   * that needs no backticks.
    */
   val typeAttr: AttributeKey = new AttributeKey("type")
 
@@ -1244,8 +1245,7 @@ trait HtmlElements {
 
   /**
    * The `scope` attribute (`scopeAttr` in Scala): which cells a table header
-   * cell applies to, such as `col` or `row`. `scope` is the same key without
-   * backticks.
+   * cell applies to, such as `col` or `row`. It is the same key as `scope`.
    */
   val scopeAttr: AttributeKey = new AttributeKey("scope")
 
@@ -1256,14 +1256,15 @@ trait HtmlElements {
   val headers: AttributeKey = new AttributeKey("headers")
 
   /**
-   * The `for` attribute: the id of the form control a `label` or `output`
-   * belongs to. `forAttr` is the same key.
+   * The `for` attribute: the id of the form control a `label` belongs to.
+   * `forAttr` is the same key.
    */
   val `for`: AttributeKey = new AttributeKey("for")
 
   /**
    * The `for` attribute (`forAttr` in Scala): the id of the form control a
-   * `label` or `output` belongs to. `for` is the same key without backticks.
+   * `label` belongs to. It is the same key as `for`, under a name that needs no
+   * backticks.
    */
   val forAttr: AttributeKey = new AttributeKey("for")
 
@@ -1622,8 +1623,9 @@ trait HtmlElements {
   // --- Multi-value attribute helpers ---
 
   /**
-   * The `ariaDescribedby` attribute: the ids of the elements that describe this
-   * one, for assistive technology. Several values join with spaces.
+   * The `aria-describedby` attribute (`ariaDescribedby` in Scala): the ids of
+   * the elements that describe this one, for assistive technology. Several
+   * values join with spaces.
    */
   val ariaDescribedby: MultiAttributeKey =
     new MultiAttributeKey("aria-describedby", Dom.AttributeSeparator.Space)

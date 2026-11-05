@@ -868,7 +868,8 @@ trait HtmlElements {
 
   /**
    * The `type` attribute (`typeAttr` in Scala): the type of the element, for
-   * example the kind of an input. `type` is the same key without backticks.
+   * example the kind of an input. It is the same key as `type`, under a name
+   * that needs no backticks.
    */
   val typeAttr: AttributeKey = new AttributeKey("type")
 
@@ -1008,8 +1009,7 @@ trait HtmlElements {
 
   /**
    * The `scope` attribute (`scopeAttr` in Scala): which cells a table header
-   * cell applies to, such as `col` or `row`. `scope` is the same key without
-   * backticks.
+   * cell applies to, such as `col` or `row`. It is the same key as `scope`.
    */
   val scopeAttr: AttributeKey = new AttributeKey("scope")
 
@@ -1020,14 +1020,15 @@ trait HtmlElements {
   val headers: AttributeKey = new AttributeKey("headers")
 
   /**
-   * The `for` attribute: the id of the form control a `label` or `output`
-   * belongs to. `forAttr` is the same key.
+   * The `for` attribute: the id of the form control a `label` belongs to.
+   * `forAttr` is the same key.
    */
   val `for`: AttributeKey = new AttributeKey("for")
 
   /**
    * The `for` attribute (`forAttr` in Scala): the id of the form control a
-   * `label` or `output` belongs to. `for` is the same key without backticks.
+   * `label` belongs to. It is the same key as `for`, under a name that needs no
+   * backticks.
    */
   val forAttr: AttributeKey = new AttributeKey("for")
 
@@ -1386,8 +1387,9 @@ trait HtmlElements {
   // --- Multi-value attribute helpers ---
 
   /**
-   * The `ariaDescribedby` attribute: the ids of the elements that describe this
-   * one, for assistive technology. Several values join with spaces.
+   * The `aria-describedby` attribute (`ariaDescribedby` in Scala): the ids of
+   * the elements that describe this one, for assistive technology. Several
+   * values join with spaces.
    */
   val ariaDescribedby: MultiAttributeKey =
     new MultiAttributeKey("aria-describedby", Dom.AttributeSeparator.Space)
