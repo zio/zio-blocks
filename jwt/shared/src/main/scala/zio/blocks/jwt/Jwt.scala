@@ -226,10 +226,11 @@ object JwtLimits {
  *
  * @param clockSkewSeconds
  *   the tolerance, in seconds, for the time checks (default 0): a token is
- *   expired when `now - clockSkewSeconds > exp` and not yet valid when `now +
- *   clockSkewSeconds < nbf`. A token whose `exp` equals `now` still passes with
- *   no skew, a known bug, since RFC 7519 requires `now` to be before `exp`. A
- *   negative value is not rejected and narrows the window instead.
+ *   expired when `now - clockSkewSeconds > exp`, and not yet valid when
+ *   `now + clockSkewSeconds < nbf`. A token whose `exp` equals `now` still
+ *   passes with no skew, a known bug, since RFC 7519 requires `now` to be
+ *   before `exp`. A negative value is not rejected and narrows the window
+ *   instead.
  * @param issuer
  *   if set, the `iss` claim must be present (else `MissingClaim("iss")`) and
  *   equal this value, case-sensitively (else `InvalidClaim("iss", ...)`)
@@ -611,8 +612,8 @@ object Jwt {
 
   /**
    * Reads the header and claims of `token` **without** checking its signature
-   * or claims, with `limits`; the same as `decodeWithoutVerification(token,
-   * limits)`.
+   * or claims, with `limits`; the same as `decodeWithoutVerification` with
+   * `limits`.
    */
   def decodeUnsafe(token: String, limits: JwtLimits): Either[JwtError, (JwtHeader, JwtClaims)] =
     decodeWithoutVerification(token, limits)

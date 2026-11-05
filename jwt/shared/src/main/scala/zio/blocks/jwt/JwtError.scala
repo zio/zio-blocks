@@ -59,11 +59,11 @@ object JwtError {
   /**
    * The token is malformed: not three non-empty dot-separated segments, a
    * segment that is not valid Base64URL, a header or payload that is not a JSON
-   * object, or invalid JSON. `reason` names the problem, such as `"JWT must
-   * have exactly three dot-separated segments"` or `"invalid base64url
-   * character"`. The platform backends also return it for some backend failures
-   * they cannot classify; on Scala.js that includes a malformed private key
-   * passed to `sign`, where `InvalidKey` is expected (a known bug).
+   * object, or invalid JSON. `reason` names the problem, such as "JWT must have
+   * exactly three dot-separated segments" or "invalid base64url character". The
+   * platform backends also return it for some backend failures they cannot
+   * classify; on Scala.js that includes a malformed private key passed to
+   * `sign`, where `InvalidKey` is expected (a known bug).
    */
   case class InvalidToken(reason: String) extends JwtError {
 
