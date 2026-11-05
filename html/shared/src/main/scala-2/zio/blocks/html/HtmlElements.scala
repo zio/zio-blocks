@@ -412,22 +412,22 @@ trait HtmlElements {
   /** The `<p>` element: a paragraph. */
   val p: Dom.Element = Dom.Element.Generic("p", Chunk.empty, Chunk.empty)
 
-  /** The `<h1>` element: a top-level heading. */
+  /** The `h1` element: a top-level heading. */
   val h1: Dom.Element = Dom.Element.Generic("h1", Chunk.empty, Chunk.empty)
 
-  /** The `<h2>` element: a second-level heading. */
+  /** The `h2` element: a second-level heading. */
   val h2: Dom.Element = Dom.Element.Generic("h2", Chunk.empty, Chunk.empty)
 
-  /** The `<h3>` element: a third-level heading. */
+  /** The `h3` element: a third-level heading. */
   val h3: Dom.Element = Dom.Element.Generic("h3", Chunk.empty, Chunk.empty)
 
-  /** The `<h4>` element: a fourth-level heading. */
+  /** The `h4` element: a fourth-level heading. */
   val h4: Dom.Element = Dom.Element.Generic("h4", Chunk.empty, Chunk.empty)
 
-  /** The `<h5>` element: a fifth-level heading. */
+  /** The `h5` element: a fifth-level heading. */
   val h5: Dom.Element = Dom.Element.Generic("h5", Chunk.empty, Chunk.empty)
 
-  /** The `<h6>` element: a sixth-level heading. */
+  /** The `h6` element: a sixth-level heading. */
   val h6: Dom.Element = Dom.Element.Generic("h6", Chunk.empty, Chunk.empty)
 
   /** The `<a>` element: a hyperlink, usually with an `href`. */
