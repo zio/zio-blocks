@@ -27,18 +27,56 @@ import scala.scalajs.js
  */
 private[async] trait AsyncSyntaxPlatformSpecific {
 
+  /**
+   * Adds `toFuture` to [[Async]], with the platform's other conversion:
+   * `toCompletableFuture` on the JVM, `toJsPromise` on Scala.js.
+   */
   implicit class AsyncInteropOps[A](private val fa: Async[A]) {
 
     /**
-     * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
-     * same value or error. A not-yet-complete `fa` is driven without blocking,
-     * so this returns immediately and the future completes when `fa` does.
+     * Converts this `Async` into a [[scala.concurrent.Future]] that completes
+     * with the same value or failure. A ready value or failure gives a
+     * completed future. For a pending one the call returns at once and the
+     * `Async` keeps running without blocking a thread: on the JVM it runs on
+     * `ForkJoinPool.commonPool()` and `ec` runs only the step that completes
+     * the future; on Scala.js its first step runs in the caller and the later
+     * ones run on `ec`.
+     *
+     * Hand each pending `Async` to one consumer. On the JVM, driving it from
+     * two, such as `toFuture` and `block`, can hang forever, a known bug. Call
+     * `start` once and share the `Async.Running` instead.
+     *
+     * {{{
+     * import scala.concurrent.{ExecutionContext, Future}
+     *
+     * implicit val ec: ExecutionContext = ExecutionContext.global
+     * val price              = new Completer[Int]
+     * val quote: Future[Int] = price.peek.map(_ + 5).toFuture
+     * price.succeed(120)
+     * quote.foreach(println) // prints 125
+     * }}}
+     *
+     * @see
+     *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
      */
     def toFuture(implicit ec: ExecutionContext): Future[A] = AsyncInterop.toFuture(fa)
 
     /**
-     * Convert `fa` into a [[scala.scalajs.js.Promise]] that resolves with
-     * `fa`'s value or rejects with its error.
+     * Converts this `Async` into a [[scala.scalajs.js.Promise]] that resolves
+     * with its value or rejects with its failure's `Throwable`. It needs no
+     * `ExecutionContext`: a pending `Async` takes its first step in the caller
+     * and the later ones on `JSExecutionContext.queue`. Hand each pending
+     * `Async` to one consumer, as with `toFuture`.
+     *
+     * {{{
+     * // no-check: Scala.js only
+     * import scala.scalajs.js
+     *
+     * val port: js.Promise[Int] = Async.succeed(8080).toJsPromise
+     * }}}
+     *
+     * @see
+     *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
      */
     def toJsPromise: js.Promise[A] = AsyncInterop.toJsPromise(fa)
   }
