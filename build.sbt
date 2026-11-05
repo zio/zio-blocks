@@ -1399,11 +1399,12 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 
 // Compiles every code example in the Scaladoc of the modules listed in `scaladocCheckedModules`
 // (see docs/dev/scaladoc-style.md). To check another module, add it to that list. It needs the
-// same Scala versions as the others, its sources must live under `<module-dir>/`, and its package
-// must be `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`),
-// because every example gets that import (`ScaladocSnippets.moduleImport`). `http-model`,
+// same Scala versions as the others, and its sources must live under `<module-dir>/`. Every
+// example gets the import of its module's package (`ScaladocSnippets.moduleImport`), which is
+// `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`)
+// unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`).
 // `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and
-// `schema-messagepack` break that rule and need an override in `moduleImport` first. Not
+// `schema-messagepack` break the rule too and need a `packageOverrides` entry first. Not
 // published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
@@ -1418,7 +1419,8 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-hocon`.jvm,
     `config-json`.jvm,
     `config-yaml`.jvm,
-    typeid.jvm
+    typeid.jvm,
+    `http-model`.jvm
   )
 
 lazy val `scaladoc-check` = project
