@@ -19,12 +19,12 @@ package zio.blocks.jwt
 import zio.blocks.chunk.Chunk
 
 /**
- * Public JSON value ADT for JWT custom claims.
+ * A JSON value, the type of the custom claims in `JwtClaims.extra`.
  *
- * Mirrors JSON value kinds: string, number, boolean, null, array, object.
- * Numbers preserve their original JSON text to avoid loss of precision or
- * formatting. Nested objects and arrays are fully supported; no values are
- * silently dropped during parsing.
+ * It has one case per JSON kind: string, number, boolean, null, array and
+ * object. Numbers keep their JSON text, so no precision or formatting is lost.
+ * Objects and arrays nest. Parsing keeps every value, except that when an
+ * object repeats a field name the later value replaces the earlier one.
  */
 sealed trait JwtValue extends Product with Serializable
 
@@ -38,8 +38,8 @@ object JwtValue {
   final case class Str(value: String) extends JwtValue
 
   /**
-   * JSON number value, preserved as the original JSON text (e.g. "1.5", "1e9",
-   * "-42"). Use `toLong`, `toDouble`, or `bigDecimal` to interpret numerically.
+   * JSON number value, kept as its JSON text (e.g. "1.5", "1e9", "-42"). Use
+   * `bigDecimal` or `toDouble` to read it as a number.
    */
   final case class Num(raw: String) extends JwtValue {
 
@@ -52,9 +52,10 @@ object JwtValue {
 
   /**
    * Factory methods that build a [[JwtValue.Num]] from a Scala number. They
-   * store the number's `toString` text, so `fromDouble(1e21)` stores `1.0E21`.
-   * The `Num(raw)` constructor stores its argument as given, without checking
-   * that it is a JSON number.
+   * store the number's `toString` text, which differs by platform:
+   * `fromDouble(1e21)` stores `1.0E21` on the JVM and `1e+21` on Scala.js, and
+   * `fromDouble(1.0)` stores `1.0` and `1`. The `Num(raw)` constructor stores
+   * its argument as given, without checking that it is a JSON number.
    */
   object Num {
 

@@ -82,7 +82,10 @@ object JsJwtCryptoBackend extends JwtCryptoBackend {
    * secret bytes (at least 32, 48 or 64 for `HS256`, `HS384`, `HS512`). `RS*`
    * take a PKCS#8 DER RSA private key, and `ES*` a PKCS#8 DER EC private key;
    * `ES*` return the signature as fixed-width `R || S` (64, 96 or 132 bytes).
-   * Unlike the JVM backend, it does not check RSA key size or EC curve.
+   * Unlike the JVM backend, it does not check RSA key size, EC curve or that
+   * the key's type fits the algorithm: an EC key signs an `RS*` token with
+   * ECDSA, and an `ES*` signature from a key on a larger curve than the
+   * algorithm's fails with `InvalidSignature`.
    *
    * It returns `UnsupportedAlgorithm` for `PS*` and `EdDSA`, and for `RS*` and
    * `ES*` when the Node.js `crypto` module is not available. A short `HS*` key
@@ -108,8 +111,9 @@ object JsJwtCryptoBackend extends JwtCryptoBackend {
    * `HS*` and an X.509 SubjectPublicKeyInfo DER public key for `RS*` and `ES*`.
    *
    * It returns `Right(false)` for a signature that does not match, and
-   * `InvalidSignature` for an `ES*` signature of the wrong length. Algorithm
-   * and key errors are the same as in `sign`.
+   * `InvalidSignature` for an `ES*` signature of the wrong length. As in
+   * `sign`, the key's size, curve and type are not checked, and the algorithm
+   * errors are the same; a public key Node.js cannot read gives `InvalidKey`.
    */
   def verify(data: Array[Byte], signature: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Boolean] =
     alg match {
