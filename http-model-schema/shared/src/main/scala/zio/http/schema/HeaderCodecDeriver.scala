@@ -25,6 +25,15 @@ import zio.http.{Headers, HeadersBuilder}
 
 import scala.util.control.NonFatal
 
+/**
+ * The [[zio.blocks.schema.derive.Deriver]] behind `DefaultHeaderFormat`. It
+ * builds the [[HeaderCodec]] of a schema with the field and naming rules that
+ * `HeaderCodec` lists, and throws `UnsupportedOperationException` when a record
+ * has a field it cannot encode, such as a nested record or a `Map`. Pass it to
+ * `Schema#deriving` to replace the codec of a type with an `instance` override;
+ * a known bug: the override applies when that type is the whole schema, but a
+ * record's fields ignore it and keep the built-in rules.
+ */
 object HeaderCodecDeriver extends Deriver[HeaderCodec] {
   private object ErrorFactory extends ParamCodecSupport.DecodeErrorFactory {
     def malformed(name: String, raw: String, cause: String): String = HeaderError.Malformed(name, raw, cause).message
