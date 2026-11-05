@@ -21,13 +21,41 @@ import javax.sql.DataSource
 import zio.*
 import zio.blocks.sql.*
 
+/**
+ * Layers of the synchronous [[zio.blocks.sql.Transactor]], built from a
+ * `DataSource` in the environment, for code that uses `Transactor` inside a ZIO
+ * application. They extend the `JdbcTransactor` companion, so they need
+ * `import zio.blocks.sql.zio._`.
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.sql._
+ *
+ * val program: ZIO[Transactor, Nothing, Int] =
+ *   ZIO.serviceWith[Transactor](_.connect(sql"SELECT 1 + 1".queryOne[Int].getOrElse(0)))
+ *
+ * def runnable(dataSource: javax.sql.DataSource): UIO[Int] =
+ *   program.provide(JdbcTransactor.sqliteLayer, ZLayer.succeed(dataSource))
+ * // with an org.sqlite.SQLiteDataSource for "jdbc:sqlite::memory:", runnable succeeds with 2
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql-zio/ ZIO Integration]]
+ */
 extension (companion: JdbcTransactor.type) {
 
+  /**
+   * A layer that turns a `DataSource` into
+   * `JdbcTransactor.postgres(dataSource)`.
+   */
   def postgresLayer: ZLayer[DataSource, Nothing, Transactor] =
     ZLayer.fromFunction((dataSource: DataSource) =>
       JdbcTransactor.fromDataSource(dataSource, SqlDialect.PostgreSQL): Transactor
     )
 
+  /**
+   * A layer that turns a `DataSource` into `JdbcTransactor.sqlite(dataSource)`.
+   */
   def sqliteLayer: ZLayer[DataSource, Nothing, Transactor] =
     ZLayer.fromFunction((dataSource: DataSource) =>
       JdbcTransactor.fromDataSource(dataSource, SqlDialect.SQLite): Transactor
