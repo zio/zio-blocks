@@ -544,7 +544,7 @@ object AsyncSelector {
 
     /**
      * Receives a ready slot index and value; returns `true` to keep consuming
-     * ready slots.
+     * ready slots, up to the `maxReady` limit of the selection.
      */
     def apply(index: Int, value: A): Boolean
   }

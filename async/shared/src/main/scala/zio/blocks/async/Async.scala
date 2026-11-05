@@ -1016,7 +1016,10 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    */
   private[blocks] trait CancelledOutputOwnership {
 
-    /** Whether cancellation, not this wrapper, owns the output. */
+    /**
+     * Whether cancellation took over the output this wrapper would have
+     * produced, so the wrapper does not poll or complete it.
+     */
     def cancellationOwnsOutput: Boolean
   }
 
