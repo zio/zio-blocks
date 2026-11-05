@@ -1417,7 +1417,10 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-hocon`.jvm,
     `config-json`.jvm,
     `config-yaml`.jvm,
-    typeid.jvm
+    typeid.jvm,
+    `schema-toon`.jvm,
+    `schema-xml`.jvm,
+    `schema-yaml`.jvm
   )
 
 lazy val `scaladoc-check` = project

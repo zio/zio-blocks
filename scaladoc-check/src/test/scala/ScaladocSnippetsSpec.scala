@@ -197,6 +197,21 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
       )
     },
+    test("moduleImport and objectName keep the version directory of a text-format module's syntax copies apart") {
+      val xml2  = "schema-xml/shared/src/main/scala-2.12-2.13/zio/blocks/schema/xml/syntax.scala"
+      val xml3  = "schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala"
+      val yaml2 = "schema-yaml/shared/src/main/scala-2/zio/blocks/schema/yaml/package.scala"
+      val toon  = "schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodec.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(xml2) == "zio.blocks.schema.xml._",
+        ScaladocSnippets.objectName(xml2, 7) == "Snippet_schema_xml_shared_scala_2_12_2_13_syntax_L7",
+        ScaladocSnippets.objectName(xml3, 7) == "Snippet_schema_xml_shared_scala_3_syntax_L7",
+        ScaladocSnippets.moduleImport(yaml2) == "zio.blocks.schema.yaml._",
+        ScaladocSnippets.objectName(yaml2, 5) == "Snippet_schema_yaml_shared_scala_2_package_L5",
+        ScaladocSnippets.moduleImport(toon) == "zio.blocks.schema.toon._",
+        ScaladocSnippets.objectName(toon, 40) == "Snippet_schema_toon_scala_ToonCodec_L40"
+      )
+    },
     test("render gives a streams example the streams import") {
       val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       val snippet     = ScaladocSnippets.Snippet(streamsPath, 9, List("val a = 1"), None)
