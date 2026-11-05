@@ -55,6 +55,9 @@ final class ResponseSchemaOps(private val response: Response) extends AnyVal {
    * `response.header[T](name)`, the call does not compile, a known bug:
    * `Response#header` takes a `Header.Codec` and hides this method. Call
    * `response.headers.header[T](name)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
     new HeadersSchemaOps(response.headers).header[T](name)
@@ -62,6 +65,9 @@ final class ResponseSchemaOps(private val response: Response) extends AnyVal {
   /**
    * Decodes every header named `name` as a `T`, as [[HeadersSchemaOps]]
    * `headerAll` does on this response's headers.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] =
     new HeadersSchemaOps(response.headers).headerAll[T](name)
@@ -70,6 +76,9 @@ final class ResponseSchemaOps(private val response: Response) extends AnyVal {
    * Decodes the first header named `name` as a `T`, or returns `default` when
    * it is absent or malformed, as [[HeadersSchemaOps]] `headerOrElse` does; a
    * malformed value is dropped without a trace, a known bug.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T =
     new HeadersSchemaOps(response.headers).headerOrElse[T](name, default)

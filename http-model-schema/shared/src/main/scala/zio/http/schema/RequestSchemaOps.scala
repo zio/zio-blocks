@@ -82,6 +82,9 @@ final class RequestSchemaOps(private val request: Request) extends AnyVal {
    * `request.header[T](name)`, the call does not compile, a known bug:
    * `Request#header` takes a `Header.Codec` and hides this method. Call
    * `request.headers.header[T](name)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
     new HeadersSchemaOps(request.headers).header[T](name)
@@ -89,6 +92,9 @@ final class RequestSchemaOps(private val request: Request) extends AnyVal {
   /**
    * Decodes every header named `name` as a `T`, as [[HeadersSchemaOps]]
    * `headerAll` does on this request's headers.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] =
     new HeadersSchemaOps(request.headers).headerAll[T](name)
@@ -97,6 +103,9 @@ final class RequestSchemaOps(private val request: Request) extends AnyVal {
    * Decodes the first header named `name` as a `T`, or returns `default` when
    * it is absent or malformed, as [[HeadersSchemaOps]] `headerOrElse` does; a
    * malformed value is dropped without a trace, a known bug.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
    */
   def headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T =
     new HeadersSchemaOps(request.headers).headerOrElse[T](name, default)

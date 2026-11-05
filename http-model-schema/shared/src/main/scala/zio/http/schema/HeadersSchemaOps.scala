@@ -66,6 +66,9 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * [[HeaderError.Malformed]] when its value does not decode; later headers
    * with the same name are not tried.
    */
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
     headers.rawGet(name) match {
       case None      => Left(HeaderError.Missing(name))
@@ -91,6 +94,9 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * stops at the first value that does not decode with
    * [[HeaderError.Malformed]] for it.
    */
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] = {
     val values = headers.rawGetAll(name)
     if (values.isEmpty) Left(HeaderError.Missing(name))
@@ -138,6 +144,9 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
    * returns `30` for `X-Retry-After: soon`. `default` is evaluated only when it
    * is returned.
    */
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name, such as one with a space
   def headerOrElse[T](name: String, default: => T)(implicit schema: Schema[T]): T =
     header[T](name).getOrElse(default)
 }
