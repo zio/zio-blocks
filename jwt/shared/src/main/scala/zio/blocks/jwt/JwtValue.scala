@@ -43,10 +43,20 @@ object JwtValue {
    */
   final case class Num(raw: String) extends JwtValue {
 
-    /** Parses the raw text as a BigDecimal. */
+    /**
+     * Parses the raw text as a BigDecimal.
+     *
+     * @throws java.lang.NumberFormatException
+     *   when the text is not a number, which `Num(raw)` allows
+     */
     def bigDecimal: scala.BigDecimal = scala.BigDecimal(raw)
 
-    /** Parses the raw text as a Double (may be Infinity if out of range). */
+    /**
+     * Parses the raw text as a Double (Infinity if out of range).
+     *
+     * @throws java.lang.NumberFormatException
+     *   when the text is not a number
+     */
     def toDouble: Double = raw.toDouble
   }
 
@@ -62,7 +72,12 @@ object JwtValue {
     /** Creates a Num from a Long. */
     def fromLong(value: Long): Num = Num(value.toString)
 
-    /** Creates a Num from a Double (finite values only). */
+    /**
+     * Creates a Num from a finite Double.
+     *
+     * @throws java.lang.IllegalArgumentException
+     *   for NaN or an infinity
+     */
     def fromDouble(value: Double): Num = {
       require(!value.isNaN && !value.isInfinite, "NaN and Infinity are not valid JSON numbers")
       Num(value.toString)

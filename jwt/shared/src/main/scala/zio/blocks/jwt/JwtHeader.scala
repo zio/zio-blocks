@@ -56,8 +56,11 @@ object JwtHeader {
    * Returns `MissingClaim("alg")` when there is no `alg`,
    * `InvalidClaim("alg", "must be a string")` when it is not a string, and
    * `UnsupportedAlgorithm` with the raw value for a name that
-   * `Algorithm.fromString` does not know, such as `"none"`. Invalid Base64URL
-   * or JSON gives `InvalidToken`.
+   * `Algorithm.fromString` does not know, such as `"none"`. A `typ` or `kid`
+   * that is not a string gives `InvalidClaim` with "must be a string", and a
+   * segment or JSON over the limits gives a size or shape error such as
+   * `SegmentTooLarge` or `TooDeep`. Invalid Base64URL or JSON gives
+   * `InvalidToken`.
    */
   def parse(base64urlEncoded: String): Either[JwtError, JwtHeader] =
     parse(base64urlEncoded, JwtLimits.Default)

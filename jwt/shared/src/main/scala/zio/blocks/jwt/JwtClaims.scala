@@ -24,8 +24,10 @@ import zio.blocks.chunk.ChunkBuilder
  * registered by RFC 7519 §4.1 and a map for the others.
  *
  * Build one to pass to `Jwt.sign`; `Jwt.decode` returns one after the signature
- * and claim checks pass. Every field is optional, and `Jwt.decode` checks
- * `exp`, `nbf`, `iss` and `aud` only as [[JwtDecodeOptions]] says.
+ * and claim checks pass. Every field is optional. `Jwt.decode` checks `exp` and
+ * `nbf` whenever they are present, against the clock and skew of
+ * [[JwtDecodeOptions]], and checks `iss` and `aud` only when the options name
+ * an expected issuer or audience.
  *
  * The NumericDate claims (`exp`, `nbf`, `iat`) are whole seconds since the Unix
  * epoch. Parsing accepts integer, fractional and exponent JSON numbers and
@@ -65,8 +67,9 @@ import zio.blocks.chunk.ChunkBuilder
  * @param extra
  *   every other claim, by name, with its JSON value as a [[JwtValue]]. Do not
  *   put a registered name (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`)
- *   here: `Jwt.sign` writes it a second time after the typed field, and
- *   decoders, this module's included, read the later value, a known bug.
+ *   here: `Jwt.sign` writes it after the typed fields, so when the typed field
+ *   is also set the claim appears twice and this module's decoder reads the
+ *   later value, a known bug.
  *
  * @see
  *   [[https://zioblocks.com/reference/jwt/#claims JWT]]
@@ -98,8 +101,10 @@ object JwtClaims {
    *
    * Returns `InvalidToken` for invalid Base64URL or JSON, or a payload that is
    * not a JSON object, and `InvalidClaim` for a registered claim of the wrong
-   * type or a NumericDate out of range. A registered claim that is JSON `null`
-   * reads as absent, and when a name appears twice the later value wins.
+   * type or a NumericDate out of range. A segment or JSON over the limits gives
+   * a size or shape error such as `SegmentTooLarge`, `JsonTooLarge`, `TooDeep`,
+   * `TooManyFields` or `TooManyElements`. A registered claim that is JSON
+   * `null` reads as absent, and when a name appears twice the later value wins.
    */
   def parse(base64urlEncoded: String): Either[JwtError, JwtClaims] =
     parse(base64urlEncoded, JwtLimits.Default)
@@ -129,8 +134,9 @@ object JwtClaims {
    * Renders `c` as compact JSON, the payload `Jwt.sign` encodes. The registered
    * claims come first, in the order `iss`, `sub`, `aud`, `exp`, `nbf`, `iat`,
    * `jti`, absent ones left out, then the `extra` claims sorted by name. It
-   * validates nothing: a registered name in `extra` is written twice (a known
-   * bug), and the text of a `JwtValue.Num` is written as it is.
+   * validates nothing: a registered name in `extra` is written after the typed
+   * fields, and twice when its typed field is also set (a known bug), and the
+   * text of a `JwtValue.Num` is written as it is.
    */
   def render(c: JwtClaims): String = {
     val fields = ChunkBuilder.make[String]()
