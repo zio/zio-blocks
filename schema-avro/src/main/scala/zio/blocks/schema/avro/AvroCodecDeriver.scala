@@ -29,6 +29,24 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * The deriver that builds an [[AvroCodec]] from a schema; [[AvroFormat]] uses
+ * it, so `Schema#derive(AvroFormat)` goes through it. Primitives use the codecs
+ * in the `AvroCodec` companion. A record becomes an Avro record named after the
+ * type, in its owner's namespace, with the fields in declaration order. A
+ * variant, such as a sealed trait, `Option` or `Either`, becomes an Avro union
+ * of its cases in declaration order, written as the case index and then the
+ * case; `Option` is a union of the records `scala.None` and `scala.Some`, not
+ * `["null", ...]`. A sequence becomes an Avro array, a map with `String` keys
+ * an Avro map, and any other map an array of `scala.Tuple2` records with fields
+ * `_1` and `_2`. A wrapper uses the schema of the type it wraps. `DynamicValue`
+ * becomes the record `zio.blocks.schema.DynamicValue`, whose `value` field is a
+ * union of one record per kind of value (`Primitive`, `Record`, `Variant`,
+ * `Sequence`, `Map` and `Null`). When one derivation creates two records with
+ * the same name and namespace, the later ones get a suffix, as in `Tuple2_1`. A
+ * known bug: `Array[Byte]` and `Chunk[Byte]` become an Avro array of `int`, not
+ * Avro `bytes`.
+ */
 object AvroCodecDeriver extends Deriver[AvroCodec] {
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -745,6 +763,10 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[AvroCodec[DynamicValue]]]
 
+  /**
+   * Derives the codec of a wrapper type from the codec of the type it wraps;
+   * its Avro schema is the wrapped type's schema.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -776,18 +798,36 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[AvroCodec[A]]]
 
+  /**
+   * Clears this thread's caches of recursive records and record names, then
+   * returns the inherited overrides. `DerivationBuilder#derive` calls it at the
+   * start of each derivation.
+   */
   override def instanceOverrides: IndexedSeq[InstanceOverride] = {
     recursiveRecordCache.remove()
     recordCounters.remove()
     super.instanceOverrides
   }
 
+  /** A placeholder element type for the deriver's internal casts. */
   type Elem
+
+  /** A placeholder map key type for the deriver's internal casts. */
   type Key
+
+  /** A placeholder map value type for the deriver's internal casts. */
   type Value
+
+  /** A placeholder wrapped type for the deriver's internal casts. */
   type Wrapped
+
+  /** A placeholder collection type for the deriver's internal casts. */
   type Col[_]
+
+  /** A placeholder map type for the deriver's internal casts. */
   type Map[_, _]
+
+  /** A placeholder type class for the deriver's internal casts. */
   type TC[_]
 
   private[this] val recursiveRecordCache =
@@ -1238,6 +1278,7 @@ object AvroCodecDeriver extends Deriver[AvroCodec] {
   }
 }
 
+/** The codec, register type tag and register offset of one record field. */
 private class FieldInfo(
   val codec: AvroCodec[?],
   val typeTag: Int,

@@ -104,13 +104,15 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
    */
   def decodeValue(decoder: BinaryDecoder): A
 
-  /** Writes `value` to `encoder` in the layout that [[avroSchema]] describes. */
+  /**
+   * Writes `value` to `encoder` in the layout that [[avroSchema]] describes.
+   */
   def encodeValue(value: A, encoder: BinaryEncoder): Unit
 
   /**
    * Throws a decode error with the message `expectation`. `decode` returns it
-   * as a `Left` whose message is `expectation`, then ` at: ` and the path of the
-   * failing part, such as `Expected Byte at: .`.
+   * as a `Left` whose message is `expectation`, then ` at: ` and the path of
+   * the failing part, such as `Expected Byte at: .`.
    */
   def error(expectation: String): Nothing = throw new AvroCodecError(Nil, expectation)
 
@@ -146,9 +148,9 @@ abstract class AvroCodec[A] extends BinaryCodec[A] {
    * heap buffer is read in place and its position does not move; a direct
    * buffer is copied first, which moves its position to its limit. A known bug:
    * for a heap buffer whose content does not start at index 0 of its backing
-   * array, such as one made by `slice()`, it reads from the wrong offset.
-   * Bytes after the first value are ignored, a known bug shared with the
-   * byte-array `decode`.
+   * array, such as one made by `slice()`, it reads from the wrong offset. Bytes
+   * after the first value are ignored, a known bug shared with the byte-array
+   * `decode`.
    */
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
     var pos             = input.position
@@ -315,6 +317,7 @@ object AvroCodec {
 
     def encodeValue(value: Unit, encoder: BinaryEncoder): Unit = ()
   }
+
   /** Writes a `Boolean` as Avro `boolean`, one byte. */
   val booleanCodec: AvroCodec[Boolean] = new AvroCodec[Boolean] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BOOLEAN)
@@ -323,7 +326,11 @@ object AvroCodec {
 
     def encodeValue(value: Boolean, encoder: BinaryEncoder): Unit = encoder.writeBoolean(value)
   }
-  /** Writes a `Byte` as Avro `int`. Decoding an `int` outside the `Byte` range fails with `Expected Byte`. */
+
+  /**
+   * Writes a `Byte` as Avro `int`. Decoding an `int` outside the `Byte` range
+   * fails with `Expected Byte`.
+   */
   val byteCodec: AvroCodec[Byte] = new AvroCodec[Byte] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.INT)
 
@@ -335,7 +342,11 @@ object AvroCodec {
 
     def encodeValue(value: Byte, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-  /** Writes a `Short` as Avro `int`. Decoding an `int` outside the `Short` range fails with `Expected Short`. */
+
+  /**
+   * Writes a `Short` as Avro `int`. Decoding an `int` outside the `Short` range
+   * fails with `Expected Short`.
+   */
   val shortCodec: AvroCodec[Short] = new AvroCodec[Short] {
     val avroSchema: AvroSchema = byteCodec.avroSchema
 
@@ -347,7 +358,11 @@ object AvroCodec {
 
     def encodeValue(value: Short, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-  /** Writes an `Int` as Avro `int`, a zig-zag variable-length number of one to five bytes. */
+
+  /**
+   * Writes an `Int` as Avro `int`, a zig-zag variable-length number of one to
+   * five bytes.
+   */
   val intCodec: AvroCodec[Int] = new AvroCodec[Int] {
     val avroSchema: AvroSchema = shortCodec.avroSchema
 
@@ -355,7 +370,11 @@ object AvroCodec {
 
     def encodeValue(value: Int, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-  /** Writes a `Long` as Avro `long`, a zig-zag variable-length number of one to ten bytes. */
+
+  /**
+   * Writes a `Long` as Avro `long`, a zig-zag variable-length number of one to
+   * ten bytes.
+   */
   val longCodec: AvroCodec[Long] = new AvroCodec[Long] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.LONG)
 
@@ -363,6 +382,7 @@ object AvroCodec {
 
     def encodeValue(value: Long, encoder: BinaryEncoder): Unit = encoder.writeLong(value)
   }
+
   /** Writes a `Float` as Avro `float`, four bytes. */
   val floatCodec: AvroCodec[Float] = new AvroCodec[Float] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.FLOAT)
@@ -371,6 +391,7 @@ object AvroCodec {
 
     def encodeValue(value: Float, encoder: BinaryEncoder): Unit = encoder.writeFloat(value)
   }
+
   /** Writes a `Double` as Avro `double`, eight bytes. */
   val doubleCodec: AvroCodec[Double] = new AvroCodec[Double] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.DOUBLE)
@@ -379,7 +400,12 @@ object AvroCodec {
 
     def encodeValue(value: Double, encoder: BinaryEncoder): Unit = encoder.writeDouble(value)
   }
-  /** Writes a `Char` as Avro `int`, its UTF-16 code unit, not as a one-letter string. Decoding an `int` outside the `Char` range fails with `Expected Char`. */
+
+  /**
+   * Writes a `Char` as Avro `int`, its UTF-16 code unit, not as a one-letter
+   * string. Decoding an `int` outside the `Char` range fails with
+   * `Expected Char`.
+   */
   val charCodec: AvroCodec[Char] = new AvroCodec[Char] {
     val avroSchema: AvroSchema = intCodec.avroSchema
 
@@ -391,7 +417,10 @@ object AvroCodec {
 
     def encodeValue(value: Char, encoder: BinaryEncoder): Unit = encoder.writeInt(value)
   }
-  /** Writes a `String` as Avro `string`: its UTF-8 length, then the UTF-8 bytes. */
+
+  /**
+   * Writes a `String` as Avro `string`: its UTF-8 length, then the UTF-8 bytes.
+   */
   val stringCodec: AvroCodec[String] = new AvroCodec[String] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
@@ -399,7 +428,10 @@ object AvroCodec {
 
     def encodeValue(value: String, encoder: BinaryEncoder): Unit = encoder.writeString(value)
   }
-  /** Writes a `BigInt` as Avro `bytes`, its two's-complement big-endian bytes. */
+
+  /**
+   * Writes a `BigInt` as Avro `bytes`, its two's-complement big-endian bytes.
+   */
   val bigIntCodec: AvroCodec[BigInt] = new AvroCodec[BigInt] {
     val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.BYTES)
 
@@ -407,7 +439,13 @@ object AvroCodec {
 
     def encodeValue(value: BigInt, encoder: BinaryEncoder): Unit = encoder.writeBytes(value.toByteArray)
   }
-  /** Writes a `BigDecimal` as the Avro record `scala.BigDecimal`: `mantissa` (`bytes`, the unscaled value), `scale`, `precision` and `roundingMode` (each `int`; the last two come from its `MathContext`). It is not the Avro `decimal` logical type. */
+
+  /**
+   * Writes a `BigDecimal` as the Avro record `scala.BigDecimal`: `mantissa`
+   * (`bytes`, the unscaled value), `scale`, `precision` and `roundingMode`
+   * (each `int`; the last two come from its `MathContext`). It is not the Avro
+   * `decimal` logical type.
+   */
   val bigDecimalCodec: AvroCodec[BigDecimal] = new AvroCodec[BigDecimal] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -437,6 +475,7 @@ object AvroCodec {
       encoder.writeInt(mc.getRoundingMode.ordinal)
     }
   }
+
   /** Writes a `DayOfWeek` as Avro `int`, from 1 (Monday) to 7 (Sunday). */
   val dayOfWeekCodec: AvroCodec[DayOfWeek] = new AvroCodec[DayOfWeek] {
     val avroSchema: AvroSchema = intCodec.avroSchema
@@ -445,7 +484,11 @@ object AvroCodec {
 
     def encodeValue(value: DayOfWeek, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-  /** Writes a `Duration` as the Avro record `java.time.Duration`, with `seconds` (`long`) and `nano` (`int`). */
+
+  /**
+   * Writes a `Duration` as the Avro record `java.time.Duration`, with `seconds`
+   * (`long`) and `nano` (`int`).
+   */
   val durationCodec: AvroCodec[Duration] = new AvroCodec[Duration] {
     val avroSchema: AvroSchema = {
       val fields = new java.util.ArrayList[AvroSchema.Field](2)
@@ -461,7 +504,11 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-  /** Writes an `Instant` as the Avro record `java.time.Instant`, with `epochSecond` (`long`) and `nano` (`int`). */
+
+  /**
+   * Writes an `Instant` as the Avro record `java.time.Instant`, with
+   * `epochSecond` (`long`) and `nano` (`int`).
+   */
   val instantCodec: AvroCodec[Instant] = new AvroCodec[Instant] {
     val avroSchema: AvroSchema = {
       val fields = new java.util.ArrayList[AvroSchema.Field](2)
@@ -477,7 +524,11 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-  /** Writes a `LocalDate` as the Avro record `java.time.LocalDate`, with the `int` fields `year`, `month` and `day`. */
+
+  /**
+   * Writes a `LocalDate` as the Avro record `java.time.LocalDate`, with the
+   * `int` fields `year`, `month` and `day`.
+   */
   val localDateCodec: AvroCodec[LocalDate] = new AvroCodec[LocalDate] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -497,7 +548,12 @@ object AvroCodec {
       encoder.writeInt(value.getDayOfMonth)
     }
   }
-  /** Writes a `LocalDateTime` as the Avro record `java.time.LocalDateTime`, with the `int` fields `year`, `month`, `day`, `hour`, `minute`, `second` and `nano`. */
+
+  /**
+   * Writes a `LocalDateTime` as the Avro record `java.time.LocalDateTime`, with
+   * the `int` fields `year`, `month`, `day`, `hour`, `minute`, `second` and
+   * `nano`.
+   */
   val localDateTimeCodec: AvroCodec[LocalDateTime] = new AvroCodec[LocalDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -534,7 +590,11 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
-  /** Writes a `LocalTime` as the Avro record `java.time.LocalTime`, with the `int` fields `hour`, `minute`, `second` and `nano`. */
+
+  /**
+   * Writes a `LocalTime` as the Avro record `java.time.LocalTime`, with the
+   * `int` fields `hour`, `minute`, `second` and `nano`.
+   */
   val localTimeCodec: AvroCodec[LocalTime] = new AvroCodec[LocalTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -556,6 +616,7 @@ object AvroCodec {
       encoder.writeInt(value.getNano)
     }
   }
+
   /** Writes a `Month` as Avro `int`, from 1 (January) to 12 (December). */
   val monthCodec: AvroCodec[Month] = new AvroCodec[Month] {
     val avroSchema: AvroSchema = intCodec.avroSchema
@@ -564,7 +625,11 @@ object AvroCodec {
 
     def encodeValue(value: Month, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-  /** Writes a `MonthDay` as the Avro record `java.time.MonthDay`, with the `int` fields `month` and `day`. */
+
+  /**
+   * Writes a `MonthDay` as the Avro record `java.time.MonthDay`, with the `int`
+   * fields `month` and `day`.
+   */
   val monthDayCodec: AvroCodec[MonthDay] = new AvroCodec[MonthDay] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -581,7 +646,12 @@ object AvroCodec {
       encoder.writeInt(value.getDayOfMonth)
     }
   }
-  /** Writes an `OffsetDateTime` as the Avro record `java.time.OffsetDateTime`: the `int` fields of `localDateTimeCodec`, then `offset`, the offset in seconds. */
+
+  /**
+   * Writes an `OffsetDateTime` as the Avro record `java.time.OffsetDateTime`:
+   * the `int` fields of `localDateTimeCodec`, then `offset`, the offset in
+   * seconds.
+   */
   val offsetDateTimeCodec: AvroCodec[OffsetDateTime] = new AvroCodec[OffsetDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -620,7 +690,11 @@ object AvroCodec {
       encoder.writeInt(value.getOffset.getTotalSeconds)
     }
   }
-  /** Writes an `OffsetTime` as the Avro record `java.time.OffsetTime`: the `int` fields of `localTimeCodec`, then `offset`, the offset in seconds. */
+
+  /**
+   * Writes an `OffsetTime` as the Avro record `java.time.OffsetTime`: the `int`
+   * fields of `localTimeCodec`, then `offset`, the offset in seconds.
+   */
   val offsetTimeCodec: AvroCodec[OffsetTime] = new AvroCodec[OffsetTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -650,7 +724,11 @@ object AvroCodec {
       encoder.writeInt(value.getOffset.getTotalSeconds)
     }
   }
-  /** Writes a `Period` as the Avro record `java.time.Period`, with the `int` fields `years`, `months` and `days`. */
+
+  /**
+   * Writes a `Period` as the Avro record `java.time.Period`, with the `int`
+   * fields `years`, `months` and `days`.
+   */
   val periodCodec: AvroCodec[Period] = new AvroCodec[Period] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -669,6 +747,7 @@ object AvroCodec {
       encoder.writeInt(value.getDays)
     }
   }
+
   /** Writes a `Year` as Avro `int`. */
   val yearCodec: AvroCodec[Year] = new AvroCodec[Year] {
     val avroSchema: AvroSchema = intCodec.avroSchema
@@ -677,7 +756,11 @@ object AvroCodec {
 
     def encodeValue(value: Year, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getValue)
   }
-  /** Writes a `YearMonth` as the Avro record `java.time.YearMonth`, with the `int` fields `year` and `month`. */
+
+  /**
+   * Writes a `YearMonth` as the Avro record `java.time.YearMonth`, with the
+   * `int` fields `year` and `month`.
+   */
   val yearMonthCodec: AvroCodec[YearMonth] = new AvroCodec[YearMonth] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -694,6 +777,7 @@ object AvroCodec {
       encoder.writeInt(value.getMonthValue)
     }
   }
+
   /** Writes a `ZoneId` as Avro `string`, its ID such as `Asia/Tehran`. */
   val zoneIdCodec: AvroCodec[ZoneId] = new AvroCodec[ZoneId] {
     val avroSchema: AvroSchema = stringCodec.avroSchema
@@ -711,7 +795,12 @@ object AvroCodec {
 
     def encodeValue(value: ZoneOffset, encoder: BinaryEncoder): Unit = encoder.writeInt(value.getTotalSeconds)
   }
-  /** Writes a `ZonedDateTime` as the Avro record `java.time.ZonedDateTime`: the `int` fields of `localDateTimeCodec`, `offset` (seconds) and `zone` (`string`, the zone ID). */
+
+  /**
+   * Writes a `ZonedDateTime` as the Avro record `java.time.ZonedDateTime`: the
+   * `int` fields of `localDateTimeCodec`, `offset` (seconds) and `zone`
+   * (`string`, the zone ID).
+   */
   val zonedDateTimeCodec: AvroCodec[ZonedDateTime] = new AvroCodec[ZonedDateTime] {
     val avroSchema: AvroSchema = {
       val intAvroSchema = intCodec.avroSchema
@@ -755,7 +844,11 @@ object AvroCodec {
       encoder.writeString(value.getZone.toString)
     }
   }
-  /** Writes a `Currency` as the Avro `fixed` type `java.util.Currency` of 3 bytes, its ISO 4217 code such as `EUR`. */
+
+  /**
+   * Writes a `Currency` as the Avro `fixed` type `java.util.Currency` of 3
+   * bytes, its ISO 4217 code such as `EUR`.
+   */
   val currencyCodec: AvroCodec[Currency] = new AvroCodec[java.util.Currency] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("Currency", null, "java.util", 3)
 
@@ -770,7 +863,12 @@ object AvroCodec {
       encoder.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
     }
   }
-  /** Writes a `UUID` as the Avro `fixed` type `java.util.UUID` of 16 bytes: the most significant 64 bits, then the least significant, both big-endian. It is not the Avro `uuid` logical type, which is a string. */
+
+  /**
+   * Writes a `UUID` as the Avro `fixed` type `java.util.UUID` of 16 bytes: the
+   * most significant 64 bits, then the least significant, both big-endian. It
+   * is not the Avro `uuid` logical type, which is a string.
+   */
   val uuidCodec: AvroCodec[UUID] = new AvroCodec[java.util.UUID] {
     val avroSchema: AvroSchema = AvroSchema.createFixed("UUID", null, "java.util", 16)
 
