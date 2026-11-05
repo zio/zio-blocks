@@ -87,6 +87,12 @@ final case class SqlQuery[A] private[query] (
    * both tables. The side of `rel` already in the query keeps its alias, and
    * the other table gets the next one; when both tables are the same, the
    * condition compares `t0` with the new alias.
+   *
+   * When neither table of `rel` is in the query yet, `rel.toTable` is joined
+   * with the next alias and the condition reads `rel.fkColumn` from `t0`, so
+   * `rel.fromTable` never appears in the SQL, a known bug in 0.0.56: the query
+   * fails when it runs unless `t0` happens to have that column. Join a table of
+   * `rel` first.
    */
   def innerJoin[From, To](rel: Rel[From, To]): SqlQuery[A] =
     addJoin(rel, JoinKind.Inner)
