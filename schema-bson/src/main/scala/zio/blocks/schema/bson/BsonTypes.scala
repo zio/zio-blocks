@@ -102,10 +102,12 @@ trait BsonEncoder[A] { self =>
   def isAbsent(value: A): Boolean = false
 
   /**
-   * Writes `value` at the current position of `writer`. A record writes a whole
-   * document, so it can be the top-level value of a
-   * `org.bson.BsonDocumentWriter`; any other value must follow a field name the
-   * caller has written. The derived codecs ignore `ctx`.
+   * Writes `value` at the current position of `writer`. A value that encodes as
+   * a document, such as a record, a sealed trait with the default
+   * [[BsonSchemaCodec.SumTypeHandling]] or a map with `String` keys, can be the
+   * top-level value of an `org.bson.BsonDocumentWriter`. Any other value must
+   * be written where the writer expects a value, such as after a field name the
+   * caller has written or inside an array. The derived codecs ignore `ctx`.
    */
   def encode(writer: BsonWriter, value: A, ctx: BsonEncoder.EncoderContext): Unit
 
