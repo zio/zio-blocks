@@ -21,13 +21,34 @@ import java.util.Locale
 import zio.blocks.chunk.Chunk
 
 /**
- * Immutable collection of HTTP headers, backed by parallel arrays.
+ * An immutable, ordered list of HTTP header fields, as raw name and value
+ * strings. Names are stored in lower case, so every lookup ignores the letter
+ * case of the name; values are stored as given. A name can appear more than
+ * once, which multi-value headers such as `set-cookie` need.
  *
- * Header names are stored pre-lowercased for case-insensitive matching.
- * Multiple headers with the same name are allowed (multi-value). The `parsed`
- * array is populated lazily on typed `get` calls. The cache is an optimization
- * only: duplicate benign parses are possible if the same `Headers` is read
- * concurrently.
+ * Read a value as a string with [[rawGet]], or as a typed value with [[get]]
+ * and a [[Header.Codec]], such as `Header.ContentLength`. A typed read parses
+ * an entry the first time it is asked for and caches the result in that entry;
+ * the cache is not synchronized, so two threads reading the same `Headers` may
+ * both parse the entry, with equal results. Writes (`add`, `set`, [[remove]])
+ * return a new `Headers` and throw `IllegalArgumentException` on an invalid
+ * name or value (see [[Headers.validateName]] and [[Headers.validateValue]]).
+ *
+ * {{{
+ * val headers = Headers("Content-Type" -> "application/json", "content-length" -> "512")
+ *
+ * headers.toList                    // List((content-type,application/json), (content-length,512))
+ * headers.rawGet("CONTENT-TYPE")    // Some(application/json)
+ * headers.get(Header.ContentLength) // Some(ContentLength(512))
+ * }}}
+ *
+ * `toString` prints every value, credentials in `authorization` and `cookie`
+ * included; this is a known bug, so remove those headers before logging.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/headers/ Header]]
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/model/#headers Headers]]
  */
 final class Headers private[http] (
   private val names: Array[String],
@@ -39,15 +60,33 @@ final class Headers private[http] (
   private def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
     left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
 
-  def isEmpty: Boolean  = size == 0
+  /** Whether there are no header fields. */
+  def isEmpty: Boolean = size == 0
+
+  /** Whether there is at least one header field. */
   def nonEmpty: Boolean = size > 0
 
   /**
-   * Decodes the first header matching the supplied codec.
+   * Returns the first entry named `headerCodec.name` that the codec parses,
+   * ignoring the letter case of the name. An entry that fails to parse is
+   * skipped as if it were absent, so a malformed value gives `None`, or the
+   * next entry with that name that parses. To tell a missing header from a
+   * malformed one, parse [[rawGet]] with the codec yourself.
    *
-   * Matching is case-insensitive by header name. Parsed values are cached per
-   * header entry and codec instance so different codecs with the same name do
-   * not reuse each other's cached values.
+   * The parsed value is cached in the entry for the same codec instance,
+   * compared by reference, so two codecs with the same name never see each
+   * other's values.
+   *
+   * {{{
+   * val headers = Headers("content-length" -> "huge", "content-length" -> "512")
+   *
+   * headers.get(Header.ContentLength)                                    // Some(ContentLength(512))
+   * Headers("content-length" -> "huge").get(Header.ContentLength)        // None
+   * headers.rawGet("content-length").map(Header.ContentLength.parse)     // Some(Left(Invalid content-length: huge))
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#headersget--first-parseable-match Headers#get]]
    */
   def get[A](headerCodec: Header.Codec[A]): Option[A] = {
     val target = headerCodec.name.toLowerCase(Locale.ROOT)
@@ -71,6 +110,24 @@ final class Headers private[http] (
     None
   }
 
+  /**
+   * Returns the value of the first entry named `name`, ignoring letter case, as
+   * stored, without parsing it.
+   *
+   * {{{
+   * val headers = Headers("x-trace" -> "a1", "X-Trace" -> "b2")
+   *
+   * headers.rawGet("X-TRACE")    // Some(a1)
+   * headers.rawGetLast("x-trace") // Some(b2)
+   * headers.rawGetAll("x-trace")  // Chunk(a1,b2)
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name (see [[Headers.validateName]]), even
+   *   though the method only reads
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#raw-access Raw Access]]
+   */
   def rawGet(name: String): Option[String] = {
     Headers.validateNameOrThrow(name)
     val target = name.toLowerCase(Locale.ROOT)
@@ -82,6 +139,13 @@ final class Headers private[http] (
     None
   }
 
+  /**
+   * Returns the value of the last entry named `name`, ignoring letter case,
+   * without parsing it.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name
+   */
   def rawGetLast(name: String): Option[String] = {
     Headers.validateNameOrThrow(name)
     val target = name.toLowerCase(Locale.ROOT)
@@ -93,6 +157,13 @@ final class Headers private[http] (
     None
   }
 
+  /**
+   * Returns the values of every entry named `name`, ignoring letter case, in
+   * the order they were added, without parsing them.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name
+   */
   def rawGetAll(name: String): Chunk[String] = {
     Headers.validateNameOrThrow(name)
     val target  = name.toLowerCase(Locale.ROOT)
@@ -106,11 +177,20 @@ final class Headers private[http] (
   }
 
   /**
-   * Decodes all headers matching the supplied codec.
+   * Returns every entry named `headerCodec.name` that the codec parses, in the
+   * order they were added. Entries that fail to parse are skipped, so the
+   * result can be shorter than [[rawGetAll]]. Parsed values are cached as in
+   * [[get]].
    *
-   * Values are returned in header order. Entries that fail to parse for the
-   * requested codec are skipped, and cached values are reused only when they
-   * were produced by the same codec instance.
+   * {{{
+   * val headers = Headers("content-length" -> "100", "content-length" -> "oops", "content-length" -> "300")
+   *
+   * headers.getAll(Header.ContentLength)       // Chunk(ContentLength(100),ContentLength(300))
+   * headers.rawGetAll("content-length").length // 3
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#headersgetall--every-parseable-match Headers#getAll]]
    */
   def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
     val target  = headerCodec.name.toLowerCase(Locale.ROOT)
@@ -135,13 +215,53 @@ final class Headers private[http] (
     builder.result()
   }
 
+  /**
+   * Returns the last entry named `headerType.name` that parses, skipping
+   * entries that fail to parse. Use it when a later header overrides an earlier
+   * one. It takes a [[Header.Typed]], so it works with the built-in headers but
+   * not with a codec whose value is not a [[Header]].
+   *
+   * {{{
+   * val headers = Headers("content-length" -> "100", "content-length" -> "200")
+   *
+   * headers.get(Header.ContentLength)     // Some(ContentLength(100))
+   * headers.getLast(Header.ContentLength) // Some(ContentLength(200))
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#headersgetlast--last-parseable-match Headers#getLast]]
+   */
   def getLast[H <: Header](headerType: Header.Typed[H]): Option[H] = {
     val all = getAll(headerType)
     if (all.isEmpty) None else Some(all(all.length - 1))
   }
 
+  /**
+   * Appends `header`, rendered with its `headerName` and `renderedValue`, after
+   * the existing entries. Entries with the same name are kept; use `set` to
+   * replace them.
+   *
+   * {{{
+   * val base = Headers.empty.add(Header.ContentLength(100))
+   *
+   * base.add(Header.ContentLength(200)).toList // List((content-length,100), (content-length,200))
+   * base.set(Header.ContentLength(200)).toList // List((content-length,200))
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if the name or the value is invalid
+   * @see
+   *   [[https://zioblocks.com/reference/http-model/headers/#appending-and-replacing Appending and Replacing]]
+   */
   def add(header: Header): Headers = add(header.headerName, header.renderedValue)
 
+  /**
+   * Appends an entry with `name` in lower case and `value` as given, keeping
+   * existing entries with the same name.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name or `value` contains CR or LF
+   */
   def add(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
@@ -156,6 +276,13 @@ final class Headers private[http] (
     new Headers(newNames, newRawValues, newParsed, newSize)
   }
 
+  /**
+   * Removes every entry named `name`, ignoring letter case, and appends one
+   * entry with `value`. The new entry goes last, after the other headers.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name or `value` contains CR or LF
+   */
   def set(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
@@ -170,8 +297,21 @@ final class Headers private[http] (
     builder.build()
   }
 
+  /**
+   * Replaces every entry with `header`'s name by one entry holding its rendered
+   * value, placed last.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if the name or the value is invalid
+   */
   def set(header: Header): Headers = set(header.headerName, header.renderedValue)
 
+  /**
+   * Removes every entry named `name`, ignoring letter case.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name
+   */
   def remove(name: String): Headers = {
     Headers.validateNameOrThrow(name)
     val lowerName = name.toLowerCase(Locale.ROOT)
@@ -184,6 +324,12 @@ final class Headers private[http] (
     builder.build()
   }
 
+  /**
+   * Whether an entry named `name` exists, ignoring letter case.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name
+   */
   def has(name: String): Boolean = {
     Headers.validateNameOrThrow(name)
     val target = name.toLowerCase(Locale.ROOT)
@@ -195,6 +341,10 @@ final class Headers private[http] (
     false
   }
 
+  /**
+   * Returns the entries as (lower-case name, raw value) pairs, in the order
+   * they were added.
+   */
   def toList: List[(String, String)] = {
     val builder = List.newBuilder[(String, String)]
     var i       = 0
@@ -205,6 +355,11 @@ final class Headers private[http] (
     builder.result()
   }
 
+  /**
+   * Two `Headers` are equal when [[toList]] is equal: the same names and values
+   * in the same order. Names were lower-cased when stored, so their original
+   * letter case does not matter, but the order does.
+   */
   override def equals(that: Any): Boolean = that match {
     case h: Headers => toList == h.toList
     case _          => false
@@ -212,6 +367,10 @@ final class Headers private[http] (
 
   override def hashCode: Int = toList.hashCode
 
+  /**
+   * Returns the entries of this collection followed by those of `other`,
+   * keeping duplicates from both sides.
+   */
   def ++(other: Headers): Headers = {
     val builder = HeadersBuilder.make(size + other.size)
     var i       = 0
@@ -227,8 +386,15 @@ final class Headers private[http] (
     builder.build()
   }
 
+  /**
+   * Alias for [[has]].
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name
+   */
   def contains(name: String): Boolean = has(name)
 
+  /** Returns the same pairs as [[toList]], as a `Chunk`. */
   def toChunk: Chunk[(String, String)] = {
     val builder = Chunk.newBuilder[(String, String)]
     var i       = 0
@@ -239,6 +405,11 @@ final class Headers private[http] (
     builder.result()
   }
 
+  /**
+   * Renders the entries as `Headers(name: value, ...)`. Every value is printed
+   * in full, including `authorization`, `cookie` and `set-cookie` values; this
+   * is a known bug, so remove or replace those entries before logging.
+   */
   override def toString: String = {
     val sb = new StringBuilder("Headers(")
     var i  = 0
@@ -254,17 +425,25 @@ final class Headers private[http] (
   }
 }
 
+/** Creates [[Headers]] and checks header names and values. */
 object Headers {
   private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
 
+  /** A `Headers` with no entries. */
   val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
 
   /**
-   * Validates a header field name.
+   * Checks that `name` is a valid header name: a non-empty HTTP token of ASCII
+   * letters, digits and the punctuation RFC 9110 allows in a token, such as
+   * `-`, `_`, `.` and `!`. Every method of [[Headers]] and [[HeadersBuilder]]
+   * that takes a name throws `IllegalArgumentException` where this returns
+   * `Left`, so check names that come from outside the program first.
    *
-   * Header names must be non-empty HTTP token strings. This method is suitable
-   * for checking user-supplied names before constructing or mutating
-   * [[Headers]]; the mutating helpers enforce the same invariant.
+   * {{{
+   * Headers.validateName("x-trace") // Right(())
+   * Headers.validateName("x trace") // Left(Invalid header name: x trace)
+   * Headers.validateName("")        // Left(Header name cannot be empty)
+   * }}}
    */
   def validateName(name: String): Either[String, Unit] = {
     if (name.isEmpty) return Left("Header name cannot be empty")
@@ -278,11 +457,15 @@ object Headers {
   }
 
   /**
-   * Validates a raw header field value.
+   * Checks that `value` contains no carriage return or line feed. Rejecting
+   * them prevents response splitting and header injection when the value is
+   * written into an HTTP message. No other character is checked: leading and
+   * trailing spaces, tabs and other control characters are accepted.
    *
-   * Values may not contain carriage return or line feed characters. Rejecting
-   * CR/LF prevents response/request splitting and header-injection attacks when
-   * values are rendered into an HTTP message.
+   * {{{
+   * Headers.validateValue("no-cache")                       // Right(())
+   * Headers.validateValue("ok\r\nSet-Cookie: admin=true") // Left(Header value cannot contain CR or LF)
+   * }}}
    */
   def validateValue(value: String): Either[String, Unit] = {
     var i = 0
@@ -294,12 +477,14 @@ object Headers {
     Right(())
   }
 
+  /** Throws `IllegalArgumentException` where [[validateName]] gives `Left`. */
   private[http] def validateNameOrThrow(name: String): Unit =
     validateName(name) match {
       case Right(()) => ()
       case Left(err) => throw new IllegalArgumentException(err)
     }
 
+  /** Throws `IllegalArgumentException` where [[validateValue]] gives `Left`. */
   private[http] def validateValueOrThrow(value: String): Unit =
     validateValue(value) match {
       case Right(()) => ()
@@ -314,6 +499,18 @@ object Headers {
       c == '*' || c == '+' || c == '-' || c == '.' || c == '^' || c == '_' ||
       c == '`' || c == '|' || c == '~'
 
+  /**
+   * Creates a `Headers` from name and value pairs, in order, storing each name
+   * in lower case.
+   *
+   * {{{
+   * Headers("Accept" -> "text/html", "Cache-Control" -> "no-cache").toList
+   * // List((accept,text/html), (cache-control,no-cache))
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a name or a value is invalid
+   */
   def apply(pairs: (String, String)*): Headers = {
     val builder = HeadersBuilder.make(pairs.size)
     pairs.foreach { case (k, v) => builder.add(k, v) }
@@ -321,12 +518,34 @@ object Headers {
   }
 }
 
+/**
+ * A mutable buffer that collects header entries and builds one [[Headers]] at
+ * the end. Each `Headers#add` copies the whole collection, so use a builder
+ * when adding many entries at once. It is not thread-safe.
+ *
+ * {{{
+ * val builder = HeadersBuilder.make(4)
+ * builder.add("Content-Type", "application/json")
+ * builder.add("x-request-id", "req-7")
+ *
+ * builder.build().toList // List((content-type,application/json), (x-request-id,req-7))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/headers/#headersbuilder--batch-construction HeadersBuilder]]
+ */
 final class HeadersBuilder private (
   private var names: Array[String],
   private var rawValues: Array[String],
   private var len: Int
 ) {
 
+  /**
+   * Appends an entry with `name` in lower case and `value` as given.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid header name or `value` contains CR or LF
+   */
   def add(name: String, value: String): Unit = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
@@ -336,6 +555,10 @@ final class HeadersBuilder private (
     len += 1
   }
 
+  /**
+   * Removes every entry, keeping the buffer's capacity for reuse. A `Headers`
+   * built earlier is not affected.
+   */
   def reset(): Unit = {
     java.util.Arrays.fill(names.asInstanceOf[Array[AnyRef]], 0, len, null)
     java.util.Arrays.fill(rawValues.asInstanceOf[Array[AnyRef]], 0, len, null)
@@ -353,6 +576,10 @@ final class HeadersBuilder private (
       rawValues = newRawValues
     }
 
+  /**
+   * Returns a `Headers` holding a copy of the current entries. Later calls to
+   * `add` or [[reset]] do not change it.
+   */
   def build(): Headers = {
     val n = new Array[String](len)
     val v = new Array[String](len)
@@ -363,7 +590,13 @@ final class HeadersBuilder private (
   }
 }
 
+/** Creates [[HeadersBuilder]]s. */
 object HeadersBuilder {
+
+  /**
+   * Creates an empty builder with room for `initialCapacity` entries, at least
+   * four. The buffer doubles when it fills.
+   */
   def make(initialCapacity: Int = 8): HeadersBuilder = {
     val cap = Math.max(initialCapacity, 4)
     new HeadersBuilder(new Array[String](cap), new Array[String](cap), 0)

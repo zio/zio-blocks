@@ -19,21 +19,42 @@ package zio.blocks.sql
 import scala.collection.mutable
 
 /**
- * Pure identifier checker for SQL literal parts produced by the `sql`
- * interpolator.
+ * The check behind `StringContext(...).sql(table)(...)`: finds the words in SQL
+ * text that are not a known table, column, alias or allow-listed keyword. It
+ * skips single-quoted string literals and the interpolation holes between
+ * parts, reads a double-quoted identifier as one word, accepts a word declared
+ * as an alias with `AS`, and compares case-insensitively. Each unknown word
+ * gives a [[SqlIdentifierChecker.Diagnostic]], with a suggestion when a known
+ * name is at most two edits away.
  *
- * Tokenizes literal parts respecting single-quoted string literals,
- * double-quoted identifiers and interpolation holes, subtracts the SQL
- * keyword/function allowlist, tracks aliases introduced via `AS alias`, and
- * reports unknown identifiers with Levenshtein suggestions.
+ * {{{
+ * val diagnostics = SqlIdentifierChecker.validate(
+ *   Seq("SELECT nme FROM customer WHERE id = ", ""),
+ *   Set("customer"),
+ *   Set("id", "name")
+ * )
+ * diagnostics.map(_.message) // List(Unknown identifier 'nme' at position 7; did you mean 'name'?)
+ * }}}
+ *
+ * Suggestions come from the tables, columns and allow-list together, and a tie
+ * goes to the alphabetically first one, so a misspelled column can be offered
+ * an SQL keyword: a known bug in 0.0.56.
+ *
+ * @see
+ *   [[https://zioblocks.com/guides/sql-checked-interpolation/ sql(table) Checked Interpolation]]
  */
 object SqlIdentifierChecker {
 
+  /**
+   * One unknown word: the error `message`, the word's `position` (its offset in
+   * the parts joined with a placeholder for each hole), and the closest known
+   * name, if one is at most two edits away.
+   */
   final case class Diagnostic(message: String, position: Int, suggestion: Option[String])
 
   /**
-   * Default SQL allowlist — keywords, types, functions and pseudo-identifiers
-   * that are never flagged as unknown. Comparison is case-insensitive.
+   * The words never reported as unknown: SQL keywords, type names and common
+   * functions, in lower case. Comparison is case-insensitive.
    */
   val DefaultAllowlist: Set[String] = Set(
     // DML / query structure
@@ -258,13 +279,23 @@ object SqlIdentifierChecker {
     "using_word"
   ).map(_.toLowerCase)
 
+  /** Stands for an interpolated value when the parts are joined. */
   private val HolePlaceholder = "__HOLE__"
 
   private final case class Token(text: String, position: Int)
 
+  /**
+   * Returns the unknown words of `parts` (the literal text between interpolated
+   * values) against these table and column names and `DefaultAllowlist`, in
+   * order of appearance.
+   */
   def validate(parts: Seq[String], knownTables: Set[String], knownColumns: Set[String]): List[Diagnostic] =
     validate(parts, knownTables, knownColumns, DefaultAllowlist)
 
+  /**
+   * Returns the unknown words of `parts` against these table and column names
+   * and `allowlist`, which replaces `DefaultAllowlist`.
+   */
   def validate(
     parts: Seq[String],
     knownTables: Set[String],
@@ -291,24 +322,40 @@ object SqlIdentifierChecker {
     validateTokens(tokens, knownTablesLower, knownColumnsLower, allowlistLower, suggestionPool)
   }
 
+  /**
+   * Returns the unknown words of `parts` against the names and columns of
+   * `tables`, as the tables report them at run time, and `DefaultAllowlist`.
+   */
   def validate(parts: Seq[String], tables: Seq[Table[?]]): List[Diagnostic] = {
     val knownTables  = tables.map(_.name).toSet
     val knownColumns = tables.flatMap(_.columns).toSet
     validate(parts, knownTables, knownColumns, DefaultAllowlist)
   }
 
+  /**
+   * Returns the unknown words of `parts` against the names and columns of
+   * `tables` and `allowlist`, which replaces `DefaultAllowlist`.
+   */
   def validate(parts: Seq[String], tables: Seq[Table[?]], allowlist: Set[String]): List[Diagnostic] = {
     val knownTables  = tables.map(_.name).toSet
     val knownColumns = tables.flatMap(_.columns).toSet
     validate(parts, knownTables, knownColumns, allowlist)
   }
 
-  // Alternate signature requested: Set-based knownNames
+  /**
+   * Returns the unknown words of `parts` against `knownNames` (tables and
+   * columns together) and `allowlist`. `dummy` only tells this overload apart
+   * from the one that takes table and column names; pass `()`.
+   */
   def validate(parts: Seq[String], knownNames: Set[String], allowlist: Set[String], dummy: Unit): List[Diagnostic] = {
     val _ = dummy
     validate(parts, knownNames, Set.empty, allowlist)
   }
 
+  /**
+   * Reports each token that is not an alias declaration, keyword, known name or
+   * alias.
+   */
   private def validateTokens(
     tokens: List[Token],
     knownTablesLower: Set[String],
@@ -361,9 +408,17 @@ object SqlIdentifierChecker {
     diagnostics.toList
   }
 
+  /**
+   * Whether `s` starts with a letter or `_` and has only letters, digits and
+   * `_`.
+   */
   private def isIdentifier(s: String): Boolean =
     s.nonEmpty && (s.charAt(0).isLetter || s.charAt(0) == '_') && s.forall(c => c.isLetterOrDigit || c == '_')
 
+  /**
+   * Splits the joined text into words, skipping single-quoted literals and hole
+   * placeholders and keeping a double-quoted identifier as one word.
+   */
   private def tokenize(combined: String): List[Token] = {
     val tokens = mutable.ListBuffer.empty[Token]
     var i      = 0
@@ -448,6 +503,10 @@ object SqlIdentifierChecker {
   private def isIdentifierStart(c: Char): Boolean = c.isLetter || c == '_'
   private def isIdentifierPart(c: Char): Boolean  = c.isLetterOrDigit || c == '_'
 
+  /**
+   * The pool entry at the smallest edit distance from `lower`, up to 2, ties
+   * going to the alphabetically first.
+   */
   private def findSuggestion(lower: String, pool: Map[String, String]): Option[String] = {
     var best: Option[String] = None
     var bestDist             = Int.MaxValue
@@ -466,7 +525,7 @@ object SqlIdentifierChecker {
     best
   }
 
-  // Classic DP Levenshtein distance, case-sensitive on already lowercased strings
+  /** Levenshtein edit distance between `a` and `b`, case-sensitive. */
   private[sql] def levenshtein(a: String, b: String): Int = {
     val n = a.length
     val m = b.length

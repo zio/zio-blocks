@@ -24,6 +24,41 @@ import zio.blocks.schema.derive._
 import zio.blocks.typeid.TypeId
 import zio.blocks.typeid.AnnotationArg
 
+/**
+ * Derives a [[DbCodec]] from a `Schema`, naming each record column with
+ * `columnNameMapper` unless the field has `@Modifier.rename`.
+ * `DbCodec.derived`, `Table.derived` and `Repo.derived` use the companion
+ * object, which maps names with [[SqlNameMapper.SnakeCase]].
+ *
+ * A primitive gets one column. A record gets one column per field and skips
+ * `@Modifier.transient` fields, which read back as their default value. A field
+ * whose type is a record is stored as one JSON column, unless the field has
+ * `@Modifier.config("sql.inline", "true")` or the enclosing case class has
+ * `@Modifier.config("sql.inline_fields", "true")`; then it spreads into
+ * `<field>_<subfield>` columns. A sequence, a map, a dynamic value and a sealed
+ * trait with fields are stored as JSON; an enum of case objects as the case
+ * name. `Option` and `Maybe` accept a single-column inner type only, so a field
+ * of type `Option[R]`, where `R` is a case class with several fields, throws
+ * instead of being stored as JSON, a known bug in 0.0.56.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * case class Widget(widgetId: Int, widgetName: String)
+ * object Widget { implicit val schema: Schema[Widget] = Schema.derived }
+ *
+ * val snake    = Widget.schema.deriving(DbCodecDeriver).derive.columns
+ * // Vector(widget_id, widget_name)
+ * val identity = Widget.schema
+ *   .deriving(DbCodecDeriver.withColumnNameMapper(SqlNameMapper.Identity))
+ *   .derive
+ *   .columns
+ * // Vector(widgetId, widgetName)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/db-codec-deriver/ DbCodecDeriver]]
+ */
 class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
 
   private val SqlNullType = 0
@@ -45,6 +80,11 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   private def jsonbCodec[A0](schema: Schema[A0]): DbCodec[A0] =
     DbCodec.jsonb[A0](using schema.jsonCodec)
 
+  /**
+   * Returns the built-in one-column codec for a primitive type; `Unit` has no
+   * columns. Throws `UnsupportedOperationException` for a primitive it does not
+   * support.
+   */
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
@@ -80,6 +120,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     }
   }
 
+  /**
+   * Builds the codec of a record, one column per field, as the class
+   * documentation describes.
+   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
@@ -310,6 +354,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     }
   }
 
+  /**
+   * Reuses the codec of the wrapped type, wrapping each value read and
+   * unwrapping each value written.
+   */
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -338,6 +386,11 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       }
     }
 
+  /**
+   * Builds the codec of a variant: `Option` and `Maybe` read `NULL` as empty,
+   * an enum of case objects is stored as its case name, and any other variant
+   * is stored as JSON.
+   */
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
@@ -453,6 +506,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     }
   }
 
+  /** Stores a sequence as one JSON column. */
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
@@ -468,6 +522,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       jsonbCodec(new Schema[C[A]](boundReflect))
     }
 
+  /** Stores a map as one JSON column. */
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
@@ -485,6 +540,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       jsonbCodec(new Schema[M[K, V]](boundReflect))
     }
 
+  /** Stores a `DynamicValue` as one JSON column. */
   override def deriveDynamic[F[_, _]](
     binding: Binding.Dynamic,
     doc: Doc,
@@ -652,11 +708,8 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   /**
-   * Decodes a `CHAR(1)` value. SQL NULL and the empty string both fail fast
-   * instead of collapsing to a `'\u0000'` sentinel: like every other
-   * non-optional primitive, a NULL Char column is a data error (use
-   * `Option[Char]`/`Maybe[Char]` for nullable columns), and an empty string has
-   * no first character to decode.
+   * Returns the first character of a `CHAR(1)` value. SQL `NULL` and the empty
+   * string throw `IllegalStateException`.
    */
   private def decodeChar(s: String): Char =
     if (s == null) unexpectedNull("Char")
@@ -732,7 +785,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     }
 }
 
+/** The deriver that maps column names with [[SqlNameMapper.SnakeCase]]. */
 object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
+
+  /** Returns a deriver that maps column names with `mapper`. */
   def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver =
     new DbCodecDeriver(mapper)
 }

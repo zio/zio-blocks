@@ -53,6 +53,15 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           List(ScaladocSnippets.Snippet(path, 2, List("val title = \"Zionomicon\""), None))
       )
     },
+    test("extract reads an escaped dollar as a dollar, the way Scaladoc renders it") {
+      val d       = "$" // built up so that no string literal here looks like a missing interpolator
+      val content =
+        source("/**", " * {{{", " * val q = s\"id = \\" + d + "id, min = \\" + d + "{min + 1}\"", " * }}}", " */")
+      assertTrue(
+        ScaladocSnippets.extract(path, content) ==
+          List(ScaladocSnippets.Snippet(path, 2, List("val q = s\"id = " + d + "id, min = " + d + "{min + 1}\""), None))
+      )
+    },
     test("extract ignores blocks outside Scaladoc comments") {
       val content = source("/* plain comment", " * {{{", " * val x = 1", " * }}}", " */", "// {{{")
       assertTrue(ScaladocSnippets.extract(path, content) == Nil)
@@ -182,6 +191,28 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport hides the sql.zio package from sql examples and keeps the default for sql-zio") {
+      val fragPath = "sql/shared/src/main/scala/zio/blocks/sql/Frag.scala"
+      val relPath  = "sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala"
+      val zioPath  = "sql-zio/src/main/scala/zio/blocks/sql/zio/TransactorZIO.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(fragPath) == "zio.blocks.sql.{zio => _, _}",
+        ScaladocSnippets.objectName(fragPath, 12) == "Snippet_sql_shared_scala_Frag_L12",
+        ScaladocSnippets.objectName(relPath, 3) == "Snippet_sql_shared_scala_query_Rel_L3",
+        ScaladocSnippets.moduleImport(zioPath) == "zio.blocks.sql.zio._",
+        ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
+      )
+    },
+    test("moduleImport and objectName give an html example the html import and drop the html package") {
+      val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
+      val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(domPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(domPath, 12) == "Snippet_html_shared_scala_Dom_L12",
+        ScaladocSnippets.moduleImport(elementsPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(elementsPath, 30) == "Snippet_html_shared_scala_2_HtmlElements_L30"
+      )
+    },
     test("moduleImport and objectName give a jwt example the jwt import and drop the jwt package") {
       val jwtPath = "jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala"
       assertTrue(
@@ -202,6 +233,35 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(
         ScaladocSnippets.moduleImport(avro) == "zio.blocks.schema.avro._",
         ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
+      )
+    },
+    test("moduleImport and objectName use packageOverrides for a module whose package is not its directory") {
+      val requestPath = "http-model/shared/src/main/scala/zio/http/Request.scala"
+      val statusPath  = "http-model/shared/src/main/scala-2/zio/http/Status.scala"
+      assertTrue(
+        ScaladocSnippets.packageOverrides("http-model") == "zio.http",
+        ScaladocSnippets.modulePackage(requestPath) == "zio.http",
+        ScaladocSnippets.moduleImport(requestPath) == "zio.http._",
+        ScaladocSnippets.objectName(requestPath, 12) == "Snippet_http_model_shared_scala_Request_L12",
+        ScaladocSnippets.objectName(statusPath, 5) == "Snippet_http_model_shared_scala_2_Status_L5",
+        ScaladocSnippets.modulePackage("schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala") ==
+          "zio.blocks.schema.avro"
+      )
+    },
+    test("render gives an http-model example the zio.http import") {
+      val path    = "http-model/shared/src/main/scala/zio/http/URL.scala"
+      val snippet = ScaladocSnippets.Snippet(path, 20, List("val a = 1"), None)
+      assertTrue(
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $path:20 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |import zio.http._
+             |
+             |object Snippet_http_model_shared_scala_URL_L20 {
+             |  val a = 1
+             |}
+             |""".stripMargin
       )
     },
     test("render gives a streams example the streams import") {

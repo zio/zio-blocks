@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import scala.quoted._
 
+/** The macro behind `DbCodec.derivedOpaque`. */
 private[sql] object DbCodecOpaqueMacro {
 
   def derivedOpaqueImpl[A: Type](using Quotes): Expr[DbCodec[A]] = {

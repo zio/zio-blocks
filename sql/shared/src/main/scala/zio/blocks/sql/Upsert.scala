@@ -17,31 +17,53 @@
 package zio.blocks.sql
 
 /**
- * Builders for SQLite/PostgreSQL upsert Frags.
+ * Builds `INSERT ... ON CONFLICT` statements (upserts) as [[Frag]]s, in the
+ * syntax PostgreSQL and SQLite share. `insertDoNothing` and `insertDoUpdate`
+ * take a [[Table]] and a row; the lower-level builders take column names and
+ * [[DbValue]]s. Every name is checked as an SQL identifier
+ * (`IllegalArgumentException` otherwise) and written in double quotes, and
+ * every value binds as a `?` parameter.
  *
- * Every produced Frag follows the invariant `parts.length == params.length + 1`
- * and is rendered via `dialect.paramPlaceholder` (both dialects use `?`).
- * Identifiers are validated through [[SqlIdentifier.validate]] and quoted with
- * double quotes in the conflict clause. Assignment columns are additionally
- * validated against `Table.columns`.
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * case class Product(sku: String, name: String, priceCents: Long)
+ * object Product { implicit val schema: Schema[Product] = Schema.derived }
+ *
+ * val products = Table.derived[Product]
+ * val upsert   = Upsert.insertDoUpdate(products, Product("MUG-1", "Mug", 1200L), "sku")
+ * val sqlText  = upsert.sql(SqlDialect.PostgreSQL)
+ * // INSERT INTO "product" ("sku", "name", "price_cents") VALUES (?, ?, ?)
+ * //   ON CONFLICT ("sku") DO UPDATE SET "name" = ?, "price_cents" = ?
+ * }}}
+ *
+ * The conflict column needs a `PRIMARY KEY` or `UNIQUE` constraint, which
+ * `Table#createTable` does not declare, a known bug in 0.0.56.
  */
 object Upsert {
 
   // -- suffix builders -----------------------------------------------------------------
 
-  /** Suffix ` ON CONFLICT ("col") DO NOTHING`. */
+  /**
+   * Returns the clause ` ON CONFLICT ("<conflictColumn>") DO NOTHING`, to
+   * append to an `INSERT`.
+   */
   def doNothingSuffix(conflictColumn: String): Frag = {
     val c = SqlIdentifier.validate("column", conflictColumn)
     Frag(IndexedSeq(s""" ON CONFLICT ("$c") DO NOTHING"""), IndexedSeq.empty)
   }
 
-  /** Alias used by prior docs. */
+  /** The same as [[doNothingSuffix]]. */
   def buildDoNothingSuffix(conflictColumn: String): Frag =
     doNothingSuffix(conflictColumn)
 
   /**
-   * Suffix ` ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...`.
-   * Assignments must be non-empty; each column is validated and quoted.
+   * Returns the clause
+   * ` ON CONFLICT ("<conflictColumn>") DO UPDATE SET "<column>" = ?, ...`, one
+   * assignment per entry of `assignments`, whose values bind in order.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `assignments` is empty
    */
   def doUpdateSuffix(
     conflictColumn: String,
@@ -65,7 +87,7 @@ object Upsert {
     Frag(parts.result(), params)
   }
 
-  /** Alias used by prior docs. */
+  /** The same as [[doUpdateSuffix]]. */
   def buildDoUpdateSuffix(
     conflictColumn: String,
     assignments: IndexedSeq[(String, DbValue)]
@@ -75,16 +97,14 @@ object Upsert {
   // -- low-level full INSERT builders ---------------------------------------------------
 
   /**
-   * Low-level builder: full INSERT with DO NOTHING.
+   * Returns `INSERT INTO "<tableName>" (<columns>) VALUES (?, ...)` followed by
+   * [[doNothingSuffix]]. Unlike [[insertDoNothing]], nothing checks that
+   * `conflictColumn` is one of `columns`.
    *
-   * @param tableName
-   *   validated via SqlIdentifier
-   * @param columns
-   *   column names in order, each validated
    * @param values
-   *   values aligned with columns
-   * @param conflictColumn
-   *   validated and quoted in suffix
+   *   one value per entry of `columns`, in the same order
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is not an SQL identifier or the counts differ
    */
   def doNothing(
     tableName: String,
@@ -100,7 +120,14 @@ object Upsert {
     base ++ doNothingSuffix(conflictColumn)
   }
 
-  /** Overload accepting comma-joined column string (as Repo does). */
+  /**
+   * The same as [[doNothing]], with the columns given as one comma-separated
+   * string such as `"sku, name"`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `allColumns` names no column, a name is not an SQL identifier, or the
+   *   counts differ
+   */
   def doNothingRaw(
     tableName: String,
     allColumns: String,
@@ -119,7 +146,12 @@ object Upsert {
   }
 
   /**
-   * Low-level builder: full INSERT with DO UPDATE SET.
+   * Returns `INSERT INTO "<tableName>" (<columns>) VALUES (?, ...)` followed by
+   * [[doUpdateSuffix]]; the `values` bind first, then the assignment values.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is not an SQL identifier, the counts differ, or `assignments`
+   *   is empty
    */
   def doUpdate(
     tableName: String,
@@ -165,27 +197,12 @@ object Upsert {
     }.toIndexedSeq
 
   /**
-   * `INSERT ... ON CONFLICT ("conflict") DO NOTHING` for an entity.
+   * Returns an `INSERT` of `entity` into `table` that does nothing when a row
+   * with the same `conflictColumn` value exists:
+   * `INSERT INTO "<table>" (<columns>) VALUES (?, ...) ON CONFLICT ("<conflictColumn>") DO NOTHING`.
    *
-   * Builds
-   * `INSERT INTO "table" ("cols") VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
-   * The table name is validated via [[SqlIdentifier.validate]] and the conflict
-   * column is validated as an identifier and checked for membership in
-   * `table.columns`.
-   *
-   * @param table
-   *   validated via [[Table]]; its name via [[SqlIdentifier.validate]] and its
-   *   columns used for conflict validation
-   * @param entity
-   *   entity whose values are obtained via `table.codec.toDbValues`
-   * @param conflictColumn
-   *   validated identifier that must be present in `table.columns`
-   * @return
-   *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ("conflict") DO NOTHING`
-   *   with a quoted `INSERT INTO "table" ("cols")` head
-   * @throws IllegalArgumentException
-   *   if `conflictColumn` is not a valid identifier or is not found in
-   *   `table.columns`
+   * @throws java.lang.IllegalArgumentException
+   *   if `conflictColumn` is not an SQL identifier or not a column of `table`
    */
   def insertDoNothing[A](table: Table[A], entity: A, conflictColumn: String): Frag = {
     val t        = validatedTableName(table)
@@ -196,25 +213,13 @@ object Upsert {
   }
 
   /**
-   * `INSERT ... ON CONFLICT ("conflict") DO UPDATE SET ...` for an entity.
+   * Returns an `INSERT` of `entity` into `table` that, when a row with the same
+   * `conflictColumn` value exists, sets every other column of that row to
+   * `entity`'s values.
    *
-   * Updates all columns except the conflict column. The conflict column is
-   * validated via [[SqlIdentifier.validate]] and must exist in `table.columns`.
-   * The update set is derived as `table.columns.filter(_ != conflict)` and
-   * validated against `Table.columns`.
-   *
-   * @param table
-   *   validated via [[Table]]; name validated via [[SqlIdentifier.validate]]
-   * @param entity
-   *   entity serialized via `table.codec.toDbValues`
-   * @param conflictColumn
-   *   validated identifier that must be present in `table.columns`
-   * @return
-   *   a [[Frag]] with `ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...`
-   *   where cols are all table columns except the conflict column
-   * @throws IllegalArgumentException
-   *   if `conflictColumn` is invalid or not in `table.columns`, or if the table
-   *   has only the conflict column (no assignable columns to update)
+   * @throws java.lang.IllegalArgumentException
+   *   if `conflictColumn` is not an SQL identifier or not a column of `table`,
+   *   or if `table` has no other column
    */
   def insertDoUpdate[A](table: Table[A], entity: A, conflictColumn: String): Frag = {
     val conflict   = validatedConflictInTable(table, conflictColumn)
@@ -227,29 +232,32 @@ object Upsert {
   }
 
   /**
-   * `INSERT ... ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...` for an
-   * entity with explicit update columns.
+   * Returns an `INSERT` of `entity` into `table` that, when a row with the same
+   * `conflictColumn` value exists, sets only the `updateColumns` of that row to
+   * `entity`'s values.
    *
-   * All identifiers are validated via [[SqlIdentifier.validate]]. The conflict
-   * column and each `updateColumns` entry must exist in `table.columns`.
+   * {{{
+   * import zio.blocks.schema.Schema
    *
-   * @param table
-   *   validated via [[Table]]; name validated via [[SqlIdentifier.validate]]
-   * @param entity
-   *   entity serialized via `table.codec.toDbValues`
-   * @param conflictColumn
-   *   validated identifier that must be present in `table.columns`
-   * @param updateColumns
-   *   validated against `table.columns`; each entry validated as an identifier,
-   *   must exist in the table, must not contain `conflictColumn`, and must be
-   *   non-empty
-   * @return
-   *   a [[Frag]] with `ON CONFLICT ("conflict") DO UPDATE SET` for the
-   *   specified columns
-   * @throws IllegalArgumentException
-   *   if any identifier is invalid, if any column is not in `table.columns`, if
-   *   `updateColumns` contains the conflict column or contains duplicates, or
-   *   if it is empty
+   * case class Product(sku: String, name: String, priceCents: Long)
+   * object Product { implicit val schema: Schema[Product] = Schema.derived }
+   *
+   * val upsert = Upsert.insertDoUpdate(
+   *   Table.derived[Product],
+   *   Product("MUG-1", "Mug", 1500L),
+   *   "sku",
+   *   Seq("price_cents")
+   * )
+   * val sqlText = upsert.sql(SqlDialect.SQLite)
+   * // INSERT INTO "product" ("sku", "name", "price_cents") VALUES (?, ?, ?)
+   * //   ON CONFLICT ("sku") DO UPDATE SET "price_cents" = ?
+   * val params = upsert.params
+   * // Vector(DbString(MUG-1), DbString(Mug), DbLong(1500), DbLong(1500))
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is not an SQL identifier or not a column of `table`, or if
+   *   `updateColumns` is empty, contains `conflictColumn`, or repeats a column
    */
   def insertDoUpdate[A](
     table: Table[A],
