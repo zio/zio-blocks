@@ -25,14 +25,42 @@ import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
 import scala.util.control.NonFatal
 
+/**
+ * The deriver that builds a [[ThriftCodec]] from a schema; [[ThriftFormat]]
+ * uses it, so `Schema#derive(ThriftFormat)` goes through it. Primitives use the
+ * codecs in the `ThriftCodec` companion. A record becomes a Thrift struct whose
+ * fields have the ids 1, 2, 3 and so on, in declaration order, followed by a
+ * STOP byte; decoding reads the fields in any order and skips unknown ids. A
+ * variant, such as a sealed trait, `Option` or `Either`, becomes a struct with
+ * one field, whose id is the case's index plus one (`None` is 1, `Some` is 2).
+ * A sequence becomes a Thrift `list` and a map a Thrift `map`. A wrapper uses
+ * the encoding of the type it wraps. `DynamicValue` encodes, but decoding it
+ * always fails with `Cannot decode DynamicValue without schema`. Known bugs: a
+ * record field missing from the input decodes as `null`, `0` or `false`, and
+ * decoding does not check the Thrift type written before each field.
+ */
 object ThriftCodecDeriver extends Deriver[ThriftCodec] {
   // Existential type aliases for internal use
+
+  /** A placeholder element type for the deriver's internal casts. */
   type Elem
+
+  /** A placeholder map key type for the deriver's internal casts. */
   type Key
+
+  /** A placeholder map value type for the deriver's internal casts. */
   type Value
+
+  /** A placeholder wrapped type for the deriver's internal casts. */
   type Wrapped
+
+  /** A placeholder collection type for the deriver's internal casts. */
   type Col[_]
+
+  /** A placeholder map type for the deriver's internal casts. */
   type Map[_, _]
+
+  /** A placeholder type class for the deriver's internal casts. */
   type TC[_]
 
   // Deriver implementation
@@ -221,10 +249,10 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
               // Read the STOP field
               val stopField = protocol.readFieldBegin()
               if (stopField.`type` != TType.STOP) {
-                // Skip any extra fields for forward compatibility
+                // Skip one extra field for forward compatibility; a second extra field is not skipped
                 TProtocolUtil.skip(protocol, stopField.`type`)
                 protocol.readFieldEnd()
-                protocol.readFieldBegin() // Read actual STOP
+                protocol.readFieldBegin() // Expected to be STOP; not checked
               }
               result
             } catch {
@@ -399,6 +427,11 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[ThriftCodec[A]]]
 
+  /**
+   * Clears this thread's cache of recursive records, then returns the inherited
+   * overrides. `DerivationBuilder#derive` calls it at the start of each
+   * derivation.
+   */
   override def instanceOverrides: IndexedSeq[InstanceOverride] = {
     recursiveRecordCache.remove()
     super.instanceOverrides
@@ -499,6 +532,10 @@ object ThriftCodecDeriver extends Deriver[ThriftCodec] {
   }
 }
 
+/**
+ * The name, codec, register offset, register type tag and Thrift type of one
+ * record field.
+ */
 private class FieldInfo(
   val name: String,
   val codec: ThriftCodec[?],
