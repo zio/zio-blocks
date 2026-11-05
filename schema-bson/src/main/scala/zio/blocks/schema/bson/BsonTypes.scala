@@ -166,11 +166,14 @@ object BsonEncoder {
  * Only a [[BsonDecoder.Error]] becomes a `Left`. A known bug lets other
  * exceptions escape: a string that does not parse as a `UUID`, `Currency`,
  * `ZoneId` or `java.time` value, or a `DayOfWeek` or `Month` that is not an
- * upper-case name, throws its parser's exception (such as
- * `IllegalArgumentException`, or [[zio.blocks.schema.SchemaError]] for
- * `Instant`). Through `decode`, a primitive or record value of the wrong BSON
- * type throws `org.bson.BsonInvalidOperationException` instead of returning
- * `Left`, and a `Char` string longer than one character throws
+ * upper-case name, throws its parser's exception: `IllegalArgumentException`
+ * for `UUID`, `Currency`, `DayOfWeek` and `Month`, a
+ * `java.time.DateTimeException` or one of its subclasses for `Year`,
+ * `YearMonth`, `ZoneId` and `ZoneOffset`, and [[zio.blocks.schema.SchemaError]]
+ * for the ISO-8601 types such as `Instant`, `LocalDate` and `Duration`. Through
+ * `decode`, a primitive or record value of the wrong BSON type throws
+ * `org.bson.BsonInvalidOperationException` instead of returning `Left`, and a
+ * `Char` string that is not exactly one character long throws
  * `RuntimeException`.
  *
  * {{{
@@ -414,9 +417,10 @@ final case class BsonCodec[A](encoder: BsonEncoder[A], decoder: BsonDecoder[A]) 
 }
 
 /**
- * The built-in codecs a derived codec uses for primitive types, each named with
- * the BSON type it writes. Through `fromBsonValue`, a value of another BSON
- * type fails with `Expected <TYPE> but got <TYPE>`.
+ * The built-in codecs a derived codec uses for primitive types; each one's doc
+ * names the BSON type it writes. Through `fromBsonValue`, most of them fail on
+ * a value of another BSON type with `Expected <TYPE> but got <TYPE>`; `unit`
+ * accepts any value, and `json` fails with its own message.
  */
 object BsonCodec {
   private def primitive[A](
@@ -536,9 +540,9 @@ object BsonCodec {
   )
 
   /**
-   * Writes a `Char` as a one-character BSON `STRING`. Decoding a longer string
-   * fails, with a [[BsonDecoder.Error]] through `fromBsonValue` and a
-   * `RuntimeException` through `decode` (a known bug).
+   * Writes a `Char` as a one-character BSON `STRING`. Decoding a string that is
+   * not exactly one character long fails, with a [[BsonDecoder.Error]] through
+   * `fromBsonValue` and a `RuntimeException` through `decode` (a known bug).
    */
   val char: BsonCodec[Char] = primitive[Char](
     (w, v) => w.writeString(v.toString),
