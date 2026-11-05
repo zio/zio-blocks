@@ -31,12 +31,14 @@ private[async] trait AsyncSyntaxPlatformSpecific {
 
     /**
      * Converts this `Async` into a [[scala.concurrent.Future]] that completes
-     * with the same value or failure. A ready value or failure gives a
-     * completed future. For a pending one the call returns at once and the
-     * `Async` keeps running without blocking a thread: on the JVM it runs on
-     * `ForkJoinPool.commonPool()` and `ec` runs only the step that completes
-     * the future; on Scala.js its first step runs in the caller and the later
-     * ones run on `ec`.
+     * with the same value or failure (for a `null` cause, an internal marker
+     * that `Async.fromFuture` turns back into `null`). A ready value or failure
+     * gives a completed future. For a pending one the call returns at once and
+     * the `Async` keeps running without blocking a thread: on the JVM it runs
+     * on `ForkJoinPool.commonPool()` and `ec` runs only the short steps that
+     * check it and complete the future; on Scala.js its first step runs in the
+     * caller and the later ones run on `ec` (after a long run of ready steps,
+     * on a `setTimeout` macrotask).
      *
      * Hand each pending `Async` to one consumer. On the JVM, driving it from
      * two, such as `toFuture` and `block`, can hang forever, a known bug. Call
@@ -48,8 +50,9 @@ private[async] trait AsyncSyntaxPlatformSpecific {
      * implicit val ec: ExecutionContext = ExecutionContext.global
      * val price              = new Completer[Int]
      * val quote: Future[Int] = price.peek.map(_ + 5).toFuture
+     * quote.isCompleted // false
      * price.succeed(120)
-     * quote.foreach(println) // prints 125
+     * quote.foreach(println) // prints 125 once the future completes; a JVM main must wait for it
      * }}}
      *
      * @see
@@ -59,10 +62,12 @@ private[async] trait AsyncSyntaxPlatformSpecific {
 
     /**
      * Converts this `Async` into a [[scala.scalajs.js.Promise]] that resolves
-     * with its value or rejects with its failure's `Throwable`. It needs no
-     * `ExecutionContext`: a pending `Async` takes its first step in the caller
-     * and the later ones on `JSExecutionContext.queue`. Hand each pending
-     * `Async` to one consumer, as with `toFuture`.
+     * with its value or rejects with its failure's `Throwable` (for a `null`
+     * cause, an internal marker that `Async.fromJsPromise` turns back into
+     * `null`). It needs no `ExecutionContext`: a pending `Async` takes its
+     * first step in the caller and the later ones on `JSExecutionContext.queue`
+     * (after a long run of ready steps, on a `setTimeout` macrotask). Hand each
+     * pending `Async` to one consumer, as with `toFuture`.
      *
      * {{{
      * // no-check: Scala.js only

@@ -35,8 +35,8 @@ private[async] trait AsyncCompanionPlatformSpecific {
    * `future` does. On Scala.js, a `JavaScriptException` that wraps `null` (from
    * a JavaScript promise rejected with `null`) becomes a `null` cause.
    *
-   * Cancelling a run of this `Async` does not reach `future`, a known bug that
-   * the built-in bridges share.
+   * Cancelling a run of this `Async` stops waiting for `future` but cannot stop
+   * it: a `Future` has no cancel operation.
    *
    * {{{
    * import scala.concurrent.Future
@@ -54,14 +54,14 @@ private[async] trait AsyncCompanionPlatformSpecific {
    * Creates an [[Async]] that completes with the value or the failure of
    * `promise`. The `Async` is pending even when `promise` has already settled,
    * because a JavaScript promise reports its outcome on a later microtask, so
-   * `block` on it throws: drive it with `toFuture`, `toJsPromise` or
-   * `Async.async`.
+   * `block` on it throws: drive it with `toFuture`, `toJsPromise` or `start`,
+   * or `.await` it inside `Async.async`.
    *
    * A rejection with a `Throwable` fails with that `Throwable`, a rejection
    * with any other value fails with a [[scala.scalajs.js.JavaScriptException]]
    * that wraps it, and a rejection with `null` fails with a `null` cause.
-   * Cancelling a run of this `Async` does not reach `promise`, a known bug that
-   * the built-in bridges share.
+   * Cancelling a run of this `Async` stops waiting for `promise` but cannot
+   * stop it: a JavaScript promise has no cancel operation.
    *
    * {{{
    * // no-check: Scala.js only

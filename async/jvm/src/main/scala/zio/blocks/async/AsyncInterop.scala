@@ -39,7 +39,8 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  *
  * implicit val ec: ExecutionContext = ExecutionContext.global
  * def loadPrice(sku: String): Future[Int] = Future.successful(120)
- * val withTax: Future[Int] = Async.fromFuture(loadPrice("sku-1")).map(_ + 24).toFuture // 144
+ * val withTax: Future[Int] = Async.fromFuture(loadPrice("sku-1")).map(_ + 24).toFuture
+ * withTax.value // Some(Success(144))
  * }}}
  *
  * @see

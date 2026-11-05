@@ -36,8 +36,8 @@ private[async] trait AsyncCompanionPlatformSpecific {
    * `future` does. On Scala.js, a `JavaScriptException` that wraps `null` (from
    * a JavaScript promise rejected with `null`) becomes a `null` cause.
    *
-   * Cancelling a run of this `Async` does not reach `future`, a known bug that
-   * the built-in bridges share.
+   * Cancelling a run of this `Async` stops waiting for `future` but cannot stop
+   * it: a `Future` has no cancel operation.
    *
    * {{{
    * import scala.concurrent.Future
@@ -62,7 +62,7 @@ private[async] trait AsyncCompanionPlatformSpecific {
    * [[java.util.concurrent.CancellationException]]. A stage that fails with an
    * [[java.util.concurrent.ExecutionException]] is unwrapped as well when it
    * fails after this call, but not when it has already failed, a known bug.
-   * Cancelling a run of this `Async` does not cancel `stage`, also a known bug.
+   * Cancelling a run of this `Async` does not cancel `stage`, a known bug.
    *
    * {{{
    * import java.util.concurrent.CompletableFuture
