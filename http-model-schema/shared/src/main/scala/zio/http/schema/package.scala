@@ -20,9 +20,47 @@ import scala.language.implicitConversions
 
 import zio.http.{Headers, QueryParams, Request, Response}
 
+/**
+ * Typed, schema-based access to query parameters and headers. `import
+ * zio.http.schema._` adds `query`, `queryAll` and `queryOrElse` to
+ * [[zio.http.QueryParams]] and [[zio.http.Request]], and `header`, `headerAll`
+ * and `headerOrElse` to [[zio.http.Headers]], `Request` and
+ * [[zio.http.Response]]; on `Request` and `Response`, `header[T](name)` does
+ * not compile, a known bug, so call it on `request.headers`. Failures are a
+ * [[QueryParamError]] or a [[HeaderError]].
+ *
+ * To read or write a whole case class at once, derive a [[QueryCodec]] with
+ * `Schema[A].derive(DefaultQueryFormat)` or a [[HeaderCodec]] with
+ * `Schema[A].derive(DefaultHeaderFormat)`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/schema/ Schema-Based Typed Access]]
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/schema-codecs/ HeaderCodec and QueryCodec]]
+ */
 package object schema {
+
+  /**
+   * Adds `query`, `queryAll` and `queryOrElse` to a [[zio.http.QueryParams]].
+   */
   implicit def queryParamsSchemaOps(qp: QueryParams): QueryParamsSchemaOps = new QueryParamsSchemaOps(qp)
-  implicit def headersSchemaOps(headers: Headers): HeadersSchemaOps        = new HeadersSchemaOps(headers)
-  implicit def requestSchemaOps(request: Request): RequestSchemaOps        = new RequestSchemaOps(request)
-  implicit def responseSchemaOps(response: Response): ResponseSchemaOps    = new ResponseSchemaOps(response)
+
+  /**
+   * Adds `header`, `headerAll` and `headerOrElse` to a [[zio.http.Headers]].
+   */
+  implicit def headersSchemaOps(headers: Headers): HeadersSchemaOps = new HeadersSchemaOps(headers)
+
+  /**
+   * Adds the typed query and header reads of [[RequestSchemaOps]] to a
+   * [[zio.http.Request]]. `request.header[T](name)` never reaches it, a known
+   * bug: `Request#header` takes a `Header.Codec` and wins.
+   */
+  implicit def requestSchemaOps(request: Request): RequestSchemaOps = new RequestSchemaOps(request)
+
+  /**
+   * Adds the typed header reads of [[ResponseSchemaOps]] to a
+   * [[zio.http.Response]]. `response.header[T](name)` never reaches it, a known
+   * bug: `Response#header` takes a `Header.Codec` and wins.
+   */
+  implicit def responseSchemaOps(response: Response): ResponseSchemaOps = new ResponseSchemaOps(response)
 }

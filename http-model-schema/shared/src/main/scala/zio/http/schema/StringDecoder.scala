@@ -19,8 +19,50 @@ package zio.http.schema
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
 
+/**
+ * Decodes one raw query-parameter or header value for the `Schema`-based
+ * `query`, `queryAll`, `queryOrElse`, `header`, `headerAll` and `headerOrElse`.
+ * It supports primitive schemas of 12 types, each parsed with the Scala or JDK
+ * parser of that type: `String` (the value as is), `Boolean` (`true` or
+ * `false`, any letter case), `Char` (exactly one character), `Byte`, `Short`,
+ * `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal` and
+ * `java.util.UUID`. A failure is a `Left` with the reason,
+ * `Cannot parse 'abc' as Int` or, for `Char`,
+ * `Expected single character but got 'abc'`; the callers wrap it in
+ * `Malformed`.
+ *
+ * Every other schema fails on every value, a known bug: a primitive type such
+ * as `java.time.Instant` or `Unit` gives `Unsupported primitive type for string
+ * decoding`, and an `Option`, a collection, a wrapper or a record gives
+ * `Unsupported schema type for string decoding`. The schema's `Validation` is
+ * never checked.
+ *
+ * {{{
+ * import zio.http.QueryParams
+ *
+ * val params = QueryParams(
+ *   "order"   -> "550e8400-e29b-41d4-a716-446655440000",
+ *   "express" -> "TRUE",
+ *   "qty"     -> "",
+ *   "grade"   -> "AB"
+ * )
+ *
+ * params.query[java.util.UUID]("order") // Right(550e8400-e29b-41d4-a716-446655440000)
+ * params.query[Boolean]("express")      // Right(true)
+ * params.query[Int]("qty")              // Left(Malformed(qty,,Cannot parse '' as Int))
+ * params.query[Char]("grade")           // Left(Malformed(grade,AB,Expected single character but got 'AB'))
+ * params.query[Option[Int]]("qty")      // Left(Malformed(qty,,Unsupported schema type for string decoding))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/schema/#supported-types Supported Types]]
+ */
 private[schema] object StringDecoder {
 
+  /**
+   * Decodes `raw` as a `T`, or returns the reason it cannot, when `schema` is
+   * one of the supported primitives.
+   */
   def decode[T](raw: String, schema: Schema[T]): Either[String, T] =
     schema.reflect match {
       case p: Reflect.Primitive[Binding, T] @unchecked =>
