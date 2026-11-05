@@ -768,6 +768,10 @@ Session `jwt-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0
 
 Session `maybe-combinators-context-scaladoc` (Opus), started 2026-11-05 on `main` `c2e4a39fd`. Phase 0: 25 / 251 (maybe 5/135, combinators 7/79, context 13/37); `--drift` lists 3 members in `Maybe.scala` (`class Present`, `def present`, `object Absent`); 2 existing `{{{` blocks (`ContextHas`); sources byte-identical to `v0.0.56`; packages fit `moduleImport`, so the build change is three list entries; no known entries for these modules apart from the combinators `Tuples` Scala 2 nesting bug filed by the async rollout. Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; one Opus writer for all three modules, then a fresh Opus fact-check review.
 
+## 13m. Scaladoc: schema-messagepack and http-model-schema (in progress)
+
+Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `aa8164217`. Phase 0: 11 / 189 (schema-messagepack 5/134, http-model-schema 6/55); `--drift` empty; no `{{{` blocks; packages `zio.blocks.schema.msgpack` and `zio.http.schema` need `packageOverrides` entries (from #1943); `moduleOf` already tells `http-model-schema` apart from `http-model`; 5 known entries (4 http-model-schema, 1 msgpack `DynamicSchema`). Milad's Phase 1 decisions: one PR for both modules; tier 1 = `MessagePackFormat`, `MessagePackCodec`, `QueryCodec`, `HeaderCodec`, the `Request`/`Response`/`Headers`/`QueryParams` schema extension methods, `StringDecoder`; the AGENTS.md diff will be shown with the spec.
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
