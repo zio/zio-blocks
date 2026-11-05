@@ -762,7 +762,7 @@ Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase
 
 | Item | Result |
 |---|---|
-| PR | #1946 (one PR); CI green on `be75cd226`: 23 pass, 10 skipping, no reruns; main merged in three times (#1942, #1943, #1944), both sides kept |
+| PR | #1946 (one PR), merged 2026-11-05 as `380e19bdf`; CI green on `be75cd226`: 23 pass, 10 skipping, no reruns; main merged in three times (#1942, #1943, #1944), both sides kept |
 | Coverage | 105 / 144 (72%; `async` 91/123, `async.internal` 14/21) → 144 / 144; `--drift` 7 → 0; comments-only: 31 files, 0 code changes |
 | Examples | 47 compiled per Scala version (2.13.18, 3.9.0, 3.10.0); none of the 3 old ones had ever compiled. `Async.promise` shows both the `// scala-2-only` `implicit c =>` form and the `// scala-3-only` context-function form |
 | Writing | Task 1a (Opus: shared files and tooling, the only sbt runner) and Task 1b (Opus: jvm/js, macros, internals; scala-cli only) in parallel; Task 2 (Sonnet) wrote 22 tier-3 one-liners |
