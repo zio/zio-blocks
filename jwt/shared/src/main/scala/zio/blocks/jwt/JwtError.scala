@@ -130,9 +130,10 @@ object JwtError {
   }
 
   /**
-   * A required field is absent or JSON `null`: `alg` in the header, `iss` when
+   * A required field is absent: `alg` in the header, `iss` when
    * [[JwtDecodeOptions]] sets `issuer`, or `aud` when it sets
-   * `expectedAudience`.
+   * `expectedAudience`. An `iss` or `aud` that is JSON `null` counts as absent;
+   * an `alg` that is `null` gives `InvalidClaim("alg", "must be a string")`.
    */
   case class MissingClaim(claim: String) extends JwtError {
 
