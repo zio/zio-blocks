@@ -2815,6 +2815,37 @@ The compile prints no warning. `recent_query-*.sql` and `_local_Dumps___query-*.
 
 Filed as #1764. Found 2026-10-20 while writing T-09. Verified on 0.0.56. `&` renders as `&amp;amp;`, which breaks URLs with query strings.
 
+**Addition (2026-11-05, html Scaladoc rollout).** Found while writing the Scaladoc for `TemplateInterpolators.html` and `ToAttrValue`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+The double escaping is not limited to interpolated string values. Entities written in the template itself are escaped again (the parser never decodes them, and rendering escapes the stored text), in text and in attribute values, and a `Js` value in an attribute position is escaped twice too. `ToAttrValue`'s Scaladoc claimed "proper escaping".
+
+`Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(html"<p>Fish &amp; chips</p>".render)
+    println(html"""<a title="Fish &amp; chips">menu</a>""".render)
+    println(html"<a onclick=${Js("add('tea')")}>add</a>".render)
+    println(p("Fish & chips").render)
+  }
+}
+// <p>Fish &amp;amp; chips</p>
+// <a title="Fish &amp;amp; chips">menu</a>
+// <a onclick="add(&amp;#x27;tea&amp;#x27;)">add</a>
+// <p>Fish &amp; chips</p>
+```
+
+**Root cause addition.** `parseHtml` stores text and attribute values verbatim (`html/shared/src/main/scala/zio/blocks/html/InterpolatorRuntime.scala:207`, `:416`, `:421`); `Dom.Text` and `StringValue` are escaped on render (`Text.renderTo` calls `Escape.htmlTo` at `html/shared/src/main/scala/zio/blocks/html/Dom.scala:764`; the `StringValue` branch at `:997`). `ToAttrValue` instances escape first (`html/shared/src/main/scala/zio/blocks/html/ToAttrValue.scala:31`).
+
+**Test gap addition.** The attribute tests use values without escapable characters (`"my-class"`, `"main"`, `"foo bar"`), so the second escape is never visible; no test writes an entity in a template.
+
+**Suggested fix addition.** Decode entities in `parseHtml` text and attribute values, and make `ToAttrValue` return raw text (the renderer escapes once).
+
 ### html: `selector"..."` never matches in `Dom#select`
 
 Filed as #1765. Found 2026-10-20 while writing T-09. Verified on 0.0.56. The interpolator builds `CssSelector.Raw`, which `select` never matches (`DomSelection.scala:296`; `DomSelectionSpec` asserts this).
@@ -12069,6 +12100,342 @@ The same file with `//> using scala 3.9.0`, `//> using dep dev.zio::zio-blocks-n
 
 **Suggested fix.** Teach the Scala 2 macro to concatenate a right-hand tuple (arity check against 22 included), and move the right-tuple cases of `TuplesRecursiveFlatteningSpec` to the shared test directory. Until then, say on the combinators reference page that Scala 2 nests a right-hand tuple (the async Scaladoc now says so on `Async#zip`).
 
+### html: `html"..."` treats any value after `=` as an attribute value, also in text and scripts
+
+**Where found.** Writing the Scaladoc for `TemplateInterpolators.html`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** The interpolator decides "attribute value or content" only by whether the literal text before the value ends with `=`, `='` or `="` after trimming. It never checks that the position is inside a tag. So `<p>Total = $n</p>` takes the attribute path: the value is HTML-escaped, wrapped in quotes and then escaped again on render; in a script, `var x = $name` gets an HTML-escaped, double-quoted string.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val total = 42
+    val name  = "Ann <admin>"
+    println(html"<p>Total = $total</p>".render)
+    println(html"<p>Total: $total</p>".render)
+    println(html"<script>var shopper = $name;</script>".render)
+  }
+}
+// <p>Total = &quot;42&quot;</p>
+// <p>Total: 42</p>
+// <script>var shopper = "Ann &lt;admin&gt;";</script>
+```
+
+**Expected.** `<p>Total = 42</p>`; in the script, either a compile error or a JavaScript literal.
+
+**Root cause.** `determineContexts` (`html/shared/src/main/scala-2/zio/blocks/html/TemplateInterpolators.scala:152`, `html/shared/src/main/scala-3/zio/blocks/html/TemplateInterpolators.scala:244`) looks only at the end of the trimmed part; `InterpolatorRuntime.buildHtml` then adds quotes (`html/shared/src/main/scala/zio/blocks/html/InterpolatorRuntime.scala:77`).
+
+**Impact.** Wrong text in ordinary sentences ("Total = ...", "x = ..."), and quoted, entity-filled strings in scripts.
+
+**Test gap.** `ContextAwareHtmlSpec` "attr value position" tests put the value inside a tag; no test has `=` in text content before a value.
+
+**Suggested fix.** Track whether the parser is inside an open tag (an unclosed `<` in the parts so far) and use the attribute path only there.
+
+### html: `html"..."` leaves control characters in an attribute when a value sits inside a quoted value
+
+**Where found.** Fact-checking the `html""` section of `docs/reference/html.md` (its example `id="user-$age"`, see the docs entry on `id="user-$age"`), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** A value in the middle of a quoted attribute value (`id="order-$orderId"`) does not follow `=`, so it is classified as content. Content values are written into the template as a sentinel (`\u0000\u0001<index>\u0000\u0001`) that is replaced only in text nodes; inside an attribute it is never replaced, so the rendered attribute contains the NUL and SOH control characters and the argument index instead of the value. Nothing fails.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val orderId = 30
+    val dom     = html"""<div id="order-$orderId" class="order">Order</div>"""
+    println(dom.render.replace("\u0000", "<NUL>").replace("\u0001", "<SOH>"))
+    println(dom.render.length)
+  }
+}
+// <div id="order-<NUL><SOH>0<NUL><SOH>" class="order">Order</div>
+// 47
+```
+
+**Expected.** `<div id="order-30" class="order">Order</div>`, or a compile error for a value inside a quoted value.
+
+**Root cause.** Context detection by the end of the part (`html/shared/src/main/scala-2/zio/blocks/html/TemplateInterpolators.scala:152`, `scala-3/.../TemplateInterpolators.scala:244`) sends the value down the content path (`html/shared/src/main/scala/zio/blocks/html/InterpolatorRuntime.scala:88`); the attribute parser stores the sentinel as part of the string value (`InterpolatorRuntime.scala:416`), and `substituteContentArgs` only rewrites `Dom.Text` (`InterpolatorRuntime.scala:229`).
+
+**Impact.** Ids, URLs and class names built from a prefix plus a value are silently corrupted; the reference page shows exactly this pattern as working.
+
+**Test gap.** Every attribute test in `ContextAwareHtmlSpec` and `HtmlInterpolatorSpec` puts the value as the whole attribute value (`class="$cls"`, `class=${userInput}`).
+
+**Suggested fix.** Treat a value inside an open attribute quote as part of the attribute value (convert with `ToAttrValue` and concatenate), or reject it at compile time.
+
+### html: `Dom#select` never returns void elements (`img`, `input`, `br`, ...)
+
+**Where found.** Writing the Scaladoc for `DomSelection#select`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** Void elements built with the DSL are `Dom.Element.Void` values, which do not extend `Dom.Element`. Selection only looks at `Dom.Element` children, so `select(CssSelector.Element("input"))` finds nothing, and `select(CssSelector.Universal)` skips them. Form tests ("the page has an email input") cannot be written with `select`. Void tags parsed by `html"..."` are `Dom.Element.Generic` values and are found.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val form = div(label("Email"), input(`type` := "email", name := "email"), img(src := "/logo.png"), br)
+    println(form.select(CssSelector.Element("input")).length)
+    println(form.select(CssSelector.Element("img")).length)
+    println(form.select(CssSelector.Universal).length)
+    println(form.select(CssSelector.Element("label")).length)
+    val parsed = html"<div><input name=email><img src=/logo.png></div>"
+    println(parsed.select(CssSelector.Element("input")).length)
+  }
+}
+// 0
+// 0
+// 1
+// 1
+// 1
+```
+
+**Expected.** `1`, `1`, `4`, `1`, `1`.
+
+**Root cause.** `DomSelection.collectDescendants` and `collectSelfAndDescendants` match only `case ... : Dom.Element` (`html/shared/src/main/scala/zio/blocks/html/DomSelection.scala:335`, `:426`), and so does `selectChild` (`:384`); and `selectorMatches`, `getAttributeValue` and `hasClass` take a `Dom.Element`. `DomSelection#elements`, `withTag`, `withAttribute` and `attrs` drop void elements the same way (`children` and `descendants` keep them).
+
+**Impact.** `DomSelection` is the module's test and query API; inputs, images, links (`<link>`), `meta` and `source` are invisible to it.
+
+**Test gap.** `DomSelectionSpec` builds no void element (no `img`, `input`, `br`, `meta` anywhere in the file).
+
+**Suggested fix.** Treat `Dom.Element.Void` as a matchable node: give it the same tag/attribute access (for example a common `Dom.Tagged` trait with `tag` and `attributes`) and accept it in the collectors and `elements`.
+
+### html: Nested combinators never match in `Dom#select`, and `>>` can return an element twice
+
+**Where found.** Writing the Scaladoc for `DomSelection#select`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** `select` handles a `Child` or `Descendant` only at the top of the selector, and only when both sides are simple. A chain such as `ul > li > a` is `Child(Child(ul, li), a)`; the inner `Child` goes to `selectorMatches`, which returns `false` for combinators, so the chain matches nothing. The same happens to `ul li a` and to a combinator inside `|` or `&`. Separately, `div >> p` with nested `div`s collects `p` once per matching ancestor, so the result has duplicates.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val nav = div(ul(li(a(href := "/", "Home")), li(a(href := "/cart", "Cart"))))
+    val ul_ = CssSelector.Element("ul")
+    val li_ = CssSelector.Element("li")
+    println((ul_ > li_ > a).render + " -> " + nav.select(ul_ > li_ > a).length)
+    println((ul_ >> li_ >> a).render + " -> " + nav.select(ul_ >> li_ >> a).length)
+    println(((ul_ > li_) | (div > ul_)).render + " -> " + nav.select((ul_ > li_) | (div > ul_)).length)
+    println((li_ > a).render + " -> " + nav.select(li_ > a).length)
+    val nested = div(div(div(p("Tea"))))
+    println((div >> p).render + " -> " + nested.select(div >> p).length)
+  }
+}
+// ul > li > a -> 0
+// ul li a -> 0
+// ul > li, div > ul -> 0
+// li > a -> 2
+// div p -> 3
+```
+
+**Expected.** `2`, `2`, `3`, `2`, `1` (each matching element once, as in CSS).
+
+**Root cause.** `DomSelection#select` dispatches only a top-level `Child`/`Descendant` (`html/shared/src/main/scala/zio/blocks/html/DomSelection.scala:77` onward); `selectorMatches` returns `false` for `Child` and `Descendant` (`DomSelection.scala:297`, and the next line). `selectDescendant` collects every matching ancestor including nested ones (`DomSelection.scala:406`) and appends the descendants of each (`DomSelection.scala:414`) without deduplication.
+
+**Impact.** Ordinary CSS paths used in tests return empty results, so assertions on `length` fail or, worse, `isEmpty` checks pass by accident. Duplicates inflate counts.
+
+**Test gap.** `DomSelectionSpec` "select Child combinator" and "select Descendant combinator" use two-part selectors only; the `selectorMatches` tests at lines 459 and 466 assert that combinators return `false`.
+
+**Suggested fix.** Match combinators right to left: a node matches `Child(p, c)` when it matches `c` and its parent matches `p` (recursively), which needs parent links or a path during traversal; deduplicate results by identity while keeping document order.
+
+### html: `DomSelection` reads attributes differently from rendering
+
+**Where found.** Writing the Scaladoc for `DomSelection` and `Dom.Attribute`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** Rendering merges repeated attributes: the last `:=` wins and `+=` values are appended. Selection does something else: `getAttributeValue` (used by `attrs`, id and attribute selectors, `withId`, `withAttribute(name, value)`) returns the first `:=` value and skips `+=` values; `hasClass` reads `+=` values until the first `class` set with `:=`, checks that value and stops. So the reference page's own pattern `className := "card", className += "sale"` renders `class="card sale"` but `.sale` does not match, and a replaced id still matches its old value.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val card = div(p(className := "card", className += "sale", "Tea"))
+    println(card.render)
+    println(card.select(CssSelector.Class("sale")).length)
+    println(card.select(CssSelector.Element("p")).attrs("class"))
+    val dup = div(p(id := "draft", id := "final", "Cake"))
+    println(dup.render)
+    println(dup.select(CssSelector.Id("final")).length)
+    println(dup.select(CssSelector.Id("draft")).length)
+  }
+}
+// <div><p class="card sale">Tea</p></div>
+// 0
+// Chunk(card)
+// <div><p id="final">Cake</p></div>
+// 0
+// 1
+```
+
+**Expected.** `1`, `Chunk(card sale)`, `1`, `0`: selection sees what the page renders.
+
+**Root cause.** `hasClass` returns at the first `class` `KeyValue` (`html/shared/src/main/scala/zio/blocks/html/DomSelection.scala:458`, `:463`); `getAttributeValue` returns the first `KeyValue` and ignores `AppendValue` (`DomSelection.scala:524` onward). Rendering resolves attributes in `Dom.resolveAttributes` (`html/shared/src/main/scala/zio/blocks/html/Dom.scala:892`, `:911`).
+
+**Impact.** Tests written with `select` disagree with the rendered page for the most common class pattern (base class plus conditional `+=`, also what `when(...)(className += ...)` produces).
+
+**Test gap.** `DomSelectionSpec` "hasClass with MultiValue and AppendValue" builds elements with only one `class` attribute each (either a `KeyValue` or an `AppendValue`), never both, and no `DomSelectionSpec` test repeats an attribute (`HtmlElementsSpec.scala:697` does, but checks only the rendered string).
+
+**Suggested fix.** Resolve the attributes once with the renderer's merge (`Dom.resolveAttributes`) and read the merged values in `hasClass`, `getAttributeValue` and `hasAttribute`.
+
+**Amendment (presence test).** The presence check disagrees with rendering too: a `false` value set with `AttributeKey#:=` renders nothing, but `withAttribute(name)` and the `[name]` selector count it.
+
+`Repro.scala`, run with `scala-cli run --server=false Repro.scala` (the same output on 3.9.0, as the code is shared):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val page = div(p(attr("hidden") := false, "Tea"), p("Cake"))
+    println(page.render)
+    println(page.select(CssSelector.Element("p")).withAttribute("hidden").texts)
+    println(page.select(CssSelector.Element("p").withAttribute("hidden")).texts)
+  }
+}
+// <div><p>Tea</p><p>Cake</p></div>
+// Chunk(Tea)
+// Chunk(Tea)
+```
+
+Expected: `Chunk()` twice. Root cause: `hasAttribute` returns `true` for any `KeyValue` with the name (`html/shared/src/main/scala/zio/blocks/html/DomSelection.scala:506`), while rendering skips `BooleanValue(false)` (`html/shared/src/main/scala/zio/blocks/html/Dom.scala:986-990`). Test gap: `DomSelectionSpec` "hasAttribute with BooleanAttribute and AppendValue" covers `BooleanAttribute`, not a `KeyValue` holding `BooleanValue(false)`.
+
+### html: `Css.Declaration(property, "...")` escapes quotes on Scala 3 but not on Scala 2
+
+**Where found.** Writing the Scaladoc for `Css.Declaration`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical. Behaviour differs by Scala version (both runs below).
+
+**Summary.** `Declaration` is a case class with a private constructor and a companion `apply[A](property, value: A)(implicit ToCss[A])`. On Scala 3 the synthetic case-class `apply` is private, so a `String` value goes through `ToCss[String]`, which CSS-escapes quotes, `<`, `>` and `&`: `font-family: "Inter", sans-serif` becomes `\"Inter\", sans-serif`, which browsers do not read as the intended font list, and `url('/logo.png')` becomes `url(\'/logo.png\')`. On Scala 2.13 the synthetic public `apply(String, String)` wins overload resolution, so the same call keeps the text as written. Code shared across versions renders different CSS.
+
+**Reproducer.** `Repro.scala` (Scala 3.9.0), run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+import zio.blocks.chunk.Chunk
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val body = Css.Rule(CssSelector.Element("body"), Chunk(Css.Declaration("font-family", "\"Inter\", sans-serif")))
+    println(body.render)
+    val logo = Css.Rule(CssSelector.Class("logo"), Chunk(Css.Declaration("background", "url('/logo.png')")))
+    println(logo.render)
+  }
+}
+// body{font-family:\"Inter\", sans-serif;}
+// .logo{background:url(\'/logo.png\');}
+```
+
+The same file with `//> using scala 2.13.18`, run the same way:
+
+```scala
+// body{font-family:"Inter", sans-serif;}
+// .logo{background:url('/logo.png');}
+```
+
+**Expected.** The same output on both versions; for a declaration value, the text as written (it is CSS, not a string literal).
+
+**Root cause.** `final case class Declaration private (property: String, value: String)` with `def apply[A](property: String, value: A)(implicit ev: ToCss[A])` (`html/shared/src/main/scala/zio/blocks/html/Css.scala:82`, `:85`); `ToCss[String]` is `Escape.cssString` (`html/shared/src/main/scala/zio/blocks/html/ToCss.scala:31`).
+
+**Impact.** On Scala 3, any declaration value with quotes (font stacks, `url(...)`, `content`) is broken; on Scala 2 nothing is escaped, so the two versions disagree.
+
+**Test gap.** `CssAdtSpec` declares only values without quotes (`"red"`, `"0.5"`, `"0"`, `10.px`), and so does `HtmlElementsSpec.scala:824-835` (`"red"`, `"10px"`, `"0"`, `"blue"`).
+
+**Suggested fix.** Give `ToCss[String]`-free overloads: an explicit `apply(property: String, value: String)` that keeps the text, used on both versions, and keep the generic `apply` for typed values (`CssLength`, `CssColor`, numbers).
+
+### html: `CssColor.Hex` accepts five and seven hex digits
+
+**Where found.** Triage of the Task 3 suspect list for `ToCss.scala`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** The checked constructor promises validation, but its pattern is `[0-9a-fA-F]{3,8}`, so 5- and 7-digit values are accepted and render as `#12345`, which CSS rejects (it allows 3, 4, 6 or 8 digits).
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(CssColor.Hex("12345").map(_.render))
+    println(CssColor.Hex("1234567").map(_.render))
+    println(CssColor.Hex("abc").map(_.render))
+    println(CssColor.Hex("12").map(_.render))
+  }
+}
+// Some(#12345)
+// Some(#1234567)
+// Some(#abc)
+// None
+```
+
+**Expected.** `None`, `None`, `Some(#abc)`, `None`.
+
+**Root cause.** `v.matches("[0-9a-fA-F]{3,8}")` in `CssColor.Hex.apply` (`html/shared/src/main/scala/zio/blocks/html/ToCss.scala`, the `Hex` companion, line 122 at the base).
+
+**Impact.** Low: a typo in a colour passes validation and the browser drops the declaration.
+
+**Test gap.** `CssColorSpec` checks a 6-digit value, `#00ff00` and `"invalid"` only.
+
+**Suggested fix.** Use `[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}`.
+
+### html: Merging a `Js` or `Boolean` `:=` value with `+=` renders the case-class name
+
+**Where found.** Review of the html Scaladoc (`Dom.Attribute` merging), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** When an attribute has a `:=` value and `+=` values, rendering joins them with `appendBaseValue`, which handles string and multi-values and falls back to `toString` for anything else. A `JsValue` or `BooleanValue` base therefore renders as `JsValue(...)` or `BooleanValue(true)` text inside the attribute.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(button(attr("class") := js"btn", className += "primary").render)
+    println(div(attr("class") := true, className += "card").render)
+  }
+}
+// <button class="JsValue(btn) primary"></button>
+// <div class="BooleanValue(true) card"></div>
+```
+
+**Expected.** `class="btn primary"`; for the `Boolean` case, `class="card"` or a defined rule.
+
+**Root cause.** `case other => sb.append(other.toString)` in `appendBaseValue` (`html/shared/src/main/scala/zio/blocks/html/Dom.scala:977`), called from `resolveAttributes` (`Dom.scala:911`).
+
+**Impact.** Low: mixing a `Js` or `Boolean` value with `+=` on one attribute is unusual, but the output is silently wrong.
+
+**Test gap.** No test merges a non-string `:=` value with `+=`.
+
+**Suggested fix.** Handle `JsValue` (`js.value`) and `BooleanValue` explicitly in `appendBaseValue`, or reject the combination.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -16012,6 +16379,121 @@ class Session {
 **Test gap.** `DbParamFromCodecSpec` has one test, a one-column codec (`ProductId`). `SqlInterpolatorSpec` "multi-column values fail with a clear error" (`SqlInterpolatorSpec.scala:210-219`) asserts the message for 2 columns only. No test interpolates a type whose derived codec has zero columns.
 
 **Suggested fix.** Make the zero-column case a compile error in the macro (check `codec.columns.size` when it is known statically, or require a one-column codec), and give the run-time message a separate wording for 0 columns.
+
+### html: `html"..."` counts whitespace around the root as top-level nodes, so a template with a leading newline throws
+
+**Where found.** Fact-checking `docs/reference/html.md` "Template Composition" (see the docs entry on its example), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** The usual multi-line form `html"""` newline `<html>...</html>` newline `"""` parses to three top-level nodes (text, element, text): whitespace before or after the root element counts as extra top-level nodes. On Scala 2, and on Scala 3 when the template has interpolated values, this throws `IllegalArgumentException` at run time; on Scala 3 a template without values fails to compile with "Found 3 top-level nodes".
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val title = "Shop"
+    val page = scala.util.Try(html"""
+<html>
+  <head><title>$title</title></head>
+</html>
+""")
+    println(page)
+    println(scala.util.Try(html"""
+<p>static</p>
+"""))
+    println(html"""<html><head><title>$title</title></head></html>""".render)
+  }
+}
+// Failure(java.lang.IllegalArgumentException: html interpolator requires a single root element. Found 3 top-level nodes. Wrap them in a parent element: html"<div>...</div>")
+// Failure(java.lang.IllegalArgumentException: html interpolator requires a single root element. Found 3 top-level nodes. Wrap them in a parent element: html"<div>...</div>")
+// <html><head><title>Shop</title></head></html>
+```
+
+**Expected.** Whitespace-only text before and after the single root element is dropped.
+
+**Root cause.** `InterpolatorRuntime.buildHtml` counts every top-level node from `parseHtml`, whitespace text included (`html/shared/src/main/scala/zio/blocks/html/InterpolatorRuntime.scala:100`); the Scala 3 static check does the same (`html/shared/src/main/scala-3/zio/blocks/html/TemplateInterpolators.scala:189`, `validateStaticHtml`, `if (parsed.length != 1)`).
+
+**Impact.** The natural way to write a page template fails, and the message ("Wrap them in a parent element") points at the wrong cause. The reference page's own example throws.
+
+**Test gap.** No `html"..."` test template starts or ends with whitespace; `HtmlInterpolatorSpec` "whitespace-only input" checks `parseHtml("   ")` only.
+
+**Suggested fix.** Drop whitespace-only `Dom.Text` nodes at the top level before the root count, in both `buildHtml` and `validateStaticHtml`.
+
+### html: A later `:=` does not replace earlier `+=` values, and repeated boolean attributes render twice
+
+**Where found.** Writing the Scaladoc for `MultiAttributeKey` and `Dom.Attribute`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical. (Task 2's suspect "`className := "a", `class` := "b"` renders only `class="b"`" is the documented `:=` behaviour, not a bug.)
+
+**Summary.** `MultiAttributeKey`'s old Scaladoc and the reference page say `:=` overrides and "last assignment wins". That holds between two `:=`, but values added with `+=` are kept whatever their order, so `className += "sale", className := "card"` renders `class="card sale"`. Repeated boolean attributes are not merged at all.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(div(className += "sale", className := "card").render)
+    println(div(className := "sale", className := "card").render)
+    println(input(disabled, disabled).render)
+  }
+}
+// <div class="card sale"></div>
+// <div class="card"></div>
+// <input disabled disabled/>
+```
+
+**Expected.** Either `:=` resets the attribute (`class="card"`) or the docs say that `+=` values always survive; one `disabled`.
+
+**Root cause.** `Dom.resolveAttributes` takes the last `KeyValue` as the base and appends every `AppendValue` (`html/shared/src/main/scala/zio/blocks/html/Dom.scala:892`, `:911`) and copies boolean attributes unconditionally (`Dom.scala:958`).
+
+**Impact.** A component that resets classes with `:=` after a caller added some with `+=` keeps the caller's classes; duplicated boolean attributes are invalid HTML (harmless in browsers).
+
+**Test gap.** No test puts `:=` after `+=` for the same name or repeats a boolean attribute.
+
+**Suggested fix.** Decide the semantics: make a `KeyValue` drop earlier `AppendValue`s of its name (order-aware merge), and deduplicate boolean attributes; or document the current rule (the new Scaladoc does).
+
+### html: Typed content models are checked only in the factory call
+
+**Where found.** Fact-checking the Scaladoc of `TrElement` ("intentionally keeps the row content model intact"), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
+
+**Summary.** `ul`, `ol`, `tr`, `table`, `select` and `optgroup` reject wrong children in their own argument list, but every element inherits `Dom.Element#apply(DomModifier*)` and `when`/`whenSome`, so applying the result to more modifiers adds any child. `TrElement` and `OptgroupElement` "do not override `apply`", which their Scaladoc presented as keeping the content model intact; in fact the inherited `apply` accepts anything (it only changes the static type to `Dom.Element`).
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(tr(td("Tea"))(p("note")).render)
+    println(ul(li("Tea"))(div("Ad")).render)
+    println(optgroup(option("Tea"))(p("x")).render)
+    println(select(option("Tea")).when(true)(div("x")).render)
+  }
+}
+// <tr><td>Tea</td><p>note</p></tr>
+// <ul><li>Tea</li><div>Ad</div></ul>
+// <optgroup><option>Tea</option><p>x</p></optgroup>
+// <select><option>Tea</option><div>x</div></select>
+```
+
+**Expected.** As documented by the reference page's "Typed Content Models": wrong children do not compile.
+
+**Root cause.** `Dom.Element#apply`, `when` and `whenSome` accept any `DomModifier` (`html/shared/src/main/scala/zio/blocks/html/Dom.scala:217` onward); the typed factories return `Dom.Element`, `TrElement` or `OptgroupElement`, none of which restrict `apply`.
+
+**Impact.** The compile-time guarantee covers only the first argument list; invalid markup compiles.
+
+**Test gap.** `ContentModelsSpec` has no compile-fail test (`grep -ri 'typeCheck\|compileErrors\|illTyped' html/shared/src/test` finds nothing), so nothing checks that the factories reject wrong children; its "Dom.Element methods still work" tests (`ContentModelsSpec.scala:151`, `:155`, `:159`) apply `when` to `ul(...)` and `tr(...)` results with an attribute only, and no test adds a child through `apply` or `when`.
+
+**Suggested fix.** Return dedicated types from `ul`/`ol`/`table`/`select` (as for `tr`) whose `apply` accepts only attributes and the permitted children, and override `apply` in `TrElement`/`OptgroupElement` to the restricted argument type; or document that the check is per factory call (the new Scaladoc does).
 
 ## Test and CI
 

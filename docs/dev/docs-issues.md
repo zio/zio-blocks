@@ -335,6 +335,82 @@ object PeekRepro {
 
 **Suggested fix.** Replace the two sentences as in "Expected".
 
+### `reference/html.md`: the `html""` example `id="user-$age"` does not work
+
+**Where found.** `docs/reference/html.md:613-622` (section "`html""` Interpolator"), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+**Summary.** The comment says "age is in attribute position → ToAttrValue[Int]", but the preceding text ends with `user-`, not `=`, so `$age` is content and the attribute renders with control characters (`id="user-\u0000\u00010\u0000\u0001"`); the library entry on control characters in quoted attribute values has the reproducer. The block is `mdoc:compile-only`, so the site never shows the output.
+
+**Suggested fix.** Use `id=$age` (whole value) in the example and say that a value inside a quoted attribute value is not supported (a known bug).
+
+### `reference/html.md`: the "Template Composition" example throws at run time
+
+**Where found.** `docs/reference/html.md:1242-1260`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+**Summary.** The template starts and ends with a newline, so `html"""..."""` sees three top-level nodes and throws `IllegalArgumentException` (the usability-trap entry on whitespace around the root has the reproducer). `mdoc:compile-only` hides it.
+
+**Suggested fix.** Start the template with `<html>` on the first line and end it right after `</html>`, run the block with plain `mdoc`, and mention the whitespace rule next to the single-root requirement.
+
+### `reference/html.md`: `Dom#filter` does not replace failing nodes with `Dom.Empty`
+
+**Where found.** `docs/reference/html.md:240`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+**Summary.** "Non-matching nodes are replaced with `Dom.Empty`, and their children are lost" is false for children: a failing child is removed from its parent's children; only a failing root returns `Dom.Empty`. `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-html:0.0.56
+import zio.blocks.html._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val tree = div(p("A"), span("B", em("C")), p("D"))
+    println(tree.filter { case el: Dom.Element => el.tag != "span"; case _ => true }.render)
+    println(tree.filter { case el: Dom.Element => el.tag == "p"; case _ => true })
+  }
+}
+// <div><p>A</p><p>D</p></div>
+// Empty
+```
+
+
+**Suggested fix.** "A failing child is removed together with its subtree; when the root itself fails, the result is `Dom.Empty`."
+
+### `reference/html.md`: multi-valued attributes, override and `accept`
+
+**Where found.** `docs/reference/html.md:345-361`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+**Summary.** (a) `accept` is listed with `class` and `rel` as a multi-valued attribute, but it is an `AttributeKey`: `div(accept += "image/png")` fails to compile with "value += is not a member of zio.blocks.html.AttributeKey" (2.13.18: "did you mean :=?"; 3.9.0: "did you mean accept.!=? or perhaps accept.:=?"). (b) "`:=` (override) — Replaces any previous value. Last assignment wins" does not hold after `+=`: `className += "sale", className := "card"` renders `class="card sale"` (a known trap).
+
+**Suggested fix.** Drop `accept` from the list (or make it a `MultiAttributeKey` with a comma separator), and say that `:=` replaces earlier `:=` values while `+=` values are always appended.
+
+### `reference/html.md`: garbled JavaScript escape descriptions
+
+**Where found.** `docs/reference/html.md:700-701`, `:1153-1155`, `:1168-1169`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+**Summary.** The Unicode escapes were turned into the characters themselves somewhere along the way. Line 1153 reads "`<` → backslash-u-0-0-3-c (the six-character Unicode escape sequence `<`)" (lines 1154-1155 likewise for `>` and `&`), and line 701 says "with < and > characters escaped as < and > in actual output". The real output of `js"let check = $userInput"` with `userInput = "if (x < y) alert('<script>');"` contains `\u003c`, `\u003e` and `\'`:
+
+```
+let check = "if (x \u003c y) alert(\'\u003cscript\u003e\');"
+```
+
+The code comments at lines 700 and 1168 also show unescaped output. (Line 1169 reads "(with < and > characters escaped as Unicode in actual output)", which is right.)
+
+**Suggested fix.** Show the real `println(code.value)` output (run the blocks with plain `mdoc`), and write the escapes in code spans as `\u003c`, `\u003e`, `\u0026`.
+
+### `reference/html.md`: smaller errors
+
+**Where found.** `docs/reference/html.md`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
+
+- Line 50: `case class Css.Declaration(property: String, value: String) extends Css` — `Css.Declaration` does not extend `Css` (`Css.scala:82`), and its constructor is private.
+- Lines 147-149: "The Five Node Types" lists six headings (`Text`, `Generic`, `Script`, `Style`, `Doctype`, `Empty`) and leaves out `Dom.Element.Void`, which is a node type of its own (described at line 490).
+- Line 92: "depends transitively on `zio-blocks-schema`": `html` depends on `schema` and `chunk` directly (`build.sbt`, `lazy val html ... .dependsOn(chunk, schema)`).
+- Line 1069: "structured CSS ... prevents CSS injection": declaration values are not checked (Scala 2) or only quote-escaped (Scala 3; a known bug).
+- Line 704-713 (`selector""`): no warning that the result never matches in `Dom#select` (existing #1765).
+- Lines 893-897: the note on what `DomSelection` cannot match misses void elements, nested combinators and the attribute reading (all known bugs).
+
+**Suggested fix.** Correct each line as stated.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
