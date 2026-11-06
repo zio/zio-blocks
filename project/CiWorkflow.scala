@@ -77,6 +77,10 @@ object CiWorkflow {
     uses = Some(ActionRef("coursier/cache-action@v8"))
   )
 
+  // The plugin's own SetupSBT pins sbt/setup-sbt@v1.5.7, whose AMPEL signature verification fails with
+  // "unable to parse a policy, group or policySet from data". v1.5.14 pins the signature policy to the older format.
+  private val SetupSbt = SingleStep(name = "Setup SBT", uses = Some(ActionRef("sbt/setup-sbt@v1.5.14")))
+
   private def expr(e: String): Condition = Condition.Expression(e)
 
   private val IsPullRequest = expr("github.event_name == 'pull_request'")
@@ -110,7 +114,7 @@ object CiWorkflow {
       steps = Seq(
         Checkout.value,
         SetupJava("25"),
-        SetupSBT,
+        SetupSbt,
         CacheDependencies,
         SingleStep(
           name = "Setup Node.js",
@@ -460,7 +464,7 @@ object CiWorkflow {
       steps = Seq(
         Checkout.value,
         SetupJava("25"),
-        SetupSBT,
+        SetupSbt,
         CacheDependencies,
         SingleStep(
           name = "Setup NodeJs",
