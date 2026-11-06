@@ -22,28 +22,56 @@ import zio.blocks.combinators.Tuples
 import zio.http.Path
 
 /**
- * Composable path descriptor. Segments are combined with `/` or `++`, literal
- * alternatives with `orElse`. Use `decode` / `format` for bidirectional path
- * conversion, and `alternatives` to expand `orElse` branches for routing-trie
- * insertion.
+ * A typed description of a URL path: literal segments such as `notes`,
+ * capturing segments such as `{id}`, and their order. It decodes a
+ * [[zio.http.Path]] into an `A`, formats an `A` back into a path, and renders
+ * as a template such as `/notes/{id}`.
+ *
+ * Build one from a string (`PathCodec("notes")`), from the capturing
+ * constructors (`PathCodec.int("id")`, `string`, `long`, `bool`, `uuid`,
+ * `trailing`) or from a [[SegmentCodec]], and join them with `/`. The captured
+ * values form a tuple, and literal segments add nothing to it. `orElse` offers
+ * literal alternatives, `transform` maps the value to a domain type, and
+ * `unused` drops it.
+ *
+ * {{{
+ * import zio.http.Path
+ *
+ * val notePath = PathCodec("notes") / PathCodec.int("id")
+ *
+ * notePath.render                   // /notes/{id}
+ * notePath.decode(Path("/notes/42")) // Right(42)
+ * notePath.format(7)                 // Right(/notes/7)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/endpoint/path-codec/ PathCodec]]
  */
 sealed trait PathCodec[A] { self =>
 
   /**
-   * Phantom capture marker: [[SegmentCodec.NoPathVars]] when this path captures
-   * nothing (empty paths, literal-only paths), [[SegmentCodec.HasPathVars]]
-   * when any segment captures a value. Never affects `A` (the runtime-decoded
-   * value type), zero runtime footprint. Threaded through `++`, `/`,
-   * `SegmentCodec.~`, and `transform` so [[orElse]] can reject capturing
-   * branches at the call site.
+   * A type-level marker: [[SegmentCodec.NoPathVars]] when this path captures
+   * nothing (the empty path and literal-only paths),
+   * [[SegmentCodec.HasPathVars]] when a segment captures a value. It exists
+   * only at compile time and does not change `A`. `++`, `/`, `SegmentCodec.~`,
+   * `transform`, `transformOrFail` and `unused` carry it along, so [[orElse]]
+   * can reject a capturing branch at compile time. A codec whose marker is
+   * unknown counts as capturing.
    */
   type PathVars
 
   /**
-   * Concatenates two path codecs, combining decoded values with
-   * `Tuples.Tuples.WithOut` (so `Int / String` decodes to `(Int, String)`). The
-   * result's `PathVars` is the logical OR of both sides (unknown markers
-   * default to capturing - see [[SegmentCodec.CombinePathVars]]).
+   * Appends the segments of `that` to this path. The decoded values join with
+   * `Tuples`: a literal side adds nothing, so `int("id") ++ string("slug")`
+   * decodes to `(Int, String)`. The result captures when either side captures
+   * (see [[SegmentCodec.CombinePathVars]]).
+   *
+   * Joining two codecs whose value is `Unit`, such as two literal-only paths
+   * (`PathCodec.literal("api") / PathCodec.literal("v1")`) or a literal and an
+   * `unused` capture, needs `import RoutePattern._` (or `PathCodec.unitUnit`)
+   * in scope: otherwise the compiler finds two `Tuples` instances for `Unit`
+   * and `Unit` and reports them as ambiguous, a known bug. A string on the
+   * right, as in `PathCodec("api") / "v1"`, has the same need.
    */
   final def ++[B, C, PV2, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C],
@@ -52,8 +80,8 @@ sealed trait PathCodec[A] { self =>
     PathCodec.combineUnrefined(self, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
 
   /**
-   * Symbolic alias for [[++]] —
-   * `PathCodec.int("id") / PathCodec.string("slug")`.
+   * Same as `++`: `PathCodec("notes") / PathCodec.int("id")` matches
+   * `/notes/42`.
    */
   final def /[B, C, PV2, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C],
@@ -62,14 +90,27 @@ sealed trait PathCodec[A] { self =>
     self.++(that)(combiner, pathVarsCombiner)
 
   /**
-   * Literal-only alternative (`users` or `posts`). Both branches must be
-   * literal-only: `that` is required to carry `NoPathVars`, and the `ev`
-   * evidence requires `(A, PathVars)` to equal `(Unit, NoPathVars)` — so a
-   * capturing codec mapped to `PathCodec[Unit]` (for example
-   * `PathCodec.int("id").transform(_ => (), _ => 0)`, whose marker stays
-   * `HasPathVars` through `transform`) is rejected at the call site rather than
-   * failing `expand` at runtime. Non-literal `Fallback` branches that slip past
-   * the types are still validated at runtime by `expand`.
+   * Matches this path or `that` one, both literal-only (`notes` or `memos`).
+   * Decoding tries both; formatting writes this path. Both sides must capture
+   * nothing, which the compiler checks: a capturing codec mapped to `Unit`,
+   * such as `PathCodec.int("id").transform(_ => (), _ => 0)`, does not compile
+   * here.
+   *
+   * Use one literal segment per branch. A branch of two or more literal
+   * segments, such as `PathCodec("api/v1")`, or a literal passed through
+   * `transform`, compiles and decodes, but `alternatives` (and so
+   * [[RoutePattern.alternatives]] and [[RouteTree.add]]) throws
+   * `IllegalStateException` for it: a known bug.
+   *
+   * {{{
+   * import zio.http.Path
+   *
+   * val people = PathCodec("users").orElse(PathCodec("members"))
+   *
+   * people.render                    // /users | /members
+   * people.decode(Path("/members"))  // Right(())
+   * people.alternatives.map(_.render) // List(/users, /members)
+   * }}}
    */
   final def orElse(that: PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars })(implicit
     ev: (A, self.PathVars) =:= (Unit, SegmentCodec.NoPathVars)
@@ -80,15 +121,39 @@ sealed trait PathCodec[A] { self =>
       .asInstanceOf[PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }]
   }
 
+  /**
+   * Expands `orElse` branches into one literal-only path per branch, without
+   * duplicates. A path without `orElse` gives itself. The empty path gives an
+   * empty list, and an empty branch, as in `orElse(PathCodec.empty)`, gives no
+   * path: a known bug. Throws `IllegalStateException` when a branch is not a
+   * single literal, such as `PathCodec("api/v1")` or a literal passed through
+   * `transform` (see `orElse`).
+   */
   final def alternatives: List[PathCodec[A]] =
     PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]].distinct
 
   /**
-   * Decodes `path`, naming the furthest segment reached on failure (for example
-   * `failed at segment 1 ('abc')`). The position is message-level context only
-   * — errors stay `Either[String, A]`; a full `Either[SchemaError, A]`
-   * migration composing positions à la `SchemaError.atField`/`atIndex` remains
-   * future work.
+   * Decodes `path`, which must match every segment: a missing or extra segment
+   * fails. Segments are compared as they are stored in the `Path`, so build it
+   * with `Path.fromEncoded` when it is still percent-encoded. The leading and
+   * trailing slash are ignored.
+   *
+   * The error names the segment where the furthest partial match stopped, as in
+   * `Path /notes/abc did not match /notes/{id}: failed at segment 1 ('abc')`,
+   * or says `matched N of M segments without a complete match` when the path
+   * ran out or a `transformOrFail` decoder at the end of the path failed. A
+   * decoder that fails earlier in the path makes the error name the segment
+   * after it (`failed at segment 1 ('x')` for `/-1/x`). The decoder's own
+   * message is not included.
+   *
+   * {{{
+   * import zio.http.Path
+   *
+   * val notePath = PathCodec("notes") / PathCodec.int("id")
+   *
+   * notePath.decode(Path("/notes/42"))  // Right(42)
+   * notePath.decode(Path("/notes/abc")) // Left(Path /notes/abc did not match /notes/{id}: failed at segment 1 ('abc'))
+   * }}}
    */
   final def decode(path: Path): Either[String, A] =
     PathCodecRuntime
@@ -105,24 +170,54 @@ sealed trait PathCodec[A] { self =>
         s"Path ${path.encode} did not match ${PathCodec.render(self)}: $where"
       }
 
+  /**
+   * Writes `value` into the path, with a leading slash. Captured strings are
+   * copied into the path as they are, without checks, so validate values that
+   * come from users. It returns `Left` when a `transformOrFail` encoder fails
+   * or the path contains an `unused` part. For an `orElse` path it writes the
+   * first branch.
+   *
+   * {{{
+   * val notePath = PathCodec("notes") / PathCodec.int("id")
+   *
+   * notePath.format(42) // Right(/notes/42)
+   * }}}
+   */
   final def format(value: A): Either[String, Path] =
     PathCodecRuntime.formatCodec(self, value.asInstanceOf[Any]).map(_.addLeadingSlash)
 
   /**
-   * Boolean fast path: equivalent to `decode(path).isRight` without building
-   * any decoded values or candidate lists (see
-   * `PathCodecRuntime.matchesCodec`).
+   * Tests whether `path` matches, like `decode(path).isRight` but without
+   * building the decoded value for literal and capturing segments; a
+   * `transform` or `transformOrFail` still runs its decoder. They agree when
+   * every `orElse` branch is one literal segment. With an empty branch
+   * (`orElse(PathCodec.empty)`) or a branch of several segments, `matches` can
+   * return `false` where `decode` succeeds: a known bug.
    */
   final def matches(path: Path): Boolean =
     PathCodecRuntime.matchesCodec(self, path.segments)
 
+  /**
+   * Renders the path as a template: literals as they are, captures as `{name}`,
+   * a trailing capture as `...`, `orElse` branches joined by ` | `, and the
+   * empty path as `/`.
+   */
   final def render: String = PathCodec.render(codec = self)
 
   /**
-   * Maps the decoded path value without changing the underlying path structure.
+   * Maps the decoded path value to another type without changing the path it
+   * matches or renders.
    *
-   * Example: {{ val customerPath = PathCodec.int("id").transform(CustomerId(_),
-   * _.value) }}
+   * {{{
+   * import zio.http.Path
+   *
+   * final case class NoteId(value: Int)
+   *
+   * val noteId = PathCodec.int("id").transform(NoteId(_), (id: NoteId) => id.value)
+   *
+   * noteId.decode(Path("/42")) // Right(NoteId(42))
+   * noteId.format(NoteId(7))   // Right(/7)
+   * }}}
    *
    * @param decode
    *   maps the decoded path value into the exposed type
@@ -148,15 +243,26 @@ sealed trait PathCodec[A] { self =>
   }
 
   /**
-   * Effectfully maps the decoded path value without changing the underlying
-   * path structure.
+   * Maps the decoded path value to another type with functions that can fail,
+   * without changing the path it matches or renders.
    *
-   * `decode` returning `Left` causes path decoding / matching to fail. `format`
-   * remains effectful, so `encode` returning `Left` is propagated as the `Left`
-   * result of `format`.
+   * When `decode` returns `Left`, decoding and matching fail; the error from
+   * `PathCodec#decode` does not include the `Left` message. When `encode`
+   * returns `Left`, `format` returns that `Left`. A [[RouteTree]] does not run
+   * `decode`: it routes on the segment shape only.
    *
-   * Example: {{ val customerPath = PathCodec .string("id")
-   * .transformOrFail(CustomerId.parse, value => Right(value.value)) }}
+   * {{{
+   * import zio.http.Path
+   *
+   * val positive = PathCodec.int("id").transformOrFail(
+   *   (id: Int) => if (id > 0) Right(id) else Left("not positive: " + id),
+   *   (id: Int) => if (id > 0) Right(id) else Left("not positive")
+   * )
+   *
+   * positive.decode(Path("/5"))  // Right(5)
+   * positive.matches(Path("/-1")) // false
+   * positive.format(0)            // Left(not positive)
+   * }}}
    *
    * @param decode
    *   validates and maps the decoded path value into the exposed type
@@ -179,18 +285,14 @@ sealed trait PathCodec[A] { self =>
   }
 
   /**
-   * Marks this path's captured value as intentionally unused: the route keeps
-   * matching the same shape and keeps rendering the same `{name}` placeholders,
-   * but decoding yields `Unit` instead of the captured value, so no handler
-   * parameter is required for it.
+   * Keeps matching and rendering the same path but decodes to `Unit`, for a
+   * captured value the handler does not need. `PathCodec.int("id").unused`
+   * still matches only integer segments such as `/42` and renders `/{id}`.
    *
-   * Example: `PathCodec.int("id").unused` still matches `/42` and still renders
-   * `/{id}`, yet the endpoint's path input is `Unit`.
-   *
-   * Like [[transform]], this reifies the marker (identity OR with
-   * `NoPathVars`), so an unused literal-only path stays `NoPathVars` while an
-   * unused capturing path stays `HasPathVars`. Formatting an unused path fails:
-   * there is no value to encode back into the ignored segment.
+   * The marker is kept: an unused literal-only path stays `NoPathVars`, an
+   * unused capturing path stays `HasPathVars`. `format` always fails on the
+   * unused part, as there is no value to write into it: `Left(Cannot format an
+   * unused path segment: /{id} captures no value)`.
    *
    * @return
    *   a path codec with value type `Unit` and the same route shape as `self`
@@ -204,10 +306,21 @@ sealed trait PathCodec[A] { self =>
   }
 }
 
+/**
+ * Constructors for path codecs: from a string, from a [[SegmentCodec]], and the
+ * capturing constructors `bool`, `int`, `long`, `string` and `uuid`. These take
+ * the capture name as a string literal or a `val`; a `def` returning `String`
+ * does not compile.
+ */
 object PathCodec extends PathCodecPlatformSpecific {
 
   private type DecodeError = String
 
+  /**
+   * The `Tuples` instance that joins two `Unit` values into `Unit`. It is not
+   * found automatically: import it, or `RoutePattern._`, to join two paths
+   * whose value is `Unit` with `/` or `++`.
+   */
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 
   private[endpoint] def combineUnrefined[A, B, C](left: PathCodec[A], right: PathCodec[B])(implicit
@@ -218,16 +331,17 @@ object PathCodec extends PathCodecPlatformSpecific {
     else Concat(left, right, combiner)
 
   /**
-   * Builds a literal-only path from a raw string (for example
-   * `PathCodec("users/42")`).
+   * Builds a literal-only path from a string, one literal segment per part
+   * between slashes: `PathCodec("api/notes")` matches `/api/notes`. Leading and
+   * trailing slashes are dropped, and `""` or `"/"` gives the empty path.
    *
-   * Encoding trio, documented once here: `Path.apply` does NOT percent-decode
-   * (a raw `%20` stays a literal `%20` segment), so neither does this
-   * constructor — `Path.fromEncoded` is the decoding counterpart (both live in
-   * `http-model`). Encoded literals cannot be expressed at all: a literal
-   * carrying `/` or characters requiring URL encoding is rejected by
-   * `SegmentCodec.validateLiteralValue`. `RoutePattern.apply(method,
-   * pathString)` funnels through this same constructor.
+   * The string is split with `Path.apply`, which does not percent-decode, and
+   * the parts are not checked: `PathCodec("a b")` and `PathCodec("a%20b")` are
+   * accepted, and `"notes//42"` makes an empty middle segment. A request path
+   * built with `Path.fromEncoded` matches the first of these (`/a%20b` decodes
+   * to `a b`), and one built with `Path.apply` matches the second.
+   * [[PathCodec.literal]] and [[SegmentCodec.literal]] reject such text; that
+   * this constructor does not is a known bug.
    */
   def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } = {
     val path                   = Path(value)
@@ -240,64 +354,146 @@ object PathCodec extends PathCodecPlatformSpecific {
     built.asInstanceOf[PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }]
   }
 
+  /**
+   * Wraps a single [[SegmentCodec]], such as one built with `~`, as a path,
+   * keeping its capture marker.
+   */
   def apply[A, PV](segment: SegmentCodec[A] { type PathVars = PV }): PathCodec[A] { type PathVars = PV } =
     Segment(segment).asInstanceOf[PathCodec[A] { type PathVars = PV }]
 
+  /**
+   * Converts a string to a literal-only path with `PathCodec.apply(String)`, so
+   * `Method.GET / "notes"` and `PathCodec.int("id") / "tags"` compile.
+   */
   implicit def stringToPathCodec(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
     apply(value)
 
+  /**
+   * Converts a [[SegmentCodec]] to a path with one segment, so a segment codec
+   * can follow `/`.
+   */
   implicit def segmentToPathCodec[A, PV](
     value: SegmentCodec[A] { type PathVars = PV }
   ): PathCodec[A] { type PathVars = PV } =
     Segment(value).asInstanceOf[PathCodec[A] { type PathVars = PV }]
 
+  /**
+   * A path of one segment.
+   */
   final case class Segment[A](segment: SegmentCodec[A]) extends PathCodec[A] {
-    // Left abstract: only `apply(segment)` (which binds the segment's own
-    // marker) may ascribe a concrete one. See `Combined` in `SegmentCodec`.
+
+    /**
+     * Left abstract: only `PathCodec.apply(segment)` and the
+     * `segmentToPathCodec` conversion, which know the segment's own marker,
+     * give it a concrete one.
+     */
     type PathVars
   }
+
+  /**
+   * Two paths one after the other, built by `++` and `/`; `combiner` joins
+   * their values.
+   */
   final case class Concat[A, B, C](
     left: PathCodec[A],
     right: PathCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends PathCodec[C] {
-    // Left abstract: only `++`/`/` (which prove the OR of both sides via
-    // `CombinePathVars`) may ascribe a concrete marker.
+
+    /**
+     * Left abstract: only `++` and `/`, which combine both sides' markers with
+     * `CombinePathVars`, and `PathCodec.apply(String)`, which builds literals
+     * only, give it a concrete one.
+     */
     type PathVars
   }
+
+  /**
+   * A path whose value is mapped by `decode` and `encode`, built by `transform`
+   * and `transformOrFail`.
+   */
   final case class Transform[A, B](
     codec: PathCodec[A],
     decode: A => Either[DecodeError, B],
     encode: B => Either[DecodeError, A]
   ) extends PathCodec[B] {
-    // Left abstract: only `transform`/`transformOrFail` (which reify the
-    // inner codec's own marker) may ascribe a concrete one.
+
+    /**
+     * Left abstract: only `transform` and `transformOrFail`, which carry the
+     * inner codec's marker over, give it a concrete one.
+     */
     type PathVars
   }
+
+  /**
+   * A path whose value is dropped, built by `unused`.
+   */
   final case class Ignored[A](
     codec: PathCodec[A]
   ) extends PathCodec[Unit] {
-    // Left abstract: only `unused` (which reifies the inner codec's own
-    // marker) may ascribe a concrete one.
-    type PathVars
-  }
-  final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit] {
-    // Left abstract: only `orElse` (which proves both branches literal-only)
-    // may ascribe `NoPathVars`.
+
+    /**
+     * Left abstract: only `unused`, which carries the inner codec's marker
+     * over, gives it a concrete one.
+     */
     type PathVars
   }
 
+  /**
+   * Two literal-only alternatives, built by `orElse`.
+   */
+  final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit] {
+
+    /**
+     * Left abstract: only `orElse`, which checks that both branches capture
+     * nothing, gives it `NoPathVars`.
+     */
+    type PathVars
+  }
+
+  /**
+   * The path with no segments. It matches `/` and the empty path, renders as
+   * `/`, and disappears when joined to another path with `/`.
+   */
   val empty: PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
     apply(SegmentCodec.Empty)
 
+  /**
+   * Builds a path of one literal segment. It throws
+   * `java.lang.IllegalArgumentException` for an empty value
+   * ("SegmentCodec.literal cannot be empty") and for a value with `/` or a
+   * character that needs percent-encoding, such as a space or `é`
+   * ("SegmentCodec.literal must be a valid single path segment without `/` or
+   * characters that require URL encoding: <value>").
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   for an empty value or one that is not a plain single segment
+   */
   def literal(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } = {
     SegmentCodec.validateLiteralValue(value)
     apply(SegmentCodec.literalValidated(value))
   }
 
+  /**
+   * Captures the rest of the path, zero or more segments, as a
+   * [[zio.http.Path]] with a leading slash. It renders as `...`.
+   *
+   * {{{
+   * import zio.http.Path
+   *
+   * val assets = PathCodec("assets") / PathCodec.trailing
+   *
+   * assets.decode(Path("/assets/css/site.css")) // Right(/css/site.css)
+   * assets.decode(Path("/assets"))              // Right(/)
+   * }}}
+   */
   val trailing: PathCodec[Path] { type PathVars = SegmentCodec.HasPathVars } =
     apply(SegmentCodec.Trailing)
 
+  /**
+   * Renders `codec` as a template, writing each capture name between `prefix`
+   * and `suffix` (`{` and `}` by default).
+   */
   def render(codec: PathCodec[_], prefix: String = "{", suffix: String = "}"): String =
     PathCodecRuntime.render(codec, prefix, suffix)
 }
