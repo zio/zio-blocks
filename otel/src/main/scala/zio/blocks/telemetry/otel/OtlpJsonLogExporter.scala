@@ -18,6 +18,11 @@ package zio.blocks.telemetry.otel
 
 import zio.blocks.telemetry._
 
+/**
+ * A `LogRecordProcessor` that queues records and posts them as OTLP JSON to
+ * `<endpoint>/v1/logs`, flushing periodically on the `PlatformExecutor`'s
+ * thread.
+ */
 private[otel] final class OtlpJsonLogExporter(
   config: ExporterConfig,
   resource: Resource,
