@@ -1106,11 +1106,11 @@ object DynamicSchemaExpr {
 
       /**
        * Returns `x.pow(y)` for an exponent from 0 to 10000 (2 to the power 100
-       * is exact); a negative exponent fails with
-       * `Negative exponent not supported: ` and the exponent, one above 10000
-       * with `Exponent exceeds safe limit (10000): ` and the exponent, and one
-       * outside the `Int` range with `Exponent out of range: ` and the
-       * exponent. A value that is not a `BigInt` gives
+       * is exact); an exponent outside the `Int` range fails with
+       * `Exponent out of range: ` and the exponent, another negative one with
+       * `Negative exponent not supported: ` and the exponent, and one above
+       * 10000 with `Exponent exceeds safe limit (10000): ` and the exponent. A
+       * value that is not a `BigInt` gives
        * `Left("Expected BigInt values, got: " + x + " and " + y)`.
        */
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
@@ -1187,11 +1187,11 @@ object DynamicSchemaExpr {
 
       /**
        * Returns `x.pow(y)` for a whole-number exponent from 0 to 10000 (`2.0`
-       * counts as 2); a negative exponent fails with
-       * `Negative exponent not supported: ` and the exponent, one above 10000
-       * with `Exponent exceeds safe limit (10000): ` and the exponent, and one
-       * outside the `Int` range with `Exponent out of range: ` and the
-       * exponent. A fractional exponent fails with
+       * counts as 2); an exponent outside the `Int` range fails with
+       * `Exponent out of range: ` and the exponent, another negative one with
+       * `Negative exponent not supported: ` and the exponent, and one above
+       * 10000 with `Exponent exceeds safe limit (10000): ` and the exponent. A
+       * fractional exponent fails with
        * `Exponent exceeds safe limit (10000): 2147483647`. A value that is not
        * a `BigDecimal` gives
        * `Left("Expected BigDecimal values, got: " + x + " and " + y)`.
