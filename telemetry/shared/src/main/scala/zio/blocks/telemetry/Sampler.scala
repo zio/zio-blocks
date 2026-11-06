@@ -16,42 +16,45 @@
 
 package zio.blocks.telemetry
 
-/**
- * Represents a sampling decision made by a `Sampler`.
- */
+/** What a [[Sampler]] decides about a new span. */
 sealed trait SamplingDecision
 
+/** The three decisions. */
 object SamplingDecision {
 
   /**
-   * The span will not be recorded and all events and attributes will be
-   * dropped.
+   * Do not record the span: `Tracer#span` runs the block with [[Span.NoOp]],
+   * and no processor hears of it. Inside the block, the current span is a
+   * context with the sampled flag cleared, so child spans stay in the same
+   * trace.
    */
   case object Drop extends SamplingDecision
 
   /**
-   * The span will be recorded but the sampled flag will not be set, so it will
-   * not be exported.
+   * Record the span with the sampled flag cleared. It reaches every processor
+   * like a sampled span, and the in-memory buffer behind `trace.collectedSpans`
+   * keeps it; the cleared flag tells exporters and downstream services not to
+   * keep it.
    */
   case object RecordOnly extends SamplingDecision
 
-  /**
-   * The span will be recorded and the sampled flag will be set, so it will be
-   * exported.
-   */
+  /** Record the span with the sampled flag set. */
   case object RecordAndSample extends SamplingDecision
 }
 
 /**
- * The result of a sampling decision, including the decision itself, any
- * additional attributes to add to the span, and the trace state.
+ * What a [[Sampler]] returns: the decision, attributes to add to the span, and
+ * its trace state. A sampler that returns the same result often can build it
+ * once and reuse it.
  *
  * @param decision
- *   the sampling decision
+ *   whether to record the span and mark it sampled
  * @param attributes
- *   additional attributes to add to the span
+ *   attributes added to a recorded span before the ones passed to
+ *   `Tracer#span`, which win on a name clash
  * @param traceState
- *   the trace state string to propagate
+ *   the W3C trace state of the new span; when empty, the span keeps its
+ *   parent's
  */
 final case class SamplingResult(
   decision: SamplingDecision,
@@ -60,18 +63,47 @@ final case class SamplingResult(
 )
 
 /**
- * A sampler decides whether a span should be recorded and/or sampled.
+ * Decides, for each span that `Tracer#span` opens, whether to record it and
+ * whether to mark it sampled. Set one with `TracerProviderBuilder#setSampler`;
+ * the built-ins are [[AlwaysOnSampler]] (the default), [[AlwaysOffSampler]] and
+ * [[ParentBasedSampler]].
  *
- * Samplers are invoked during span creation to determine the sampling decision
- * for the new span.
+ * The sampler runs before the block, so it sees only the attributes passed when
+ * the span is opened. Spans started with a [[SpanBuilder]] skip it.
+ *
+ * {{{
+ * object HealthCheckSampler extends Sampler {
+ *   private val drop   = SamplingResult(SamplingDecision.Drop, Attributes.empty, "")
+ *   private val record = SamplingResult(SamplingDecision.RecordAndSample, Attributes.empty, "")
+ *
+ *   def shouldSample(
+ *     parentContext: Option[SpanContext],
+ *     traceIdHi: Long,
+ *     traceIdLo: Long,
+ *     name: String,
+ *     kind: SpanKind,
+ *     attributes: Attributes,
+ *     links: Seq[SpanLink]
+ *   ): SamplingResult = if (name == "GET /health") drop else record
+ *
+ *   def description: String = "HealthCheckSampler"
+ * }
+ *
+ * val tracer = TracerProvider.builder.setSampler(HealthCheckSampler).build().get("api")
+ * tracer.span("GET /health")(_.isRecording) // false
+ * tracer.span("GET /orders")(_.isRecording) // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/tracing/sampler/ Sampler]]
  */
 trait Sampler {
 
   /**
-   * Determines whether a span should be sampled.
+   * Decides about a new span.
    *
    * @param parentContext
-   *   the parent span context, if any
+   *   the context of the current span, or `None` outside every span
    * @param traceIdHi
    *   the high 64 bits of the trace ID
    * @param traceIdLo
@@ -81,11 +113,12 @@ trait Sampler {
    * @param kind
    *   the kind of the span being created
    * @param attributes
-   *   the initial attributes of the span being created
+   *   the attributes passed when the span is opened
    * @param links
-   *   the links associated with the span being created
+   *   the links of the span being created; always empty when `Tracer#span`
+   *   calls it
    * @return
-   *   the sampling result
+   *   the decision, extra attributes and trace state
    */
   def shouldSample(
     parentContext: Option[SpanContext],
@@ -97,20 +130,19 @@ trait Sampler {
     links: Seq[SpanLink]
   ): SamplingResult
 
-  /**
-   * Returns a human-readable description of this sampler.
-   */
+  /** Returns a short name for the sampler, for logs and debugging. */
   def description: String
 }
 
 /**
- * A sampler that always records and samples every span.
+ * Records and samples every span: the default of `TracerProvider.builder`.
  */
 object AlwaysOnSampler extends Sampler {
 
   private val result: SamplingResult =
     SamplingResult(SamplingDecision.RecordAndSample, Attributes.empty, "")
 
+  /** Returns `RecordAndSample`, with no attributes and an empty trace state. */
   def shouldSample(
     parentContext: Option[SpanContext],
     traceIdHi: Long,
@@ -121,17 +153,19 @@ object AlwaysOnSampler extends Sampler {
     links: Seq[SpanLink]
   ): SamplingResult = result
 
+  /** Returns `"AlwaysOnSampler"`. */
   val description: String = "AlwaysOnSampler"
 }
 
 /**
- * A sampler that always drops every span.
+ * Drops every span; `trace.removeAll()` installs a provider that uses it.
  */
 object AlwaysOffSampler extends Sampler {
 
   private val result: SamplingResult =
     SamplingResult(SamplingDecision.Drop, Attributes.empty, "")
 
+  /** Returns `Drop`. */
   def shouldSample(
     parentContext: Option[SpanContext],
     traceIdHi: Long,
@@ -142,20 +176,25 @@ object AlwaysOffSampler extends Sampler {
     links: Seq[SpanLink]
   ): SamplingResult = result
 
+  /** Returns `"AlwaysOffSampler"`. */
   val description: String = "AlwaysOffSampler"
 }
 
 /**
- * A sampler that delegates to the parent span's sampling decision.
- *
- * If no parent exists, delegates to the provided root sampler. If a parent
- * exists, the decision follows the parent's sampled flag.
+ * Follows the decision of the parent span. With a valid parent, it returns
+ * `RecordAndSample` when the parent is sampled and `Drop` when it is not, with
+ * the parent's trace state and no attributes. With no parent, or an invalid
+ * one, it asks `root`. `ParentBasedSampler(AlwaysOnSampler)` samples new traces
+ * and honours the decision of an upstream service.
  *
  * @param root
- *   the sampler to use when there is no parent span
+ *   the sampler for spans without a valid parent
  */
 final case class ParentBasedSampler(root: Sampler) extends Sampler {
 
+  /**
+   * Follows the parent's sampled flag, or asks `root` without a valid parent.
+   */
   def shouldSample(
     parentContext: Option[SpanContext],
     traceIdHi: Long,
@@ -178,5 +217,9 @@ final case class ParentBasedSampler(root: Sampler) extends Sampler {
         root.shouldSample(parentContext, traceIdHi, traceIdLo, name, kind, attributes, links)
     }
 
+  /**
+   * Returns `ParentBasedSampler(root=...)` with the root's description, such as
+   * `ParentBasedSampler(root=AlwaysOnSampler)`.
+   */
   val description: String = s"ParentBasedSampler(root=${root.description})"
 }

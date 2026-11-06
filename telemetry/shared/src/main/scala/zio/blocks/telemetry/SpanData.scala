@@ -17,12 +17,13 @@
 package zio.blocks.telemetry
 
 /**
- * An event associated with a span, capturing a point-in-time occurrence.
+ * Something that happened at one point during a span, recorded with
+ * `Span#addEvent`.
  *
  * @param name
- *   human-readable name of the event
+ *   the name of the event
  * @param timestampNanos
- *   epoch nanoseconds when the event occurred
+ *   the time of the event, in epoch nanoseconds
  * @param attributes
  *   attributes associated with this event
  */
@@ -33,7 +34,8 @@ final case class SpanEvent(
 )
 
 /**
- * A link to another span, used to represent causal relationships across traces.
+ * A link from a span to another span, often in another trace, that caused it or
+ * relates to it; add one with `SpanBuilder#addLink`.
  *
  * @param spanContext
  *   the context of the linked span
@@ -46,10 +48,9 @@ final case class SpanLink(
 )
 
 /**
- * Immutable snapshot of span data for export.
- *
- * Created by calling `toSpanData` on a `Span`. Contains all information
- * collected during the span's lifetime.
+ * An immutable snapshot of a span: what `SpanProcessor#onEnd` receives when a
+ * span ends, what `trace.collectedSpans` returns, and what `Span#toSpanData`
+ * takes at any time.
  *
  * @param name
  *   the span name
@@ -58,23 +59,24 @@ final case class SpanLink(
  * @param spanContext
  *   the span's own context
  * @param parentSpanContext
- *   the parent span's context (invalid if root span)
+ *   the parent span's context, or [[SpanContext.invalid]] for a root span
  * @param startTimeNanos
- *   epoch nanoseconds when the span started
+ *   the start time, in epoch nanoseconds
  * @param endTimeNanos
- *   epoch nanoseconds when the span ended
+ *   the end time, in epoch nanoseconds, or `0` in a snapshot taken before the
+ *   span ended
  * @param attributes
  *   attributes set on the span
  * @param events
- *   events recorded during the span
+ *   events recorded during the span, in the order they were added
  * @param links
  *   links to other spans
  * @param status
- *   the span's completion status
+ *   the span's status, `Unset` unless something set it
  * @param resource
  *   the resource producing this span
  * @param instrumentationScope
- *   the instrumentation scope that created this span
+ *   the instrumentation scope of the tracer that opened the span
  */
 final case class SpanData(
   name: String,

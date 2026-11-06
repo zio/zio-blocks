@@ -17,24 +17,27 @@
 package zio.blocks.telemetry
 
 /**
- * Represents OpenTelemetry trace flags - a single byte where bit 0 represents
- * the sampled flag.
+ * The trace flags of a span, one byte in which bit 0 is the sampled flag. As an
+ * `AnyVal`, it is stored as a plain `Byte` in fields such as
+ * `SpanContext#traceFlags`.
  *
- * Implemented as an AnyVal for zero heap allocation when used as a field in a
- * case class.
+ * {{{
+ * TraceFlags.sampled.toHex // 01
+ * TraceFlags.sampled.withSampled(false).isSampled // false
+ * TraceFlags.fromHex("01").exists(_.isSampled) // true
+ * }}}
  *
  * @param byte
  *   the underlying byte value
  */
 final class TraceFlags(val byte: Byte) extends AnyVal {
 
-  /**
-   * Checks if the sampled flag (bit 0) is set.
-   */
+  /** Returns `true` when the sampled flag, bit 0, is set. */
   def isSampled: Boolean = (byte & 0x01) != 0
 
   /**
-   * Creates a new TraceFlags with the sampled flag set or cleared.
+   * Returns these flags with the sampled bit set or cleared; the other bits
+   * stay as they are.
    */
   def withSampled(sampled: Boolean): TraceFlags = {
     val newByte =
@@ -43,38 +46,33 @@ final class TraceFlags(val byte: Byte) extends AnyVal {
     new TraceFlags(newByte)
   }
 
-  /**
-   * Converts this trace flags to a 2-character lowercase hexadecimal string.
-   */
+  /** Returns the byte as 2 lowercase hex digits. */
   def toHex: String = String.format("%02x", byte & 0xff)
 
-  /**
-   * Returns the underlying byte value.
-   */
+  /** Returns the byte, the same as `byte`. */
   def toByte: Byte = byte
 
   override def toString: String = s"TraceFlags(${toHex})"
 }
 
+/** Creates trace flags. */
 object TraceFlags {
 
+  /** Wraps `byte` as trace flags. */
   def apply(byte: Byte): TraceFlags = new TraceFlags(byte)
 
-  /**
-   * TraceFlags with no flags set (0x00).
-   */
+  /** The flags `00`: no bit set, so not sampled. */
   val none: TraceFlags = new TraceFlags(0x00.toByte)
 
-  /**
-   * TraceFlags with the sampled flag set (0x01).
-   */
+  /** The flags `01`: only the sampled bit set. */
   val sampled: TraceFlags = new TraceFlags(0x01.toByte)
 
   /**
-   * Parses a 2-character hexadecimal string into TraceFlags.
+   * Parses 2 hex digits, in either case, into trace flags, or returns `None`
+   * when `s` is not 2 characters long or not hexadecimal.
    *
-   * Returns None if the string is not exactly 2 characters or contains non-hex
-   * characters.
+   * A known bug: a sign is accepted in place of the first digit, so `"-1"`
+   * gives the flags `ff` and `"+1"` gives `01`.
    */
   def fromHex(s: String): Option[TraceFlags] =
     if (s.length != 2) None

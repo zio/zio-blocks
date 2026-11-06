@@ -19,29 +19,29 @@ package zio.blocks.telemetry
 import scala.util.Random
 
 /**
- * Represents an OpenTelemetry SpanId - a 64-bit identifier for a span.
+ * The 64-bit id of a span; zero is the invalid id. As an `AnyVal`, it is stored
+ * as a plain `Long` in fields such as `SpanContext#spanId`.
  *
- * Implemented as an AnyVal for zero heap allocation when used as a field in a
- * case class.
+ * {{{
+ * val id = SpanId(0x00f067aa0ba902b7L)
+ *
+ * id.toHex // 00f067aa0ba902b7
+ * SpanId.fromHex("00f067aa0ba902b7").contains(id) // true
+ * SpanId.invalid.isValid // false
+ * }}}
  *
  * @param value
  *   the span ID as a 64-bit long
  */
 final class SpanId(val value: Long) extends AnyVal {
 
-  /**
-   * Checks if this span ID is valid (not zero).
-   */
+  /** Returns `true` when the id is not zero. */
   def isValid: Boolean = value != 0L
 
-  /**
-   * Converts this span ID to a 16-character lowercase hexadecimal string.
-   */
+  /** Returns the id as 16 lowercase hex digits, with leading zeros. */
   def toHex: String = String.format("%016x", value)
 
-  /**
-   * Converts this span ID to an 8-byte big-endian array.
-   */
+  /** Returns the id as 8 bytes, most significant first. */
   def toByteArray: Array[Byte] = {
     val bytes = new Array[Byte](8)
     bytes(0) = ((value >> 56) & 0xff).toByte
@@ -58,20 +58,16 @@ final class SpanId(val value: Long) extends AnyVal {
   override def toString: String = s"SpanId(${toHex})"
 }
 
+/** Creates span ids. */
 object SpanId {
 
+  /** Wraps `value` as a span id; `0` gives the invalid id. */
   def apply(value: Long): SpanId = new SpanId(value)
 
-  /**
-   * The invalid/zero span ID (represents "no span").
-   */
+  /** The invalid span id, zero, which stands for no span. */
   val invalid: SpanId = new SpanId(0L)
 
-  /**
-   * Generates a random valid span ID.
-   *
-   * If the generated value is zero, regenerates until a valid one is obtained.
-   */
+  /** Returns a random non-zero span id, drawn from `scala.util.Random`. */
   def random: SpanId = {
     var value = Random.nextLong()
     while (value == 0L) {
@@ -81,10 +77,12 @@ object SpanId {
   }
 
   /**
-   * Parses a 16-character hexadecimal string into a SpanId.
+   * Parses 16 hex digits, in either case, into a span id, or returns `None`
+   * when `s` is not 16 characters long or not hexadecimal. Sixteen zeros give
+   * `Some(SpanId.invalid)`, so check `isValid`.
    *
-   * Returns None if the string is not exactly 16 characters or contains non-hex
-   * characters.
+   * A known bug: a leading `+` is accepted in place of the first digit, so
+   * `"+0f067aa0ba902b7"` gives `Some(SpanId(00f067aa0ba902b7))`.
    */
   def fromHex(s: String): Option[SpanId] =
     if (s.length != 16) None
