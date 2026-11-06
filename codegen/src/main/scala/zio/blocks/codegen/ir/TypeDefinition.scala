@@ -340,7 +340,8 @@ object SealedTraitCase {
  * Scala 3 `enum`; otherwise it writes a sealed trait whose companion holds a
  * case object per simple case and a case class per parameterized case. The
  * emitter drops `typeParams`, `derives` and `companion` in both dialects (a
- * known bug).
+ * known bug). In Scala 3 output the case names are not escaped, so a case named
+ * after a keyword (`new`, `type`) does not compile (a known bug).
  *
  * @param name
  *   The name of the enum
@@ -525,7 +526,9 @@ object ObjectMember {
    * With `EmitterConfig.scala3Syntax` it is emitted as `extension (param)`
    * followed by the methods, in braces when there is more than one. Otherwise
    * it is emitted as `implicit class <Type>Ops(val param) extends AnyVal`
-   * holding the methods.
+   * holding the methods, where `<Type>` is the emitted parameter type; for a
+   * type with type arguments or a qualified name (`List[Int]`,
+   * `java.util.UUID`) that class name is not valid Scala (a known bug).
    *
    * @param on
    *   The parameter to extend on

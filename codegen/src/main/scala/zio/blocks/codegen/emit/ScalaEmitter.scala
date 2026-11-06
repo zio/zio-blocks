@@ -26,12 +26,17 @@ import zio.blocks.codegen.ir._
  * hand. An [[EmitterConfig]] chooses Scala 3 or Scala 2 syntax, indentation,
  * import sorting and trailing commas.
  *
- * Names are wrapped in backquotes when they are Scala 2 or Scala 3 keywords or
- * not plain identifiers. `macro`, a reserved word in Scala 2, is not in that
- * list, so a field named `macro` breaks Scala 2 output (a known bug). The
- * output is not checked by a compiler, and a few IR fields are accepted but
- * never emitted (known bugs, listed on `Enum`, `SealedTrait`, `Field`,
- * `AbstractClass` and `EnumCase.ParameterizedCase`).
+ * Type, field, member and parameter names are wrapped in backquotes when they
+ * are Scala 2 or Scala 3 keywords or not plain identifiers. Enum case names in
+ * Scala 3 output, import paths and annotation names are written as is, so an
+ * enum case named `new` breaks Scala 3 output (a known bug). `macro`, a
+ * reserved word in Scala 2, is not in the keyword list, so a field named
+ * `macro` breaks Scala 2 output (a known bug). In Scala 2 output, an extension
+ * block on a type with type arguments or a qualified name gets an invalid class
+ * name (a known bug, see `ObjectMember.ExtensionBlock`). The output is not
+ * checked by a compiler, and a few IR fields are accepted but never emitted
+ * (known bugs, listed on `Enum`, `SealedTrait`, `Field`, `AbstractClass` and
+ * `EnumCase.ParameterizedCase`).
  *
  * {{{
  * import zio.blocks.codegen.ir._
