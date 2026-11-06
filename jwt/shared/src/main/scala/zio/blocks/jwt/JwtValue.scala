@@ -19,39 +19,65 @@ package zio.blocks.jwt
 import zio.blocks.chunk.Chunk
 
 /**
- * Public JSON value ADT for JWT custom claims.
+ * A JSON value, the type of the custom claims in `JwtClaims.extra`.
  *
- * Mirrors JSON value kinds: string, number, boolean, null, array, object.
- * Numbers preserve their original JSON text to avoid loss of precision or
- * formatting. Nested objects and arrays are fully supported; no values are
- * silently dropped during parsing.
+ * It has one case per JSON kind: string, number, boolean, null, array and
+ * object. Numbers keep their JSON text, so no precision or formatting is lost.
+ * Objects and arrays nest. Parsing keeps every value, except that when an
+ * object repeats a field name the later value replaces the earlier one.
  */
 sealed trait JwtValue extends Product with Serializable
 
+/**
+ * The cases of [[JwtValue]]: `Str`, `Num`, `Bool`, `Null`, `Arr` and `Obj`.
+ * `Arr` and `Obj` nest, so a claim can hold any JSON structure.
+ */
 object JwtValue {
 
   /** JSON string value. */
   final case class Str(value: String) extends JwtValue
 
   /**
-   * JSON number value, preserved as the original JSON text (e.g. "1.5", "1e9",
-   * "-42"). Use `toLong`, `toDouble`, or `bigDecimal` to interpret numerically.
+   * JSON number value, kept as its JSON text (e.g. "1.5", "1e9", "-42"). Use
+   * `bigDecimal` or `toDouble` to read it as a number.
    */
   final case class Num(raw: String) extends JwtValue {
 
-    /** Parses the raw text as a BigDecimal. */
+    /**
+     * Parses the raw text as a BigDecimal.
+     *
+     * @throws java.lang.NumberFormatException
+     *   when the text is not a number, which `Num(raw)` allows
+     */
     def bigDecimal: scala.BigDecimal = scala.BigDecimal(raw)
 
-    /** Parses the raw text as a Double (may be Infinity if out of range). */
+    /**
+     * Parses the raw text as a Double (Infinity if out of range).
+     *
+     * @throws java.lang.NumberFormatException
+     *   when the text is not a number that `String#toDouble` accepts
+     */
     def toDouble: Double = raw.toDouble
   }
 
+  /**
+   * Factory methods that build a [[JwtValue.Num]] from a Scala number. They
+   * store the number's `toString` text, which differs by platform:
+   * `fromDouble(1e21)` stores `1.0E21` on the JVM and `1e+21` on Scala.js, and
+   * `fromDouble(1.0)` stores `1.0` and `1`. The `Num(raw)` constructor stores
+   * its argument as given, without checking that it is a JSON number.
+   */
   object Num {
 
     /** Creates a Num from a Long. */
     def fromLong(value: Long): Num = Num(value.toString)
 
-    /** Creates a Num from a Double (finite values only). */
+    /**
+     * Creates a Num from a finite Double.
+     *
+     * @throws java.lang.IllegalArgumentException
+     *   for NaN or an infinity
+     */
     def fromDouble(value: Double): Num = {
       require(!value.isNaN && !value.isInfinite, "NaN and Infinity are not valid JSON numbers")
       Num(value.toString)
@@ -70,15 +96,23 @@ object JwtValue {
   /** JSON array value. */
   final case class Arr(items: Chunk[JwtValue]) extends JwtValue
 
+  /** Constructors for [[JwtValue.Arr]]. */
   object Arr {
-    val empty: Arr                   = Arr(Chunk.empty)
+
+    /** An array with no items. */
+    val empty: Arr = Arr(Chunk.empty)
+
+    /** Creates an array that holds `items` in the given order. */
     def apply(items: JwtValue*): Arr = new Arr(Chunk.from(items))
   }
 
   /** JSON object value (unordered map of fields). */
   final case class Obj(fields: Map[String, JwtValue]) extends JwtValue
 
+  /** Constructors for [[JwtValue.Obj]]. */
   object Obj {
+
+    /** An object with no fields. */
     val empty: Obj = Obj(Map.empty)
   }
 }

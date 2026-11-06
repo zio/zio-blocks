@@ -16,6 +16,10 @@
 
 package zio.blocks.jwt
 
+/**
+ * Base64url encoding without padding, as RFC 7515 uses for JWT segments. The
+ * alphabet is `A-Z`, `a-z`, `0-9`, `-` and `_`.
+ */
 object Base64Url {
   private val Alphabet: Array[Char] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray
@@ -29,6 +33,10 @@ object Base64Url {
     table
   }
 
+  /**
+   * Encodes `bytes` as unpadded base64url text. An empty array encodes to the
+   * empty string.
+   */
   def encode(bytes: Array[Byte]): String = {
     val outputLength = (bytes.length / 3) * 4 + (bytes.length % 3 match {
       case 0 => 0
@@ -70,6 +78,12 @@ object Base64Url {
     new String(chars)
   }
 
+  /**
+   * Decodes unpadded base64url text. It returns `InvalidToken` for `=` padding,
+   * for a length of the form 4n + 1, for a character outside the alphabet
+   * (including `+`, `/` and whitespace), and for non-zero unused bits in the
+   * last character. The empty string decodes to an empty array.
+   */
   def decode(s: String): Either[JwtError, Array[Byte]] =
     if (s.indexOf('=') >= 0) Left(JwtError.InvalidToken("base64url input must not contain padding"))
     else {
