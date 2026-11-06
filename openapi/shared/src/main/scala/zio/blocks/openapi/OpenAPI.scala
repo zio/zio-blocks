@@ -125,7 +125,13 @@ final case class Info(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Info]]. */
 object Info {
+
+  /**
+   * The derived `Schema` of [[Info]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Info] = Schema.derived
 }
 
@@ -139,7 +145,13 @@ final case class Contact(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Contact]]. */
 object Contact {
+
+  /**
+   * The derived `Schema` of [[Contact]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Contact] = Schema.derived
 }
 
@@ -173,7 +185,13 @@ final case class License(
   )
 }
 
+/** Holds the derived `Schema` of [[License]]. */
 object License {
+
+  /**
+   * The derived `Schema` of [[License]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[License] = Schema.derived
 }
 
@@ -187,7 +205,13 @@ final case class Server(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Server]]. */
 object Server {
+
+  /**
+   * The derived `Schema` of [[Server]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Server] = Schema.derived
 }
 
@@ -221,7 +245,13 @@ final case class ServerVariable(
   )
 }
 
+/** Holds the derived `Schema` of [[ServerVariable]]. */
 object ServerVariable {
+
+  /**
+   * The derived `Schema` of [[ServerVariable]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[ServerVariable] = Schema.derived
 }
 
@@ -233,7 +263,13 @@ final case class Paths(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Paths]]. */
 object Paths {
+
+  /**
+   * The derived `Schema` of [[Paths]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Paths] = Schema.derived
 }
 
@@ -387,7 +423,13 @@ final case class SecurityRequirement(
   requirements: ChunkMap[String, Chunk[String]]
 )
 
+/** Holds the derived `Schema` of [[SecurityRequirement]]. */
 object SecurityRequirement {
+
+  /**
+   * The derived `Schema` of [[SecurityRequirement]]. Its JSON layout can differ
+   * from OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[SecurityRequirement] = Schema.derived
 }
 
@@ -401,7 +443,13 @@ final case class Tag(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Tag]]. */
 object Tag {
+
+  /**
+   * The derived `Schema` of [[Tag]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Tag] = Schema.derived
 }
 
@@ -414,7 +462,13 @@ final case class ExternalDocumentation(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[ExternalDocumentation]]. */
 object ExternalDocumentation {
+
+  /**
+   * The derived `Schema` of [[ExternalDocumentation]]. Its JSON layout can
+   * differ from OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[ExternalDocumentation] = Schema.derived
 }
 
@@ -511,7 +565,13 @@ final case class Reference(
   description: Option[Doc] = None
 )
 
+/** Holds the derived `Schema` of [[Reference]]. */
 object Reference {
+
+  /**
+   * The derived `Schema` of [[Reference]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Reference] = Schema.derived
 }
 
@@ -608,7 +668,13 @@ final case class XML(
   wrapped: Boolean = false
 )
 
+/** Holds the derived `Schema` of [[XML]]. */
 object XML {
+
+  /**
+   * The derived `Schema` of [[XML]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[XML] = Schema.derived
 }
 
@@ -724,12 +790,26 @@ object SchemaObject {
  */
 sealed trait ParameterLocation
 
+/** Holds the cases and the derived `Schema` of [[ParameterLocation]]. */
 object ParameterLocation {
-  case object Query  extends ParameterLocation
+
+  /** The parameter is passed in the query string. */
+  case object Query extends ParameterLocation
+
+  /** The parameter is passed in a request header. */
   case object Header extends ParameterLocation
-  case object Path   extends ParameterLocation
+
+  /** The parameter is a variable of the URL path template. */
+  case object Path extends ParameterLocation
+
+  /** The parameter is passed in a cookie. */
   case object Cookie extends ParameterLocation
 
+  /**
+   * The derived `Schema` of [[ParameterLocation]]. It encodes a case by its
+   * object name, such as `"Query"`; `OpenAPICodec.openAPICodec` writes the
+   * lowercase names `"query"`, `"header"`, `"path"` and `"cookie"`.
+   */
   implicit val schema: Schema[ParameterLocation] = Schema.derived
 }
 
@@ -802,7 +882,13 @@ final case class Parameter(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Parameter]]. */
 object Parameter {
+
+  /**
+   * The derived `Schema` of [[Parameter]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Parameter] = Schema.derived
 }
 
@@ -862,7 +948,13 @@ final case class Header(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Header]]. */
 object Header {
+
+  /**
+   * The derived `Schema` of [[Header]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Header] = Schema.derived
 }
 
@@ -892,7 +984,13 @@ final case class RequestBody(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[RequestBody]]. */
 object RequestBody {
+
+  /**
+   * The derived `Schema` of [[RequestBody]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[RequestBody] = Schema.derived
 }
 
@@ -931,7 +1029,13 @@ final case class MediaType(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[MediaType]]. */
 object MediaType {
+
+  /**
+   * The derived `Schema` of [[MediaType]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[MediaType] = Schema.derived
 }
 
@@ -988,7 +1092,13 @@ final case class Encoding(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Encoding]]. */
 object Encoding {
+
+  /**
+   * The derived `Schema` of [[Encoding]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Encoding] = Schema.derived
 }
 
@@ -1021,7 +1131,13 @@ final case class Responses(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Responses]]. */
 object Responses {
+
+  /**
+   * The derived `Schema` of [[Responses]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Responses] = Schema.derived
 }
 
@@ -1057,7 +1173,13 @@ final case class Response(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Response]]. */
 object Response {
+
+  /**
+   * The derived `Schema` of [[Response]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Response] = Schema.derived
 }
 
@@ -1105,7 +1227,13 @@ final case class Example(
   )
 }
 
+/** Holds the derived `Schema` of [[Example]]. */
 object Example {
+
+  /**
+   * The derived `Schema` of [[Example]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[Example] = Schema.derived
 }
 
@@ -1166,7 +1294,13 @@ final case class Link(
   )
 }
 
+/** Holds the derived `Schema` of [[Link]]. */
 object Link {
+
+  /**
+   * The derived `Schema` of [[Link]]. Its JSON layout can differ from OpenAPI
+   * JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Link] = Schema.derived
 }
 
@@ -1193,7 +1327,13 @@ final case class Callback(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Callback]]. */
 object Callback {
+
+  /**
+   * The derived `Schema` of [[Callback]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Callback] = Schema.derived
 }
 
@@ -1204,11 +1344,23 @@ object Callback {
  */
 sealed trait APIKeyLocation
 
+/** Holds the cases and the derived `Schema` of [[APIKeyLocation]]. */
 object APIKeyLocation {
-  case object Query  extends APIKeyLocation
+
+  /** The API key is passed in the query string. */
+  case object Query extends APIKeyLocation
+
+  /** The API key is passed in a request header. */
   case object Header extends APIKeyLocation
+
+  /** The API key is passed in a cookie. */
   case object Cookie extends APIKeyLocation
 
+  /**
+   * The derived `Schema` of [[APIKeyLocation]]. It encodes a case by its object
+   * name, such as `"Cookie"`; `OpenAPICodec.openAPICodec` writes the lowercase
+   * names `"query"`, `"header"` and `"cookie"`.
+   */
   implicit val schema: Schema[APIKeyLocation] = Schema.derived
 }
 
@@ -1222,6 +1374,7 @@ object APIKeyLocation {
  */
 sealed trait SecurityScheme
 
+/** Holds the derived `Schema` of [[SecurityScheme]]. */
 object SecurityScheme {
 
   /**
@@ -1324,6 +1477,11 @@ object SecurityScheme {
     extensions: ChunkMap[String, Json] = ChunkMap.empty
   ) extends SecurityScheme
 
+  /**
+   * The derived `Schema` of [[SecurityScheme]]. It wraps a case under its case
+   * name, as in `{"MutualTLS":{}}`; use `OpenAPICodec.openAPICodec` for
+   * documents.
+   */
   implicit val schema: Schema[SecurityScheme] = Schema.derived
 }
 
@@ -1352,7 +1510,13 @@ final case class OAuthFlows(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[OAuthFlows]]. */
 object OAuthFlows {
+
+  /**
+   * The derived `Schema` of [[OAuthFlows]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[OAuthFlows] = Schema.derived
 }
 
@@ -1388,6 +1552,12 @@ final case class OAuthFlow(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[OAuthFlow]]. */
 object OAuthFlow {
+
+  /**
+   * The derived `Schema` of [[OAuthFlow]]. Its JSON layout can differ from
+   * OpenAPI JSON; use `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[OAuthFlow] = Schema.derived
 }
