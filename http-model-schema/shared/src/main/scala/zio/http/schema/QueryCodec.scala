@@ -20,13 +20,67 @@ import zio.blocks.schema.codec.Codec
 import zio.http.{QueryParams, QueryParamsBuilder}
 
 /**
- * A codec for encoding a value of type `A` into [[zio.http.QueryParams]] and
- * decoding [[zio.http.QueryParams]] back into `A`.
+ * Encodes a value of type `A` as [[zio.http.QueryParams]] and decodes it back,
+ * so a whole case class maps onto a query string in one call. Derive one with
+ * `Schema[A].derive(DefaultQueryFormat)`, or extend this class and write
+ * `encode` and `decode` by hand.
  *
- * Instances are typically derived via [[QueryFormat]] using the schema
- * derivation framework.
+ * A derived codec writes a record as one parameter per field, named exactly as
+ * the field, and matches names exactly when decoding, letter case included. A
+ * field can be a primitive, an `Option`, a sequence such as `List` or `Chunk`
+ * (one repeated parameter per element), or a wrapper of one of these built with
+ * `Schema#transform`. `None` writes nothing, and an absent `Option` or sequence
+ * parameter decodes to `None` or an empty sequence. A present but empty value,
+ * as in `size=`, is decoded like any other, so an `Option[Int]` field fails on
+ * it. A field that is not a sequence reads the first value of its parameter and
+ * ignores the rest, and parameters that match no field are ignored. A schema
+ * that is not a record uses the single key `value`.
+ *
+ * `decode` reports failures as a [[zio.blocks.schema.SchemaError]]:
+ * `Missing field 'page'` for an absent required parameter, or the
+ * [[QueryParamError.Malformed]] message for a value that does not parse. Field
+ * default values are ignored, a known bug, so a missing `limit: Int = 20` fails
+ * with `Missing field 'limit'`. An `Option` of a sequence decodes only its
+ * first element, also a known bug.
+ *
+ * Derivation throws `UnsupportedOperationException` for a field of any other
+ * shape, such as a nested record, a `Map` or a sealed trait. A top-level
+ * `Option`, sealed trait, `Map` or `DynamicValue` schema derives, but its codec
+ * throws `UnsupportedOperationException` on every `encode` and `decode`. A
+ * field of another primitive type, such as `java.time.Instant`, derives too,
+ * but `encode` throws and `decode` fails for it, a known bug.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ * import zio.http.QueryParams
+ *
+ * final case class OrderSearch(status: String, page: Int, size: Option[Int], tags: List[String])
+ * object OrderSearch {
+ *   implicit val schema: Schema[OrderSearch] = Schema.derived
+ * }
+ *
+ * val codec = Schema[OrderSearch].derive(DefaultQueryFormat)
+ *
+ * codec.encodeToQueryParams(OrderSearch("open", 2, None, List("gift", "rush"))).encode
+ * // status=open&page=2&tags=gift&tags=rush
+ * codec.decode(QueryParams.fromEncoded("status=open&page=1&tags=gift"))
+ * // Right(OrderSearch(open,1,None,List(gift)))
+ * codec.decode(QueryParams.fromEncoded("status=open"))
+ * // Left(zio.blocks.schema.SchemaError: Missing field 'page' at: .)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/http-model/schema-codecs/ HeaderCodec and QueryCodec]]
  */
 abstract class QueryCodec[A] extends Codec[QueryParams, QueryParamsBuilder, A] {
+
+  /**
+   * Encodes `value` into a new [[zio.http.QueryParams]]. It fills a builder
+   * that every `QueryCodec` on the current thread shares, so a call made from
+   * inside another codec's `encode` on the same thread clears the output that
+   * codec was writing and leaves its own entries there. Inside `encode`, write
+   * to the `output` builder instead.
+   */
   final def encodeToQueryParams(value: A): QueryParams = {
     val builder = QueryCodec.threadLocalBuilder.get()
     builder.reset()
@@ -35,6 +89,7 @@ abstract class QueryCodec[A] extends Codec[QueryParams, QueryParamsBuilder, A] {
   }
 }
 
+/** Holds the per-thread builder that `encodeToQueryParams` reuses. */
 object QueryCodec {
   private val threadLocalBuilder: ThreadLocal[QueryParamsBuilder] =
     new ThreadLocal[QueryParamsBuilder] {

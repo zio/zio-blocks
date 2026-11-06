@@ -25,6 +25,15 @@ import zio.http.{QueryParams, QueryParamsBuilder}
 
 import scala.util.control.NonFatal
 
+/**
+ * The [[zio.blocks.schema.derive.Deriver]] behind `DefaultQueryFormat`. It
+ * builds the [[QueryCodec]] of a schema with the field and naming rules that
+ * `QueryCodec` lists, and throws `UnsupportedOperationException` when a record
+ * has a field it cannot encode, such as a nested record or a `Map`. Pass it to
+ * `Schema#deriving` to replace the codec of a type with an `instance` override;
+ * a known bug: the override applies when that type is the whole schema, but a
+ * record's fields ignore it and keep the built-in rules.
+ */
 object QueryCodecDeriver extends Deriver[QueryCodec] {
   private object ErrorFactory extends ParamCodecSupport.DecodeErrorFactory {
     def malformed(name: String, raw: String, cause: String): String =
