@@ -56,6 +56,10 @@ object SeqDeconstructor {
      */
     def elementType[A](c: C[A]): RegisterType[A]
 
+    /**
+     * Returns the number of elements of `c`, which is the length of its backing
+     * array.
+     */
     def size[A](c: C[A]): Int
 
     /** Returns the element of `c` at `index`. */
