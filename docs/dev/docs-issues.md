@@ -703,6 +703,32 @@ Suggested fix: remove `Choices`; describe `Concat` on both versions; correct the
 - **`maybe.md:64`** ("only present-of-absent values allocate a `Present` wrapper") and the "Nested allocation" row at `:84` ("**1** (`Present(Absent)` only)") leave out `Maybe.present(Present(x))`, which is `Present(Present(x))` on Scala 3 (probe: `present(Present(1)) Present(Present(1))`); `:90` calls `Maybe.present(null)` "present-of-absent", but it is a present `null`.
 - **Cross-Version Parity / "Behavior Differences"**: add that `Maybe(Maybe.absent)` is absent on Scala 3 and present on Scala 2, and that `toString`/`==` differ (`Maybe.present(8080)` prints `8080` on Scala 3 and equals `8080` only when compared as `Any` (a direct `Maybe.present(8080) == 8080` does not compile there), prints `Present(8080)` on Scala 2; `Maybe.absent` prints `zio.blocks.maybe.Absent$@<hash>` on Scala 3 and `Absent` on Scala 2).
 
+### `reference/endpoint/endpoint.md` says the first `out` and `outError` widen from `Unit` to the schema type
+
+**Where found.** `docs/reference/endpoint/endpoint.md:199` and `:236`, 2026-11-06, `07f71de18`.
+
+**Summary.** ":199 The output type widens from `Unit` to the first schema type, then to a nested `Either` for each additional alternative." and ":236 Each `Endpoint#outError` call widens `Err` by one nested `Either` layer." The real types are `Either[A, Unit]` after the first call and `Either[Either[B, A], Unit]` after the second (see the endpoint library entry on `Either[A, Unit]` outputs). The page's `orOutError` example (`:248-252`) is correct.
+
+**Fix.** Either fix the library bug "the first `out` / `outError` keeps the empty `Unit` output as an alternative", or state the real types and link the bug in plain text ("a known bug in 0.0.56").
+
+### `reference/endpoint/bulk-creation.md` promises auto-names that do not compile, and gives the wrong Scala/artifact rule
+
+**Where found.** `docs/reference/endpoint/bulk-creation.md:8`, `:42-46`, `:96`, 2026-11-06, `07f71de18`.
+
+**Summary.**
+- `:42-46` list "`v{major}` for `~` concat segments" and "`.unused` renders as `{name}`" as auto-names; a `~` segment stops the compile wherever it is, and `.unused` after a literal does too (see the endpoint entry on `endpoints { ... }` auto-names). Two literals (`GET /notes/latest`), the most common REST shape, also fail and are not mentioned.
+- `:8` and `:96` say the DSL needs "Scala 3.8+ with `-experimental` ... also works on Scala 3.7 with `-experimental`". For 0.0.56, `zio-blocks-endpoint_3` does not contain `endpoints` at all (a 3.9.0 build against it reports "Not found: endpoints"), so it is available only from `zio-blocks-next-endpoint` on Scala 3.9+ with `-experimental`; built from `main` on Scala 3.9.0 it compiles without `-experimental` (the `scaladoc-check` run on 3.9.0 compiles the new `endpoints` examples without the flag), so the page needs the rule of the release it documents.
+
+**Fix.** List only the shapes that work (one literal or capture after the method; one literal then one capture), name the bug, and use the install rule of the other pages.
+
+### `reference/endpoint/auth-type.md` and `http-codec.md` claims that the Scaladoc corrected
+
+**Where found.** 2026-11-06, `07f71de18`.
+
+- `auth-type.md:134` "By default, `AuthType` returns `Status.NotFound` when the client does not meet the auth requirement": nothing in the module returns a status; `unauthorizedStatus` is a value for a server to use. Suggested: "`AuthType#unauthorizedStatus` is `Status.NotFound` by default; a server built on the endpoint should answer with it ...".
+- `http-codec.md:221` "surfacing a `SchemaError` if the scheme does not match": true; it could add that the message names the class of the parsed header (`... but found Bearer`, or `Unparsed` for an unknown scheme), see `HttpCodec.basicAuth` Scaladoc.
+- `route-tree.md:62` "HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered": the fallback also happens when a `HEAD` root exists but has no match for the path (`RouteTree.scala:57-59`); and the `RoutePattern#decode` side differs for method sets (entry J).
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

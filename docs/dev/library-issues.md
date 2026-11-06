@@ -15165,6 +15165,363 @@ object Repro {
 
 **Suggested fix.** Compare against the exclusive bound: `value >= 2147483648.0f` for `FloatToInt`, `value >= 9.223372036854775807E18f` for `FloatToLong` and `value >= 9.223372036854775807E18` for `DoubleToLong` (the lower bounds `-2^31` and `-2^63` are exact and correct). Share one helper with the `Into` instances, and add boundary tests.
 
+### endpoint: a route for `/` is never stored in a `RouteTree`, and `orElse(PathCodec.empty)` loses its `/` branch
+
+**Where found.** Writing Scaladoc for `RouteTree` and `RoutePattern`, 2026-11-06, commit `07f71de18`; the same at `v0.0.56` (verified against the published 0.0.56). Task 2's suspect S1 found the `orElse(PathCodec.empty)` half independently.
+
+**Summary.** `RouteTree#add` inserts one entry per element of `pattern.alternatives`. For a pattern whose path is empty (the root route `GET /`, built with `RoutePattern.GET`, `RoutePattern(Method.GET)`, `Endpoint(RoutePattern.GET)` or `RoutePattern(Method.GET, "")`), `alternatives` is `List()`, so `add` silently stores nothing and `get(GET, /)` is `None`, although `RoutePattern#decode` and `#matches` accept `/`. The same expansion drops an empty `orElse` branch: `PathCodec("notes").orElse(PathCodec.empty)` decodes `/` but its alternatives are only `/notes`.
+
+**Reproducer** (`repro/a/Repro.scala`, `scala-cli run --server=false .`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val home = RoutePattern.GET // the root route, GET /
+    println(home.render)                          // GET /
+    println(home.decode(Method.GET, Path.root))   // Right(())
+    println(home.alternatives)                    // List()
+    val tree = RouteTree.empty[String].add(home, "home").add(Method.GET / "notes", "notes")
+    println(tree.get(Method.GET, Path.root))      // None
+    println(tree.get(Method.GET, Path("/notes"))) // Some(notes)
+    println(tree.roots.keySet)                    // Set(GET)
+
+    val notesOrRoot = Method.GET / PathCodec("notes").orElse(PathCodec.empty)
+    println(notesOrRoot.decode(Method.GET, Path.root)) // Right(())
+    println(notesOrRoot.alternatives.map(_.render))    // List(GET /notes)
+    println(RouteTree.empty[String].add(notesOrRoot, "notes or root").get(Method.GET, Path.root)) // None
+  }
+}
+```
+
+**Expected.** `RoutePattern.GET.alternatives == List(RoutePattern.GET)`, the tree stores the value at the root level, and `get(GET, Path.root)` returns `Some("home")`. An empty `orElse` branch gives an empty-path alternative.
+
+**Root cause.** `PathCodecRuntime.expand` maps the empty segment to no alternative at all: `endpoint/shared/src/main/scala/zio/blocks/endpoint/PathCodecRuntime.scala:81` (`case PathCodec.Segment(SegmentCodec.Empty) => Nil`) and, inside a `Fallback`, `:50` (`loop(tail, result)` drops it). `PathCodec#alternatives` (`PathCodec.scala:83-84`) and `RoutePattern#alternatives` (`RoutePattern.scala:41-48`, which `flatMap`s over the path alternatives) inherit the empty list, and `RouteTree#add` (`RouteTree.scala:43-46`) folds over it. `SegmentSubtree.single` would handle the empty path correctly (it filters `Empty` and puts the value at the top level, `RouteTree.scala:160-170`).
+
+**Impact.** Any server that dispatches through `RouteTree` cannot serve a home page or an API root (`GET /`, `GET /api` under a nested prefix is fine, but a bare root is not); the route is dropped without an error, so the failure shows up as a 404 at run time. The new Scaladoc on `RoutePattern#alternatives` and `RouteTree#add` describes it as a known bug.
+
+**Test gap.** `RouteTreeSpec` (`endpoint/shared/src/test/scala-3/.../RouteTreeSpec.scala:28-31`) only asserts that an empty tree returns `None` for `/`; `PathCodecRoutingSpec` (`:340-348`) reaches `/` only through a trailing catch-all. No test adds a route with an empty path or an `orElse` with an empty branch.
+
+**Suggested fix.** In `expand`, return `List(codec)` for `Segment(Empty)` at the top level and keep `PathCodec.empty` as an alternative inside a `Fallback`; add tests for `RouteTree.empty.add(RoutePattern.GET, v).get(GET, Path.root)` and for `orElse(PathCodec.empty)`.
+
+### endpoint: `orElse` accepts branches that `alternatives` and `RouteTree#add` reject, and `matches` disagrees with `decode` for some of them
+
+**Where found.** Fact-checking `PathCodec#orElse` Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** `orElse` only checks at compile time that both sides capture nothing, so `PathCodec("api/v1").orElse(PathCodec("api/v2"))` and a literal passed through `transform` (`literal("users").transform(...).orElse(literal("members"))`) compile, render and decode. But `alternatives` throws `IllegalStateException` for them, and so do `RoutePattern#alternatives` and `RouteTree#add`, because `expand` accepts only single-literal branches. With a multi-segment branch, and also with an empty branch (`orElse(PathCodec.empty)`, see the endpoint library entry on the `/` route), `matches` returns `false` where `decode` succeeds.
+
+**Reproducer** (`repro/b/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import scala.util.Try
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val versions = Method.GET / PathCodec("api/v1").orElse(PathCodec("api/v2"))
+    println(versions.render)                              // GET /api/v1 | /api/v2
+    println(versions.decode(Method.GET, Path("/api/v2"))) // Right(())
+    println(Try(versions.alternatives).isFailure)         // true
+    println(Try(RouteTree.empty[String].add(versions, "api")))
+    // Failure(java.lang.IllegalStateException: Alternative path segments should only contain literals, found: Concat(Segment(Literal(api,,Chunk())),Segment(Literal(v1,,Chunk())),zio.blocks.combinators.Tuples$Tuples$$anon$1@305fd85d))
+
+    val renamed = PathCodec.literal("users").transform((_: Unit) => (), (_: Unit) => ()).orElse(PathCodec.literal("members"))
+    println(renamed.decode(Path("/users")))      // Right(())
+    println(Try(renamed.alternatives).isFailure) // true
+
+    val prefixed = PathCodec("a").orElse(PathCodec("a/b")) / PathCodec.string("s")
+    println(prefixed.decode(Path("/a/b")))  // Right(b)
+    println(prefixed.matches(Path("/a/b"))) // false
+
+    val optional = PathCodec("a").orElse(PathCodec.empty) / PathCodec("a")
+    println(optional.decode(Path("/a")))  // Right(())
+    println(optional.matches(Path("/a"))) // false
+  }
+}
+```
+
+**Expected.** Either `orElse` rejects the branches `expand` cannot handle (at compile time or with a clear error when built), or `expand` turns each branch into its own path (a branch of two literals gives one two-segment alternative, a transformed literal gives its inner literal), and `matches` agrees with `decode`.
+
+**Root cause.** `PathCodecRuntime.scala:53-57`: the `Fallback` loop accepts `Segment(Literal)` and nested `Fallback`/`Ignored`, and throws for anything else, including a `Concat` of literals and a `Transform`. `matchEnd` (`PathCodecRuntime.scala:181-182`) keeps only the longest branch end of a `Fallback`, which is right only when every branch is one segment, and not empty; `decodeCodec` (`:103`) tries every branch.
+
+**Impact.** A route such as "`/api/v1` or `/api/v2`" type-checks and passes `decode`-based tests, then crashes the server when the routing table is built. The `orElse` Scaladoc now says "use one segment per branch" and names the bug.
+
+**Test gap.** The `orElse` tests (`PathCodecRoutingSpec.scala:167`, `:302-330`, `:472-477`; `RouteTreeSpec.scala:189-193`; `EndpointSpec.scala:186-190`) use single-literal branches, except `PathCodecRoutingSpec.scala:307-311` ("orElse accepts a literal-only codec mapped through transform"), which builds a transformed branch and checks only `decode`, never `alternatives` or `matches`.
+
+**Suggested fix.** Expand a literal-only `Concat` branch into one alternative (flatten its literals) and a `Transform`/`Ignored` branch into its inner literal, and make `matchEnd` try every branch end of a `Fallback`, the empty one included (or reject such branches in `orElse` with an `IllegalArgumentException` when the codec is built).
+
+### endpoint: `PathCodec("...")`, `Method.GET / "..."` and `RoutePattern(method, "...")` accept literal text that `PathCodec.literal` rejects
+
+**Where found.** Fact-checking the "encoding trio" Scaladoc on `PathCodec.apply(String)` and `RoutePattern.apply(method, pathString)`, 2026-11-06, `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** The old Scaladoc on `PathCodec.apply(String)` said a literal with characters that need URL encoding "is rejected by `SegmentCodec.validateLiteralValue`", and `RoutePattern.apply(method, pathString)` said the same. They are not: both split the string with `Path.apply` and wrap each part with `SegmentCodec.literalValidated`, which does no checking. So `PathCodec.literal("café")` throws (and `SegmentCodec.literal("café")` fails to compile on Scala 3), while `PathCodec("café")`, `Method.GET / "menu" / "café"` and `RoutePattern(Method.GET, "/notes/a b")` are accepted, and `"notes//42"` builds an empty literal segment. An accepted literal is compared with the stored segment as it is, so `PathCodec("a b")` matches a request path built with `Path.fromEncoded("/a%20b")`, while `PathCodec("a%20b")` matches only `Path.apply("/a%20b")`.
+
+**Reproducer** (`repro/c/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import scala.util.Try
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(Try(PathCodec.literal("café")))
+    // Failure(java.lang.IllegalArgumentException: SegmentCodec.literal must be a valid single path segment without `/` or characters that require URL encoding: café)
+    println(Try(PathCodec.literal("a b")))
+    // Failure(java.lang.IllegalArgumentException: SegmentCodec.literal must be a valid single path segment without `/` or characters that require URL encoding: a b)
+    println(PathCodec("café").render)  // /café
+    println(PathCodec("a b").render)   // /a b
+    println(PathCodec("a%20b").render) // /a%20b
+    println(PathCodec("notes//42"))
+    // Concat(Concat(Segment(Literal(notes,,Chunk())),Segment(Literal(,,Chunk())),...),Segment(Literal(42,,Chunk())),...)
+    println((Method.GET / "menu" / "café").render)               // GET /menu/café
+    println(RoutePattern(Method.GET, "/notes/a b").render)       // GET /notes/a b
+    println(PathCodec("a b").decode(Path.fromEncoded("/a%20b")))   // Right(())
+    println(PathCodec("a%20b").decode(Path.fromEncoded("/a%20b"))) // Left(Path /a%20b did not match /a%20b: failed at segment 0 ('a b'))
+  }
+}
+```
+
+**Expected.** One rule for literal text everywhere: either every constructor validates (as the old Scaladoc promised), or `PathCodec.literal`/`SegmentCodec.literal` accept the same text the string constructors accept (decoded form compared with `Path.fromEncoded` segments).
+
+**Root cause.** `PathCodec.scala:232-241` (`apply(value: String)`) and `RoutePattern.scala:93-100` (`apply(method, path)`, used by `apply(method, pathString)` at `:107-108`) call `SegmentCodec.literalValidated` (`SegmentCodec.scala:245`, which only wraps), not `validateLiteralValue` (`:318-330`). `stringToPathCodec` (`PathCodec.scala:246-247`) goes through the same unchecked `apply`.
+
+**Impact.** The documented guarantee was false; users who rely on it get routes that match nothing (`PathCodec("a%20b")` against decoded paths), or routes with an empty segment from a typo (`"notes//42"`). The new Scaladoc describes the real behaviour and calls the difference a known bug.
+
+**Test gap.** No test builds `PathCodec(String)` or `RoutePattern(method, String)` from text with a space, `%`, a non-ASCII letter or `//`; validation tests use `SegmentCodec.literal`/`PathCodec.literal` only.
+
+**Suggested fix.** Call `validateLiteralValue` for each segment in `PathCodec.apply(String)` and `RoutePattern.apply(method, path)` (rejecting empty middle segments), or document and test the unchecked behaviour as intended.
+
+### endpoint: the first `out` / `outError` keeps the empty `Unit` output as an alternative, so `Output` is `Either[A, Unit]`
+
+**Where found.** Probing `Endpoint#out` types for the Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56` on Scala 2.13.18 and 3.9.0.
+
+**Summary.** `Endpoint(route)` starts with `HttpCodec.Empty` (type `Unit`) for `output` and `error`. Every `out`/`outError` overload does `copy(output = newCodec | output)`, so the first call gives `Fallback(newCodec, Empty)` and the type `Either[A, Unit]`, not `A`. The Scala 3 `orOutError` treats the first call specially (its `initialError` instance replaces the `Unit` channel), and the reference page says `out` does too ("The output type widens from `Unit` to the first schema type"), so the `Either[A, Unit]` looks unintended.
+
+**Reproducer** (`repro/d/Repro.scala`, Scala 2.13.18, which also avoids the Scala 3 type-ascription trap):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.blocks.schema.Schema
+import zio.http.{Method, Status}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val getNote = Endpoint(Method.GET / "notes" / PathCodec.int("id"))
+      .out(Schema[String])
+      .outError(Status.NotFound, Schema[String])
+    // Output and Err keep the Unit of the empty Endpoint(route) as a second alternative:
+    val typed: Endpoint[Int, Unit, Either[String, Unit], Either[String, Unit], AuthType.None] = getNote
+    println(typed.output.getClass.getSimpleName)                                // Fallback
+    println(typed.output.asInstanceOf[HttpCodec.Fallback[_, _, _, _]].right)    // Empty
+    println(typed.error.asInstanceOf[HttpCodec.Fallback[_, _, _, _]].right)     // Empty
+  }
+}
+```
+
+(On Scala 3.9.0 the same endpoint has type `Endpoint[Int, Unit, Either[String, Unit], Either[String, Unit], AuthType.None]`; see `probes/types3/T.scala`.)
+
+**Expected.** `Endpoint(route).out(Schema[String])` has `Output = String` and `output` is the body-and-status codec alone; likewise for the first `outError`.
+
+**Root cause.** `endpoint/shared/src/main/scala/zio/blocks/endpoint/Endpoint.scala:119` (`out(codec)`), `:153`, `:164`, `:171`, `:178`, `:185`, `:192`, `:199`, `:206` (the `out(schema, ...)` overloads) and `:212`, `:245`, `:259`, `:273`, `:287` (`outError`): `codec | output` with `output == HttpCodec.Empty`. Compare `EndpointUnionErrorBuilder.initialError` (`scala-3/.../EndpointUnionErrorBuilder.scala:43-50`).
+
+**Impact.** Every endpoint with one success response has `Output = Either[A, Unit]`, so handlers and clients must wrap and unwrap a `Left`, and an interpreter that decodes a response by trying the alternatives in order would accept any response through the `Empty` branch (decoding `Empty` needs nothing), hiding decoding failures. The Scaladoc on `out(schema)` and `outError(status, schema)` now shows the real type and calls it a known bug.
+
+**Test gap.** `EndpointSpec` "out builder keeps previous alternatives" (`scala-3/.../EndpointSpec.scala:563-575`) and the other `out` tests only assert that the code type-checks (`isRight`); `PathCodecRoutingSpec` "out overload defaults" (`:52-80`) inspects only the status. No test states the resulting `Output` type.
+
+**Suggested fix.** Add an `Eithers`-like builder for `out`/`outError` with a low-priority "existing is `Unit`" instance that returns the new codec (as `initialError` does), on Scala 2 and 3; add type assertions to the tests.
+
+### endpoint (Scala 3): `endpoints { ... }` cannot auto-name many common routes
+
+**Where found.** Probing the group macro for the `EndpointGroupSyntax` Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56` (`zio-blocks-next-endpoint` 0.0.56, Scala 3.9.0, `-experimental`). The `scala-3.7` sources are identical at both.
+
+**Summary.** A bare `Endpoint(...)` inside `endpoints { ... }` is auto-named from its method and path template. It works for a method followed by one literal or capture (`.unused` and `PathCodec.trailing` included), or by one literal and one capture. It stops the compile with "cannot auto-name this endpoint; assign it to a val. Tree: ..." for two literals (`GET / "notes" / "latest"`), a literal after a capture (`GET / "notes" / PathCodec.int("id") / "tags"`), two captures (`GET / PathCodec.int("a") / PathCodec.string("b")`), a literal then `.unused` (`PUT / "notes" / PathCodec.int("noteId").unused`) and a route that starts from a `RoutePattern` value (`RoutePattern.GET / "notes"`, `RoutePattern.any`). A `~` segment fails anywhere, with "cannot auto-name: unsupported path tree ... ; assign to val instead": right after the method (`GET / (SegmentCodec.literal("v") ~ SegmentCodec.int("major"))`), wrapped in `PathCodec(...)`, or after a literal. The reference page lists `v{major}` and `.unused` as supported names.
+
+**Reproducer** (`repro/e/Repro.scala`, `scala-cli compile --server=false .`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-next-endpoint:0.0.56
+//> using options -experimental
+import zio.blocks.endpoint.*
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.Method
+
+object Repro {
+  // Compiles: a method, one literal, one capture
+  val ok = endpoints {
+    Endpoint(Method.GET / "notes" / PathCodec.int("id"))
+  }
+  // Does not compile: two literals
+  val latest = endpoints {
+    Endpoint(Method.GET / "notes" / "latest")
+  }
+  def main(args: Array[String]): Unit = println(ok.`GET /notes/{id}`.route.render)
+}
+// -- Error: .../Repro.scala:14:25
+// 14 |  val latest = endpoints {
+//    |               ^
+//    |cannot auto-name this endpoint; assign it to a val. Tree: Apply(Apply(TypeApply(Select(Apply(TypeApply(Ident("RoutePatternOps"), List(Inferred())), List(Apply(TypeApply(Select(Apply(Ident("MethodSyntax"), List(Select(Ident("Method"), "GET"))), "/"), List(Inferred())), List(Apply(Ident("stringToPathCodec"), List(Literal(StringConstant("notes")))))))), "/"), List(Inferred(), Inferred())), List(Apply(Ident("stringToPathCodec"), List(Literal(StringConstant("latest")))))), List(Ident("unitUnit")))
+// 1 error found
+```
+
+The other shapes were run one per file (`probes/g4/d4`, `d5`, `d6`, `d9`, `d10`, `probes/fix1/grp/g1`, `g2`, `g3`); their errors end in `List(TypeApply(Ident("rightUnit"), ...))`, `List(TypeApply(Ident("fallback"), ...))`, `List(Ident("unitUnit"))`, or "cannot auto-name: unsupported path tree Apply(TypeApply(Ident("segmentToPathCodec"), ...". `probes/fix1/grp/g1` (`~` right after the method) and `g2` (inside `PathCodec(...)`) fail with "cannot auto-name: unsupported path tree Apply(TypeApply(Ident("segmentToPathCodec"), ..." and "... Apply(TypeApply(Select(Ident("PathCodec"), "apply"), ..."; `g3` (`RoutePattern.any`) with "cannot auto-name this endpoint; assign it to a val. Tree: Select(Ident("RoutePattern"), "any")". Supported shapes (`probes/g4/d2`, `d3`, `d7`, `d8`, `d11`, `probes/fix1/grp/g4`) gave the names `GET#|POST /notes`, `* /notes/...`, `GET /notes`, `DELETE /notes/{id}`, `GET /notes/{id}` and `PUT /{id}` (for `Method.PUT / PathCodec.int("id").unused`).
+
+**Expected.** Every route accepted by `Endpoint(...)` gets the name `RoutePattern#render` would give it (for example `GET /notes/latest`), or the macro computes the name from the route value instead of the syntax tree.
+
+**Root cause.** `endpoint/shared/src/main/scala-3.7/zio/blocks/endpoint/EndpointGroupMacro.scala:336-344` (`renderRoutePatternName.stripWrappers`) and `:270-278`/`:279-282` strip only an implicit argument list containing `TypeApply(Ident("leftUnit"), _)`. The `Tuples` instance chosen for other joins (`unitUnit`, `rightUnit`, `fallback`) is left in place, so `decompose` (`:411-449`) falls to its error case at `:445-448`. `pathRender0` (`:368-410`) has no case for `segmentToPathCodec(...)` or for `.unused` applied to an implicit argument list.
+
+**Impact.** Users must name most endpoints with `val`, and the auto-naming feature the reference page advertises fails on ordinary REST paths. The Scaladoc on `endpoints` now lists the working shapes and calls the rest a known bug.
+
+**Test gap.** `EndpointGroupSpec` (`scala-3.7/.../EndpointGroupSpec.scala:53-75`, `:277-301`) auto-names only routes with one segment after the method, or one literal plus one capture; the `~` test (`:277-281`) binds the endpoint to a `val`, so auto-naming of `~` is never exercised.
+
+**Suggested fix.** Strip any trailing implicit argument list whose type is a `Tuples.WithOut` (whatever its name) in `stripWrappers`/`peelToRoutePattern`, unwrap `segmentToPathCodec` and the `unused` implicit list in `pathRender0`; add one auto-name test per shape listed in the summary.
+
+### endpoint: `RoutePattern#decode` refuses `HEAD` for a `GET #| POST` pattern that `RouteTree` routes `HEAD` to
+
+**Where found.** Probing `RoutePattern#decode` for its Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** `RoutePattern#decode`/`matches` accept `HEAD` only when the pattern's method is exactly `GET`. `RouteTree#get` falls back from `HEAD` to every `GET` route, including the `GET` copy of a `GET #| POST` pattern. So the tree routes a `HEAD /notes` request to the handler, and the handler's `decode` rejects it.
+
+**Reproducer** (`repro/j/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val readNotes = (Method.GET #| Method.POST) / "notes"
+    val tree      = RouteTree.empty[String].add(readNotes, "notes")
+    println(tree.get(Method.HEAD, Path("/notes")))              // Some(notes)
+    println(readNotes.decode(Method.HEAD, Path("/notes")))      // Left(Expected HTTP method GET#|POST but found HEAD)
+    println(readNotes.matches(Method.HEAD, Path("/notes")))     // false
+    println((Method.GET / "notes").decode(Method.HEAD, Path("/notes"))) // Right(())
+  }
+}
+```
+
+**Expected.** `decode` and `matches` accept `HEAD` whenever the pattern's method matches `GET` (`method.matches(Method.GET)`), as the tree does.
+
+**Root cause.** `RoutePattern.scala:51` and `:67` test `method == Method.GET`; `RouteTree.scala:57-59` falls back to the `GET` root.
+
+**Impact.** Low: `HEAD` requests to multi-method routes are dispatched and then fail to decode. The `RoutePattern#decode` Scaladoc states the exact rule.
+
+**Test gap.** `PathCodecRoutingSpec.scala:197-205` checks `HEAD` only for a plain `GET` route.
+
+**Suggested fix.** Use `method.matches(Method.GET) && actual == Method.HEAD` in both places.
+
+### endpoint (Scala 3): an `orOutError` with a `Unit` error schema is dropped by the next `orOutError`
+
+**Where found.** Task 2's suspect S3, re-run 2026-11-06 on `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** `initialError` is chosen whenever the current error type is `Unit`, not only for the empty error of `Endpoint(route)`. An error response whose body schema is `Schema[Unit]` (such as `410 Gone` with no body) therefore disappears when another `orOutError` follows.
+
+**Reproducer** (`repro/l/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint.*
+import zio.blocks.endpoint.RoutePattern.*
+import zio.blocks.schema.Schema
+import zio.http.{Method, Status}
+
+object Repro {
+  def statuses(c: HttpCodec[?, ?]): List[Int] = c match {
+    case HttpCodec.StatusCodec(s, _, _, _) => s.map(_.code).toList
+    case HttpCodec.Combine(l, r, _)       => statuses(l) ++ statuses(r)
+    case HttpCodec.Fallback(l, r, _)      => statuses(l) ++ statuses(r)
+    case _                                => Nil
+  }
+  def main(args: Array[String]): Unit = {
+    val archived = Endpoint(Method.GET / "notes").orOutError(Status.Gone, Schema[Unit])
+    val both     = archived.orOutError(Status.NotFound, Schema[String])
+    println(statuses(archived.error)) // List(410)
+    println(statuses(both.error))     // List(404)
+  }
+}
+```
+
+**Expected.** `both.error` keeps the 410 codec: `List(410, 404)`.
+
+**Root cause.** `endpoint/shared/src/main/scala-3/zio/blocks/endpoint/EndpointUnionErrorBuilder.scala:43-50`: `initialError[E2]: ErrorBuilder[Unit, E2]` returns `next` and ignores `existing`; the type `Unit` cannot tell the empty channel from a declared `Unit` error.
+
+**Impact.** Low; body-less error responses declared with `Schema[Unit]` vanish without a warning. Task 2's Scaladoc on `initialError` describes it.
+
+**Test gap.** `EndpointSpec.scala:656-720` never declares a `Unit` error.
+
+**Suggested fix.** Replace `initialError` only when `existing eq HttpCodec.Empty` at run time (return `next` then, else a `Fallback`), or track "no error yet" with a dedicated type instead of `Unit`.
+
+### endpoint: `out(schema, doc)` and `out(mediaType, schema, doc)` put the documentation on the body only, not on the 200 status
+
+**Where found.** Review A of the endpoint Scaladoc (finding I1), re-run 2026-11-06 on `07f71de18`; the same at `v0.0.56` on 2.13.18 and 3.9.0.
+
+**Summary.** The `out` overloads that take a status (`out(status, schema, doc)`, `out(status, mediaType, schema, doc)`) and every `outError(..., doc)` overload attach `doc` to both the body and the status codec. The two overloads without a status (`out(schema, doc)`, `out(mediaType, schema, doc)`) attach it to the body only and use `HttpCodec.Ok` as it is, so a documentation generator reading the status codec gets no description for the 200 response. The asymmetry looks unintended (the old Scaladoc said "plus documentation", not which part); the Scaladoc now calls it a known bug.
+
+**Reproducer** (`repro/r/Repro.scala`, `scala-cli run --server=false .`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs.Doc
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.blocks.schema.Schema
+import zio.http.{Method, Status}
+
+object Repro {
+  def docs(c: HttpCodec[_, _], d: Doc): List[String] = c match {
+    case HttpCodec.Combine(l, r, _)  => docs(l, d) ++ docs(r, d)
+    case HttpCodec.Fallback(l, r, _) => docs(l, d) ++ docs(r, d)
+    case b: HttpCodec.Body[_, _]     => List("body documented=" + (b.doc == d))
+    case s: HttpCodec.StatusCodec    => List("status " + s.status.map(_.code).getOrElse("-") + " documented=" + (s.doc == d))
+    case _                           => Nil
+  }
+  def main(args: Array[String]): Unit = {
+    val d     = Doc(Chunk.empty, Map("summary" -> "the note"))
+    val notes = Endpoint(Method.GET / "notes")
+    println(docs(notes.out(Schema[String], d).output, d))
+    // List(body documented=true, status 200 documented=false)
+    println(docs(notes.out(Status.Created, Schema[String], d).output, d))
+    // List(body documented=true, status 201 documented=true)
+    println(docs(notes.outError(Status.NotFound, Schema[String], d).error, d))
+    // List(body documented=true, status 404 documented=true)
+  }
+}
+```
+
+`out(MediaTypes.application.json, Schema[String], d)` gives the same `status 200 doc=false` (`probes/fix1/s2`, `s3`).
+
+**Expected.** `out(schema, doc)` documents the 200 status as the status-taking overloads do: `List(body documented=true, status 200 documented=true)`.
+
+**Root cause.** `endpoint/shared/src/main/scala/zio/blocks/endpoint/Endpoint.scala:135` (`bodyOut`): `status.fold[HttpCodec[CodecKind.Response, Unit]](HttpCodec.Ok)(HttpCodec.status(_, doc))` uses the shared `HttpCodec.Ok` for `None`, so `doc` is dropped for the status; `out(schema, doc)` (`:160-165`) and `out(mediaType, schema, doc)` (`:188-193`) pass `None`.
+
+**Impact.** Low: generated API docs (OpenAPI response descriptions) lack the text for the default 200 response of endpoints written with these two overloads.
+
+**Test gap.** `PathCodecRoutingSpec.scala:56-59` calls `out(Schema.string, Doc.empty)` and checks only the status; no test checks where a non-empty `doc` goes.
+
+**Suggested fix.** Use `HttpCodec.status(Status.Ok, doc)` when `doc` is not empty (or always), and add a test with a non-empty `Doc` for each overload.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -18928,6 +19285,8 @@ The branch's Scaladoc on `Method.ANY` now says "do not put it in a request line"
 2. Then either set `ANY.name` to `"*"` so that `name`, `toString` and `render` agree, or keep `"GET"` (if a request-line fallback is intended) and say so on `name`.
 3. Add tests for `Method.ANY.name`, for `Allow` and `AccessControlAllowMethods` with `ANY` and with `GET #| POST`, and for `parse("*")`.
 
+**Addition (2026-11-06, endpoint Scaladoc rollout).** Probed 2026-11-06 at `07f71de18` (same at 0.0.56): `RouteTree.empty[String].add(RoutePattern(Method.ANY, PathCodec("health")), "health")` stores the value under the nine standard methods (`roots.keySet == Set(PATCH, CONNECT, HEAD, OPTIONS, TRACE, PUT, GET, POST, DELETE)`); `get(Method.DELETE, Path("/health"))` is `Some(health)` but `get(Method.ANY, Path("/health"))` is `None`, and `RoutePattern(Method.ANY, ...).render` is `* /health`. `RoutePattern#decode(Method.ANY, path)` succeeds for any pattern, because `Method#matches` is true when either side is `ANY` (`RoutePattern.scala:51`). Probe: `.superpowers/sdd/2026-11-06-endpoint-scaladoc/probes/p2/P2.scala`, lines "ANY roots", "ANY get DELETE", "ANY get ANY", "decode ANY actual".
+
 ### http-model: `Request.post`, `put` and `patch` add no `content-type` header, although `Request#body` and `Response.ok(body)`, `text` and `json` do
 
 Found during the http-model Scaladoc rollout (branch `http-model-scaladoc`), 2026-11-04, on commit `5eb809c8f`. Same at 0.0.56: yes (the http-model main sources are byte-identical at tag `v0.0.56`). Verified with the reproduction below. Not filed on GitHub yet.
@@ -19631,6 +19990,60 @@ object Repro {
 
 **Suggested fix.** Also reject `lType <:< rType || rType <:< lType` in the macro, with a message that names both types. The Scaladoc now warns about it.
 
+**Addition (2026-11-06, endpoint Scaladoc rollout).** Endpoint consequence. `Endpoint#orOutError` on Scala 3 builds `HttpCodec.Fallback(existing, next, Alternator.fromUnions(...))` (`endpoint/shared/src/main/scala-3/zio/blocks/endpoint/EndpointUnionErrorBuilder.scala:52-60`), so the codec chosen for an error value comes from `Unions.separate`. When the earlier error type is a subtype of the later one (`NoteMissing` then its sealed parent `NoteError`), a `NoteMissing` is written by the later codec (409 instead of 404). The same function also mis-sorts types that differ only in type arguments (`List[Int]` then `List[String]`): the `TypeTest` for `R` is unchecked (a compiler warning) and every list goes to the later codec. Both cases have the same root cause, `Unions.scala:90-93` testing only `R`, with the overlap check at `:57-67` comparing members with `=:=` only, so they belong in this one entry. (The `Unit`-replacement case, the `orOutError` `Unit` error entry, has a different root cause, `initialError`, and stays separate.)
+
+Reproducer (`repro/f/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint.*
+import zio.blocks.endpoint.RoutePattern.*
+import zio.blocks.schema.Schema
+import zio.http.{Method, Status}
+
+sealed trait NoteError
+object NoteError { implicit val schema: Schema[NoteError] = Schema.derived }
+final case class NoteMissing(id: Int) extends NoteError
+object NoteMissing { implicit val schema: Schema[NoteMissing] = Schema.derived }
+final case class NoteLocked(id: Int) extends NoteError
+object NoteLocked { implicit val schema: Schema[NoteLocked] = Schema.derived }
+
+object Repro {
+  def status(c: HttpCodec[?, ?]): List[Int] = c match {
+    case HttpCodec.StatusCodec(s, _, _, _) => s.map(_.code).toList
+    case HttpCodec.Combine(l, r, _)       => status(l) ++ status(r)
+    case _                                => Nil
+  }
+  def side(c: HttpCodec[?, ?], value: Any): String = c match {
+    case HttpCodec.Fallback(l, r, alt) =>
+      val a = alt.asInstanceOf[Alternator[Any, Any]]
+      a.separate(value.asInstanceOf[a.Out]) match {
+        case Left(_)  => s"left codec, status ${status(l)}"
+        case Right(_) => s"right codec, status ${status(r)}"
+      }
+    case other => other.toString
+  }
+  def main(args: Array[String]): Unit = {
+    val deleteNote = Endpoint(Method.DELETE / "notes" / PathCodec.int("id"))
+      .orOutError(Status.NotFound, Schema[NoteMissing])
+      .orOutError(Status.Conflict, Schema[NoteError])
+    println(side(deleteNote.error, NoteMissing(7))) // right codec, status List(409)
+    println(side(deleteNote.error, NoteLocked(7)))  // right codec, status List(409)
+
+    val listNotes = Endpoint(Method.GET / "notes")
+      .orOutError(Status.NotFound, Schema[List[Int]])
+      .orOutError(Status.BadRequest, Schema[List[String]])
+    // compile warning: the type test for List[String] cannot be checked at runtime ...
+    println(side(listNotes.error, List(1, 2)))      // right codec, status List(400)
+  }
+}
+```
+
+Impact for endpoints: a server that encodes typed errors with this codec answers with the wrong status and body for the more specific error, a common shape for sealed error hierarchies; with erased generics it can write a value with the wrong schema. The Scaladoc on `Endpoint#orOutError`, `ErrorBuilder.unionError` and `Alternator#separate` now describes it.
+
+Test gap for endpoints: `EndpointSpec` "orOutError builds union-aware fallback codec" (`scala-3/.../EndpointSpec.scala:688-706`) separates only `String` vs `Int`; "orOutError rejects overlapping union types" (`:708-720`) covers identical types only.
+
 ### schema: `DynamicSchemaExpr` comparisons disagree with `Equal` on `-0.0` and NaN, and NaN equality depends on object identity
 
 Found 2026-11-06 while writing the Scaladoc of `DynamicSchemaExpr.RelationalOperator` (schema core Scaladoc, branch `schema-core-scaladoc` on top of `99cce0c6a`). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below; both print the same lines.
@@ -19719,6 +20132,242 @@ object Repro {
 **Test gap.** `DynamicMigrationSpec` "Arithmetic power rejects unsafe exponents" (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala:1072-1097`) checks only `isLeft` for a `BigDecimal` exponent of `10001` and a `BigInt` exponent of `-1`; no test uses a fractional `BigDecimal` exponent or checks the message.
 
 **Suggested fix.** Check `b.isWhole` first and return `Left(s"Fractional exponent not supported: $b")`; otherwise call `checkedPowExponent(b.toBigInt)`. Add a test.
+
+### combinators/endpoint (Scala 3): a type written on an expression that calls `out`, `outError`, `HttpCodec#|` or `AuthType#|` does not compile
+
+**Where found.** The first `scaladoc-check` run on Scala 3.9.0 for the new examples, 2026-11-06, `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** On Scala 3, `val ep: Endpoint[..., Either[String, Unit], ...] = Endpoint(...).out(Schema[String])` fails with "No given instance of type ... Eithers.WithOut[String, Unit, Either[String, Unit]]", although the inferred type is exactly that and `val built = ...; val ep: T = built` compiles. Scala 2.13 accepts both.
+
+**Reproducer** (`repro/g/Repro.scala`, `scala-cli compile --server=false .`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.blocks.schema.Schema
+import zio.http.Method
+
+object Repro {
+  // Ascribing the type of a value built in two steps compiles:
+  val built = Endpoint(Method.GET / "notes").out(Schema[String])
+  val ok: Endpoint[Unit, Unit, Unit, Either[String, Unit], AuthType.None] = built
+
+  // Ascribing the same type on the builder expression itself does not:
+  val direct: Endpoint[Unit, Unit, Unit, Either[String, Unit], AuthType.None] =
+    Endpoint(Method.GET / "notes").out(Schema[String])
+
+  // Same for HttpCodec#|:
+  val codec: HttpCodec[CodecKind.Response, Either[Int, String]] =
+    HttpCodec.responseBody(Schema[Int]) | HttpCodec.responseBody(Schema[String])
+
+  def main(args: Array[String]): Unit = println(ok.route.render)
+}
+// -- [E172] Type Error: .../Repro.scala:15:54
+// 15 |    Endpoint(Method.GET / "notes").out(Schema[String])
+//    |No given instance of type zio.blocks.combinators.Eithers.Eithers².WithOut[String, Unit,
+//    |  Either[String, Unit]] was found for parameter alternator of method out in class Endpoint
+//    |The following import might fix the problem:
+//    |  import zio.blocks.combinators.Eithers.Eithers.eithers
+// -- [E172] Type Error: .../Repro.scala:19:80
+// 19 |    HttpCodec.responseBody(Schema[Int]) | HttpCodec.responseBody(Schema[String])
+//    |No given instance of type zio.blocks.combinators.Eithers.Eithers².WithOut[Int, String, Either[Int, String]
+//    |  ] was found for parameter alternator of method | in trait HttpCodec
+// 2 errors found
+```
+
+The same file with `//> using scala 2.13.18` (`probes/asc2`) compiles and prints `GET /notes`. `AuthType.Bearer | AuthType.Basic` with a type on the same expression fails the same way (found by the checker run, `Snippet_endpoint_shared_scala_AuthType_L90`).
+
+**Expected.** A correct type annotation on the builder expression compiles, as on Scala 2.
+
+**Root cause.** `combinators/shared/src/main/scala-3/zio/blocks/combinators/Eithers.scala:57`: the only instance is `inline given eithers[L, R]: WithOut[L, R, CanonicalizeEither[L, R]]`. When the expected type fixes `O3` first, the search needs `WithOut[String, Unit, Either[String, Unit]]`, and the match type `CanonicalizeEither[L, R]` with `L`, `R` not yet instantiated does not reduce during the subtype check, so the given is not eligible.
+
+**Impact.** The natural way to document an endpoint's type (`val getNote: Endpoint[...] = ...`) does not compile on Scala 3, with an error that suggests an import that does not help. The Scaladoc on `Endpoint#out`, `HttpCodec#|` and `AuthType#|` now says to give the type to a second `val`; the compiled examples do that.
+
+**Test gap.** Tests ascribe the type on a separate `val` (`EndpointSpec.scala:667`, `:684`) or use `typeCheck(...)` without an expected type, so the failing form is never compiled.
+
+**Suggested fix.** Add a fallback given `WithOut[L, R, O]` that summons `WithOut[L, R, CanonicalizeEither[L, R]]` and checks `O =:= CanonicalizeEither[L, R]` (an `<:<`/`=:=` evidence), or declare the instance with a type parameter `O` constrained by evidence instead of a match type in the result.
+
+### endpoint: `PathCodec#decode` drops the `transformOrFail` error message
+
+**Where found.** Writing the `PathCodec#decode` and `transformOrFail` Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56`. Task 2's suspect S7 found the same wording.
+
+**Summary.** When a `transformOrFail` decoder returns `Left(message)`, `decode` fails with the generic "matched N of M segments without a complete match", the text it also gives when the path is too short. The decoder's message is lost.
+
+**Reproducer** (`repro/h/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.http.Path
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val noteId = PathCodec("notes") / PathCodec.int("id").transformOrFail(
+      (id: Int) => if (id > 0) Right(id) else Left(s"note id must be positive, got $id"),
+      (id: Int) => Right(id)
+    )
+    println(noteId.decode(Path("/notes/-1")))
+    // Left(Path /notes/-1 did not match /notes/{id}: matched 2 of 2 segments without a complete match)
+    println(noteId.decode(Path("/notes")))
+    // Left(Path /notes did not match /notes/{id}: matched 1 of 1 segments without a complete match)
+  }
+}
+```
+
+**Expected.** `Left(Path /notes/-1 did not match /notes/{id}: note id must be positive, got -1)` or similar.
+
+**Root cause.** `PathCodecRuntime.scala:95-100`: `decode(value).toOption` discards the `Left`; `PathCodec#decode` (`PathCodec.scala:93-106`) then builds its message from `furthestIndex`, which ignores transforms (`PathCodecRuntime.scala:215-216`).
+
+**Impact.** A validation message written for users or logs never reaches them, and the message wrongly suggests a missing segment. The Scaladoc on `PathCodec#decode` and `transformOrFail` now says the message is not included.
+
+**Test gap.** `PathCodecRoutingSpec.scala:158-175` checks only that `matches` agrees with `decode(...).isRight` for a `transformOrFail` path.
+
+**Suggested fix.** Keep the first `Left` from a `Transform` during `decodeCodec` (for example return `Either[String, List[(Any, Int)]]` or record the last transform error) and put it in the `decode` message.
+
+### endpoint: in a `RouteTree`, a string capture hides a `~` segment at the same level
+
+**Where found.** Probing `RouteTree` precedence for its Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** At one level the capturing branches are tried in key order: int, long, UUID, bool, string, `~` compositions, trailing. A string capture accepts every segment, so a `~` route such as `/notes/{id}.json` beside `/notes/{slug}` is never reached; the string route answers `/notes/42.json`. Each route works alone.
+
+**Reproducer** (`repro/i/Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val exportRoute = Method.GET / "notes" / (SegmentCodec.int("id") ~ ".json")
+    val bySlug      = Method.GET / "notes" / PathCodec.string("slug")
+    val tree        = RouteTree.empty[String].add(exportRoute, "export as JSON").add(bySlug, "note by slug")
+    println(tree.get(Method.GET, Path("/notes/42.json")))                                             // Some(note by slug)
+    println(RouteTree.empty[String].add(exportRoute, "export as JSON").get(Method.GET, Path("/notes/42.json"))) // Some(export as JSON)
+  }
+}
+```
+
+**Expected.** The more specific `~` route wins (it has a literal part), or the docs warn that a string capture hides it.
+
+**Root cause.** `SegmentCodec.scala:370-382` (`keyOrdering` ranks `Key.String` 5 before `Key.Combined` 6) and `RouteTree.scala:112-116` (the first branch whose subtree yields a value wins).
+
+**Impact.** A file-extension or versioned route silently loses to a catch-all slug route in the same folder. The `RouteTree` Scaladoc now states the order and this consequence.
+
+**Test gap.** `endpoint/shared/src/test/scala-3/zio/blocks/endpoint/RouteTreeSpec.scala:218-226` (Scala 3 only) routes a `~` segment with no string sibling. (The reproducer writes the `~` segment inline after `/`, which compiles on Scala 3 only; on 2.13 store it in a `val` first, entry Q.)
+
+**Suggested fix.** Rank `Combined` keys that contain a literal before `String`, or try `Combined` before `String`.
+
+### endpoint: joining two paths whose value is `Unit` needs `import RoutePattern._`, or the `Tuples` instances are ambiguous
+
+**Where found.** Task 2's suspect S4, confirmed and narrowed while writing `PathCodec#++` Scaladoc, 2026-11-06, `07f71de18`; the same at `v0.0.56` on 2.13.18 and 3.9.0.
+
+**Summary.** Any `/` or `++` of two `Unit`-valued paths fails without the import: `PathCodec.literal("api") / PathCodec.literal("v1")`, `PathCodec("api") / "v1"`, a literal and an `unused` capture (`PathCodec("a") / SegmentCodec.string("s").unused`), and `PathCodec("api") ++ PathCodec.empty`. Scala 2 says "ambiguous implicit values: both method leftUnit ... and method rightUnit ..."; Scala 3 says "Ambiguous given instances: both given instance leftUnit ... and given instance rightUnit ..." with the two names in either order (it varies by expression), because both `Tuples` instances fit `Unit` and `Unit`. They compile once `import zio.blocks.endpoint.RoutePattern._` (or `PathCodec.unitUnit`) brings the specific `unitUnit` instance into scope, which most code has for `Method.GET / ...`, so the failure appears only in path-only code.
+
+**Reproducer** (`repro/k/Repro.scala`, `scala-cli compile --server=false .`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+
+object Repro {
+  // Fails without the next import: ambiguous implicit values leftUnit and rightUnit
+  // import zio.blocks.endpoint.RoutePattern._
+  val api = PathCodec.literal("api") / PathCodec.literal("v1")
+}
+// .../Repro.scala:8: error: ambiguous implicit values:
+//  both method leftUnit in object Tuples of type [A]zio.blocks.combinators.Tuples.Tuples.WithOut[Unit,A,A]
+//  and method rightUnit in object Tuples of type [A]zio.blocks.combinators.Tuples.Tuples.WithOut[A,Unit,A]
+//  match expected type zio.blocks.combinators.Tuples.Tuples.WithOut[Unit,Unit,C]
+//   val api = PathCodec.literal("api") / PathCodec.literal("v1")
+//                                      ^
+// 1 error
+```
+
+With the import line uncommented (`probes/repro/k2`) it compiles. The `unused` and `PathCodec.empty` cases fail the same way on 2.13.18 and 3.9.0 (`probes/fix1/amb2`, `amb3`). On Scala 3.9.0, `PathCodec("api") / "v1"` without the import fails with "Ambiguous given instances: both given instance leftUnit in object Tuples and given instance rightUnit in object Tuples match type ... WithOut[Unit, Unit, C]" (`probes/k4`).
+
+**Expected.** Joining two literal paths compiles without an extra import.
+
+**Root cause.** `combinators/shared/src/main/scala-3/zio/blocks/combinators/Tuples.scala:57` and `:63` (`leftUnit`, `rightUnit`; Scala 2: `scala-2/.../Tuples.scala:35`, `:42`) are equally specific for `(Unit, Unit)`; the `unitUnit` vals in `PathCodec.scala:211` and `RoutePattern.scala:78` are not in the implicit scope of `Tuples.WithOut`.
+
+**Impact.** A confusing compile error for path-only code (shared prefixes, tests); the `PathCodec#++` Scaladoc now names the import.
+
+**Test gap.** Tests import `RoutePattern._` (for example `PathCodecRoutingSpec.scala:23`), which hides the ambiguity.
+
+**Suggested fix.** Add a `unitUnit` instance to the `Tuples` companion itself with higher priority than `leftUnit`/`rightUnit` (or put `rightUnit` in a low-priority parent trait).
+
+### endpoint (Scala 2.13): a `~` segment written inline after `/` does not compile
+
+**Where found.** Review B of the endpoint Scaladoc (finding 13), re-run 2026-11-06 on `07f71de18`; the same at `v0.0.56`.
+
+**Summary.** On Scala 2.13, `Method.GET / "notes" / (SegmentCodec.int("id") ~ SegmentCodec.literal(".json"))` and `PathCodec("notes") / (SegmentCodec.int("id") ~ ".json")` fail with "polymorphic expression cannot be instantiated to expected type". Storing the segment in a `val` first, or wrapping it in `PathCodec(...)`, compiles. Scala 3.9.0 accepts the inline form.
+
+**Reproducer** (`repro/q/Repro.scala`, `scala-cli compile --server=false .`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  // Does not compile on 2.13: a `~` segment written inline after `/`
+  val inline = Method.GET / "notes" / (SegmentCodec.int("id") ~ SegmentCodec.literal(".json"))
+  val inlineStr = PathCodec("notes") / (SegmentCodec.int("id") ~ ".json")
+  def main(args: Array[String]): Unit = ()
+}
+// Repro.scala:9: error: polymorphic expression cannot be instantiated to expected type;
+//  found   : [C, PVC]zio.blocks.endpoint.SegmentCodec[C]{type PathVars = PVC}
+//  required: zio.blocks.endpoint.PathCodec[?]
+//   val inline = Method.GET / "notes" / (SegmentCodec.int("id") ~ SegmentCodec.literal(".json"))
+//                                                               ^
+// Repro.scala:10: error: polymorphic expression cannot be instantiated to expected type;
+//  found   : [C, PVC]zio.blocks.endpoint.SegmentCodec[C]{type PathVars = PVC}
+//  required: zio.blocks.endpoint.PathCodec[?]{type PathVars = ?}
+//   val inlineStr = PathCodec("notes") / (SegmentCodec.int("id") ~ ".json")
+//                                                                ^
+// 2 errors
+```
+
+The workaround (`repro/q-ok/Repro.scala`, `scala-cli run --server=false .`) compiles and runs on 2.13.18:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-endpoint:0.0.56
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.{Method, Path}
+
+object Repro {
+  // Compiles: store the segment first, or wrap it in PathCodec(...)
+  val jsonSeg = SegmentCodec.int("id") ~ SegmentCodec.literal(".json")
+  val stored  = Method.GET / "notes" / jsonSeg
+  val wrapped = Method.GET / "notes" / PathCodec(SegmentCodec.int("id") ~ SegmentCodec.literal(".json"))
+  def main(args: Array[String]): Unit = {
+    println(stored.render)                                  // GET /notes/{id}.json
+    println(wrapped.decode(Method.GET, Path("/notes/4.json"))) // Right(4)
+  }
+}
+```
+
+The same inline file with `//> using scala 3.9.0` (`probes/fix1/q3`) compiles and runs.
+
+**Expected.** The inline form compiles on Scala 2 as on Scala 3.
+
+**Root cause.** `SegmentCodec#~` (`endpoint/shared/src/main/scala/zio/blocks/endpoint/SegmentCodec.scala:67-75`) returns `SegmentCodec[C] { type PathVars = PVC }` with `C` and `PVC` fixed only by its implicit parameters. As the argument of `/` (`RoutePattern.scala:125-128`, `PathCodec.scala:58-62`, which expect a `PathCodec`), Scala 2 must apply the implicit view `segmentToPathCodec` (`PathCodec.scala:249-252`) to a still-polymorphic expression, which it does not do. (Reading of the error; not traced in the compiler.)
+
+**Impact.** Low; a confusing error on 2.13 for a form that the Scala 3 examples and tests use (the `~` segment trap reproducer included).
+
+**Test gap.** The shared tests build `~` segments in a `val` or wrap them in `PathCodec(...)` (`PathCodecRoutingSpec.scala:160-161`); the inline form appears only in Scala-3-only specs (`RouteTreeSpec.scala:219`).
+
+**Suggested fix.** Add `/` overloads on `PathCodec` and `RoutePatternOps` that take a `SegmentCodec[B] { type PathVars = PV2 }`, so no view is needed; or document the workaround.
 
 ## Test and CI
 
