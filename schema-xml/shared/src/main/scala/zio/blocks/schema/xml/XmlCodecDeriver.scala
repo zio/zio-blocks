@@ -28,10 +28,69 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * The XML format: a [[zio.blocks.schema.codec.BinaryFormat]] with MIME type
+ * `application/xml` whose codecs are derived by [[XmlCodecDeriver]].
+ *
+ * Pass it to `Schema#derive` to get an [[XmlCodec]] for any type with a schema.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Product(sku: String, price: BigDecimal, tags: List[String])
+ * object Product {
+ *   implicit val schema: Schema[Product] = Schema.derived
+ * }
+ *
+ * val codec = Schema[Product].derive(XmlFormat)
+ * codec.encodeToString(Product("KB-01", BigDecimal("49.90"), List("usb", "wireless")))
+ * // <Product><sku>KB-01</sku><price>49.90</price><tags><item>usb</item><item>wireless</item></tags></Product>
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
+ */
 object XmlFormat extends BinaryFormat("application/xml", XmlCodecDeriver)
 
+/** The default [[XmlCodecDeriver]], used by [[XmlFormat]]. */
 object XmlCodecDeriver extends XmlCodecDeriver
 
+/**
+ * Derives an [[XmlCodec]] from a schema. Use it through [[XmlFormat]]
+ * (`Schema#derive(XmlFormat)`), or pass it to `Schema#derive` directly.
+ *
+ * The derived codecs map types to XML like this:
+ *   - A primitive becomes `<value>text</value>`, and `Unit` becomes `<unit/>`.
+ *   - A record becomes an element named after the type's short name, with one
+ *     child element per field, named after the field. A field with the modifier
+ *     `Modifier.config("xml.attribute", name)` becomes an attribute instead
+ *     (see [[xmlAttribute]]); `Modifier.config("xml.namespace.uri", uri)` on
+ *     the record adds a namespace (see [[xmlNamespace]]). Decoding ignores the
+ *     element's name and unknown children, uses the last of repeated children,
+ *     and fills a missing child-element field with its default value. A missing
+ *     `Option` field (element or attribute) becomes `None` even when it
+ *     declares another default, and a missing non-`Option` attribute field
+ *     fails even when it has a default (known bugs). A nested record, or a
+ *     sealed-trait case, that has no child elements (all its fields are
+ *     attributes, or its element fields are all `None`) loses its attributes on
+ *     decoding: a required attribute fails with `Missing required attribute`,
+ *     and an `Option` attribute silently becomes `None` (a known bug).
+ *   - An `Option` field that is `None` is left out. A top-level `Option` is
+ *     `<Some>...</Some>` or `<None/>`.
+ *   - A sequence becomes `<items>` with one `<item>` per element, and a map
+ *     becomes `<map>` with `<entry><key>...</key><value>...</value></entry>`
+ *     per entry; inside a record, the field name replaces `items` or `map`.
+ *   - A sealed trait at the top level becomes the element of its case, named
+ *     after the case. Inside a record field, a sequence or a map, the case name
+ *     is lost and decoding fails with `Unknown variant case` (a known bug), and
+ *     an `Option` inside a sequence or a map does not decode back either (a
+ *     known bug).
+ *   - A `DynamicValue` is encoded as its `toString` inside `<dynamic>`, and
+ *     cannot be decoded.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
+ */
 class XmlCodecDeriver extends Deriver[XmlCodec] {
   import XmlCodec._
 
@@ -569,6 +628,10 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[XmlCodec[DynamicValue]]]
 
+  /**
+   * Derives a codec for a wrapper type (a newtype) that encodes and decodes it
+   * as the wrapped value.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -603,12 +666,27 @@ class XmlCodecDeriver extends Deriver[XmlCodec] {
     super.instanceOverrides
   }
 
+  /** Placeholder type for sequence elements, used in internal casts. */
   type Elem
+
+  /** Placeholder type for map keys, used in internal casts. */
   type Key
+
+  /** Placeholder type for map values, used in internal casts. */
   type Value
+
+  /**
+   * Placeholder type for the value inside a wrapper, used in internal casts.
+   */
   type Wrapped
+
+  /** Placeholder type constructor for collections, used in internal casts. */
   type Col[_]
+
+  /** Placeholder type constructor for maps, used in internal casts. */
   type Map[_, _]
+
+  /** Placeholder type class, used in internal casts. */
   type TC[_]
 
   private[this] val recursiveRecordCache =

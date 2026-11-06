@@ -21,7 +21,13 @@ import zio.blocks.chunk.Chunk
 import java.nio.charset.Charset
 
 /**
- * JVM implementation of XmlWriter for serializing Xml AST nodes to XML strings.
+ * Serializes [[Xml]] trees to XML strings and bytes, on the JVM and Scala.js.
+ * `Xml#print` and the encoding methods of [[XmlCodec]] call it.
+ *
+ * In text it escapes `&`, `<` and `>`; in attribute values `&`, `<`, `"` and
+ * `'`. It writes CDATA, comments and processing instructions as they are,
+ * without checking them, so a CDATA value containing `]]>` or a comment
+ * containing `--` produces malformed XML (a known bug).
  */
 object XmlWriter {
 
@@ -48,12 +54,21 @@ object XmlWriter {
   /**
    * Writes an XML node to a byte array.
    *
+   * {{{
+   * val bytes = XmlWriter.writeToBytes(Xml.Element("ok"))
+   * new String(bytes, "UTF-8") // <ok/>
+   * }}}
+   *
    * @param xml
    *   The XML node to write
    * @param config
    *   Writer configuration
    * @return
    *   XML byte array in the specified encoding
+   * @throws java.nio.charset.UnsupportedCharsetException
+   *   if `config.encoding` names a charset the platform does not support
+   * @throws java.nio.charset.IllegalCharsetNameException
+   *   if `config.encoding` is not a legal charset name
    */
   def writeToBytes(xml: Xml, config: WriterConfig = WriterConfig.default): Array[Byte] =
     write(xml, config).getBytes(Charset.forName(config.encoding))

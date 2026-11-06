@@ -20,12 +20,42 @@ import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
- * Parser for YAML 1.2 input, converting YAML text into a [[Yaml]] AST.
+ * Reads YAML text into a [[Yaml]] tree. It reads the common block and flow
+ * forms (mappings, sequences, plain and quoted scalars, `|` and `>` blocks,
+ * comments and a leading `---`), and it is lenient: it reports almost no syntax
+ * errors. It sets no tags and keeps no quotes, so `"3"` and `3` read back as
+ * the same scalar.
+ *
+ * Known bugs in 0.0.56: the reader stops at the first line it cannot read and
+ * drops the rest of the document without an error; it accepts an unclosed `[`,
+ * `{` or quote and drops the last character of the value; it misreads or drops
+ * valid YAML that it does not support, such as a sequence at the same
+ * indentation as its key, anchors and tags (kept as part of the text), and the
+ * documents after the first in a stream; and it removes the final line break of
+ * every `|` and `>` block.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 object YamlReader {
+
+  /**
+   * Reads a YAML document from text. Accepts `\n`, `\r\n` and `\r` line
+   * endings, and returns `NullValue` for input that is empty or holds only
+   * comments.
+   *
+   * {{{
+   * YamlReader.read("name: api\nports:\n  - 80\n  - 443\n").toJson.print
+   * // {"name":"api","ports":[80,443]}
+   * }}}
+   *
+   * @throws java.lang.StringIndexOutOfBoundsException
+   *   when a value is a lone `"` or `'` (a known bug)
+   */
   def read(input: String): Yaml =
     new YamlParser(input.replace("\r\n", "\n").replace("\r", "\n")).parse()
 
+  /** Reads a YAML document from UTF-8 bytes, as `read` does. */
   def readFromBytes(input: Array[Byte]): Yaml =
     read(new String(input, UTF_8))
 

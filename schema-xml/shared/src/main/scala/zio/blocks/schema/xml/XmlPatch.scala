@@ -26,13 +26,41 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
  * similar to JSON Patch but tailored for XML's structure. Patches can be
  * composed using `++` and applied to XML values using `apply`.
  *
+ * Each operation has a [[zio.blocks.schema.DynamicOptic]] path that starts at
+ * the root element: the empty path (`DynamicOptic.root`) targets the root
+ * itself, and `field("status")` targets the first child element of the root
+ * named `status`, not the root even when it has that name. Index nodes pick a
+ * child by position; other path nodes fail with `Unsupported path node`.
+ *
+ * {{{
+ * import zio.blocks.schema.DynamicOptic
+ *
+ * val order = XmlReader.read("<order><status>new</status><item>pen</item></order>")
+ * val patch =
+ *   XmlPatch.setAttribute(DynamicOptic.root, "id", "A-17") ++
+ *     XmlPatch.replace(DynamicOptic.root.field("status"), Xml.Element("status", Xml.Text("paid")))
+ *
+ * patch(order).map(_.print)
+ * // Right(<order id="A-17"><status>paid</status><item>pen</item></order>)
+ * }}}
+ *
  * @param ops
  *   The sequence of patch operations to apply
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
  */
 final case class XmlPatch(ops: Chunk[XmlPatch.Op]) {
 
   /**
-   * Applies this patch to an XML value.
+   * Applies this patch to an XML value. The operations run in order, and the
+   * first one that fails stops the patch and gives its error.
+   *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   *
+   * XmlPatch.remove(DynamicOptic.root.field("missing"))(Xml.Element("doc")).left.map(_.getMessage)
+   * // Left(Element 'missing' not found)
+   * }}}
    *
    * @param xml
    *   The XML value to patch
@@ -64,9 +92,11 @@ final case class XmlPatch(ops: Chunk[XmlPatch.Op]) {
    */
   def ++(that: XmlPatch): XmlPatch = new XmlPatch(ops ++ that.ops)
 
+  /** Returns true if this patch has no operations. */
   def isEmpty: Boolean = ops.isEmpty
 }
 
+/** Operations, positions and constructors for [[XmlPatch]]. */
 object XmlPatch {
 
   /** Empty patch - identity element for composition. */
@@ -78,12 +108,19 @@ object XmlPatch {
    */
   sealed trait Position
 
+  /** The four insertion positions. */
   object Position {
 
-    /** Insert before the target element. */
+    /**
+     * Insert before the target node. The target must not be the root (the empty
+     * path), which fails with `Add with Before/After requires parent context`.
+     */
     case object Before extends Position
 
-    /** Insert after the target element. */
+    /**
+     * Insert after the target node. The target must not be the root (the empty
+     * path).
+     */
     case object After extends Position
 
     /** Insert as the first child of the target element. */
@@ -98,10 +135,12 @@ object XmlPatch {
    */
   sealed trait Operation
 
+  /** The five patch operations. */
   object Operation {
 
     /**
-     * Add an element at the specified position relative to the target.
+     * Add a node (of any type) at the specified position relative to the
+     * target.
      *
      * @param content
      *   The XML content to add
@@ -111,12 +150,13 @@ object XmlPatch {
     final case class Add(content: Xml, position: Position) extends Operation
 
     /**
-     * Remove the element at the target path.
+     * Remove the node at the target path. Removing the root (the empty path)
+     * fails with `Remove operation requires parent context`.
      */
     case object Remove extends Operation
 
     /**
-     * Replace the element at the target path with new content.
+     * Replace the node at the target path with new content.
      *
      * @param content
      *   The replacement XML content
@@ -124,7 +164,8 @@ object XmlPatch {
     final case class Replace(content: Xml) extends Operation
 
     /**
-     * Set an attribute on the target element.
+     * Set an attribute on the target element, replacing the first attribute
+     * with the same local name or appending a new one.
      *
      * @param name
      *   The attribute name
@@ -134,7 +175,9 @@ object XmlPatch {
     final case class SetAttribute(name: String, value: String) extends Operation
 
     /**
-     * Remove an attribute from the target element.
+     * Remove an attribute from the target element. Fails with
+     * `Attribute '<name>' not found` if the element has no attribute with that
+     * local name.
      *
      * @param name
      *   The attribute name to remove
@@ -159,8 +202,22 @@ object XmlPatch {
   /**
    * Creates a patch that adds content at the specified position.
    *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   *
+   * val todo  = XmlReader.read("<todo><task>write</task></todo>")
+   * val patch = XmlPatch.add(
+   *   DynamicOptic.root.field("task"),
+   *   Xml.Element("task", Xml.Text("plan")),
+   *   XmlPatch.Position.Before
+   * )
+   *
+   * patch(todo).map(_.print) // Right(<todo><task>plan</task><task>write</task></todo>)
+   * }}}
+   *
    * @param path
-   *   The path to the target element
+   *   The path to the target node (an element for `PrependChild` and
+   *   `AppendChild`)
    * @param content
    *   The content to add
    * @param position
@@ -172,10 +229,18 @@ object XmlPatch {
     new XmlPatch(Chunk.single(new Op(path, Operation.Add(content, position))))
 
   /**
-   * Creates a patch that removes the element at the path.
+   * Creates a patch that removes the node at the path.
+   *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   *
+   * val cfg = XmlReader.read("<config><debug/><port>80</port></config>")
+   *
+   * XmlPatch.remove(DynamicOptic.root.field("debug"))(cfg).map(_.print) // Right(<config><port>80</port></config>)
+   * }}}
    *
    * @param path
-   *   The path to the element to remove
+   *   The path to the node to remove
    * @return
    *   A new patch with the remove operation
    */
@@ -183,10 +248,11 @@ object XmlPatch {
     new XmlPatch(Chunk.single(new Op(path, Operation.Remove)))
 
   /**
-   * Creates a patch that replaces the element at the path.
+   * Creates a patch that replaces the node at the path. With the empty path,
+   * the patch returns `content` in place of the whole document.
    *
    * @param path
-   *   The path to the element to replace
+   *   The path to the node to replace
    * @param content
    *   The replacement content
    * @return
@@ -197,6 +263,15 @@ object XmlPatch {
 
   /**
    * Creates a patch that sets an attribute on the target element.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * val page = XmlReader.read("<page><img src=\"a.png\"/></page>")
+   *
+   * XmlPatch.setAttribute(p".img", "alt", "logo")(page).map(_.print)
+   * // Right(<page><img src="a.png" alt="logo"/></page>)
+   * }}}
    *
    * @param path
    *   The path to the target element
@@ -212,6 +287,14 @@ object XmlPatch {
 
   /**
    * Creates a patch that removes an attribute from the target element.
+   *
+   * {{{
+   * import zio.blocks.schema.DynamicOptic
+   *
+   * val link = XmlReader.read("<a href=\"/x\" target=\"_blank\">go</a>")
+   *
+   * XmlPatch.removeAttribute(DynamicOptic.root, "target")(link).map(_.print) // Right(<a href="/x">go</a>)
+   * }}}
    *
    * @param path
    *   The path to the target element

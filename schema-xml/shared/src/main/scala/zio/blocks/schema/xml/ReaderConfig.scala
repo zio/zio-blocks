@@ -17,17 +17,32 @@
 package zio.blocks.schema.xml
 
 /**
- * Configuration for XML reader behavior and limits.
+ * Configuration for XML reader behavior and limits, used by [[XmlReader]] and
+ * the decoding methods of [[XmlCodec]]. A limit that is exceeded makes
+ * [[XmlReader]] throw an [[XmlCodecError]] and makes `XmlCodec#decode` return a
+ * `Left`.
+ *
+ * {{{
+ * val strict = ReaderConfig(maxDepth = 1)
+ *
+ * scala.util.Try(XmlReader.read("<a><b></b></a>", strict)).failed.map(_.getMessage)
+ * // Success(Maximum depth 1 exceeded (line: 1, column: 7))
+ * }}}
  *
  * @param maxDepth
- *   Maximum nesting depth for XML elements (prevents stack overflow attacks)
+ *   Maximum nesting depth for XML elements (prevents stack overflow attacks).
+ *   The root element is depth 1. A self-closing element such as `<b/>` does not
+ *   count toward the depth.
  * @param maxAttributes
  *   Maximum number of attributes per element
  * @param maxTextLength
- *   Maximum length of text content
+ *   Maximum length of one run of text between two pieces of markup, counted
+ *   after entity references are replaced. It does not apply to CDATA sections,
+ *   comments or attribute values.
  * @param preserveWhitespace
- *   If true, preserve all whitespace in text nodes; if false, trim
- *   leading/trailing whitespace
+ *   If true, keep text exactly as written; if false, trim leading and trailing
+ *   whitespace from each text run and drop runs that are only whitespace.
+ *   `XmlCodec#decode` always reads with `true`, whatever this says.
  */
 final case class ReaderConfig(
   maxDepth: Int = 1000,
@@ -36,6 +51,12 @@ final case class ReaderConfig(
   preserveWhitespace: Boolean = false
 )
 
+/** The default reader configuration. */
 object ReaderConfig {
+
+  /**
+   * Depth and attribute limits of 1000, a text limit of 10,000,000 characters,
+   * and whitespace trimming.
+   */
   val default: ReaderConfig = ReaderConfig()
 }

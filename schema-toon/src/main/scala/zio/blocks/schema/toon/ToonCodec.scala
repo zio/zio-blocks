@@ -28,67 +28,102 @@ import java.util.{Currency, UUID}
 import scala.util.control.NonFatal
 
 /**
- * Abstract class for encoding and decoding values of type `A` to and from TOON
- * formats. Encapsulates logic to map TOON representations into native type
- * structures and vice versa, handling serialization and deserialization as per
- * TOON encoding standards using UTF-8 character set.
+ * Encodes values of type `A` as TOON text and decodes them back, from and to
+ * UTF-8 bytes, strings, streams and byte buffers. Get one with
+ * `Schema#derive(ToonFormat)`, or pass a configured [[ToonCodecDeriver]] to
+ * `Schema#derive`; the companion object holds the codecs for primitive types
+ * and for `DynamicValue`.
  *
- * This class requires an implementation for two core operations: decoding a
- * value of type `A` from a TOON representation and encoding a value of type `A`
- * into a TOON representation.
+ * On bad input the `decode` methods return a `Left` with a
+ * [[zio.blocks.schema.SchemaError]], instead of throwing; its message ends with
+ * the path to the failing value, such as `at: .port`. Each `encode` and
+ * `decode` method has an overload that takes a [[WriterConfig]] or a
+ * [[ReaderConfig]]; the others use the defaults. The encoded output does not
+ * end with a newline.
+ *
+ * To write a codec by hand, implement `decodeValue` and `encodeValue`.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Server(host: String, port: Int)
+ * object Server {
+ *   implicit val schema: Schema[Server] = Schema.derived
+ * }
+ *
+ * val codec: ToonCodec[Server] = Server.schema.derive(ToonFormat)
+ *
+ * codec.encodeToString(Server("api.local", 8080))
+ * // host: api.local
+ * // port: 8080
+ * codec.decode("host: api.local\nport: 8080") // Right(Server(api.local,8080))
+ * codec.decode("host: api.local\nport: http") // Left(zio.blocks.schema.SchemaError: Expected int, got: http at: .port)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
  */
 abstract class ToonCodec[A] extends BinaryCodec[A] {
 
   /**
-   * Attempts to decode a value of type `A` from the specified `ToonReader`, but
-   * may fail with `ToonCodecError` error if the TOON input does not encode a
-   * value of this type.
+   * Decodes a value of type `A` from `in`, starting at the reader's current
+   * position, and throws if the input does not encode one. Implement it in a
+   * hand-written codec; to decode a whole input, call a `decode` method, which
+   * catches the exception and returns it as a `Left`.
    *
    * @param in
-   *   an instance of `ToonReader` that provides access to the TOON input to
-   *   parse a TOON value to value of type `A`
+   *   the reader that holds the TOON input
    */
   def decodeValue(in: ToonReader): A
 
   /**
-   * Encodes the specified value using provided `ToonWriter`, but may fail with
-   * `ToonCodecError` if it cannot be encoded properly according to TOON
-   * specification requirements.
+   * Writes `x` to `out` as a TOON value, at the writer's current position.
+   * Implement it in a hand-written codec; to encode a whole value, call an
+   * `encode` or `encodeToString` method.
    *
    * @param x
-   *   the value provided for serialization
+   *   the value to write
    * @param out
-   *   an instance of `ToonWriter` that provides access to TOON output to
-   *   serialize the specified value as a TOON value
+   *   the writer that collects the TOON output
    */
   def encodeValue(x: A, out: ToonWriter): Unit
 
   /**
-   * Attempts to decode a value of type `A` from the specified `ToonReader`, but
-   * may fail with `ToonCodecError` error if the TOON input is not a key or does
-   * not encode a value of this type.
+   * Decodes a value of type `A` written as a TOON key from `in`, and throws if
+   * the input does not encode one. The default implementation throws
+   * `decoding as TOON key is not supported`; the codecs for `Boolean`, the
+   * numeric types, `Char` and `String` override it, and a derived codec of a
+   * wrapper type delegates to the wrapped type's codec.
    *
    * @param in
-   *   an instance of `ToonReader` that provides access to the TOON input to
-   *   parse a TOON key to value of type `A`
+   *   the reader that holds the TOON input
    */
   def decodeKey(in: ToonReader): A = error("decoding as TOON key is not supported")
 
   /**
-   * Encodes the specified value using provided `ToonWriter` as a TOON key, but
-   * may fail with `ToonCodecError` if it cannot be encoded properly according
-   * to TOON specification requirements.
+   * Writes `x` to `out` as a TOON key. The default implementation throws
+   * `encoding as TOON key is not supported`; the codecs for `Boolean`, the
+   * numeric types, `Char`, `String` and `DynamicValue` override it, and a
+   * derived codec of a wrapper type delegates to the wrapped type's codec.
    *
    * @param x
-   *   the value provided for serialization
+   *   the value to write
    * @param out
-   *   an instance of `ToonWriter` that provides access to TOON output to
-   *   serialize the specified value as a TOON key
+   *   the writer that collects the TOON output
    */
   def encodeKey(x: A, out: ToonWriter): Unit = error("encoding as TOON key is not supported")
 
+  /**
+   * Throws a decoding or encoding error with the message `msg` and an empty
+   * path. A `decode` call turns it into a `Left`.
+   */
   def error(msg: String): Nothing = throw new ToonCodecError(Nil, msg)
 
+  /**
+   * Rethrows `error` with `span` added at the front of its path. A TOON error
+   * keeps its message; any other throwable becomes a new error with the same
+   * message.
+   */
   def error(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: ToonCodecError =>
       e.spans = new ::(span, e.spans)
@@ -98,7 +133,10 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
   }
 
   /**
-   * Encodes the specified value as a field within a TOON record.
+   * Writes `x` as the field `fieldName` of a TOON record. The default
+   * implementation writes `fieldName: ` followed by the value and a newline;
+   * the codecs for records, sequences, maps and options override it to write
+   * their nested form.
    *
    * @param fieldName
    *   the name of the field
@@ -114,11 +152,15 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
   }
 
   /**
-   * Decodes an inline array from comma-separated string values. Used for TOON's
-   * compact inline array format: `xs[3]: 1,2,3`
+   * Decodes an inline array, such as `xs[3]: 1,2,3`, from its values, already
+   * split at the delimiter of the array's header. The default implementation
+   * throws `decodeInlineArray not supported for this type`; a derived sequence
+   * codec overrides it.
    *
+   * @param in
+   *   the reader that holds the TOON input
    * @param values
-   *   array of string values parsed from the inline array
+   *   the values of the inline array, still quoted where the input quotes them
    * @param expectedLength
    *   the expected length from the array header
    */
@@ -126,8 +168,9 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("decodeInlineArray not supported for this type")
 
   /**
-   * Decodes a list-format array where each item is prefixed with `- `. Used for
-   * non-uniform objects or complex nested structures.
+   * Decodes a list-format array, where each item starts with `- `. The default
+   * implementation throws `decodeListArray not supported for this type`; a
+   * derived sequence codec overrides it.
    *
    * @param in
    *   the ToonReader positioned at the first list item line
@@ -138,8 +181,10 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("decodeListArray not supported for this type")
 
   /**
-   * Decodes a tabular array from field-value row data. Used for TOON's tabular
-   * format: `items[2]{sku,qty,price}:` followed by rows.
+   * Decodes a tabular array, such as `items[2]{sku,qty,price}:` followed by one
+   * row per element. The default implementation throws
+   * `decodeTabularArray not supported for this type`; a derived sequence codec
+   * overrides it.
    *
    * @param in
    *   the ToonReader positioned after the header line
@@ -154,9 +199,12 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("decodeTabularArray not supported for this type")
 
   /**
-   * Decodes a single tabular row into a record value. Used when this codec's
-   * type is an element in a tabular array.
+   * Decodes one row of a tabular array into a record. The default
+   * implementation throws `decodeTabularRow not supported for this type`; a
+   * derived record codec overrides it.
    *
+   * @param in
+   *   the reader that holds the TOON input
    * @param values
    *   the values parsed from the row (one per field)
    * @param fieldNames
@@ -166,8 +214,10 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("decodeTabularRow not supported for this type")
 
   /**
-   * Encodes a value as a single row in tabular format (values only, no keys).
-   * Used when this codec's values are elements in a tabular array.
+   * Writes `x` as one row of a tabular array: its field values, separated by
+   * `delimiter`, without keys. The default implementation throws
+   * `encodeTabularRow not supported for this type`; a derived record codec
+   * overrides it.
    *
    * @param x
    *   the value to encode
@@ -180,8 +230,8 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
     error("encodeTabularRow not supported for this type")
 
   /**
-   * Decodes a value of type `A` from the specified `ByteBuffer` using the
-   * default configuration.
+   * Decodes a value of type `A` from the remaining bytes of `input`, read as
+   * UTF-8, with the default [[ReaderConfig]].
    *
    * @param input
    *   the byte buffer containing TOON input
@@ -192,8 +242,9 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
   override def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
 
   /**
-   * Encodes the specified value to the given `ByteBuffer` using the default
-   * configuration.
+   * Writes `value` as UTF-8 TOON into `output` at its position, with the
+   * default [[WriterConfig]]. It throws `java.nio.BufferOverflowException` when
+   * `output` has too little room left.
    *
    * @param value
    *   the value to encode
@@ -203,8 +254,8 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
   override def encode(value: A, output: ByteBuffer): Unit = encode(value, output, WriterConfig)
 
   /**
-   * Decodes a value of type `A` from the specified `ByteBuffer` using the
-   * provided configuration.
+   * Decodes a value of type `A` from the remaining bytes of `input`, read as
+   * UTF-8, with `config`.
    *
    * @param input
    *   the byte buffer containing TOON input
@@ -235,16 +286,60 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Writes `value` as UTF-8 TOON into `output` at its position, with `config`.
+   * It throws `java.nio.BufferOverflowException` when `output` has too little
+   * room left.
+   */
   def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = {
     val writer = ToonWriter(config)
     encodeValue(value, writer)
     output.put(writer.toByteArrayTrimmed)
   }
 
+  /**
+   * Decodes a value of type `A` from the UTF-8 bytes `input`, with the default
+   * [[ReaderConfig]].
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Reading(sensor: String, celsius: Double)
+   * object Reading {
+   *   implicit val schema: Schema[Reading] = Schema.derived
+   * }
+   *
+   * val codec = Reading.schema.derive(ToonFormat)
+   * val bytes = "sensor: cellar\ncelsius: 12.5".getBytes("UTF-8")
+   *
+   * codec.decode(bytes) // Right(Reading(cellar,12.5))
+   * }}}
+   */
   def decode(input: Array[Byte]): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Encodes `value` as UTF-8 TOON bytes, with the default [[WriterConfig]].
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Reading(sensor: String, celsius: Double)
+   * object Reading {
+   *   implicit val schema: Schema[Reading] = Schema.derived
+   * }
+   *
+   * val bytes = Reading.schema.derive(ToonFormat).encode(Reading("attic", 31.0))
+   *
+   * new String(bytes, "UTF-8")
+   * // sensor: attic
+   * // celsius: 31
+   * }}}
+   */
   def encode(value: A): Array[Byte] = encode(value, WriterConfig)
 
+  /**
+   * Decodes a value of type `A` from the UTF-8 bytes `input`, with `config`.
+   */
   def decode(input: Array[Byte], config: ReaderConfig): Either[SchemaError, A] =
     try {
       val reader = ToonReader(config)
@@ -255,16 +350,46 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /** Encodes `value` as UTF-8 TOON bytes, with `config`. */
   def encode(value: A, config: WriterConfig): Array[Byte] = {
     val writer = ToonWriter(config)
     encodeValue(value, writer)
     writer.toByteArrayTrimmed
   }
 
+  /**
+   * Reads `input` to its end and decodes a value of type `A` from its UTF-8
+   * bytes, with the default [[ReaderConfig]]. It does not close `input`.
+   */
   def decode(input: java.io.InputStream): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Writes `value` as UTF-8 TOON to `output`, with the default
+   * [[WriterConfig]]. It neither flushes nor closes `output`.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   * import java.io.ByteArrayOutputStream
+   *
+   * case class Order(id: Long, total: BigDecimal)
+   * object Order {
+   *   implicit val schema: Schema[Order] = Schema.derived
+   * }
+   *
+   * val out = new ByteArrayOutputStream()
+   * Order.schema.derive(ToonFormat).encode(Order(1042L, BigDecimal("59.90")), out)
+   *
+   * out.toString("UTF-8")
+   * // id: 1042
+   * // total: 59.9
+   * }}}
+   */
   def encode(value: A, output: java.io.OutputStream): Unit = encode(value, output, WriterConfig)
 
+  /**
+   * Reads `input` to its end and decodes a value of type `A` from its UTF-8
+   * bytes, with `config`. It does not close `input`.
+   */
   def decode(input: java.io.InputStream, config: ReaderConfig): Either[SchemaError, A] =
     try {
       val bytes  = input.readAllBytes()
@@ -276,16 +401,55 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Writes `value` as UTF-8 TOON to `output`, with `config`. It neither flushes
+   * nor closes `output`.
+   */
   def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit = {
     val writer = ToonWriter(config)
     encodeValue(value, writer)
     writer.writeToTrimmed(output)
   }
 
+  /**
+   * Decodes a value of type `A` from the TOON text `input`, with the default
+   * [[ReaderConfig]].
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Profile(name: String, roles: List[String], email: Option[String])
+   * object Profile {
+   *   implicit val schema: Schema[Profile] = Schema.derived
+   * }
+   *
+   * val codec = Profile.schema.derive(ToonFormat)
+   *
+   * codec.decode("name: ada\nroles[2]: admin,dev") // Right(Profile(ada,List(admin, dev),None))
+   * codec.decode("roles[2]: admin,dev")            // Left(zio.blocks.schema.SchemaError: Missing required field: name at: .)
+   * }}}
+   */
   def decode(input: String): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Encodes `value` as TOON text, with the default [[WriterConfig]].
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Profile(name: String, roles: List[String], email: Option[String])
+   * object Profile {
+   *   implicit val schema: Schema[Profile] = Schema.derived
+   * }
+   *
+   * Profile.schema.derive(ToonFormat).encodeToString(Profile("ada", List("admin", "dev"), None))
+   * // name: ada
+   * // roles[2]: admin,dev
+   * }}}
+   */
   def encodeToString(value: A): String = encodeToString(value, WriterConfig)
 
+  /** Decodes a value of type `A` from the TOON text `input`, with `config`. */
   def decode(input: String, config: ReaderConfig): Either[SchemaError, A] =
     try {
       val reader = ToonReader(config)
@@ -296,6 +460,7 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /** Encodes `value` as TOON text, with `config`. */
   def encodeToString(value: A, config: WriterConfig): String = {
     val writer = ToonWriter(config)
     encodeValue(value, writer)
@@ -328,7 +493,13 @@ abstract class ToonCodec[A] extends BinaryCodec[A] {
   )
 }
 
+/**
+ * Predefined codecs: one for each primitive type, which [[ToonCodecDeriver]]
+ * uses for the primitive parts of a schema, and `dynamicValueCodec`.
+ */
 object ToonCodec {
+
+  /** The codec for `Unit`, written as `null`. Decoding expects `null`. */
   val unitCodec: ToonCodec[Unit] = new ToonCodec[Unit] {
     def decodeValue(in: ToonReader): Unit = {
       in.skipBlankLines()
@@ -337,6 +508,10 @@ object ToonCodec {
 
     def encodeValue(x: Unit, out: ToonWriter): Unit = out.writeNull()
   }
+
+  /**
+   * The codec for `Boolean`, written as `true` or `false`.
+   */
   val booleanCodec: ToonCodec[Boolean] = new ToonCodec[Boolean] {
     def decodeValue(in: ToonReader): Boolean = {
       in.skipBlankLines()
@@ -349,6 +524,11 @@ object ToonCodec {
 
     override def encodeKey(x: Boolean, out: ToonWriter): Unit = out.writeBoolean(x)
   }
+
+  /**
+   * The codec for `Byte`, written as a decimal integer. Decoding fails for a
+   * value outside the `Byte` range (`decodeKey` wraps such a value instead).
+   */
   val byteCodec: ToonCodec[Byte] = new ToonCodec[Byte] {
     def decodeValue(in: ToonReader): Byte = {
       in.skipBlankLines()
@@ -361,6 +541,8 @@ object ToonCodec {
 
     override def encodeKey(x: Byte, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
+
+  /** The codec for `Short`, written as a decimal integer. */
   val shortCodec: ToonCodec[Short] = new ToonCodec[Short] {
     def decodeValue(in: ToonReader): Short = {
       in.skipBlankLines()
@@ -373,6 +555,8 @@ object ToonCodec {
 
     override def encodeKey(x: Short, out: ToonWriter): Unit = out.writeInt(x.toInt)
   }
+
+  /** The codec for `Int`, written as a decimal integer. */
   val intCodec: ToonCodec[Int] = new ToonCodec[Int] {
     def decodeValue(in: ToonReader): Int = {
       in.skipBlankLines()
@@ -385,6 +569,8 @@ object ToonCodec {
 
     override def encodeKey(x: Int, out: ToonWriter): Unit = out.writeInt(x)
   }
+
+  /** The codec for `Long`, written as a decimal integer. */
   val longCodec: ToonCodec[Long] = new ToonCodec[Long] {
     def decodeValue(in: ToonReader): Long = {
       in.skipBlankLines()
@@ -397,6 +583,13 @@ object ToonCodec {
 
     override def encodeKey(x: Long, out: ToonWriter): Unit = out.writeLong(x)
   }
+
+  /**
+   * The codec for `Float`, written as a decimal number without an exponent. A
+   * whole value has no fraction; `NaN` and the infinities are written as
+   * `null`, which decodes as `NaN`. A known bug: a small negative value, such
+   * as `-1.0E-5f`, is written as `0.000-1`, which fails to decode.
+   */
   val floatCodec: ToonCodec[Float] = new ToonCodec[Float] {
     def decodeValue(in: ToonReader): Float = {
       in.skipBlankLines()
@@ -409,6 +602,14 @@ object ToonCodec {
 
     override def encodeKey(x: Float, out: ToonWriter): Unit = out.writeFloat(x)
   }
+
+  /**
+   * The codec for `Double`, written as a decimal number without an exponent. A
+   * whole value has no fraction, so `2.0` is written as `2`; `NaN` and the
+   * infinities are written as `null`, which decodes as `NaN`. A known bug: a
+   * negative value closer to zero than `-0.001`, such as `-0.0004`, is written
+   * as `0.00-4`, which fails to decode.
+   */
   val doubleCodec: ToonCodec[Double] = new ToonCodec[Double] {
     def decodeValue(in: ToonReader): Double = {
       in.skipBlankLines()
@@ -421,6 +622,11 @@ object ToonCodec {
 
     override def encodeKey(x: Double, out: ToonWriter): Unit = out.writeDouble(x)
   }
+
+  /**
+   * The codec for `Char`, written as a one-character string. Decoding fails
+   * with `Expected single char, got: ab` for a longer or empty string.
+   */
   val charCodec: ToonCodec[Char] = new ToonCodec[Char] {
     def decodeValue(in: ToonReader): Char = {
       in.skipBlankLines()
@@ -439,6 +645,12 @@ object ToonCodec {
 
     override def encodeKey(x: Char, out: ToonWriter): Unit = out.writeChar(x)
   }
+
+  /**
+   * The codec for `String`, written bare when TOON allows it and quoted
+   * otherwise, such as for the empty string, `true`, `42` or a value containing
+   * `:`.
+   */
   val stringCodec: ToonCodec[String] = new ToonCodec[String] {
     def decodeValue(in: ToonReader): String = {
       in.skipBlankLines()
@@ -451,6 +663,8 @@ object ToonCodec {
 
     override def encodeKey(x: String, out: ToonWriter): Unit = out.writeString(x)
   }
+
+  /** The codec for `BigInt`, written as a decimal integer of any size. */
   val bigIntCodec: ToonCodec[BigInt] = new ToonCodec[BigInt] {
     def decodeValue(in: ToonReader): BigInt = {
       in.skipBlankLines()
@@ -463,6 +677,13 @@ object ToonCodec {
 
     override def encodeKey(x: BigInt, out: ToonWriter): Unit = out.writeBigInt(x)
   }
+
+  /**
+   * The codec for `BigDecimal`, written as a decimal number without trailing
+   * zeros, so `12.50` is written as `12.5`. A known bug: some negative values
+   * close to zero, such as `BigDecimal("-1E-10")`, are written as
+   * `0.00000000-1`, which fails to decode.
+   */
   val bigDecimalCodec: ToonCodec[BigDecimal] = new ToonCodec[BigDecimal] {
     def decodeValue(in: ToonReader): BigDecimal = {
       in.skipBlankLines()
@@ -475,6 +696,11 @@ object ToonCodec {
 
     override def encodeKey(x: BigDecimal, out: ToonWriter): Unit = out.writeBigDecimal(x)
   }
+
+  /**
+   * The codec for `java.time.DayOfWeek`, written as its upper-case name, such
+   * as `MONDAY`.
+   */
   val dayOfWeekCodec: ToonCodec[DayOfWeek] = new ToonCodec[DayOfWeek] {
     def decodeValue(in: ToonReader): DayOfWeek = {
       in.skipBlankLines()
@@ -483,6 +709,11 @@ object ToonCodec {
 
     def encodeValue(x: DayOfWeek, out: ToonWriter): Unit = out.writeString(x.name)
   }
+
+  /**
+   * The codec for `java.time.Duration`, written as an ISO-8601 duration, such
+   * as `PT1M30S`.
+   */
   val durationCodec: ToonCodec[Duration] = new ToonCodec[Duration] {
     def decodeValue(in: ToonReader): Duration = {
       in.skipBlankLines()
@@ -491,6 +722,11 @@ object ToonCodec {
 
     def encodeValue(x: Duration, out: ToonWriter): Unit = out.writeString(Json.durationRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Instant`, written as a quoted ISO-8601 string,
+   * such as `"2026-11-05T10:15:30Z"`.
+   */
   val instantCodec: ToonCodec[Instant] = new ToonCodec[Instant] {
     def decodeValue(in: ToonReader): Instant = {
       in.skipBlankLines()
@@ -499,6 +735,11 @@ object ToonCodec {
 
     def encodeValue(x: Instant, out: ToonWriter): Unit = out.writeString(Json.instantRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalDate`, written as an ISO-8601 date, such as
+   * `2026-11-05`.
+   */
   val localDateCodec: ToonCodec[LocalDate] = new ToonCodec[LocalDate] {
     def decodeValue(in: ToonReader): LocalDate = {
       in.skipBlankLines()
@@ -507,6 +748,11 @@ object ToonCodec {
 
     def encodeValue(x: LocalDate, out: ToonWriter): Unit = out.writeString(Json.localDateRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalDateTime`, written as a quoted ISO-8601
+   * string, such as `"2026-11-05T10:15:30"`.
+   */
   val localDateTimeCodec: ToonCodec[LocalDateTime] = new ToonCodec[LocalDateTime] {
     def decodeValue(in: ToonReader): LocalDateTime = {
       in.skipBlankLines()
@@ -516,6 +762,11 @@ object ToonCodec {
     def encodeValue(x: LocalDateTime, out: ToonWriter): Unit =
       out.writeString(Json.localDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.LocalTime`, written as a quoted ISO-8601 string,
+   * such as `"10:15:30"`.
+   */
   val localTimeCodec: ToonCodec[LocalTime] = new ToonCodec[LocalTime] {
     def decodeValue(in: ToonReader): LocalTime = {
       in.skipBlankLines()
@@ -524,6 +775,11 @@ object ToonCodec {
 
     def encodeValue(x: LocalTime, out: ToonWriter): Unit = out.writeString(Json.localTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Month`, written as its upper-case name, such as
+   * `NOVEMBER`.
+   */
   val monthCodec: ToonCodec[Month] = new ToonCodec[Month] {
     def decodeValue(in: ToonReader): Month = {
       in.skipBlankLines()
@@ -532,6 +788,11 @@ object ToonCodec {
 
     def encodeValue(x: Month, out: ToonWriter): Unit = out.writeString(x.name)
   }
+
+  /**
+   * The codec for `java.time.MonthDay`, written as a quoted string, such as
+   * `"--11-05"`.
+   */
   val monthDayCodec: ToonCodec[MonthDay] = new ToonCodec[MonthDay] {
     def decodeValue(in: ToonReader): MonthDay = {
       in.skipBlankLines()
@@ -540,6 +801,11 @@ object ToonCodec {
 
     def encodeValue(x: MonthDay, out: ToonWriter): Unit = out.writeString(Json.monthDayRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.OffsetDateTime`, written as a quoted ISO-8601
+   * string, such as `"2026-11-05T10:15:30+01:00"`.
+   */
   val offsetDateTimeCodec: ToonCodec[OffsetDateTime] = new ToonCodec[OffsetDateTime] {
     def decodeValue(in: ToonReader): OffsetDateTime = {
       in.skipBlankLines()
@@ -549,6 +815,11 @@ object ToonCodec {
     def encodeValue(x: OffsetDateTime, out: ToonWriter): Unit =
       out.writeString(Json.offsetDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.OffsetTime`, written as a quoted ISO-8601 string,
+   * such as `"10:15:30+01:00"`.
+   */
   val offsetTimeCodec: ToonCodec[OffsetTime] = new ToonCodec[OffsetTime] {
     def decodeValue(in: ToonReader): OffsetTime = {
       in.skipBlankLines()
@@ -557,6 +828,11 @@ object ToonCodec {
 
     def encodeValue(x: OffsetTime, out: ToonWriter): Unit = out.writeString(Json.offsetTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Period`, written as an ISO-8601 period, such as
+   * `P1Y2M3D`.
+   */
   val periodCodec: ToonCodec[Period] = new ToonCodec[Period] {
     def decodeValue(in: ToonReader): Period = {
       in.skipBlankLines()
@@ -565,6 +841,11 @@ object ToonCodec {
 
     def encodeValue(x: Period, out: ToonWriter): Unit = out.writeString(Json.periodRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.time.Year`, written as an integer such as `2026`.
+   * Decoding accepts a quoted year too.
+   */
   val yearCodec: ToonCodec[Year] = new ToonCodec[Year] {
     def decodeValue(in: ToonReader): Year = {
       in.skipBlankLines()
@@ -577,6 +858,11 @@ object ToonCodec {
 
     def encodeValue(x: Year, out: ToonWriter): Unit = out.writeInt(x.getValue)
   }
+
+  /**
+   * The codec for `java.time.YearMonth`, written as an ISO-8601 year and month,
+   * such as `2026-11`.
+   */
   val yearMonthCodec: ToonCodec[YearMonth] = new ToonCodec[YearMonth] {
     def decodeValue(in: ToonReader): YearMonth = {
       in.skipBlankLines()
@@ -585,6 +871,11 @@ object ToonCodec {
 
     def encodeValue(x: YearMonth, out: ToonWriter): Unit = out.writeString(x.toString)
   }
+
+  /**
+   * The codec for `java.time.ZoneId`, written as the zone id, such as
+   * `Europe/Paris`.
+   */
   val zoneIdCodec: ToonCodec[ZoneId] = new ToonCodec[ZoneId] {
     def decodeValue(in: ToonReader): ZoneId = {
       in.skipBlankLines()
@@ -593,6 +884,11 @@ object ToonCodec {
 
     def encodeValue(x: ZoneId, out: ToonWriter): Unit = out.writeString(x.getId)
   }
+
+  /**
+   * The codec for `java.time.ZoneOffset`, written as its offset id, such as
+   * `Z`, or `"+02:00"`, which is quoted because of the colon.
+   */
   val zoneOffsetCodec: ToonCodec[ZoneOffset] = new ToonCodec[ZoneOffset] {
     def decodeValue(in: ToonReader): ZoneOffset = {
       in.skipBlankLines()
@@ -601,6 +897,12 @@ object ToonCodec {
 
     def encodeValue(x: ZoneOffset, out: ToonWriter): Unit = out.writeString(x.getId)
   }
+
+  /**
+   * The codec for `java.time.ZonedDateTime`, written as a quoted ISO-8601
+   * string with the zone id, such as
+   * `"2026-11-05T10:15:30+01:00[Europe/Paris]"`.
+   */
   val zonedDateTimeCodec: ToonCodec[ZonedDateTime] = new ToonCodec[ZonedDateTime] {
     def decodeValue(in: ToonReader): ZonedDateTime = {
       in.skipBlankLines()
@@ -610,6 +912,11 @@ object ToonCodec {
     def encodeValue(x: ZonedDateTime, out: ToonWriter): Unit =
       out.writeString(Json.zonedDateTimeRawCodec.encodeToString(x))
   }
+
+  /**
+   * The codec for `java.util.Currency`, written as its ISO 4217 code, such as
+   * `EUR`.
+   */
   val currencyCodec: ToonCodec[Currency] = new ToonCodec[java.util.Currency] {
     def decodeValue(in: ToonReader): java.util.Currency = {
       in.skipBlankLines()
@@ -618,6 +925,10 @@ object ToonCodec {
 
     def encodeValue(x: java.util.Currency, out: ToonWriter): Unit = out.writeString(x.getCurrencyCode)
   }
+
+  /**
+   * The codec for `java.util.UUID`, written in its canonical hyphenated form.
+   */
   val uuidCodec: ToonCodec[UUID] = new ToonCodec[java.util.UUID] {
     def decodeValue(in: ToonReader): java.util.UUID = {
       in.skipBlankLines()
@@ -626,6 +937,30 @@ object ToonCodec {
 
     def encodeValue(x: java.util.UUID, out: ToonWriter): Unit = out.writeString(x.toString)
   }
+
+  /**
+   * The codec of `DynamicValue`, which
+   * `Schema[DynamicValue].derive(ToonFormat)` returns. It is the one codec that
+   * reads the `DynamicValue` settings of [[WriterConfig]] (delimiter, key
+   * folding, flatten depth, discriminator field) and [[ReaderConfig]] (path
+   * expansion, discriminator field). It picks each array's form from the
+   * elements: inline for primitives, a table for records with the same keys and
+   * only primitive values, a list otherwise.
+   *
+   * Decoding infers each scalar's type: `null`, `true` and `false`; a number
+   * with a whole value (`2.0` too) as `Int` or `Long`, or `BigInt` when an
+   * integer is too large for `Long`; another number as a `BigDecimal` parsed
+   * through `Double`, so digits beyond its precision are lost (a negative
+   * number close to zero, such as `-0.0004`, comes back as the string `0.00-4`,
+   * a known bug); anything else, including numbers with leading zeros such as
+   * `007`, as a `String`. Without a discriminator field it reads every record
+   * back as a record, so a variant written with the default [[WriterConfig]]
+   * comes back as a record with one field named after the case. That is why a
+   * `DynamicSchema` written as TOON reads back as a schema that accepts any
+   * value, a known bug. Another known bug: it does not check the length in an
+   * array header, so input with fewer or more elements than the header says
+   * decodes without an error.
+   */
   val dynamicValueCodec: ToonCodec[DynamicValue] = new ToonCodec[DynamicValue] {
     private[this] val falseValue = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
     private[this] val trueValue  = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))

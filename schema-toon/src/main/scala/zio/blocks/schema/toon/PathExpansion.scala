@@ -17,17 +17,33 @@
 package zio.blocks.schema.toon
 
 /**
- * Strategy for expanding dot-separated paths in TOON input.
+ * Chooses whether the `DynamicValue` codec reads a dot-separated key, such as
+ * `net.port.number: 8080`, as nested records or as one key with dots in its
+ * name. Set it with [[ReaderConfig.withExpandPaths]]. A codec derived for a
+ * case class ignores it. To decode folded TOON into a case class, decode it as
+ * a `DynamicValue` with [[PathExpansion.Safe]], then convert the result with
+ * `Schema#fromDynamicValue`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
  */
 sealed abstract class PathExpansion
 
+/**
+ * The cases of `PathExpansion`: `PathExpansion.Off` and `PathExpansion.Safe`.
+ */
 object PathExpansion {
 
-  /** No path expansion - keys are treated as literals. */
+  /** Keeps a dotted key as one field name. The default. */
   case object Off extends PathExpansion
 
   /**
-   * Safe path expansion - dot-separated keys are expanded to nested records.
+   * Expands an unquoted dotted key whose parts are all plain identifiers into
+   * nested records (an identifier is ASCII letters, digits and `_`, not
+   * starting with a digit), merging records that share a prefix. A quoted key
+   * stays one field name. When an expanded key would replace a value that is
+   * not a record, decoding fails in strict mode with `Path expansion conflict
+   * at key 'a'`; with [[ReaderConfig.withStrict]] `false` the later value wins.
    */
   case object Safe extends PathExpansion
 }
