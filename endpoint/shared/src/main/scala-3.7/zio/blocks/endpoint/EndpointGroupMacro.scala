@@ -19,6 +19,11 @@ package zio.blocks.endpoint
 import scala.quoted.*
 import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
+/**
+ * The macros behind `endpoints { ... }` and the prefix syntax `codec /
+ * endpoints { ... }`: they read the block's statements, name the members, put
+ * prefixes in front of each route and build the named tuple.
+ */
 private[endpoint] object EndpointGroupMacro {
   def build(body: Expr[Any])(using Quotes): Expr[Any] =
     buildGroupTree(body, Nil)
