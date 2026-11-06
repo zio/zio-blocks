@@ -28,6 +28,13 @@ import scala.annotation.{switch, tailrec}
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * The default deriver, which [[ToonFormat]] uses, and the starting point for a
+ * configured one: field and case names as declared, `DiscriminatorKind.Key`,
+ * `ArrayFormat.Auto` with the comma delimiter, extra fields ignored,
+ * enumerations as strings, and `None`, empty collections and default values
+ * left out when encoding and accepted as missing when decoding.
+ */
 object ToonCodecDeriver
     extends ToonCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
@@ -45,6 +52,52 @@ object ToonCodecDeriver
       requireDefaultValueFields = false
     )
 
+/**
+ * Derives a [[ToonCodec]] from a [[zio.blocks.schema.Schema]]. Each `with`
+ * method returns a copy with one setting changed; pass the result to
+ * `Schema#derive` in place of [[ToonFormat]]. The settings of [[WriterConfig]]
+ * and [[ReaderConfig]] other than indentation and strict mode do not reach a
+ * derived codec; they apply to the `DynamicValue` codec.
+ *
+ * Of the schema modifiers, the deriver reads `@Modifier.rename` on fields and
+ * cases, `@Modifier.alias` on fields (and on cases with
+ * `DiscriminatorKind.Field`), and `@Modifier.transient`, whose field it leaves
+ * out when encoding. It does not read `@Modifier.fieldNaming`,
+ * `@Modifier.caseNaming`, `@Modifier.discriminator` or
+ * `@Modifier.noExtraFields`, which the JSON codec honours.
+ *
+ * Fields are handled in this order:
+ *   - when encoding, a field with a default value is left out when it equals
+ *     the default; otherwise a `None` is left out, then an empty collection, as
+ *     the `transient` settings allow;
+ *   - when decoding a missing field, its default value is used; otherwise an
+ *     `Option` becomes `None`, then a collection becomes empty, as the
+ *     `require` settings allow; otherwise decoding fails with
+ *     `Missing required field: name`.
+ *
+ * Each `require` setting also turns off the matching `transient` one. A known
+ * bug: while `withTransientEmptyCollection` is on, the default, a field of type
+ * `Array` is left out of the output even when it is not empty.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Order(orderId: Long, customerName: String, giftNote: Option[String] = None)
+ * object Order {
+ *   implicit val schema: Schema[Order] = Schema.derived
+ * }
+ *
+ * val snakeCase = Order.schema.derive(ToonCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase))
+ *
+ * snakeCase.encodeToString(Order(1042L, "Grace"))
+ * // order_id: 1042
+ * // customer_name: Grace
+ * snakeCase.decode("order_id: 7\ncustomer_name: Linus") // Right(Order(7,Linus,None))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
+ */
 class ToonCodecDeriver private (
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
@@ -61,36 +114,180 @@ class ToonCodecDeriver private (
   requireDefaultValueFields: Boolean
 ) extends Deriver[ToonCodec] {
 
+  /**
+   * Returns a deriver that names the fields of every record with
+   * `fieldNameMapper`, such as `NameMapper.SnakeCase`, unless the field has
+   * `@Modifier.rename`. A name that is not a plain identifier, such as a
+   * kebab-case name, is written in quotes: `"user-name": ada`.
+   *
+   * A known bug: the header of a table uses the case name mapper, not this one,
+   * for the field names.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Account(userName: String, lastLogin: String)
+   * object Account {
+   *   implicit val schema: Schema[Account] = Schema.derived
+   * }
+   *
+   * Account.schema
+   *   .derive(ToonCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase))
+   *   .encodeToString(Account("ada", "2026-11-01"))
+   * // user_name: ada
+   * // last_login: 2026-11-01
+   * }}}
+   */
   def withFieldNameMapper(fieldNameMapper: NameMapper): ToonCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
+  /**
+   * Returns a deriver that names the cases of every sealed trait or enum with
+   * `caseNameMapper`, in discriminators and in enumeration strings, unless the
+   * case has `@Modifier.rename`.
+   */
   def withCaseNameMapper(caseNameMapper: NameMapper): ToonCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
+  /**
+   * Returns a deriver that records the case of every sealed trait or enum as
+   * `discriminatorKind` says, unless the type is an enumeration written as
+   * strings; see [[DiscriminatorKind]]. The default is `DiscriminatorKind.Key`.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * sealed trait Payment
+   * case class Card(last4: String) extends Payment
+   * case class Transfer(iban: String) extends Payment
+   * object Payment {
+   *   implicit val schema: Schema[Payment] = Schema.derived
+   * }
+   *
+   * val codec = Payment.schema.derive(ToonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type")))
+   *
+   * codec.encodeToString(Transfer("DE89370400440532013000"))
+   * // type: Transfer
+   * // iban: DE89370400440532013000
+   * codec.decode("iban: DE02120300000000202051\ntype: Transfer") // Right(Transfer(DE02120300000000202051))
+   * }}}
+   */
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): ToonCodecDeriver =
     copy(discriminatorKind = discriminatorKind)
 
+  /**
+   * Returns a deriver that writes sequences in `arrayFormat`; see
+   * [[ArrayFormat]]. The default is `ArrayFormat.Auto`, which writes primitive
+   * elements inline and records as a list. A record field decodes from any of
+   * the three forms, whatever the setting.
+   *
+   * {{{
+   * import zio.blocks.schema._
+   *
+   * case class Item(sku: String, qty: Int, price: Double)
+   * object Item {
+   *   implicit val schema: Schema[Item] = Schema.derived
+   * }
+   * case class Feed(store: String, items: List[Item])
+   * object Feed {
+   *   implicit val schema: Schema[Feed] = Schema.derived
+   * }
+   *
+   * Feed.schema
+   *   .derive(ToonCodecDeriver.withArrayFormat(ArrayFormat.Tabular))
+   *   .encodeToString(Feed("north", List(Item("A-100", 2, 9.5), Item("B-200", 1, 24.0))))
+   * // store: north
+   * // items[2]{sku,qty,price}:
+   * //   A-100,2,9.5
+   * //   B-200,1,24
+   * }}}
+   */
   def withArrayFormat(arrayFormat: ArrayFormat): ToonCodecDeriver = copy(arrayFormat = arrayFormat)
 
+  /**
+   * Returns a deriver that separates inline array values, table rows and table
+   * header fields with `delimiter`, and records it in each array header when it
+   * is not the comma, as in `codes[2|]: 3|7`. The default is `Delimiter.Comma`.
+   * Decoding takes the delimiter from each header, so a record field reads any
+   * of them whatever the setting. A known bug: a top-level sequence written
+   * with `Delimiter.Tab` cannot be decoded, even by the codec that wrote it.
+   */
   def withDelimiter(delimiter: Delimiter): ToonCodecDeriver = copy(delimiter = delimiter)
 
+  /**
+   * Returns a deriver whose record decoders fail on a key that the record does
+   * not have, with `Unexpected field: zone` (`true`), or skip it (`false`, the
+   * default). The discriminator field of `DiscriminatorKind.Field` is not
+   * extra.
+   */
   def withRejectExtraFields(rejectExtraFields: Boolean): ToonCodecDeriver = copy(rejectExtraFields = rejectExtraFields)
 
+  /**
+   * Returns a deriver that writes a sealed trait or enum whose cases all have
+   * no fields as the bare case name, such as `High` (`true`, the default), or
+   * with the discriminator kind like any other variant (`false`), such as
+   * `High:` for `DiscriminatorKind.Key`. Decoding an unknown name as a string
+   * fails with `Unknown enum value: Medium`.
+   */
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): ToonCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
+  /**
+   * Returns a deriver that leaves an `Option` field that is `None` out of the
+   * encoded record (`true`, the default), or writes it as `field: null`
+   * (`false`). It has no effect with `withRequireOptionFields(true)`, and while
+   * `withTransientDefaultValue` is on, a field with a default value follows it
+   * instead.
+   */
   def withTransientNone(transientNone: Boolean): ToonCodecDeriver = copy(transientNone = transientNone)
 
+  /**
+   * Returns a deriver whose decoders fail on a missing `Option` field with
+   * `Missing required field: email` (`true`), instead of using `None` (`false`,
+   * the default). With `true` the encoders also write `None` as `null`, except
+   * for a field whose default it equals while `withTransientDefaultValue` is
+   * on. A field with a default value still decodes to its default when missing.
+   */
   def withRequireOptionFields(requireOptionFields: Boolean): ToonCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
+  /**
+   * Returns a deriver that leaves an empty sequence or map field out of the
+   * encoded record (`true`, the default), or writes it, as `tags[0]:` for a
+   * sequence (`false`). It has no effect with
+   * `withRequireCollectionFields(true)`, and while `withTransientDefaultValue`
+   * is on, a field with a default value follows it instead.
+   *
+   * A known bug: while it is on, a field of type `Array` is left out even when
+   * it is not empty, so it decodes back as an empty array.
+   */
   def withTransientEmptyCollection(transientEmptyCollection: Boolean): ToonCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
 
+  /**
+   * Returns a deriver whose decoders fail on a missing sequence or map field
+   * with `Missing required field: tags` (`true`), instead of using an empty one
+   * (`false`, the default). With `true` the encoders also write empty
+   * collections, except for a field whose default it equals while
+   * `withTransientDefaultValue` is on. A field with a default value still
+   * decodes to its default when missing.
+   */
   def withRequireCollectionFields(requireCollectionFields: Boolean): ToonCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
+  /**
+   * Returns a deriver that leaves a field out of the encoded record when it
+   * equals the field's default value (`true`, the default), or always writes it
+   * (`false`). A missing field with a default value decodes to that default
+   * either way.
+   */
   def withTransientDefaultValue(transientDefaultValue: Boolean): ToonCodecDeriver =
     copy(transientDefaultValue = transientDefaultValue)
 
+  /**
+   * Returns a deriver that ignores default values (`true`): a missing field
+   * that has one fails to decode unless it is an `Option` or a collection, and
+   * the encoders write it even when it equals its default. With `false`, the
+   * default, a missing field decodes to its default value.
+   */
   def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): ToonCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
@@ -1240,12 +1437,25 @@ class ToonCodecDeriver private (
     super.instanceOverrides
   }
 
+  /** Internal placeholder type of the derived codecs. */
   type Elem
+
+  /** Internal placeholder type of the derived codecs. */
   type Key
+
+  /** Internal placeholder type of the derived codecs. */
   type Value
+
+  /** Internal placeholder type of the derived codecs. */
   type Wrapped
+
+  /** Internal placeholder type of the derived codecs. */
   type Col[_]
+
+  /** Internal placeholder type of the derived codecs. */
   type Map[_, _]
+
+  /** Internal placeholder type of the derived codecs. */
   type TC[_]
 
   private[this] val recursiveRecordCache: ThreadLocal[util.HashMap[TypeId[?], Array[FieldInfo]]] =

@@ -242,6 +242,21 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
       )
     },
+    test("moduleImport and objectName keep the version directory of a text-format module's syntax copies apart") {
+      val xml2  = "schema-xml/shared/src/main/scala-2.12-2.13/zio/blocks/schema/xml/syntax.scala"
+      val xml3  = "schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala"
+      val yaml2 = "schema-yaml/shared/src/main/scala-2/zio/blocks/schema/yaml/package.scala"
+      val toon  = "schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodec.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(xml2) == "zio.blocks.schema.xml._",
+        ScaladocSnippets.objectName(xml2, 7) == "Snippet_schema_xml_shared_scala_2_12_2_13_syntax_L7",
+        ScaladocSnippets.objectName(xml3, 7) == "Snippet_schema_xml_shared_scala_3_syntax_L7",
+        ScaladocSnippets.moduleImport(yaml2) == "zio.blocks.schema.yaml._",
+        ScaladocSnippets.objectName(yaml2, 5) == "Snippet_schema_yaml_shared_scala_2_package_L5",
+        ScaladocSnippets.moduleImport(toon) == "zio.blocks.schema.toon._",
+        ScaladocSnippets.objectName(toon, 40) == "Snippet_schema_toon_scala_ToonCodec_L40"
+      )
+    },
     test("moduleImport and objectName use packageOverrides for a module whose package is not its directory") {
       val requestPath = "http-model/shared/src/main/scala/zio/http/Request.scala"
       val statusPath  = "http-model/shared/src/main/scala-2/zio/http/Status.scala"
@@ -253,6 +268,22 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(statusPath, 5) == "Snippet_http_model_shared_scala_2_Status_L5",
         ScaladocSnippets.modulePackage("schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala") ==
           "zio.blocks.schema.avro"
+      )
+    },
+    test("moduleImport and objectName tell http-model-schema and schema-messagepack apart from their neighbours") {
+      val codecPath   = "http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodec.scala"
+      val modelPath   = "http-model/shared/src/main/scala/zio/http/QueryParams.scala"
+      val msgpackPath = "schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala"
+      assertTrue(
+        ScaladocSnippets.moduleOf(codecPath) == "http-model-schema",
+        ScaladocSnippets.moduleOf(modelPath) == "http-model",
+        ScaladocSnippets.modulePackage(codecPath) == "zio.http.schema",
+        ScaladocSnippets.moduleImport(codecPath) == "zio.http.schema._",
+        ScaladocSnippets.moduleImport(modelPath) == "zio.http._",
+        ScaladocSnippets.objectName(codecPath, 9) == "Snippet_http_model_schema_shared_scala_QueryCodec_L9",
+        ScaladocSnippets.modulePackage(msgpackPath) == "zio.blocks.schema.msgpack",
+        ScaladocSnippets.moduleImport(msgpackPath) == "zio.blocks.schema.msgpack._",
+        ScaladocSnippets.objectName(msgpackPath, 7) == "Snippet_schema_messagepack_scala_MessagePackCodec_L7"
       )
     },
     test("render gives an http-model example the zio.http import") {

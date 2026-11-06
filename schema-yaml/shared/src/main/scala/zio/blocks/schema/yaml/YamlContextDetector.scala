@@ -18,7 +18,16 @@ package zio.blocks.schema.yaml
 
 import zio.blocks.chunk.ChunkBuilder
 
+/**
+ * Finds whether each splice of a `yaml"..."` literal sits in a key, a value or
+ * a quoted string.
+ */
 private[schema] object YamlContextDetector {
+
+  /**
+   * Returns the position of each splice, judged from the literal text before
+   * it.
+   */
   def detectContexts(parts: Seq[String]): Either[String, Seq[YamlInterpolationContext]] =
     if (parts.isEmpty || parts.tail.isEmpty) new Right(Nil)
     else detectContextsImpl(parts)

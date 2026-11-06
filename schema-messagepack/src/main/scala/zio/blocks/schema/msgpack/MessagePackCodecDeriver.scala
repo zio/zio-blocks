@@ -27,6 +27,48 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * Derives a [[MessagePackCodec]] from a schema. [[MessagePackFormat]] uses it,
+ * so `Schema#derive(MessagePackFormat)` and
+ * `Schema#derive(MessagePackCodecDeriver)` derive codecs the same way. A
+ * derived codec lays values out as follows:
+ *
+ *   - A primitive value: as the codec of its type in the companion object of
+ *     [[MessagePackCodec]] writes it.
+ *   - A record: a map from field names to field values, in the order of the
+ *     fields. Decoding takes the entries in any order but needs exactly one per
+ *     field: a missing key (an `Option` field's included) or an extra one fails
+ *     with a message such as `Expected 2 fields, got: 1`, and an unknown name
+ *     with `Unknown field: ...`. Default values are not used. A known bug: a
+ *     repeated key passes the count check, and the field it pushes out gets the
+ *     zero value of its type, such as `0` or `null`.
+ *   - An `Option`: an array of no element for `None` and of one element for
+ *     `Some`. Nil fails with `Expected array header, got: 192`.
+ *   - An `Either`: a map of one entry whose key is `left` or `right`.
+ *   - Any other variant, such as a sealed trait: the index of the case, an int
+ *     counted from 0 in the order of the schema's cases, followed by the case's
+ *     own value (an empty map for a case object). These are two MessagePack
+ *     values in a row, not one, so other MessagePack tools, and the module's
+ *     own `DynamicValue` codec, misread a value that contains such a variant; a
+ *     known bug.
+ *   - A sequence: an array. A map: a MessagePack map whose keys the key type's
+ *     codec writes, so a `Map[Int, String]` has int keys.
+ *   - A wrapper, such as a schema made with `transform`: the wrapped value.
+ *   - A `DynamicValue`: plain MessagePack, read back by format byte, so a round
+ *     trip loses types. Every integer reads back as a `Long`, a `bin` as a
+ *     `BigInt`, and a map with string keys as a record; a variant is written as
+ *     a map with the keys `_case` and `_value` and reads back as that record;
+ *     `Unit` is written as an empty map, and other primitives, such as an
+ *     `Instant`, as their codecs write them. Because of this, a `DynamicSchema`
+ *     written as MessagePack reads back as a schema that accepts any value, a
+ *     known bug.
+ *
+ * Decoding errors carry the path to the failing value: `.sensor` for a field,
+ * `.at(1)` for an element of a sequence, `.atKey(1)` for the value of a map
+ * entry and `.at(0)` for its key (the index of the entry), `.when[Offline]` for
+ * a case of a variant (`.when[Some]`, `.when[Left]` and `.when[Right]` for
+ * `Option` and `Either`), and `.wrapped` for the inside of a wrapper.
+ */
 object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
   import MessagePackCodec._
 
@@ -444,6 +486,11 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy(dynamicValueCodec)
     else binding.asInstanceOf[BindingInstance[MessagePackCodec, ?, DynamicValue]].instance
 
+  /**
+   * Derives the codec of a wrapper type, such as a schema made with
+   * `transform`: it writes the wrapped value with the wrapped type's codec and
+   * adds `.wrapped` to the path of a decoding error.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -477,11 +524,40 @@ object MessagePackCodecDeriver extends Deriver[MessagePackCodec] {
     super.instanceOverrides
   }
 
+  /**
+   * Stands for an element type in the casts inside derived codecs; not meant
+   * for user code.
+   */
   type Elem
+
+  /**
+   * Stands for a map key type in the casts inside derived codecs; not meant for
+   * user code.
+   */
   type Key
+
+  /**
+   * Stands for a map value type in the casts inside derived codecs; not meant
+   * for user code.
+   */
   type Value
+
+  /**
+   * Stands for a collection type in the casts inside derived codecs; not meant
+   * for user code.
+   */
   type Col[_]
+
+  /**
+   * Stands for a map type in the casts inside derived codecs; not meant for
+   * user code.
+   */
   type Map[_, _]
+
+  /**
+   * Stands for a type class in the casts inside derived codecs; not meant for
+   * user code.
+   */
   type TC[_]
 
   private[this] val recursiveRecordCache =

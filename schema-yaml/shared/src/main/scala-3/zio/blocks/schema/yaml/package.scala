@@ -20,11 +20,46 @@ import zio.blocks.schema.yaml._
 import scala.quoted._
 import scala.util.control.NonFatal
 
+/** The YAML model, codecs and options, and the `yaml"..."` interpolator. */
 package object yaml {
   extension (inline sc: StringContext) {
+
+    /**
+     * Builds a [[Yaml]] tree from a YAML literal, with Scala values spliced in.
+     * The literal is read with `YamlReader` at compile time, with placeholders
+     * for the splices, and again at run time with the values written in. A
+     * value position, such as `port: \$port`, takes a `Yaml` tree or any value
+     * with a `Schema`, encoded with its YAML codec (`null` becomes
+     * `NullValue`). A key position, or a position inside a quoted string, takes
+     * the value's text, as `YamlCodec#encodeKey` writes it (a `Yaml` tree is
+     * printed). A spliced type with no `Schema` does not compile.
+     *
+     * On Scala 2.13, the expansion calls a package-private object, so it
+     * compiles only inside the `zio.blocks.schema` package (a known bug). Other
+     * known bugs: a spliced collection, record or `Yaml` mapping is misread; a
+     * spliced value that the writer quotes, such as the string `8080` or a
+     * date, keeps its quotes when it is spliced into a key or into a quoted
+     * string; Scala escape sequences such as `\n` in the literal are not
+     * processed; and the compile-time check uses the lenient reader, so most
+     * malformed literals compile.
+     *
+     * {{{
+     * // scala-3-only
+     * val manifest = yaml"""
+     * kind: Deployment
+     * replicas: 3
+     * """
+     *
+     * manifest.toJson.print // {"kind":"Deployment","replicas":3}
+     * }}}
+     *
+     * @see
+     *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
+     */
     inline def yaml(inline args: Any*): Yaml = ${ yamlInterpolatorImpl('sc, 'args) }
   }
 
+  /** Expands `yaml"..."` at compile time. */
   private def yamlInterpolatorImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Yaml] = {
     import quotes.reflect._
 

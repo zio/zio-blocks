@@ -1402,9 +1402,10 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // same Scala versions as the others, and its sources must live under `<module-dir>/`. Every
 // example gets the import of its module's package (`ScaladocSnippets.moduleImport`), which is
 // `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`)
-// unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`).
-// `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and
-// `schema-messagepack` break the rule too and need a `packageOverrides` entry first. Not
+// unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`,
+// `http-model-schema` is `zio.http.schema`, `schema-messagepack` is `zio.blocks.schema.msgpack`).
+// `datastar`, `htmx`, `markdown`, `otel` and `dataMigration` break the rule too and need a
+// `packageOverrides` entry first. Not
 // published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
@@ -1421,6 +1422,8 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-yaml`.jvm,
     typeid.jvm,
     `http-model`.jvm,
+    `http-model-schema`.jvm,
+    `schema-messagepack`.jvm,
     html.jvm,
     async.jvm,
     `schema-avro`,
@@ -1428,6 +1431,9 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `schema-csv`.jvm,
     `schema-thrift`,
     jwt.jvm,
+    `schema-toon`.jvm,
+    `schema-xml`.jvm,
+    `schema-yaml`.jvm,
     openapi.jvm,
     codegen,
     smithy,

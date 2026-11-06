@@ -19,8 +19,13 @@ package zio.blocks.schema.yaml
 import zio.blocks.schema.json.{Json, JsonCodec}
 import java.time._
 
+/** Run-time support for `yaml"..."`: checks a literal and builds its tree. */
 private[schema] object YamlInterpolatorRuntime {
 
+  /**
+   * Reads the literal with placeholders for the splices, to check it at compile
+   * time; throws only when `YamlReader` throws.
+   */
   def validateYamlLiteral(sc: StringContext, contexts: Seq[YamlInterpolationContext]): Unit = {
     val parts     = sc.parts.iterator
     val contextIt = contexts.iterator
@@ -38,6 +43,10 @@ private[schema] object YamlInterpolatorRuntime {
     YamlReader.read(sb.toString)
   }
 
+  /**
+   * Writes each spliced value as YAML text for its position and reads the
+   * result with `YamlReader`.
+   */
   def yamlWithContexts(sc: StringContext, args: Seq[Any], contexts: Seq[YamlInterpolationContext]): Yaml = {
     val parts     = sc.parts.iterator
     val argsIt    = args.iterator

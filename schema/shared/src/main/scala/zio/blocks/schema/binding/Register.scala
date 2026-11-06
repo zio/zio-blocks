@@ -82,10 +82,14 @@ object Register {
    * `set` does nothing.
    */
   case object Unit extends Register[scala.Unit] {
+
+    /** Returns `()` without reading `registers`. */
     def get(registers: Registers, base: RegisterOffset): scala.Unit = ()
 
+    /** Does nothing, since a `Unit` field stores no data. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Unit): Unit = ()
 
+    /** Returns 0: a `Unit` field takes no object slot and no bytes. */
     def usedRegisters: RegisterOffset = 0L
   }
 
@@ -94,81 +98,115 @@ object Register {
    * takes 1 byte of the byte area.
    */
   case class Boolean(offset: RegisterOffset) extends Register[scala.Boolean] {
+
+    /**
+     * Reads the byte at `offset + base` and returns `true` when it is not 0.
+     */
     def get(registers: Registers, base: RegisterOffset): scala.Boolean = registers.getBoolean(offset + base)
 
+    /** Writes 1 for `true` or 0 for `false` to the byte at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Boolean): Unit =
       registers.setBoolean(offset + base, boxed)
 
+    /** Returns 1 byte and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementBooleansAndBytes(0)
   }
 
   /** A `Byte` register at `offset`. It takes 1 byte of the byte area. */
   case class Byte(offset: RegisterOffset) extends Register[scala.Byte] {
+
+    /** Reads the `Byte` at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Byte = registers.getByte(offset + base)
 
+    /** Writes `boxed` to the byte at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Byte): Unit =
       registers.setByte(offset + base, boxed)
 
+    /** Returns 1 byte and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementBooleansAndBytes(0)
   }
 
   /** A `Short` register at `offset`. It takes 2 bytes of the byte area. */
   case class Short(offset: RegisterOffset) extends Register[scala.Short] {
+
+    /** Reads the `Short` stored in the 2 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Short = registers.getShort(offset + base)
 
+    /** Writes `boxed` to the 2 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Short): Unit =
       registers.setShort(offset + base, boxed)
 
+    /** Returns 2 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementCharsAndShorts(0)
   }
 
   /** An `Int` register at `offset`. It takes 4 bytes of the byte area. */
   case class Int(offset: RegisterOffset) extends Register[scala.Int] {
+
+    /** Reads the `Int` stored in the 4 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Int = registers.getInt(offset + base)
 
+    /** Writes `boxed` to the 4 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Int): Unit =
       registers.setInt(offset + base, boxed)
 
+    /** Returns 4 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementFloatsAndInts(0)
   }
 
   /** A `Long` register at `offset`. It takes 8 bytes of the byte area. */
   case class Long(offset: RegisterOffset) extends Register[scala.Long] {
+
+    /** Reads the `Long` stored in the 8 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Long = registers.getLong(offset + base)
 
+    /** Writes `boxed` to the 8 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Long): Unit =
       registers.setLong(offset + base, boxed)
 
+    /** Returns 8 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementDoublesAndLongs(0)
   }
 
   /** A `Float` register at `offset`. It takes 4 bytes of the byte area. */
   case class Float(offset: RegisterOffset) extends Register[scala.Float] {
+
+    /** Reads the `Float` stored in the 4 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Float = registers.getFloat(offset + base)
 
+    /** Writes `boxed` to the 4 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Float): Unit =
       registers.setFloat(offset + base, boxed)
 
+    /** Returns 4 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementFloatsAndInts(0)
   }
 
   /** A `Double` register at `offset`. It takes 8 bytes of the byte area. */
   case class Double(offset: RegisterOffset) extends Register[scala.Double] {
+
+    /** Reads the `Double` stored in the 8 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Double = registers.getDouble(offset + base)
 
+    /** Writes `boxed` to the 8 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Double): Unit =
       registers.setDouble(offset + base, boxed)
 
+    /** Returns 8 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementDoublesAndLongs(0)
   }
 
   /** A `Char` register at `offset`. It takes 2 bytes of the byte area. */
   case class Char(offset: RegisterOffset) extends Register[scala.Char] {
+
+    /** Reads the `Char` stored in the 2 bytes at `offset + base`. */
     def get(registers: Registers, base: RegisterOffset): scala.Char = registers.getChar(offset + base)
 
+    /** Writes `boxed` to the 2 bytes at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Char): Unit =
       registers.setChar(offset + base, boxed)
 
+    /** Returns 2 bytes and no object slot. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementCharsAndShorts(0)
   }
 
@@ -178,11 +216,18 @@ object Register {
    * slot.
    */
   case class Object[A <: AnyRef](offset: RegisterOffset) extends Register[A] {
+
+    /**
+     * Reads the object slot at `offset + base` and casts it to `A` without
+     * checking its class.
+     */
     def get(registers: Registers, base: RegisterOffset): Boxed =
       registers.getObject(offset + base).asInstanceOf[Boxed]
 
+    /** Writes `boxed` to the object slot at `offset + base`. */
     def set(registers: Registers, base: RegisterOffset, boxed: Boxed): Unit = registers.setObject(offset + base, boxed)
 
+    /** Returns one object slot and no bytes. */
     def usedRegisters: RegisterOffset = RegisterOffset.incrementObjects(0)
   }
 }

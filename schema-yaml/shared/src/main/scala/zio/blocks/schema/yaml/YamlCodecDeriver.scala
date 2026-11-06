@@ -29,18 +29,73 @@ import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 /**
- * A [[zio.blocks.schema.codec.BinaryFormat]] for `application/yaml` using
- * [[YamlCodecDeriver]].
+ * The YAML [[zio.blocks.schema.codec.BinaryFormat]], with MIME type
+ * `application/yaml`. Pass it to `Schema#derive` to get a [[YamlCodec]] built
+ * by [[YamlCodecDeriver]].
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Product(sku: String, priceCents: Int, tags: List[String])
+ * object Product {
+ *   implicit val schema: Schema[Product] = Schema.derived
+ * }
+ *
+ * val codec: YamlCodec[Product] = Product.schema.derive(YamlFormat)
+ *
+ * codec.encodeToString(Product("KB-01", 4999, List("keyboard", "usb")))
+ * // sku: KB-01
+ * // price-cents: 4999
+ * // tags:
+ * //   - keyboard
+ * //   - usb
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 object YamlFormat extends BinaryFormat("application/yaml", YamlCodecDeriver)
 
-/** Default instance of [[YamlCodecDeriver]]. */
+/** The default [[YamlCodecDeriver]], which [[YamlFormat]] uses. */
 object YamlCodecDeriver extends YamlCodecDeriver
 
 /**
- * A [[zio.blocks.schema.derive.Deriver]] that produces [[YamlCodec]] instances
- * for schema-described types, converting between Scala values and YAML
- * representations.
+ * Derives a [[YamlCodec]] from a schema; [[YamlFormat]] uses it. A record
+ * becomes a mapping whose keys are the field names in kebab-case (`maxSurge`
+ * becomes `max-surge`). A missing field takes its default value, and a missing
+ * `Option` field becomes `None`, even when its default is a `Some`; a `None`
+ * field is left out when encoding. An `Option` value is written as its content,
+ * or `null` for a `None` outside a record. A collection becomes a sequence, a
+ * map becomes a mapping, and a sealed trait or enum becomes a mapping with one
+ * key, the case name, whose value is the case's encoding.
+ *
+ * Known bugs in 0.0.56: field modifiers such as `@Modifier.rename` and
+ * `@Modifier.transient` are ignored; a case with no fields is written as
+ * `Name: {}`, and a plain `Name` does not decode; and the field codecs of some
+ * records, such as recursive ones, are cached per thread and reused by a later
+ * derivation of the same type, including its instance overrides.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * sealed trait Payment
+ * case class Card(last4: String) extends Payment
+ * case class Invoice(dueDays: Int) extends Payment
+ * object Payment {
+ *   implicit val schema: Schema[Payment] = Schema.derived
+ * }
+ *
+ * val codec: YamlCodec[Payment] = Payment.schema.derive(YamlCodecDeriver)
+ *
+ * codec.encodeToString(Invoice(30))
+ * // Invoice:
+ * //   due-days: 30
+ *
+ * codec.decode("Card:\n  last4: \"4242\"\n") // Right(Card(4242))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
 class YamlCodecDeriver extends Deriver[YamlCodec] {
   import YamlCodec._
@@ -459,6 +514,11 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[YamlCodec[DynamicValue]]]
 
+  /**
+   * Derives the codec of a wrapper type: it encodes the unwrapped value with
+   * the wrapped type's codec and wraps the decoded value. A failure while
+   * decoding or wrapping becomes a `YamlCodecError`.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -488,12 +548,25 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
   }.asInstanceOf[Lazy[YamlCodec[A]]]
 
+  /** Placeholder for a sequence element type in the deriver's casts. */
   type Elem
+
+  /** Placeholder for a map key type in the deriver's casts. */
   type Key
+
+  /** Placeholder for a map value type in the deriver's casts. */
   type Value
+
+  /** Placeholder for a wrapper's underlying type in the deriver's casts. */
   type Wrapped
+
+  /** Placeholder for a sequence type constructor in the deriver's casts. */
   type Col[_]
+
+  /** Placeholder for a map type constructor in the deriver's casts. */
   type Map[_, _]
+
+  /** Placeholder for the codec type constructor in the deriver's casts. */
   type TC[_]
 
   private[this] val recursiveRecordCache =
