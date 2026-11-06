@@ -20,22 +20,39 @@ import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 
 /**
- * Builder for `data-on-signal-patch` Datastar attributes.
+ * A `data-on-signal-patch` attribute, whose expression runs when signals are
+ * patched. Made by `dataOnSignalPatch`; pair it with `dataOnSignalPatchFilter`
+ * to narrow which signals count. Modifiers add suffixes in call order, and a
+ * second `delay`, `debounce` or `throttle` replaces the first of its kind and
+ * goes last.
  *
- * Delay, debounce, and throttle modifiers are encoded into the final attribute
- * name. Repeated timing modifiers are normalized to the last effective value.
- * Use `:=` to attach the Datastar expression that should run when a signal
- * patch arrives.
+ * {{{
+ * import zio.blocks.html._
+ *
+ * div(dataOnSignalPatch.debounce(200) := js"@get('/recalculate')").render
+ * // <div data-on-signal-patch__debounce.200ms="@get(&#x27;/recalculate&#x27;)"></div>
+ * }}}
  */
 final class DataOnSignalPatch(private[datastar] val modifier: Maybe[OnSignalPatchModifier]) {
 
+  /**
+   * Adds `__delay.<millis>ms`: the expression runs `millis` milliseconds late.
+   */
   def delay(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Delay(millis))
 
+  /**
+   * Adds `__debounce.<millis>ms`: the expression runs once patches have stopped
+   * for `millis` milliseconds.
+   */
   def debounce(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Debounce(millis))
 
+  /**
+   * Adds `__throttle.<millis>ms`: the expression runs at most once every
+   * `millis` milliseconds.
+   */
   def throttle(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Throttle(millis))
 
-  /** Assigns the Datastar expression rendered for this signal-patch trigger. */
+  /** Returns `data-on-signal-patch<modifiers>="<expression>"`. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-signal-patch" + modifierStr

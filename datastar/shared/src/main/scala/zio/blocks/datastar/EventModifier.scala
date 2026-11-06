@@ -19,97 +19,138 @@ package zio.http.datastar
 import zio.blocks.maybe.Maybe
 
 /**
- * Modifier ADT used by `dataOn` event bindings.
+ * A modifier of a `data-on:<event>` handler, rendered as a `__` suffix of the
+ * attribute name. The [[DataOn]] methods (`debounce`, `once`, `prevent`, ...)
+ * build these values and combine them with [[EventModifier.And]], whose suffix
+ * is its left suffix followed by its right one.
  *
- * Modifiers alter Datastar's event-handling semantics, such as debounce,
- * throttle, delay, capture phase, and propagation/default handling. The
- * rendered form is encoded directly into the attribute name. Composition via
- * [[EventModifier.And]] preserves left-to-right ordering of suffixes.
+ * {{{
+ * EventModifier.And(EventModifier.Once, EventModifier.Prevent).render // "__once__prevent"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/datastar/events/ Event Handlers]]
  */
 sealed trait EventModifier extends Product with Serializable {
 
-  /** Renders the Datastar modifier suffix for this modifier. */
+  /** Returns the attribute-name suffix, such as `__debounce.500ms`. */
   def render: String
 }
 
+/** The `data-on` modifiers. */
 object EventModifier {
 
-  /** Constructors and normalization rules for `data-on:*` modifiers. */
-
-  /** Debounces event handling for the specified interval. */
+  /**
+   * Runs the handler once the event has stopped firing for `millis`
+   * milliseconds; `leading` also runs it on the first event.
+   */
   final case class Debounce(millis: Long, leading: Boolean) extends EventModifier {
 
+    /**
+     * Returns `__debounce.<millis>ms`, plus `.leading` when `leading` is set.
+     */
     def render: String =
       if (leading) "__debounce." + millis + "ms.leading"
       else "__debounce." + millis + "ms"
   }
 
-  /** Throttles event handling for the specified interval. */
+  /**
+   * Runs the handler at most once every `millis` milliseconds; `leading` adds
+   * `.leading`, which Datastar's docs do not list for throttle.
+   */
   final case class Throttle(millis: Long, leading: Boolean) extends EventModifier {
 
+    /**
+     * Returns `__throttle.<millis>ms`, plus `.leading` when `leading` is set.
+     */
     def render: String =
       if (leading) "__throttle." + millis + "ms.leading"
       else "__throttle." + millis + "ms"
   }
 
-  /** Delays event handling by the specified interval. */
+  /** Runs the handler `millis` milliseconds after the event. */
   final case class Delay(millis: Long) extends EventModifier {
+
+    /** Returns `__delay.<millis>ms`. */
     def render: String = "__delay." + millis + "ms"
   }
 
-  /** Handles the event at most once. */
+  /** Runs the handler at most once. */
   case object Once extends EventModifier {
+
+    /** Returns `__once`. */
     def render: String = "__once"
   }
 
-  /** Marks the listener as passive. */
+  /** Registers the listener as passive. */
   case object Passive extends EventModifier {
+
+    /** Returns `__passive`. */
     def render: String = "__passive"
   }
 
-  /** Registers the listener during the capture phase. */
+  /** Listens in the capture phase. */
   case object Capture extends EventModifier {
+
+    /** Returns `__capture`. */
     def render: String = "__capture"
   }
 
-  /** Calls `stopPropagation()` during event handling. */
+  /** Calls `stopPropagation()` on the event. */
   case object Stop extends EventModifier {
+
+    /** Returns `__stop`. */
     def render: String = "__stop"
   }
 
-  /** Calls `preventDefault()` during event handling. */
+  /** Calls `preventDefault()` on the event. */
   case object Prevent extends EventModifier {
+
+    /** Returns `__prevent`. */
     def render: String = "__prevent"
   }
 
-  /** Restricts handling to events originating outside the bound element. */
+  /** Runs the handler for events outside the element. */
   case object Outside extends EventModifier {
+
+    /** Returns `__outside`. */
     def render: String = "__outside"
   }
 
-  /** Attaches the listener to `window`. */
+  /** Listens on `window`. */
   case object Window extends EventModifier {
+
+    /** Returns `__window`. */
     def render: String = "__window"
   }
 
-  /** Attaches the listener to `document`. */
+  /** Listens on `document`. */
   case object Document extends EventModifier {
+
+    /** Returns `__document`. */
     def render: String = "__document"
   }
 
-  /** Wraps handling in a view transition when supported. */
+  /**
+   * Runs the handler inside a view transition where the browser supports it.
+   */
   case object ViewTransition extends EventModifier {
+
+    /** Returns `__viewTransition`. */
     def render: String = "__viewTransition"
   }
 
-  /** Concatenates two modifier suffixes in left-to-right order. */
+  /** Two modifiers together. */
   final case class And(left: EventModifier, right: EventModifier) extends EventModifier {
+
+    /** Returns the left suffix followed by the right one. */
     def render: String = left.render + right.render
   }
 
   /**
-   * Normalizes repeated or conflicting modifiers into the final suffix set used
-   * by the DSL.
+   * Adds `next` to `existing`. A `Debounce`, `Throttle` or `Delay` replaces any
+   * earlier one of its kind and goes last, `Window` and `Document` replace each
+   * other, and a repeated flag is kept once, at its first position.
    */
   private[datastar] def normalize(existing: Maybe[EventModifier], next: EventModifier): Maybe[EventModifier] =
     existing.fold(Maybe.present(next): Maybe[EventModifier]) { current =>

@@ -20,32 +20,73 @@ import zio.blocks.html._
 import zio.blocks.schema.Schema
 
 /**
- * A named reactive signal for the Datastar frontend framework.
+ * A typed name for a Datastar signal, a piece of state that lives in the
+ * browser page. `A` is the Scala type of the signal's value. Use a signal to
+ * declare state with `dataSignals`, to refer to it in attributes with
+ * [[Signal#ref]], and to send new values from the server with `:=` and
+ * [[DatastarEvent.patchSignals]].
  *
- * Represents a client-side signal identified by `name`. Signal names are
- * validated at construction time. Literal names are checked at compile time,
- * and dynamic names are checked at runtime. Names must be dot-separated
- * JavaScript identifiers and must not contain `__`, which Datastar reserves for
- * modifier syntax. Use `:=` to create a [[SignalUpdate]] that pairs this signal
- * with a JSON-serialized value.
+ * A name is one or more segments separated by dots. Each segment starts with a
+ * character that Java accepts at the start of an identifier (a letter, `_` or
+ * `\$`) and continues with characters Java accepts inside one, and the name
+ * must not contain `__`, which Datastar uses for modifiers. `Signal("...")`
+ * checks a literal name at compile time and any other name at run time;
+ * [[Signal.dynamic]] always checks at run time.
  *
  * {{{
  * val count = Signal[Int]("count")
- * count := 0  // SignalUpdate ready for patchSignals
+ *
+ * count.ref.value          // "\$count"
+ * (count := 42).serialized // "42"
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/datastar/signals/ Signal]]
  */
 final class Signal[A] private[datastar] (val name: String) {
 
+  /**
+   * Returns the reference to this signal in a Datastar expression, `\$name`.
+   *
+   * {{{
+   * Signal[Int]("count").ref.value // "\$count"
+   * }}}
+   */
   def ref: DatastarRef = new DatastarRef(name)
 
+  /**
+   * Pairs this signal with `value`, encoded as JSON by the schema's JSON codec,
+   * for [[DatastarEvent.patchSignals]] or `dataSignals`.
+   *
+   * {{{
+   * val name = Signal[String]("name")
+   *
+   * (name := "Ada").serialized // "\"Ada\""
+   * }}}
+   */
   def :=(value: A)(implicit schema: Schema[A]): SignalUpdate[A] = {
     val serialized = schema.jsonCodec.encodeToString(value)
     new SignalUpdate[A](name, serialized)
   }
 }
 
+/**
+ * Creates signals. `Signal[A]("name")` checks a literal name at compile time;
+ * [[dynamic]] takes a name known only at run time.
+ */
 object Signal extends SignalVersionSpecific {
 
+  /**
+   * Creates a signal from a name known only at run time, checking it as the
+   * [[Signal]] type describes.
+   *
+   * {{{
+   * Signal.dynamic[Int]("user.age").name // "user.age"
+   * }}}
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `name` is not a valid signal name, such as `user-name` or `a__b`
+   */
   def dynamic[A](name: String): Signal[A] = checkedApply(name)
 
   private[datastar] def unsafeApply[A](name: String): Signal[A] = new Signal[A](name)
@@ -90,6 +131,10 @@ object Signal extends SignalVersionSpecific {
     true
   }
 
+  /**
+   * Renders a signal in JavaScript as its reference, `\$name`, so a signal can
+   * stand for itself in a `js"..."` interpolation or an attribute value.
+   */
   implicit def signalToJs[A]: ToJs[Signal[A]] = new ToJs[Signal[A]] {
     def toJs(s: Signal[A]): String = s.ref.value
   }

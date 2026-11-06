@@ -19,40 +19,45 @@ package zio.http.datastar
 import zio.blocks.maybe.Maybe
 
 /**
- * Modifier ADT used by `data-on-interval` builders.
- *
- * Interval modifiers encode the polling duration and optional view transition.
- * `Duration(..., leading = true)` represents Datastar's leading-edge interval
- * variant. Composition via [[OnIntervalModifier.And]] preserves the order of
- * encoded suffixes before normalization removes redundant duration entries.
+ * A modifier of a `data-on-interval` attribute, rendered as a `__` suffix.
+ * [[DataOnInterval]] builds these values; a repeated `Duration` keeps the last
+ * value and a repeated `ViewTransition` is kept once.
  */
 sealed trait OnIntervalModifier extends Product with Serializable {
 
-  /** Renders the Datastar modifier suffix for this interval modifier. */
+  /** Returns the attribute-name suffix, such as `__duration.500ms`. */
   def render: String
 }
 
+/** The `data-on-interval` modifiers. */
 object OnIntervalModifier {
 
-  /** Constructors and normalization rules for interval-trigger modifiers. */
-
   /**
-   * Encodes a duration-based interval, optionally using the leading variant.
+   * The interval in milliseconds; `leading` makes the first run happen at once.
    */
   final case class Duration(millis: Long, leading: Boolean) extends OnIntervalModifier {
 
+    /**
+     * Returns `__duration.<millis>ms`, plus `.leading` when `leading` is set.
+     */
     def render: String =
       if (leading) "__duration." + millis + "ms.leading"
       else "__duration." + millis + "ms"
   }
 
-  /** Wraps the interval action in a view transition when supported. */
+  /**
+   * Runs the expression inside a view transition where the browser supports it.
+   */
   case object ViewTransition extends OnIntervalModifier {
+
+    /** Returns `__viewTransition`. */
     def render: String = "__viewTransition"
   }
 
-  /** Concatenates two interval modifier suffixes in order. */
+  /** Two modifiers together. */
   final case class And(left: OnIntervalModifier, right: OnIntervalModifier) extends OnIntervalModifier {
+
+    /** Returns the left suffix followed by the right one. */
     def render: String = left.render + right.render
   }
 

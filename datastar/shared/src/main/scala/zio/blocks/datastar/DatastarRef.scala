@@ -18,13 +18,24 @@ package zio.http.datastar
 
 import zio.blocks.html._
 
+/**
+ * A reference to a signal in a Datastar expression, written `\$name`. Get one
+ * from [[Signal#ref]] and assign it to an attribute, as in
+ * `dataText := count.ref`.
+ */
 final class DatastarRef private[datastar] (val signalName: String) {
+
+  /** The expression text, `\$` followed by the signal name. */
   val value: String = "$" + signalName
 
+  /** Returns [[value]]. */
   override def toString: String = value
 }
 
+/** Holds the `ToJs` instance for [[DatastarRef]]. */
 object DatastarRef {
+
+  /** Renders a reference in JavaScript as its [[DatastarRef#value]]. */
   implicit val datastarRefToJs: ToJs[DatastarRef] = new ToJs[DatastarRef] {
     def toJs(ref: DatastarRef): String = ref.value
   }
