@@ -43,32 +43,42 @@ private[ringbuffer] class SpmcPad2 extends SpmcConsumerFields {
 }
 
 /**
- * A high-performance, non-blocking SPMC (Single-Producer Multi-Consumer) ring
- * buffer for generic reference types.
+ * A bounded first-in, first-out queue of non-`null` references for one producer
+ * thread and many consumer threads. Call [[offer]] from one producer thread
+ * only, which nothing checks; any number of threads may call [[take]] at once,
+ * and each element goes to exactly one of them. Neither side blocks: `offer`
+ * returns `false` when the buffer is full and `take` returns `null` when it is
+ * empty.
  *
- * The producer uses index-based capacity checking with a cached `producerLimit`
- * derived from `consumerIndex`. On the fast path, the producer avoids reading
- * the volatile `consumerIndex` entirely; the slow path re-reads it to refresh
- * the limit. The consumer side uses a CAS loop on `consumerIndex` to allow
- * multiple consumer threads to safely dequeue elements concurrently.
+ * On the JVM consumers claim elements with a compare-and-set on the shared
+ * consumer index, and a slot holds a live element only while its index lies
+ * between the consumer and producer indices. Consumers never clear a slot, so a
+ * taken element stays referenced by the buffer, and cannot be
+ * garbage-collected, until the producer reuses that slot. On Scala.js, which
+ * runs one thread, the class is a plain array-backed queue whose `take` clears
+ * the slot.
  *
- * '''Design:''' Consumers do not clear (null) array slots after reading.
- * Instead, the producer freely overwrites slots once index-based capacity
- * checking confirms the consumer has advanced past them. This eliminates the
- * producer-consumer slot-clearing race that would otherwise occur in SPMC when
- * a consumer CAS-claims a slot but hasn't yet nulled it. The element's validity
- * is determined solely by comparing `producerIndex` and `consumerIndex`, never
- * by null-checking slots.
+ * `offer(null)` throws `NullPointerException`.
  *
- * Optimized for SPMC: exactly one producer thread and any number of consumer
- * threads may access the buffer concurrently. Using multiple producer threads
- * results in undefined behavior.
+ * {{{
+ * val tasks = SpmcRingBuffer[String](4)
  *
- * **Null elements are not permitted.** `offer(null)` throws
- * `NullPointerException`.
+ * tasks.offer("compress chunk-1") // true
+ * tasks.offer("compress chunk-2") // true
+ * tasks.size                      // 2
+ *
+ * val worker = new Thread(() => println(tasks.take()))
+ * worker.start()
+ * worker.join()                   // prints compress chunk-1
+ * tasks.take()                    // compress chunk-2
+ * tasks.take()                    // null
+ * }}}
  *
  * @param capacity
- *   the buffer capacity, must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spmc/ SPMC RingBuffer]]
  */
 final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -79,22 +89,11 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   private val buffer: Array[AnyRef] = new Array[AnyRef](capacity)
 
   /**
-   * Tries to insert an element into the buffer without blocking.
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. Call it from the producer thread only.
    *
-   * Uses index-based capacity checking with a cached `producerLimit` derived
-   * from `consumerIndex`. On the fast path, the producer avoids reading the
-   * volatile `consumerIndex`. When the cached limit is reached, the slow path
-   * re-reads `consumerIndex` to refresh it.
-   *
-   * @param a
-   *   the element to insert; must not be `null`
    * @throws java.lang.NullPointerException
-   *   if the element is `null`
-   * @return
-   *   `true` if the element was successfully inserted, `false` if the buffer is
-   *   full
-   * @note
-   *   Must be called from the producer thread only.
+   *   if `a` is `null`
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("offer(null) is not permitted")
@@ -111,21 +110,11 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   }
 
   /**
-   * Tries to remove an element from the buffer without blocking.
-   *
-   * Multiple consumer threads may call this method concurrently. Each consumer
-   * reads the current `consumerIndex`, checks against `producerIndex` to detect
-   * an empty buffer, reads the element optimistically, then attempts a CAS on
-   * `consumerIndex` to claim the slot. Reading the element before the CAS is
-   * critical: it ensures the consumer has the value before the producer can
-   * overwrite the slot. If the CAS fails, another consumer won and the read is
-   * discarded; the loop retries. Consumers do not clear slots; the producer
-   * overwrites them on the next lap.
-   *
-   * @return
-   *   the element, or `null` if the buffer is empty
-   * @note
-   *   Safe to call from any consumer thread concurrently.
+   * Removes and returns the oldest element, or returns `null` when the buffer
+   * is empty. Any number of threads may call it at once: on the JVM a consumer
+   * that loses the compare-and-set for an element to another consumer tries the
+   * next one, so the call never blocks, but it can loop while other consumers
+   * keep winning.
    */
   def take(): A = {
     var cIdx = CONSUMER_INDEX.getVolatile(this).asInstanceOf[Long]
@@ -155,10 +144,9 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   }
 
   /**
-   * Returns the number of elements currently in the buffer (approximate under
-   * concurrency).
-   *
-   * The value is a snapshot and may be stale by the time the caller acts on it.
+   * Returns the number of elements in the buffer. While other threads offer or
+   * take (JVM only), the result is an estimate: the two indices are read one
+   * after the other, so it can be out of date or larger than `capacity`.
    */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getVolatile(this).asInstanceOf[Long]
@@ -167,10 +155,8 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   }
 
   /**
-   * Returns `true` if the buffer contains no elements (approximate under
-   * concurrency).
-   *
-   * The value is a snapshot and may be stale by the time the caller acts on it.
+   * Returns `true` when the buffer holds no elements. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
    */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getVolatile(this).asInstanceOf[Long]
@@ -179,9 +165,8 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   }
 
   /**
-   * Returns `true` if the buffer is full (approximate under concurrency).
-   *
-   * The value is a snapshot and may be stale by the time the caller acts on it.
+   * Returns `true` when every slot holds an element. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
    */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getVolatile(this).asInstanceOf[Long]
@@ -197,6 +182,9 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) extends SpmcPad2 {
   }
 }
 
+/**
+ * Creates [[SpmcRingBuffer]] instances.
+ */
 object SpmcRingBuffer {
   private val PRODUCER_INDEX: VarHandle =
     MethodHandles
@@ -212,14 +200,11 @@ object SpmcRingBuffer {
     MethodHandles.arrayElementVarHandle(classOf[Array[AnyRef]])
 
   /**
-   * Creates a new `SpmcRingBuffer` with the given capacity.
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new SpmcRingBuffer[A](capacity)`.
    *
-   * @param capacity
-   *   the buffer capacity, must be a positive power of two
-   * @tparam A
-   *   the element type (must be a reference type)
-   * @return
-   *   a new lock-free SPMC ring buffer
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
    */
   def apply[A <: AnyRef](capacity: Int): SpmcRingBuffer[A] = new SpmcRingBuffer[A](capacity)
 }

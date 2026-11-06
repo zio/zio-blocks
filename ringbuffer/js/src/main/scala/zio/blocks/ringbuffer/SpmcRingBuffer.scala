@@ -17,15 +17,42 @@
 package zio.blocks.ringbuffer
 
 /**
- * A sequential SPMC ring buffer for generic reference types (Scala.js
- * implementation).
+ * A bounded first-in, first-out queue of non-`null` references for one producer
+ * thread and many consumer threads. Call [[offer]] from one producer thread
+ * only, which nothing checks; any number of threads may call [[take]] at once,
+ * and each element goes to exactly one of them. Neither side blocks: `offer`
+ * returns `false` when the buffer is full and `take` returns `null` when it is
+ * empty.
  *
- * Since Scala.js is single-threaded, this implementation uses plain reads and
- * writes with no memory ordering primitives or locks. It provides the same API
- * surface as the JVM implementation for cross-platform compatibility.
+ * On the JVM consumers claim elements with a compare-and-set on the shared
+ * consumer index, and a slot holds a live element only while its index lies
+ * between the consumer and producer indices. Consumers never clear a slot, so a
+ * taken element stays referenced by the buffer, and cannot be
+ * garbage-collected, until the producer reuses that slot. On Scala.js, which
+ * runs one thread, the class is a plain array-backed queue whose `take` clears
+ * the slot.
+ *
+ * `offer(null)` throws `NullPointerException`.
+ *
+ * {{{
+ * val tasks = SpmcRingBuffer[String](4)
+ *
+ * tasks.offer("compress chunk-1") // true
+ * tasks.offer("compress chunk-2") // true
+ * tasks.size                      // 2
+ *
+ * val worker = new Thread(() => println(tasks.take()))
+ * worker.start()
+ * worker.join()                   // prints compress chunk-1
+ * tasks.take()                    // compress chunk-2
+ * tasks.take()                    // null
+ * }}}
  *
  * @param capacity
- *   the buffer capacity, must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spmc/ SPMC RingBuffer]]
  */
 final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -36,15 +63,11 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   private var consumerIndex: Long   = 0L
 
   /**
-   * Tries to insert an element into the buffer.
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. Call it from the producer thread only.
    *
-   * @param a
-   *   the element to insert; must not be `null`
    * @throws java.lang.NullPointerException
-   *   if the element is `null`
-   * @return
-   *   `true` if the element was successfully inserted, `false` if the buffer is
-   *   full
+   *   if `a` is `null`
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("offer(null) is not permitted")
@@ -60,10 +83,11 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   }
 
   /**
-   * Tries to remove an element from the buffer.
-   *
-   * @return
-   *   the element, or `null` if the buffer is empty
+   * Removes and returns the oldest element, or returns `null` when the buffer
+   * is empty. Any number of threads may call it at once: on the JVM a consumer
+   * that loses the compare-and-set for an element to another consumer tries the
+   * next one, so the call never blocks, but it can loop while other consumers
+   * keep winning.
    */
   def take(): A = {
     val cIdx = consumerIndex
@@ -79,27 +103,37 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
     }
   }
 
-  /** Returns the number of elements currently in the buffer. */
+  /**
+   * Returns the number of elements in the buffer. While other threads offer or
+   * take (JVM only), the result is an estimate: the two indices are read one
+   * after the other, so it can be out of date or larger than `capacity`.
+   */
   def size: Int = (producerIndex - consumerIndex).toInt
 
-  /** Returns `true` if the buffer contains no elements. */
+  /**
+   * Returns `true` when the buffer holds no elements. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
+   */
   def isEmpty: Boolean = producerIndex == consumerIndex
 
-  /** Returns `true` if the buffer is full. */
+  /**
+   * Returns `true` when every slot holds an element. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
+   */
   def isFull: Boolean = (producerIndex - consumerIndex).toInt == capacity
 }
 
+/**
+ * Creates [[SpmcRingBuffer]] instances.
+ */
 object SpmcRingBuffer {
 
   /**
-   * Creates a new [[SpmcRingBuffer]] with the given capacity.
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new SpmcRingBuffer[A](capacity)`.
    *
-   * @param capacity
-   *   the buffer capacity, must be a positive power of two
-   * @tparam A
-   *   the element type (must be a reference type)
-   * @return
-   *   a new SPMC ring buffer
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
    */
   def apply[A <: AnyRef](capacity: Int): SpmcRingBuffer[A] = new SpmcRingBuffer[A](capacity)
 }

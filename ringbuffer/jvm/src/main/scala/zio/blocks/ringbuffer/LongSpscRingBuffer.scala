@@ -40,29 +40,28 @@ private[ringbuffer] class LongSpscPad2 extends LongSpscConsumerFields {
 }
 
 /**
- * High-performance non-blocking SPSC ring buffer specialized for `Long`.
+ * A bounded first-in, first-out queue of `Long` values, stored without boxing,
+ * for one producer thread and one consumer thread, with an in-band
+ * end-of-stream marker. Call [[offer]] and [[offerDone]] from one producer
+ * thread only, and [[take]], [[pollPacked]] and [[peek]] from one consumer
+ * thread only; nothing checks this. Like [[SpscRingBuffer]], neither side
+ * blocks and the slot itself tells each side whether it is free. JVM only.
  *
- * Layout: a single `Array[Long]`. Since every 64-bit pattern is a legal `Long`,
- * the FastFlow signal requires reserving sentinel values: `EMPTY`
- * (`Long.MinValue`) means "slot empty" and `DONE` (`Long.MinValue + 1L`) is the
- * in-band end-of-stream marker. The array is pre-filled with `EMPTY` at
- * construction.
+ * Each slot holds the `Long` itself, so two values are reserved:
+ * [[LongSpscRingBuffer.EMPTY]] (`Long.MinValue`) marks an empty slot and
+ * [[LongSpscRingBuffer.DONE]] (`Long.MinValue + 1L`) is the end marker.
+ * Offering either one throws `IllegalArgumentException`; every other `Long`
+ * passes through unchanged.
  *
- * **`offer(EMPTY)` and `offer(DONE)` throw `IllegalArgumentException`** (the
- * same shape of contract as `SpscRingBuffer.offer(null)`). This costs two bit
- * patterns out of 2^64 in exchange for a single memory-ordered op per
- * insert/remove on a single cache line per slot, and removes the need for a
- * separate control queue.
- *
- * In-band "done" sentinel: producers can call `offerDone()` to insert the
- * end-of-stream marker after the last data value. Consumers reading via
- * `pollPacked()` receive `EMPTY` for empty, `DONE` for the sentinel, or the raw
- * `Long` payload for data.
- *
- * SPSC: one producer thread, one consumer thread.
+ * The producer ends the stream with [[offerDone]]. [[take]] and [[pollPacked]]
+ * both return `EMPTY` when the buffer is empty, `DONE` for the end marker, and
+ * otherwise the value.
  *
  * @param capacity
- *   must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spsc/ SPSC RingBuffer]]
  */
 final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -77,6 +76,14 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   }
   private val lookAheadStep: Long = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
+  /**
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. Call it from the producer thread only.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `a` is `Long.MinValue` or `Long.MinValue + 1L`, the reserved
+   *   [[LongSpscRingBuffer.EMPTY]] and [[LongSpscRingBuffer.DONE]] values
+   */
   def offer(a: Long): Boolean = {
     if (a == EMPTY || a == DONE)
       throw new IllegalArgumentException(
@@ -93,8 +100,11 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   }
 
   /**
-   * Insert the in-band done sentinel. Returns `false` if the buffer is full;
-   * the caller is expected to retry until it succeeds.
+   * Appends the end-of-stream marker and returns `true` if a slot is free;
+   * returns `false`, without waiting, when the buffer is full, and the caller
+   * retries. The marker takes a slot and counts in [[size]]; [[pollPacked]]
+   * returns `DONE` for it. Call it from the producer thread only, after the
+   * last value.
    */
   def offerDone(): Boolean = {
     val pIdx = producerIndex
@@ -108,21 +118,12 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   }
 
   /**
-   * Atomically (with respect to the consumer) publish a `DONE` token, running
-   * `beforePublish` first. This is the primitive used to carry an out-of-band
-   * escape payload alongside a `DONE` marker: the caller passes an action that
-   * enqueues the escape value, and this method runs it ONLY after it has proven
-   * a slot is available and immediately BEFORE the release-store of `DONE`.
-   *
-   * Returns `false` (without running `beforePublish`) if the buffer is full, so
-   * the escape is enqueued at most once and is never orphaned: a return of
-   * `false` means nothing was published, while `true` means `beforePublish` ran
-   * and the matching `DONE` was published with release semantics. The
-   * `setRelease(DONE)` provides the happens-before edge so a consumer that
-   * `getAcquire`-observes this `DONE` also observes the `beforePublish`
-   * effects.
-   *
-   * Producer-thread-only, like [[offerDone]].
+   * Appends the end marker like [[offerDone]], running `beforePublish` first,
+   * only once a free slot is known and right before the marker is stored with
+   * release ordering. Returns `false`, without running `beforePublish`, when
+   * the buffer is full. A consumer that reads this marker also sees what
+   * `beforePublish` wrote, which lets a caller pass a value beside the marker.
+   * Producer thread only.
    */
   private[blocks] def offerDoneAfter(beforePublish: => Unit): Boolean = {
     val pIdx = producerIndex
@@ -136,11 +137,21 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
     true
   }
 
+  /**
+   * Returns `true` when the next slot holds a value or the end marker, without
+   * removing it. Call it from the consumer thread only.
+   */
   def peek(): Boolean = {
     val offset = (consumerIndex & mask).toInt
     (LONG_HANDLE.getAcquire(data, offset): Long) != EMPTY
   }
 
+  /**
+   * Removes and returns the next value, or returns [[LongSpscRingBuffer.EMPTY]]
+   * without removing anything when the buffer is empty. When the next slot
+   * holds the end marker, it removes the marker and returns
+   * [[LongSpscRingBuffer.DONE]]. Call it from the consumer thread only.
+   */
   def take(): Long = {
     val cIdx   = consumerIndex
     val offset = (cIdx & mask).toInt
@@ -152,11 +163,11 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   }
 
   /**
-   * Atomically polls the next slot:
-   *   - `EMPTY` (`Long.MinValue`) — slot is empty; consumer index NOT advanced.
-   *   - `DONE` (`Long.MinValue + 1L`) — in-band done sentinel; consumer index
-   *     advanced.
-   *   - any other value — the user-visible data; consumer index advanced.
+   * Removes the next slot's content and returns it:
+   * [[LongSpscRingBuffer.EMPTY]] when the buffer is empty, in which case
+   * nothing is removed; [[LongSpscRingBuffer.DONE]] for the end marker;
+   * otherwise the value. It returns the same as [[take]]. Call it from the
+   * consumer thread only.
    */
   def pollPacked(): Long = {
     val cIdx   = consumerIndex
@@ -168,18 +179,34 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
     e
   }
 
+  /**
+   * Returns `true` when the buffer holds neither values nor the end marker.
+   * While the other thread offers or takes, the answer can be out of date by
+   * the time it returns.
+   */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     pIdx == cIdx
   }
 
+  /**
+   * Returns `true` when every slot holds a value or the end marker. While the
+   * other thread offers or takes, the answer can be out of date by the time it
+   * returns.
+   */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     (pIdx - cIdx).toInt == capacity
   }
 
+  /**
+   * Returns the number of slots in use, the end marker included. While the
+   * other thread offers or takes, the result is an estimate: the two indices
+   * are read one after the other, so it can be out of date, negative, or larger
+   * than `capacity`.
+   */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -203,12 +230,21 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   }
 }
 
+/**
+ * Creates [[LongSpscRingBuffer]] instances and holds its marker values.
+ */
 object LongSpscRingBuffer {
 
-  /** Reserved sentinel: slot is empty. */
+  /**
+   * The value [[LongSpscRingBuffer#take]] and [[LongSpscRingBuffer#pollPacked]]
+   * return when the buffer is empty: `Long.MinValue`. It cannot be offered.
+   */
   final val EMPTY: Long = Long.MinValue
 
-  /** Reserved sentinel: in-band end-of-stream marker. */
+  /**
+   * The end-of-stream marker that [[LongSpscRingBuffer#offerDone]] appends and
+   * `take` and `pollPacked` return: `Long.MinValue + 1L`. It cannot be offered.
+   */
   final val DONE: Long = Long.MinValue + 1L
 
   private val PRODUCER_INDEX: VarHandle =
@@ -223,5 +259,12 @@ object LongSpscRingBuffer {
 
   private val LONG_HANDLE: VarHandle = MethodHandles.arrayElementVarHandle(classOf[Array[Long]])
 
+  /**
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new LongSpscRingBuffer(capacity)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
+   */
   def apply(capacity: Int): LongSpscRingBuffer = new LongSpscRingBuffer(capacity)
 }
