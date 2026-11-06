@@ -5022,6 +5022,8 @@ With `package zio.blocks.schema.migration` added at the top, the same file print
 
 **Suggested fix.** Make `actions` and `unsafeCreate` public (or add a public, documented-as-internal constructor such as `MigrationBuilder.withAction`), and add a Scala 2 test compiled outside the package, for example in `schema-scaladoc-check` or a test in another package.
 
+**Addition (2026-11-06, schema core Scaladoc rollout).** Add to the suggested fix: Making `unsafeCreate` public alone lets incomplete migrations compile in user code, because the implicit `derive` checks nothing on Scala 2; see \"schema (Scala 2): `MigrationComplete.derive` checks nothing, so an incomplete migration compiles and fails at run time\".
+
 ### schema: `MandateField` and `OptionalizeField` use the wrong shape for `Some`, so typed migrations to or from an `Option` field fail
 
 Found 2026-10-22 while writing the Scaladoc of `MigrationAction` (wave 7 of the schema Scaladoc, branch `scaladoc-wave-7` on top of `6c264853`; line numbers are those of the commit that adds this entry). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified with the reproducer below (Scala 3, since the Scala 2 builder does not compile outside the library; see the entry above).
@@ -5176,6 +5178,8 @@ object Repro extends App {
 **Test gap.** `IntoSpec` checks fractional `Float`s; no test uses the exact boundary 2^31 or 2^63.
 
 **Suggested fix.** Compare against the exclusive bound in the source type: `a < 2147483648.0f` for `floatToInt`, `a < 9.223372036854775807E18f` for `floatToLong`, and `a < 9.223372036854775807E18` for `doubleToLong` (the lower bounds `-2^31` and `-2^63` are exact and correct). Add boundary tests.
+
+**Addition (2026-11-06, schema core Scaladoc rollout).** Add to the suggested fix: The same check is copied in `SchemaExpr.ConversionType` (see \"schema: `SchemaExpr.ConversionType.FloatToInt`, `FloatToLong` and `DoubleToLong` accept exactly 2^31 or 2^63 and return the maximum value\"); fix both with one shared helper.
 
 ### config-hocon: a self-reference such as `path = ${path}":/opt/bookstore/bin"` is rejected as circular
 
@@ -14997,6 +15001,170 @@ object Repro {
 
 **Suggested fix.** Make `ContextEntries` and `TypeId` (its `Impl`) serializable and add a round-trip test, or drop `extends Serializable` and `@transient`.
 
+### schema (Scala 2): `MigrationComplete.derive` checks nothing, so an incomplete migration compiles and fails at run time
+
+Found 2026-11-06 while writing the Scaladoc of `MigrationValidationMacros.validateMigrationImpl` (schema core Scaladoc, branch `schema-core-scaladoc` on top of `99cce0c6a`). The code, apart from Scaladoc comments, is the same at tag `v0.0.56`. Verified on Scala 2.13.18 with the reproducer below; the Scala 3.9.0 file further down fails to compile, as intended.
+
+**Summary.** On Scala 2, `MigrationBuilder#build` takes an implicit `MigrationComplete[A, B, Changeset]`, which the whitebox macro `MigrationComplete.derive` is meant to supply only when the changeset provides every target field and handles every source field. `MigrationComplete` is contravariant in all three type parameters, so the Scala 2 implicit search infers `derive[Any, Any, Any]`. The macro then sees `Any` for the source and target types, finds no case-class fields, and expands to `MigrationComplete.unsafeCreate[Any, Any, Any]`. The completeness check never runs: a builder that forgets a field compiles, and the migration fails at run time. Calling `derive[BookV1, BookV2, Any]` explicitly does report the missing field, which shows the macro itself works.
+
+This is separate from the known bug "schema (Scala 2): the migration builder does not compile outside `zio.blocks.schema.migration`". Because of that bug, the reproducer sits in the library's package; once that one is fixed, user code hits this bug directly.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false MigrationCompleteScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// In the library's package, because of the known bug "the migration builder does not compile outside zio.blocks.schema.migration".
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+
+final case class BookV1(title: String)
+object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+final case class BookV2(title: String, pages: Int)
+object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
+
+object Repro extends App {
+  // No action provides `pages`, yet `build` compiles.
+  val incomplete = Migration.newBuilder[BookV1, BookV2].build
+  println(incomplete(BookV1("Zionomicon")))
+}
+// Left(zio.blocks.schema.SchemaError: Missing field 'pages' at: .)
+```
+
+In the same package, `val inferred = implicitly[MigrationComplete[BookV1, BookV2, Any]]` compiled with `//> using options -Xprint:typer` shows the argument the compiler picked:
+
+```scala
+// scala.Predef.implicitly[zio.blocks.schema.migration.MigrationComplete[zio.blocks.schema.migration.BookV1,zio.blocks.schema.migration.BookV2,Any]](zio.blocks.schema.migration.MigrationComplete.unsafeCreate[Any, Any, Any])
+```
+
+With the type arguments written out, `val explicitDerive = MigrationComplete.derive[BookV1, BookV2, Any]` fails as intended:
+
+```scala
+// Explicit.scala:13: error: Migration incomplete:
+//
+//   Target fields not provided: pages
+//   Use addField, renameField, transformField, or migrateField to provide these fields.
+```
+
+The same program on Scala 3 (`MigrationCompleteScala3.scala`, `//> using scala 3.9.0`, same dependency, `import zio.blocks.schema.migration._` instead of the package clause) does not compile:
+
+```scala
+// MigrationCompleteScala3.scala:12:61
+// Migration incomplete:
+//
+//   Target fields not provided: pages
+//   Use addField, renameField, transformField, or migrateField to provide these fields.
+```
+
+**Expected.** On Scala 2, `build` fails to compile with the `Migration incomplete` message, as on Scala 3.
+
+**Root cause.** `trait MigrationComplete[-A, -B, -Changeset]` (`schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilder.scala:342`) with `implicit def derive[A, B, CS]: MigrationComplete[A, B, CS] = macro ...` (`:356`). When Scala 2 infers the type parameters of an implicit method whose result type is contravariant in them, it maximizes them to `Any`. `validateMigrationImpl` (`schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala:513`) reads `weakTypeOf[A]`, `weakTypeOf[B]` and `weakTypeOf[CS]`, gets `Any` for all three, collects no fields (`:522`), and returns `unsafeCreate` (`:557`). Scala 3's `inline given derive` (`scala-3/.../MigrationBuilder.scala:388`) receives the expected type's arguments and works.
+
+**Impact.** On Scala 2, the compile-time completeness guarantee that `MigrationBuilder#build` and `MigrationComplete` document does not exist. A migration that forgets a target field compiles and returns `Left(Missing field ...)` for every value; one that forgets a source field compiles and drops it silently. Probe (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false DropSilently.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+
+final case class BookV1(title: String, pages: Int)
+object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+final case class BookV2(title: String)
+object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
+
+object Repro extends App {
+  // No action handles `pages`, yet `build` compiles.
+  println(Migration.newBuilder[BookV1, BookV2].build.apply(BookV1("Zionomicon", 600)))
+}
+// Right(BookV2(Zionomicon))
+```
+
+**Fixing this exposes a second Scala 2 defect.** Scala 2's `migrateField` macro adds a `Changeset.FieldName` only for the direct fields of the migrated record (`extractCaseClassFields`, `schema/shared/src/main/scala-2/zio/blocks/schema/migration/MigrationBuilderSyntax.scala:494`, used at `:450-451`), while Scala 3's walks every depth (`extractNestedFieldNames`, `schema/shared/src/main/scala-3/zio/blocks/schema/migration/MigrationBuilderMacros.scala:307`). Once `build` runs the check on Scala 2, a complete migration that migrates a record containing another record fails to compile. Reproducer (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli compile --server=false MigrateFieldNestedScala2.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+// In the library's package, because of the known bug "the migration builder does not compile outside zio.blocks.schema.migration".
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+
+final case class Address(city: String, zip: String)
+object Address { implicit val schema: Schema[Address] = Schema.derived }
+final case class AuthorV1(name: String, address: Address)
+object AuthorV1 { implicit val schema: Schema[AuthorV1] = Schema.derived }
+final case class AuthorV2(fullName: String, address: Address)
+object AuthorV2 { implicit val schema: Schema[AuthorV2] = Schema.derived }
+final case class BookV1(title: String, author: AuthorV1)
+object BookV1 { implicit val schema: Schema[BookV1] = Schema.derived }
+final case class BookV2(title: String, author: AuthorV2)
+object BookV2 { implicit val schema: Schema[BookV2] = Schema.derived }
+
+// Captures a builder's changeset type, to pass it to `derive` by hand.
+final class Captured[A, B, C](val builder: MigrationBuilder[A, B, C]) { type CS = C }
+
+object Repro {
+  val authorMigration = Migration.newBuilder[AuthorV1, AuthorV2].renameField(_.name, _.fullName).build
+  val captured        = new Captured(Migration.newBuilder[BookV1, BookV2].migrateField(_.author, authorMigration))
+  // The check that `build` should run (see the bug above): it rejects this complete migration.
+  val evidence = MigrationComplete.derive[BookV1, BookV2, captured.CS]
+}
+// MigrateFieldNestedScala2.scala:26: error: Migration incomplete:
+//
+//   Target fields not provided: author.address.zip, author.address.city
+//   Use addField, renameField, transformField, or migrateField to provide these fields.
+//
+//   Source fields not handled: author.address.zip, author.address.city
+//   Use dropField, renameField, transformField, or migrateField to handle these fields.
+```
+
+The same builder on Scala 3.9.0 (no package clause needed, `import zio.blocks.schema.migration._`) compiles with `.build`, and `m(BookV1("Zionomicon", AuthorV1("John", Address("Annapolis", "21401"))))` prints `Right(BookV2(Zionomicon,AuthorV2(John,Address(Annapolis,21401))))`. Make `extractCaseClassFields` recurse as the Scala 3 macro does, in the same change.
+
+**Test gap.** `MigrationBuildValidationSpec`, the only test of the check, is under `schema/shared/src/test/scala-3/`; there is no Scala 2 copy, and no Scala 2 test calls `build` on an incomplete builder. No test of `migrateField` on a record whose fields include a record.
+
+**Suggested fix.** Summon the macro with the builder's types: make `build` itself a macro on Scala 2 (`def build: Migration[A, B] = macro ...`) that reads `A`, `B` and `Changeset` from `c.prefix`'s type, or make `MigrationComplete` invariant (contravariance is not needed for an evidence type). Add a Scala 2 test that `build` on an incomplete builder does not type-check (`typeCheck` / `assertDoesNotCompile`), and make Scala 2's `extractCaseClassFields` recursive (see above), or the fixed check rejects nested `migrateField` migrations.
+
+### schema: `SchemaExpr.ConversionType.FloatToInt`, `FloatToLong` and `DoubleToLong` accept exactly 2^31 or 2^63 and return the maximum value
+
+Found 2026-11-06 while writing the Scaladoc of `SchemaExpr.ConversionType#convert` (schema core Scaladoc, branch `schema-core-scaladoc` on top of `99cce0c6a`). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below; both print the same lines.
+
+**Summary.** These conversions (behind `DynamicSchemaExpr.PrimitiveConversion` and migrations) promise to fail unless the value is a whole number in the target range. For the one value just above the range, `2147483648.0f` (2^31) or `9.223372036854775807E18` (2^63), they return `Right(Int.MaxValue)` or `Right(Long.MaxValue)`: an off-by-one value with no error. `DoubleToInt` is correct, because `Int.MaxValue` is exact as a `Double`. This is the same mistake as the known bug "schema: `Into` from `Float` to `Int` or `Long`, and from `Double` to `Long`, accepts exactly 2^31 or 2^63 and returns the maximum value", in a separate copy of the code.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false ConversionUpperBound.scala`; the same file with `//> using scala 3.9.0` prints the same lines):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.SchemaExpr.ConversionType._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(FloatToInt.convert(DynamicValue.float(2147483648.0f)))
+    println(FloatToLong.convert(DynamicValue.float(9.223372e18f)))
+    println(DoubleToLong.convert(DynamicValue.double(9.223372036854775807e18)))
+    println(DoubleToInt.convert(DynamicValue.double(2147483648.0)))
+  }
+}
+// Right(2147483647)
+// Right(9223372036854775807)
+// Right(9223372036854775807)
+// Left(Value 2.147483648E9 is out of range for Int)
+```
+
+**Expected.** A `Left` with the `is out of range for Int` message for the first line and with `is out of range for Long` for the second and third, as `DoubleToInt` returns for 2^31 on the fourth line.
+
+**Root cause.** The upper-bound checks compare with `Int.MaxValue.toFloat`, `Long.MaxValue.toFloat` and `Long.MaxValue.toDouble`, which round up to 2^31 and 2^63, using `>` (`schema/shared/src/main/scala/zio/blocks/schema/SchemaExpr.scala:300`, `:309`, `:327`). The value 2^31 or 2^63 passes, `toInt`/`toLong` saturates to the maximum, and the round-trip check (`converted.toFloat != value`, `:303`, `:312`, `:330`) passes because the maximum converts back to 2^31 or 2^63.
+
+**Impact.** A migration or expression that converts a `Float` or `Double` field of exactly 2^31 or 2^63 silently stores `Int.MaxValue` or `Long.MaxValue`, which is not the input value.
+
+**Test gap.** `DynamicMigrationSpec` "narrowing conversions fail when lossy or out of range" (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala:507-524`) tests only fractions (`1.5`) for these three and `MaxValue + 1` for the integral narrowings; `SchemaExprSpec` tests only a fraction for `FloatToInt` (`schema/shared/src/test/scala/zio/blocks/schema/SchemaExprSpec.scala:94`). No test uses 2^31 or 2^63.
+
+**Suggested fix.** Compare against the exclusive bound: `value >= 2147483648.0f` for `FloatToInt`, `value >= 9.223372036854775807E18f` for `FloatToLong` and `value >= 9.223372036854775807E18` for `DoubleToLong` (the lower bounds `-2^31` and `-2^63` are exact and correct). Share one helper with the `Into` instances, and add boundary tests.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -19462,6 +19630,95 @@ object Repro {
 **Test gap.** `UnionsSpec` checks equal-type overlap (`:130-190`) and unrelated case classes (`:69-79`); no test uses a subtype pair.
 
 **Suggested fix.** Also reject `lType <:< rType || rType <:< lType` in the macro, with a message that names both types. The Scaladoc now warns about it.
+
+### schema: `DynamicSchemaExpr` comparisons disagree with `Equal` on `-0.0` and NaN, and NaN equality depends on object identity
+
+Found 2026-11-06 while writing the Scaladoc of `DynamicSchemaExpr.RelationalOperator` (schema core Scaladoc, branch `schema-core-scaladoc` on top of `99cce0c6a`). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below; both print the same lines.
+
+**Summary.** `LessThan`, `LessThanOrEqual`, `GreaterThan` and `GreaterThanOrEqual` use `DynamicValue#compare`, which orders `Double` and `Float` with `java.lang.Double.compare`/`Float.compare` (`-0.0` before `0.0`, NaN equal to NaN). `Equal` and `NotEqual` use `==`, which for a `PrimitiveValue.Double` is the case-class equality: IEEE `==` on the field (`-0.0 == 0.0`, NaN not equal to NaN), after an `eq` shortcut. So `-0.0 < 0.0` and `-0.0 == 0.0` are both `true`, `-0.0 >= 0.0` is `false`, and for NaN the result of `Equal` depends on whether both sides are the same object: one NaN value compared with itself is equal, two NaN values built separately are not, while `<=` and `>=` hold for both. The same expression (`SchemaExpr` `===` or a migration predicate) can thus give different answers for equal data.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false RelationalZeroNaN.scala`; the same file with `//> using scala 3.9.0` prints the same lines):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicSchemaExpr.RelationalOperator._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val negZero = DynamicValue.double(-0.0)
+    val zero    = DynamicValue.double(0.0)
+    val nan     = DynamicValue.double(Double.NaN)
+    println(s"-0.0 <  0.0: ${LessThan(negZero, zero)}")
+    println(s"-0.0 == 0.0: ${Equal(negZero, zero)}")
+    println(s"-0.0 >= 0.0: ${GreaterThanOrEqual(negZero, zero)}")
+    println(s"NaN  <= NaN: ${LessThanOrEqual(nan, nan) == DynamicValue.boolean(true)}")
+    println(s"NaN  == NaN: ${Equal(nan, nan) == DynamicValue.boolean(true)}")
+    println(s"NaN  >= NaN: ${GreaterThanOrEqual(nan, nan) == DynamicValue.boolean(true)}")
+    val otherNan = DynamicValue.double(Double.NaN)
+    println(s"NaN  == another NaN: ${Equal(nan, otherNan) == DynamicValue.boolean(true)}")
+    println(s"NaN  != another NaN: ${NotEqual(nan, otherNan) == DynamicValue.boolean(true)}")
+    println(s"NaN  <= another NaN: ${LessThanOrEqual(nan, otherNan) == DynamicValue.boolean(true)}")
+  }
+}
+// -0.0 <  0.0: true
+// -0.0 == 0.0: true
+// -0.0 >= 0.0: false
+// NaN  <= NaN: true
+// NaN  == NaN: true
+// NaN  >= NaN: true
+// NaN  == another NaN: false
+// NaN  != another NaN: true
+// NaN  <= another NaN: true
+```
+
+**Expected.** One notion of equality for all six operators: `Equal(x, y)` true exactly when `x.compare(y) == 0` (or the comparisons follow IEEE, as `==` does), and a result that does not depend on object identity.
+
+**Root cause.** `RelationalOperator.LessThan` and the other orderings call `x < y` etc. (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:332`), which is `compare(that) < 0` (`DynamicValue.scala:109`), and `PrimitiveValue.Double#compare` is `value.compare(x.value)` (`PrimitiveValue.scala:215`; `Float` at `:198`). `Equal` and `NotEqual` call `x == y` and `x != y` (`DynamicSchemaExpr.scala:367`, `:375`). `DynamicValue.Primitive#equals` is overridden to `value == p.value` (`DynamicValue.scala:681-682`), which reaches the generated `equals` of the case class `PrimitiveValue.Double` (`PrimitiveValue.scala:207`): `eq` first, then IEEE `==` on the `Double` field.
+
+**Impact.** A filter such as `price === 0.0` matches `-0.0` while `price < 0.0` also matches it; a NaN value can equal itself or not depending on how the expression was built (`Literal` reuses one instance). Only data with `-0.0` or NaN is affected.
+
+**Test gap.** `DynamicMigrationSpec` (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala`), the only test that evaluates a `RelationalOperator`, uses neither `-0.0` nor NaN.
+
+**Suggested fix.** Define `Equal`/`NotEqual` as `x.compare(y) == 0` / `!= 0`, or override `equals`/`hashCode` in `PrimitiveValue.Double` and `Float` to use `java.lang.Double.compare` / `equals` on the boxed value, so equality and ordering agree. Add tests for `-0.0` and NaN.
+
+### schema: `BigDecimalTag.pow` reports a fractional exponent as "Exponent exceeds safe limit (10000): 2147483647"
+
+Found 2026-11-06 while writing the Scaladoc of `DynamicSchemaExpr.NumericTypeTag.BigDecimalTag#pow` (schema core Scaladoc, branch `schema-core-scaladoc` on top of `99cce0c6a`). The code is the same at tag `v0.0.56`. Verified on Scala 2.13.18 and 3.9.0 with the reproducer below; both print the same lines.
+
+**Summary.** `BigDecimalTag.pow` (behind `SchemaExpr.arithmetic` with `Pow` on `BigDecimal` values) accepts only whole-number exponents. A fractional exponent such as `0.5` or `-0.5` fails, as documented, but with the message `Exponent exceeds safe limit (10000): 2147483647`, which names neither the exponent nor the real reason.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-schema` 0.0.56, `scala-cli run --server=false BigDecimalPowFraction.scala`; the same file with `//> using scala 3.9.0` prints the same lines):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicSchemaExpr.NumericTypeTag.BigDecimalTag
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    def bd(s: String) = DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(s)))
+    println(BigDecimalTag.pow(bd("4"), bd("0.5")))
+    println(BigDecimalTag.pow(bd("4"), bd("-0.5")))
+    println(BigDecimalTag.pow(bd("4"), bd("2.0")))
+  }
+}
+// Left(Exponent exceeds safe limit (10000): 2147483647)
+// Left(Exponent exceeds safe limit (10000): 2147483647)
+// Right(16)
+```
+
+**Expected.** A message that names the exponent and the reason, such as `Fractional exponent not supported: 0.5`.
+
+**Root cause.** `checkedPowExponent(b.toBigIntExact.getOrElse(BigInt(Int.MaxValue)))` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchemaExpr.scala:776`) maps every exponent that is not a whole number to `Int.MaxValue`, which `checkedPowExponent` (`:92`) then rejects as above the limit.
+
+**Impact.** A user who passes a fractional exponent, for example to compute a square root, gets a message that suggests the exponent is too large and shows a number they never wrote.
+
+**Test gap.** `DynamicMigrationSpec` "Arithmetic power rejects unsafe exponents" (`schema/shared/src/test/scala/zio/blocks/schema/migration/DynamicMigrationSpec.scala:1072-1097`) checks only `isLeft` for a `BigDecimal` exponent of `10001` and a `BigInt` exponent of `-1`; no test uses a fractional `BigDecimal` exponent or checks the message.
+
+**Suggested fix.** Check `b.isWhole` first and return `Left(s"Fractional exponent not supported: $b")`; otherwise call `checkedPowExponent(b.toBigInt)`. Add a test.
 
 ## Test and CI
 
