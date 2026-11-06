@@ -823,7 +823,10 @@ object SchemaExpr {
 
     /**
      * Converts `value`, or returns `Left` with a message when `value` is not a
-     * primitive of the source type or the conversion fails.
+     * primitive of the source type or the conversion fails. The message for a
+     * value of another type includes the value, so a NaN or infinite `Float` or
+     * `Double` of another type makes `convert` throw a
+     * `zio.blocks.schema.json.JsonCodecError` instead (a known bug).
      */
     def convert(value: DynamicValue): Either[Predef.String, DynamicValue]
   }
@@ -837,6 +840,11 @@ object SchemaExpr {
      * Converts a `Byte` to a `Short`.
      */
     case object ByteToShort extends ConversionType {
+
+      /**
+       * Returns the `Byte` as a `Short` of the same value; any other value
+       * gives `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
@@ -848,6 +856,11 @@ object SchemaExpr {
      * Converts a `Byte` to an `Int`.
      */
     case object ByteToInt extends ConversionType {
+
+      /**
+       * Returns the `Byte` as an `Int` of the same value; any other value gives
+       * `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
@@ -859,6 +872,11 @@ object SchemaExpr {
      * Converts a `Byte` to a `Long`.
      */
     case object ByteToLong extends ConversionType {
+
+      /**
+       * Returns the `Byte` as a `Long` of the same value; any other value gives
+       * `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
@@ -870,6 +888,11 @@ object SchemaExpr {
      * Converts a `Short` to an `Int`.
      */
     case object ShortToInt extends ConversionType {
+
+      /**
+       * Returns the `Short` as an `Int` of the same value; any other value
+       * gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
@@ -881,6 +904,11 @@ object SchemaExpr {
      * Converts a `Short` to a `Long`.
      */
     case object ShortToLong extends ConversionType {
+
+      /**
+       * Returns the `Short` as a `Long` of the same value; any other value
+       * gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
@@ -892,6 +920,11 @@ object SchemaExpr {
      * Converts an `Int` to a `Long`.
      */
     case object IntToLong extends ConversionType {
+
+      /**
+       * Returns the `Int` as a `Long` of the same value; any other value gives
+       * `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
@@ -903,6 +936,12 @@ object SchemaExpr {
      * Converts a `Float` to a `Double`.
      */
     case object FloatToDouble extends ConversionType {
+
+      /**
+       * Returns the `Float` as the `Double` of the same value, so `0.1f` gives
+       * `0.10000000149011612` and NaN stays NaN; any other value gives
+       * `Left("Expected Float, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -915,6 +954,12 @@ object SchemaExpr {
      * Converts a `Short` to a `Byte`, failing when the value is out of range.
      */
     case object ShortToByte extends ConversionType {
+
+      /**
+       * Returns the `Short` as a `Byte` when it is between -128 and 127,
+       * otherwise `Left("Value " + v + " is out of range for Byte")`; any other
+       * value gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           checkedIntegralNarrow(v.toLong, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
@@ -928,6 +973,12 @@ object SchemaExpr {
      * Converts an `Int` to a `Byte`, failing when the value is out of range.
      */
     case object IntToByte extends ConversionType {
+
+      /**
+       * Returns the `Int` as a `Byte` when it is between -128 and 127,
+       * otherwise `Left("Value " + v + " is out of range for Byte")`; any other
+       * value gives `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           checkedIntegralNarrow(v.toLong, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
@@ -941,6 +992,12 @@ object SchemaExpr {
      * Converts an `Int` to a `Short`, failing when the value is out of range.
      */
     case object IntToShort extends ConversionType {
+
+      /**
+       * Returns the `Int` as a `Short` when it is between -32768 and 32767,
+       * otherwise `Left("Value " + v + " is out of range for Short")`; any
+       * other value gives `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           checkedIntegralNarrow(v.toLong, Short.MinValue.toLong, Short.MaxValue.toLong, "Short")(
@@ -954,6 +1011,12 @@ object SchemaExpr {
      * Converts a `Long` to a `Byte`, failing when the value is out of range.
      */
     case object LongToByte extends ConversionType {
+
+      /**
+       * Returns the `Long` as a `Byte` when it is between -128 and 127,
+       * otherwise `Left("Value " + v + " is out of range for Byte")`; any other
+       * value gives `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           checkedIntegralNarrow(v, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
@@ -967,6 +1030,12 @@ object SchemaExpr {
      * Converts a `Long` to a `Short`, failing when the value is out of range.
      */
     case object LongToShort extends ConversionType {
+
+      /**
+       * Returns the `Long` as a `Short` when it is between -32768 and 32767,
+       * otherwise `Left("Value " + v + " is out of range for Short")`; any
+       * other value gives `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           checkedIntegralNarrow(v, Short.MinValue.toLong, Short.MaxValue.toLong, "Short")(
@@ -980,6 +1049,13 @@ object SchemaExpr {
      * Converts a `Long` to an `Int`, failing when the value is out of range.
      */
     case object LongToInt extends ConversionType {
+
+      /**
+       * Returns the `Long` as an `Int` when it is between -2147483648 and
+       * 2147483647, otherwise
+       * `Left("Value " + v + " is out of range for Int")`; any other value
+       * gives `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           checkedIntegralNarrow(v, Int.MinValue.toLong, Int.MaxValue.toLong, "Int")(
@@ -994,6 +1070,14 @@ object SchemaExpr {
      * a `Float` cannot hold it exactly.
      */
     case object DoubleToFloat extends ConversionType {
+
+      /**
+       * Returns the `Double` as a `Float` when the `Float` is exactly the same
+       * number, as for `0.5`; NaN, an infinity, or a number that a `Float`
+       * cannot hold exactly, such as `0.1` or `1e300`, gives
+       * `Left("Value " + v + " cannot be converted to Float without losing information")`;
+       * any other value gives `Left("Expected Double, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
           checkedDoubleToFloat(v)
@@ -1007,6 +1091,12 @@ object SchemaExpr {
      * number.
      */
     case object IntToFloat extends ConversionType {
+
+      /**
+       * Returns the `Float` nearest to the `Int`, so `16777217` gives
+       * `1.6777216E7`; any other value gives
+       * `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
@@ -1018,6 +1108,11 @@ object SchemaExpr {
      * Converts an `Int` to a `Double`.
      */
     case object IntToDouble extends ConversionType {
+
+      /**
+       * Returns the `Int` as a `Double` of the same value; any other value
+       * gives `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -1030,6 +1125,12 @@ object SchemaExpr {
      * number.
      */
     case object LongToFloat extends ConversionType {
+
+      /**
+       * Returns the `Float` nearest to the `Long`, so `Long.MaxValue` gives
+       * `9.223372E18`; any other value gives
+       * `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
@@ -1042,6 +1143,12 @@ object SchemaExpr {
      * number.
      */
     case object LongToDouble extends ConversionType {
+
+      /**
+       * Returns the `Double` nearest to the `Long`, so `9007199254740993` gives
+       * `9.007199254740992E15`; any other value gives
+       * `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -1054,6 +1161,11 @@ object SchemaExpr {
      * Converts an `Int` to a `String` with `toString`.
      */
     case object IntToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Int` as a `String`, such as `-7`; any
+       * other value gives `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1065,6 +1177,12 @@ object SchemaExpr {
      * Converts a `Long` to a `String` with `toString`.
      */
     case object LongToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Long` as a `String`, such as
+       * `1099511627776`; any other value gives
+       * `Left("Expected Long, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1076,6 +1194,12 @@ object SchemaExpr {
      * Converts a `Double` to a `String` with `toString`.
      */
     case object DoubleToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Double` as a `String`, such as `1.0E10`
+       * for `1e10`; any other value gives
+       * `Left("Expected Double, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1087,6 +1211,11 @@ object SchemaExpr {
      * Converts a `Boolean` to a `String` with `toString`.
      */
     case object BooleanToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Boolean` as a `String`, such as `true`;
+       * any other value gives `Left("Expected Boolean, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Boolean(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1100,6 +1229,14 @@ object SchemaExpr {
      * number of that type.
      */
     case object StringToInt extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toInt`, which accepts a leading `+` or
+       * `-` but no spaces or decimal point; a string that does not parse, or is
+       * outside the `Int` range, gives
+       * `Left("Cannot parse '" + s + "' as Int")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
@@ -1113,6 +1250,14 @@ object SchemaExpr {
      * number of that type.
      */
     case object StringToLong extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toLong`, which accepts a leading `+`
+       * or `-` but no spaces or decimal point; a string that does not parse, or
+       * is outside the `Long` range, gives
+       * `Left("Cannot parse '" + s + "' as Long")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
@@ -1127,6 +1272,15 @@ object SchemaExpr {
      * `NaN`, and turns an out-of-range number into an infinity.
      */
     case object StringToDouble extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toDouble`, which also accepts
+       * surrounding spaces, `NaN`, `Infinity`, a `d` suffix and hexadecimal
+       * literals such as `0x1p3`, and turns an out-of-range number such as
+       * `1e400` into an infinity; a string that does not parse gives
+       * `Left("Cannot parse '" + s + "' as Double")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -1140,6 +1294,13 @@ object SchemaExpr {
      * failing otherwise.
      */
     case object StringToBoolean extends ConversionType {
+
+      /**
+       * Returns `true` or `false` for the strings `true` and `false` in any
+       * letter case, such as `TRUE`; any other string gives
+       * `Left("Cannot parse '" + s + "' as Boolean")`, and any value that is
+       * not a `String` gives `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v: Predef.String)) =>
           v.toLowerCase match {
@@ -1156,6 +1317,11 @@ object SchemaExpr {
      * Converts a `Char` to an `Int`: its UTF-16 code unit.
      */
     case object CharToInt extends ConversionType {
+
+      /**
+       * Returns the UTF-16 code unit of the `Char` as an `Int`, so `'A'` gives
+       * 65; any other value gives `Left("Expected Char, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
@@ -1167,6 +1333,13 @@ object SchemaExpr {
      * Converts an `Int` to a `Char`, failing when the value is out of range.
      */
     case object IntToChar extends ConversionType {
+
+      /**
+       * Returns the `Char` whose UTF-16 code unit is the `Int` when it is
+       * between 0 and 65535, otherwise
+       * `Left("Value " + v + " is out of range for Char")`; any other value
+       * gives `Left("Expected Int, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
           checkedIntegralNarrow(v.toLong, Char.MinValue.toLong, Char.MaxValue.toLong, "Char")(
@@ -1180,6 +1353,11 @@ object SchemaExpr {
      * Converts a `Char` to a `String` with `toString`.
      */
     case object CharToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Char` as a `String`, such as `z`; any
+       * other value gives `Left("Expected Char, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1192,6 +1370,11 @@ object SchemaExpr {
      * Converts a `Byte` to a `Float`.
      */
     case object ByteToFloat extends ConversionType {
+
+      /**
+       * Returns the `Byte` as a `Float` of the same value; any other value
+       * gives `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
@@ -1203,6 +1386,11 @@ object SchemaExpr {
      * Converts a `Byte` to a `Double`.
      */
     case object ByteToDouble extends ConversionType {
+
+      /**
+       * Returns the `Byte` as a `Double` of the same value; any other value
+       * gives `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -1214,6 +1402,11 @@ object SchemaExpr {
      * Converts a `Short` to a `Float`.
      */
     case object ShortToFloat extends ConversionType {
+
+      /**
+       * Returns the `Short` as a `Float` of the same value; any other value
+       * gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
@@ -1225,6 +1418,11 @@ object SchemaExpr {
      * Converts a `Short` to a `Double`.
      */
     case object ShortToDouble extends ConversionType {
+
+      /**
+       * Returns the `Short` as a `Double` of the same value; any other value
+       * gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Double(v.toDouble)))
@@ -1234,9 +1432,21 @@ object SchemaExpr {
 
     /**
      * Converts a `Float` to an `Int`, failing when the value is not finite, out
-     * of range or not a whole number.
+     * of range or not a whole number, except `2147483648.0f`, which gives
+     * `Int.MaxValue` (a known bug).
      */
     case object FloatToInt extends ConversionType {
+
+      /**
+       * Returns the `Float` as an `Int` when it is a whole number in the `Int`
+       * range (`-0.0` gives 0); NaN, an infinity or a fraction gives
+       * `Left("Value " + v + " cannot be converted to Int without losing information")`,
+       * and a number beyond the range gives
+       * `Left("Value " + v + " is out of range for Int")`. `2147483648.0f`, one
+       * above `Int.MaxValue`, returns `Int.MaxValue` instead of failing (a
+       * known bug). For any other value, it returns
+       * `Left("Expected Float, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
           checkedFiniteFloatToInt(v)
@@ -1246,9 +1456,21 @@ object SchemaExpr {
 
     /**
      * Converts a `Float` to a `Long`, failing when the value is not finite, out
-     * of range or not a whole number.
+     * of range or not a whole number, except `9.223372E18f`, which gives
+     * `Long.MaxValue` (a known bug).
      */
     case object FloatToLong extends ConversionType {
+
+      /**
+       * Returns the `Float` as a `Long` when it is a whole number in the `Long`
+       * range (`-0.0` gives 0); NaN, an infinity or a fraction gives
+       * `Left("Value " + v + " cannot be converted to Long without losing information")`,
+       * and a number beyond the range gives
+       * `Left("Value " + v + " is out of range for Long")`. `9.223372E18f`, one
+       * above `Long.MaxValue`, returns `Long.MaxValue` instead of failing (a
+       * known bug). For any other value, it returns
+       * `Left("Expected Float, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
           checkedFiniteFloatToLong(v)
@@ -1261,6 +1483,15 @@ object SchemaExpr {
      * out of range or not a whole number.
      */
     case object DoubleToInt extends ConversionType {
+
+      /**
+       * Returns the `Double` as an `Int` when it is a whole number in the `Int`
+       * range (`-0.0` gives 0); NaN, an infinity or a fraction gives
+       * `Left("Value " + v + " cannot be converted to Int without losing information")`,
+       * and a number beyond the range gives
+       * `Left("Value " + v + " is out of range for Int")`. For any other value,
+       * it returns `Left("Expected Double, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
           checkedFiniteDoubleToInt(v)
@@ -1270,9 +1501,21 @@ object SchemaExpr {
 
     /**
      * Converts a `Double` to a `Long`, failing when the value is not finite,
-     * out of range or not a whole number.
+     * out of range or not a whole number, except `9.223372036854775807E18`,
+     * which gives `Long.MaxValue` (a known bug).
      */
     case object DoubleToLong extends ConversionType {
+
+      /**
+       * Returns the `Double` as a `Long` when it is a whole number in the
+       * `Long` range (`-0.0` gives 0); NaN, an infinity or a fraction gives
+       * `Left("Value " + v + " cannot be converted to Long without losing information")`,
+       * and a number beyond the range gives
+       * `Left("Value " + v + " is out of range for Long")`.
+       * `9.223372036854775807E18`, one above `Long.MaxValue`, returns
+       * `Long.MaxValue` instead of failing (a known bug). For any other value,
+       * it returns `Left("Expected Double, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
           checkedFiniteDoubleToLong(v)
@@ -1285,6 +1528,11 @@ object SchemaExpr {
      * Converts a `Float` to a `String` with `toString`.
      */
     case object FloatToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Float` as a `String`, such as `1.0`; any
+       * other value gives `Left("Expected Float, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1296,6 +1544,11 @@ object SchemaExpr {
      * Converts a `Short` to a `String` with `toString`.
      */
     case object ShortToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Short` as a `String`, such as `300`; any
+       * other value gives `Left("Expected Short, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1307,6 +1560,11 @@ object SchemaExpr {
      * Converts a `Byte` to a `String` with `toString`.
      */
     case object ByteToString extends ConversionType {
+
+      /**
+       * Returns the `toString` of the `Byte` as a `String`, such as `-5`; any
+       * other value gives `Left("Expected Byte, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(v)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.String(v.toString)))
@@ -1320,6 +1578,15 @@ object SchemaExpr {
      * and turns an out-of-range number into an infinity.
      */
     case object StringToFloat extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toFloat`, which also accepts
+       * surrounding spaces, `NaN`, `Infinity`, an `f` suffix and hexadecimal
+       * literals such as `0x1p3`, and turns an out-of-range number such as
+       * `1e40` into an infinity; a string that does not parse gives
+       * `Left("Cannot parse '" + s + "' as Float")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
@@ -1333,6 +1600,14 @@ object SchemaExpr {
      * number of that type.
      */
     case object StringToShort extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toShort`, which accepts a leading `+`
+       * or `-` but no spaces or decimal point; a string that does not parse, or
+       * is outside the `Short` range, gives
+       * `Left("Cannot parse '" + s + "' as Short")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
@@ -1346,6 +1621,14 @@ object SchemaExpr {
      * number of that type.
      */
     case object StringToByte extends ConversionType {
+
+      /**
+       * Parses the `String` with `String#toByte`, which accepts a leading `+`
+       * or `-` but no spaces or decimal point; a string that does not parse, or
+       * is outside the `Byte` range, gives
+       * `Left("Cannot parse '" + s + "' as Byte")`; any other value gives
+       * `Left("Expected String, got " + value)`.
+       */
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.String(v)) =>
           try Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
