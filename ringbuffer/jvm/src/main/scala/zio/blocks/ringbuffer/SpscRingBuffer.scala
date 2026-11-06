@@ -19,7 +19,7 @@ package zio.blocks.ringbuffer
 import java.lang.invoke.{MethodHandles, VarHandle}
 
 // Cache-line padding hierarchy (16 longs = 128 bytes per region, full cache line on Apple Silicon).
-// Prevents false sharing on all architectures including 128-byte cache lines (Apple Silicon).
+// Prevents false sharing on 64- and 128-byte cache lines (x86, ARM, Apple Silicon).
 
 private[ringbuffer] class SpscPad0 {
   var p00, p01, p02, p03, p04, p05, p06, p07, p08, p09, p0a, p0b, p0c, p0d, p0e, p0f: Long = 0L
