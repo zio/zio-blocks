@@ -12274,6 +12274,48 @@ The same file with `//> using scala 3.9.0`, `//> using dep dev.zio::zio-blocks-n
 
 **Suggested fix.** Teach the Scala 2 macro to concatenate a right-hand tuple (arity check against 22 included), and move the right-tuple cases of `TuplesRecursiveFlatteningSpec` to the shared test directory. Until then, say on the combinators reference page that Scala 2 nests a right-hand tuple (the async Scaladoc now says so on `Async#zip`).
 
+**Addition (2026-11-05, maybe/combinators/context Scaladoc rollout).** (found 2026-11-05 writing the `Tuples` Scaladoc, base `c2e4a39fd`, same at `v0.0.56`): the same Scala 2 macro also fails on a `Tuple1` on the left. `Tuples.combine(Tuple1(8080), "localhost")` does not compile on Scala 2 ("could not find implicit value"); on Scala 3 it is `(8080,localhost)`.
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-combinators:0.0.56
+
+import zio.blocks.combinators.Tuples
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(Tuples.combine(Tuple1(8080), "localhost"))
+  }
+}
+// Repro.scala:8: error: could not find implicit value for parameter c: zio.blocks.combinators.Tuples.Tuples[(Int,),String]
+//     println(Tuples.combine(Tuple1(8080), "localhost"))
+//                           ^
+// 1 error
+```
+
+Root cause: for arity 1, the generated `separate` body `((..$sepLAccessors), $sepR)` (`combinators/shared/src/main/scala-2/zio/blocks/combinators/Tuples.scala:101-108`, lines at v0.0.56 = c2e4a39fd) becomes `((out._1), out._2)`, whose left element is an `Int`, not a `Tuple1[Int]`, so the expansion does not type-check and the implicit is dropped. Test gap: no test uses `Tuple1` (`grep -rn Tuple1 combinators/*/src/test` is empty). Fix with the same macro rewrite: build `Tuple1(out._1)` for arity 1.
+
+The arity-22 guard has the same effect: its `c.abort` message "Cannot combine Tuple22 with another element: would exceed Tuple22 limit" (`scala-2/.../Tuples.scala:91-93`) is discarded during implicit search, and the user sees only "could not find implicit value":
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-combinators:0.0.56
+
+import zio.blocks.combinators.Tuples
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(Tuples.combine((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22), 23))
+  }
+}
+// /tmp/claude-1000/impl1/repro/c4/Repro.scala:8: error: could not find implicit value for parameter c: zio.blocks.combinators.Tuples.Tuples[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int),Int]
+//     println(Tuples.combine((1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22), 23))
+//                           ^
+// 1 error
+```
+
+Impact of both: cross-built code that builds a tuple from a single-element tuple (or grows a 22-element one) compiles on Scala 3 and fails on Scala 2 with no hint why.
+
 ### html: `html"..."` treats any value after `=` as an attribute value, also in text and scripts
 
 **Where found.** Writing the Scaladoc for `TemplateInterpolators.html`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes, sources identical.
@@ -14729,6 +14771,231 @@ object OverrideIgnored {
 **Test gap.** "respects BindingInstance override for primitive codec" (`QueryCodecSpec.scala:140-160`, `HeaderCodecSpec.scala:108`) overrides `Int` only in a top-level `Schema[Int]`, never in a record.
 
 **Suggested fix.** In `deriveRecord`, when the field's binding is a `BindingInstance`, adapt the user codec to a `FieldCodec` (encode into a scratch builder and read its `value` entries; decode by building `QueryParams("value" -> ...)` from the field's raw values). Otherwise document that overrides apply to top-level schemas only, and fix the reference page.
+
+### maybe (Scala 3): `Maybe.apply` on a `Present` wrapper drops a level, and `get` can throw `ClassCastException`
+
+**Where found.** Writing the Scaladoc of `Maybe.apply` (both copies), 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes, sources identical.
+
+**Summary.** On Scala 3, `Maybe.apply` returns any non-null argument as it is, without the extra `Present` layer that `Maybe.present` adds to a `Present` wrapper. A value whose runtime shape is a `Present` (a present `Maybe` that holds `null` or an absent `Maybe`, or a `Present` built with `Present(...)`) is then read back one level too deep: `Maybe(Maybe.present(Maybe.absent[Int])).get` is the absent `Maybe` instead of the present-of-absent value, and `Maybe(Present(8080)).get.value` throws `ClassCastException`. Separately, `Maybe(Maybe.absent[Int])` is absent on Scala 3 but present on Scala 2. Scala 2 gets the first two cases right.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-maybe:0.0.56
+
+import zio.blocks.maybe._
+import scala.util.Try
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val presentOfAbsent: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+    val viaApply: Maybe[Maybe[Maybe[Int]]] = Maybe(presentOfAbsent)
+    println(viaApply.get.isPresent)
+
+    val wrapper: Maybe[Present[Int]] = Maybe(Present(8080))
+    println(Try(wrapper.get.value))
+
+    println(Maybe(Maybe.absent[Int]).isAbsent)
+  }
+}
+// false
+// Failure(java.lang.ClassCastException: class java.lang.Integer cannot be cast to class zio.blocks.maybe.Present (java.lang.Integer is in module java.base of loader 'bootstrap'; zio.blocks.maybe.Present is in unnamed module of loader 'app'))
+// true
+```
+
+The same program on Scala 2 (`//> using scala 2.13.18`, with `MaybeValue.Present` in place of `Present`, file `Repro2.scala`, object `Repro2`) prints:
+
+```scala
+// true
+// Success(8080)
+// false
+```
+
+**Expected.** `true` and `Success(8080)`: `Maybe(x).get` is `x` for every non-null `x`, as on Scala 2. Whether `Maybe(Maybe.absent)` collapses to absent should be the same on both versions (the Scala 3 Scaladoc at `c2e4a39fd` said it does, the Scala 2 code does not).
+
+**Root cause.** `Maybe.apply` (`maybe/shared/src/main/scala-3/zio/blocks/maybe/Maybe.scala:79-80`, lines at v0.0.56 = c2e4a39fd) is `if (a == null) Absent else a.asInstanceOf[Maybe[A]]`: it skips the `Absent` and `Present` cases that `Maybe.present` handles (`:98-106`). `get` and the other readers then call `unsafeGet` (`:137-143`), which unwraps one `Present` layer. The Scala 2 `apply` (`scala-2/.../Maybe.scala:206`) wraps every non-null value in `MaybeValue.Present`, so it neither collapses `Absent` nor loses a level.
+
+**Impact.** Wrapping a value of unknown origin with `Maybe(...)` (the obvious choice for a nullable value) silently changes nested `Maybe`s (present-of-absent becomes absent) and corrupts `Maybe[Present[...]]`. The two Scala versions disagree on `Maybe(Maybe.absent)`.
+
+**Test gap.** No test in `maybe` calls `Maybe.apply` (`grep -rn "Maybe(" maybe/shared/src/test` is empty); the `sql` tests call it on plain values only (`sql/jvm/src/test/scala/zio/blocks/sql/TransactorSpec.scala:193`, `DbCodecOptionSpec.scala:219-221`), never on `null`, an absent `Maybe` or a `Present`. `MaybeScala3Spec` covers the extra layer only for `present` ("regression: present(Present(x)) must not corrupt").
+
+**Suggested fix.** Make `apply` `if (a == null) Absent else present(a)` on Scala 3 (it keeps the zero-allocation path for plain values), or decide that `Maybe(Maybe.absent)` collapses and do that on Scala 2 too. Add `apply` tests for `null`, a present-of-absent `Maybe`, a `Present` and a plain value on both versions.
+
+### combinators (Scala 3): `Tuples.separate` flattens a part when both sides are tuples and one holds a nested tuple
+
+**Where found.** Writing the Scaladoc of `Tuples.Tuples#separate`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** On Scala 3, combining two tuples (`tupleTuple`) flattens tuples nested inside either side at any depth: `((8080, "localhost"), true)` with `(3, 'x')` is `(8080, localhost, true, 3, x)`. `separate` then splits that flat tuple at the flattened size of the left side and casts the pieces to `L` and `R`, so a left (or right) side that held a nested tuple comes back flat, typed as the nested shape; reading it throws `ClassCastException`. `separate(combine(l, r)) == (l, r)` fails. The depth of flattening also depends on the shape: a tuple with a value (`tupleValue`) keeps nested tuples, a tuple with a tuple flattens them, and `Tuple1(3)` on the right flattens where `3` does not.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-combinators:0.0.56
+
+import zio.blocks.combinators.Tuples
+import scala.util.Try
+
+object Repro {
+  def separated[L, R](l: L, r: R)(implicit t: Tuples.Tuples[L, R]): (L, R) =
+    t.separate(t.combine(l, r))
+
+  def main(args: Array[String]): Unit = {
+    val left: ((Int, String), Boolean) = ((8080, "localhost"), true)
+
+    println(Tuples.combine(left, (3, 'x')))
+    println(Tuples.combine(left, 3))
+    println(Tuples.combine(left, Tuple1(3)))
+
+    val parts = separated(left, (3, 'x'))
+    println(Try(parts._1: Any))
+    println(Try(parts._1._1._1))
+  }
+}
+// (8080,localhost,true,3,x)
+// ((8080,localhost),true,3)
+// (8080,localhost,true,3)
+// Success((8080,localhost,true))
+// Failure(java.lang.ClassCastException: class scala.Tuple3 cannot be cast to class scala.Tuple2 (scala.Tuple3 and scala.Tuple2 are in unnamed module of loader 'app'))
+```
+
+**Expected.** `separate` returns `(((8080, "localhost"), true), (3, 'x'))`, and `parts._1._1._1` is `8080`. Either `combine` flattens only the top level of each side (as `tupleValue` and `valueTuple` do), or `Out` keeps enough shape for `separate` to rebuild `L` and `R`.
+
+**Root cause.** `tupleTuple` (`combinators/shared/src/main/scala-3/zio/blocks/combinators/Tuples.scala:81-82`, lines at v0.0.56 = c2e4a39fd) passes `constValue[Tuple.Size[Flatten[L]]]`; `TupleTupleInstance.combine` (`:96-97`) runs the recursive `flattenTuple` (`:141-145`) over `left ++ right`, and `separate` (`:99-103`) does `splitAt(flatLeftSize)` and casts each half to `L` and `R` without rebuilding the nesting.
+
+**Impact.** Code that combines tuples that themselves hold tuples (for example zipped results, or path codecs built from tuple parts) cannot get the parts back; the failure is a `ClassCastException` far from the call.
+
+**Test gap.** `TuplesRecursiveFlatteningSpec` (`combinators/shared/src/test/scala-3/.../TuplesRecursiveFlatteningSpec.scala:24-55`) asserts `combine` results for nested inputs, but its `separate` tests (`:57-150`) use flat tuples only (`(1, "a")` with `true`, `(1, "a", true)` with `3.0`).
+
+**Suggested fix.** Rebuild `L` and `R` in `separate` (their shapes are known when the given is inlined), which keeps `combine` as it is. Flattening one level per side in `tupleTuple` (`Tuple.Concat[L, R]`) would also fix `separate`, but it is a behaviour change: recursive flattening of `combine` is asserted by `TuplesRecursiveFlatteningSpec.scala:24-43`. Add round-trip tests with a nested tuple on each side (a nested right side fails too: `separated((1, 2), ((3, 4), 5))._2._2` throws `ClassCastException`). Cross-reference: the existing Scala 2 entry ("combinators: on Scala 2, `Tuples` nests a tuple on the right ...") suggests moving these recursive-flattening cases to the shared tests; a Scala 2 macro taught to flatten recursively would inherit this `separate` bug unless `separate` is fixed with it.
+
+### context: `Context#prune` with a supertype drops the entry, and `get` then throws "Bug in Context"
+
+**Where found.** Writing the Scaladoc of `Context#prune`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** `prune[A]` compiles for any `A >: R`, including a supertype of a stored type (`prune[Logger]` on a context of `ConsoleLogger`). It keeps only entries whose key equals one of `A`'s components, so the `ConsoleLogger` entry is dropped and the result, typed `Context[Logger]`, is empty. `get[Logger]` on it then throws `NoSuchElementException: Bug in Context: type app.Logger was expected but not found`, even though `get[Logger]` worked on the original context. Same on Scala 3.9.0.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-context:0.0.56
+package app
+
+import zio.blocks.context._
+import scala.util.Try
+
+trait Logger
+final case class ConsoleLogger(prefix: String) extends Logger
+final case class Config(port: Int)
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val ctx    = Context(Config(8080), ConsoleLogger("[app]"))
+    val pruned = ctx.prune[Logger]
+    println(pruned.size)
+    println(Try(pruned.get[Logger]))
+  }
+}
+// 0
+// Failure(java.util.NoSuchElementException: Bug in Context: type app.Logger was expected but not found)
+```
+
+**Expected.** `1` and `Success(ConsoleLogger([app]))`: prune keeps every entry that a component of `A` would find with `get` (exact key or subtype).
+
+**Root cause.** `Context#prune` (`context/shared/src/main/scala/zio/blocks/context/Context.scala:197-201`, lines at v0.0.56 = c2e4a39fd) passes `ev.typeIdsErased` to `ContextEntries#pruned`, which keeps `ordered` entries with `keySet.contains(k)` (`ContextEntries.scala:125-130`), an exact match; `get` falls back to `getBySubtype` (`ContextEntries.scala:55-67`), prune does not.
+
+**Impact.** A type-checked call produces a context whose type promises a value it does not hold; the error says "Bug in Context".
+
+**Test gap.** `ContextSpec` "prune keeps only specified types" (`context/shared/src/test/scala/zio/blocks/context/ContextSpec.scala:239-243`) prunes to the exact stored type `ConsoleLogger` only.
+
+**Suggested fix.** In `pruned`, keep an entry when its key is a subtype of any retained key (`k.isSubtypeOf(retained)`), and add a test that prunes to a supertype.
+
+### context: `Context#update` with a supertype adds a second entry instead of replacing the value
+
+**Where found.** Writing the Scaladoc of `Context#update`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** `update[A](f)` finds the value as `getOption[A]` does (exact key, then a stored subtype), but stores `f`'s result under the key `A`. When `A` is a supertype of the stored type, the old value stays under its own key and the result is added beside it: the context grows from 1 to 2 entries, `get[ConsoleLogger]` still returns the old value, and `get[Logger]` the new one. Same on Scala 3.9.0.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-context:0.0.56
+package app
+
+import zio.blocks.context._
+
+trait Logger
+final case class ConsoleLogger(prefix: String) extends Logger
+final case class FileLogger(path: String) extends Logger
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val ctx     = Context(ConsoleLogger("[app]"))
+    val updated = ctx.update[Logger](_ => FileLogger("/var/log/app.log"))
+    println(updated)
+    println(updated.size)
+    println(updated.get[ConsoleLogger])
+    println(updated.get[Logger])
+  }
+}
+// Context(app.Logger -> FileLogger(/var/log/app.log), app.ConsoleLogger -> ConsoleLogger([app]))
+// 2
+// ConsoleLogger([app])
+// FileLogger(/var/log/app.log)
+```
+
+**Expected.** One entry: the transformed value replaces the one it was computed from (or `update` requires an exact key).
+
+**Root cause.** `Context#update` (`context/shared/src/main/scala/zio/blocks/context/Context.scala:149-162`, lines at v0.0.56 = c2e4a39fd) reads with `getOption[A]` (`:150`) but writes with `entries.updated(ev.typeIdErased, result)` (`:158-159`), the key of `A`, not the key the value was found under.
+
+**Impact.** `update` on a service interface leaves two values for one service; which one a later lookup returns depends on the requested type.
+
+**Test gap.** `ContextSpec` "update modifies existing service" (`ContextSpec.scala:202-206`) updates `Config` under its own type only.
+
+**Suggested fix.** Have `ContextEntries` return the matching key with the value, and replace that entry; add a supertype `update` test.
+
+### context: `Context` extends `Serializable` but Java serialization throws `NotSerializableException`
+
+**Where found.** Writing the Scaladoc of `Context`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** `final class Context[+R] ... extends Serializable` marks its cache `@transient` as if it were meant to be serialized, but its `entries` field is a `ContextEntries`, which is not `Serializable`. Serializing any context fails. Same on Scala 3.9.0.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-context:0.0.56
+package app
+
+import zio.blocks.context._
+import java.io.{ByteArrayOutputStream, ObjectOutputStream}
+import scala.util.Try
+
+final case class Config(port: Int)
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val ctx = Context(Config(8080))
+    println(ctx.isInstanceOf[java.io.Serializable])
+    println(Try(new ObjectOutputStream(new ByteArrayOutputStream()).writeObject(ctx)))
+  }
+}
+// true
+// Failure(java.io.NotSerializableException: zio.blocks.context.ContextEntries)
+```
+
+**Expected.** `Success(())` (the class says it is serializable), or the class does not extend `Serializable`.
+
+**Root cause.** `Context` extends `Serializable` with `private val entries: ContextEntries` (`context/shared/src/main/scala/zio/blocks/context/Context.scala:32-35`, lines at v0.0.56 = c2e4a39fd); `private[context] final class ContextEntries` (`ContextEntries.scala:31`) does not extend `Serializable`. The `TypeId` keys do not serialize either: `new ObjectOutputStream(...).writeObject(TypeId.of[Config])` throws `NotSerializableException: zio.blocks.typeid.TypeId$Impl` on 0.0.56, both versions (`Impl` is `private final class Impl`, `typeid/shared/src/main/scala-3/zio/blocks/typeid/TypeId.scala:562` at c2e4a39fd).
+
+**Impact.** Frameworks that serialize objects holding a `Context` (Spark closures, session stores) fail at run time.
+
+**Test gap.** No test serializes a `Context` (`grep -rn "Serializ\|ObjectOutput" context/*/src/test` is empty).
+
+**Suggested fix.** Make `ContextEntries` and `TypeId` (its `Impl`) serializable and add a round-trip test, or drop `extends Serializable` and `@transient`.
 
 ## Usability traps
 
@@ -19109,6 +19376,92 @@ object NestedEncode {
 **Test gap.** No spec calls a convenience encoder from inside a custom `encode`.
 
 **Suggested fix.** Keep a depth counter (or an "in use" flag) next to the thread-local and allocate a fresh builder when it is already in use; or allocate per call, since `build()` already copies the arrays. The Scaladoc now warns about it.
+
+### maybe (Scala 2): the `Option` to `Maybe` implicit conversion needs `import Maybe._`
+
+**Where found.** Writing the Scaladoc of `Maybe.optionToMaybe`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** On Scala 3, `val m: Maybe[Int] = Some(30)` compiles with `import zio.blocks.maybe._` alone, because the `given Conversion` lives in the companion of the opaque type. On Scala 2, `Maybe[A]` is an alias of `MaybeValue[A]`, whose implicit scope is `object MaybeValue`; the conversion `optionToMaybe` is in `object Maybe`, which is not in that scope. The same line fails to compile on Scala 2 unless the user also imports `Maybe._`. `docs/reference/maybe.md` ("Integration Points") says the conversion "is provided" without a version note.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-maybe:0.0.56
+
+import zio.blocks.maybe._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val timeout: Maybe[Int] = Some(30)
+    println(timeout)
+  }
+}
+// /tmp/claude-1000/impl1/repro/m2/Repro.scala:8: error: type mismatch;
+//  found   : Some[Int]
+//  required: zio.blocks.maybe.Maybe[Int]
+//     (which expands to)  zio.blocks.maybe.MaybeValue[Int]
+//     val timeout: Maybe[Int] = Some(30)
+//                                   ^
+// 1 error
+```
+
+With `import zio.blocks.maybe.Maybe._` added (`ReproImport.scala`, object `ReproImport`), it prints `Present(30)`. Scala 2 needs no `scala.language.implicitConversions` at the call site (it warns only where an implicit conversion is defined); Scala 3 asks for it at the call site.
+
+**Expected.** The same source compiles on both versions, or the docs say that Scala 2 needs the import.
+
+**Root cause.** `implicit def optionToMaybe` is declared in `object Maybe` (`maybe/shared/src/main/scala-2/zio/blocks/maybe/Maybe.scala:216`, lines at v0.0.56 = c2e4a39fd), while the type is `type Maybe[+A] = MaybeValue[A]` (`scala-2/.../MaybeCompat.scala:20`), so the implicit scope is `object MaybeValue` (`Maybe.scala:23`).
+
+**Impact.** Cross-built code that relies on the conversion compiles on Scala 3 and fails on Scala 2.
+
+**Test gap.** Only `MaybeScala3Spec` (`maybe/shared/src/test/scala-3/.../MaybeScala3Spec.scala:40`) uses the conversion; no shared or Scala 2 test does.
+
+**Suggested fix.** Move (or forward) `optionToMaybe` into `object MaybeValue` so it is in implicit scope on Scala 2, and add a shared test `val m: Maybe[Int] = Some(2)`. Until then, the Scaladoc of `optionToMaybe` now says Scala 2 needs `import Maybe._`, and `maybe.md` should too.
+
+### combinators (Scala 3): `Unions.separate` returns `Right` for a left value when one side is a subtype of the other
+
+**Where found.** Writing the Scaladoc of `Unions`, 2026-11-05, base `c2e4a39fd`. Same at `v0.0.56`: yes.
+
+**Summary.** `Unions.unions` rejects `L` and `R` only when they share an equal type (`=:=`). When one is a subtype of the other (`Unions[Shape, Circle]` or `Unions[Circle, Shape]`), the instance compiles, and `separate` decides the side with the `TypeTest` for `R`. So a `Circle` that came from `Left` comes back as `Right`, and `separate(combine(e)) != e`. With `L <: R`, every left value comes back as `Right`. The same happens for types that differ only in erased type arguments (`List[Int]` and `List[String]`), where the compiler at least warns.
+
+**Reproducer** (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-combinators:0.0.56
+
+import zio.blocks.combinators.Unions
+
+sealed trait Shape
+final case class Circle(radius: Double) extends Shape
+final case class Square(side: Double) extends Shape
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val u = summon[Unions.Unions[Shape, Circle]]
+    val fromLeft: Either[Shape, Circle] = Left(Circle(1.0))
+    println(u.separate(u.combine(fromLeft)))
+    println(u.separate(u.combine(Left(Square(2.0)))))
+
+    val v = summon[Unions.Unions[Circle, Shape]]
+    val circleLeft: Either[Circle, Shape] = Left(Circle(1.0))
+    println(v.separate(v.combine(circleLeft)))
+  }
+}
+// Right(Circle(1.0))
+// Left(Square(2.0))
+// Right(Circle(1.0))
+```
+
+**Expected.** A compile error like the one for equal types (`Union types must contain unique types ...`) when one side is a subtype of the other, since `L | R` cannot keep the side.
+
+**Root cause.** The overlap check compares flattened members with `=:=` only (`combinators/shared/src/main/scala-3/zio/blocks/combinators/Unions.scala:57-67`, lines at v0.0.56 = c2e4a39fd); `UnionInstance.separate` (`:90-93`) uses `tt(r)`.
+
+**Impact.** A silent wrong side for hierarchies, the common case for error types (`AppError` and `NotFound extends AppError`). On Scala 3, `Endpoint#orOutError` combines error codecs through `Unions` (`endpoint/shared/src/main/scala-3/zio/blocks/endpoint/EndpointUnionErrorBuilder.scala:52-59` → `Alternator.fromUnions`, `AlternatorPlatformSpecific.scala:24-30`, lines at v0.0.56 = c2e4a39fd), so an error hierarchy declared with `outError`/`orOutError` can send a value to the other error codec (read from the code, not probed end to end).
+
+**Test gap.** `UnionsSpec` checks equal-type overlap (`:130-190`) and unrelated case classes (`:69-79`); no test uses a subtype pair.
+
+**Suggested fix.** Also reject `lType <:< rType || rType <:< lType` in the macro, with a message that names both types. The Scaladoc now warns about it.
 
 ## Test and CI
 

@@ -677,6 +677,32 @@ Found 2026-11-05 while fact-checking the http-model-schema Scaladoc against the 
 
    (`ShortUuid.scala`, `scala-cli run --server=false ShortUuid.scala`; Scala.js not probed.) Suggested text: "Parsed with `java.util.UUID.fromString`; on the JVM it also accepts shortened groups such as `1-2-3-4-5`."
 
+### `reference/combinators.md`: `Choices` does not exist, `Concat` is not Scala-2-only, and other errors
+
+**Where found.** Fact-checking `docs/reference/combinators.md` against the sources while writing the combinators Scaladoc, 2026-11-05, base `c2e4a39fd` (same at `v0.0.56`). Probed with scala-cli against `zio-blocks-combinators:0.0.56` on 2.13.18 and 3.9.0 (`/tmp/claude-1000/impl1/comb/C2.scala`, `C3.scala`).
+
+- **`Choices`** (Overview, Installation "Supported platforms", the `Concat` section "Unlike `Choices`", the Feature Matrix row, Migration Path steps 3 and 5) names a module that does not exist in `combinators` (`git grep -n "Choices" -- 'combinators/*'` is empty). `docs/dev/backlog.md:371` and `:449` (§8 "Doc fixes to do alongside") and `docs/dev/research.md:2657` already note `Choices`, the "Scala 2 only" label and `Concat.Concat.WithOut`; this entry gives every place and adds the other errors, so the §8 row can point here.
+- **"Concat (Scala 2 Only)"** and "**Concat**: Scala 2.13 only": `Concat` is in the shared sources and exists on Scala 3 too, where `derive` gives `Out = L | R` (`combinators/shared/src/main/scala-3/.../ConcatCompanionPlatform.scala:19-30`); `Stream#concat` uses it on both versions.
+- **`Concat.Concat.WithOut[...]`** (four lines in the `Concat` section): the type is `Concat.WithOut[L, R, O]` (`Concat.scala:103`); `Concat.Concat` does not exist.
+- **The Scala 2.13 tab** of "Tuples: Version Differences" says `Tuples.combine((1, 2), (3, 4))` fails to compile with "Type mismatch". It compiles and returns `(1,2,(3,4))` (the known Scala 2 nesting bug, already filed). The "Quick Example" `val userTuple: Tuple3[String, Int, String] = Tuples.combine(username, Tuples.combine(userId, email))` does not compile on Scala 2 for the same reason.
+- **`t2.separate((1, "hello")) // ((1), "hello")`**: the result is `(1,hello)` (a pair of `1` and `"hello"`).
+- **`// (1, "hello", true, 3.14)j`**: stray `j`.
+- **"Path-Dependent Types": "The `Out`, `Left`, and `Right` type members"**: the type classes have only `Out`.
+- **See Also, "The Schema module uses `Eithers` canonicalization for encoding sealed trait hierarchies"**: `schema` does not use `Eithers` (`git grep -n "Eithers\." -- 'schema/*/src/main'` is empty).
+- **"Eithers: Full Cross-Version Support ... No version-specific behavior"** is true for the shapes; the page could add that on Scala 2 `implicitly[Eithers.Eithers[L, R]]` loses `Out` (the whitebox macro's declared type is `Eithers[L, R]`), so `separate` is usable only through an implicit parameter, as in the Scaladoc examples. Same for `Tuples` and the `summon[...]` examples (Scala 3 only).
+
+Suggested fix: remove `Choices`; describe `Concat` on both versions; correct the paths and outputs; mark the right-tuple examples Scala 3 only (or show the Scala 2 nesting); drop the schema claim.
+
+### `reference/maybe.md`: `isPresent`/`isAbsent` described as null checks, Scala 2 `Option` conversion, `toSeq` output
+
+**Where found.** Fact-checking `docs/reference/maybe.md` while writing the maybe Scaladoc, 2026-11-05, base `c2e4a39fd` (same at `v0.0.56`). Probed with `/tmp/claude-1000/impl1/maybe/Probe.scala` on 2.13.18 and 3.9.0.
+
+- **"isPresent, isDefined, nonEmpty: All three are equivalent—return true if the value is non-null"** and **"isAbsent, isEmpty: Both return true if the value is `null`"**: absence is the `Absent` object, not `null`; `Maybe.present(null: String).isPresent` is `true` and `.isAbsent` is `false` on both versions (`Maybe.scala:28-32` Scala 2, `:153-157` Scala 3 compare with `Absent`).
+- **"Integration Points": "a `Conversion[Option[A], Maybe[A]]` is provided for implicit conversions"**: Scala 3 only; on Scala 2 the conversion is `optionToMaybe` and needs `import Maybe._` (library entry 2).
+- **`println(seq)  // Seq("hello")`** (`toSeq`): prints `List(hello)`.
+- **`maybe.md:64`** ("only present-of-absent values allocate a `Present` wrapper") and the "Nested allocation" row at `:84` ("**1** (`Present(Absent)` only)") leave out `Maybe.present(Present(x))`, which is `Present(Present(x))` on Scala 3 (probe: `present(Present(1)) Present(Present(1))`); `:90` calls `Maybe.present(null)` "present-of-absent", but it is a present `null`.
+- **Cross-Version Parity / "Behavior Differences"**: add that `Maybe(Maybe.absent)` is absent on Scala 3 and present on Scala 2, and that `toString`/`==` differ (`Maybe.present(8080)` prints `8080` on Scala 3 and equals `8080` only when compared as `Any` (a direct `Maybe.present(8080) == 8080` does not compile there), prints `Present(8080)` on Scala 2; `Maybe.absent` prints `zio.blocks.maybe.Absent$@<hash>` on Scala 3 and `Absent` on Scala 2).
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).
@@ -795,6 +821,15 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 **Test gap.** Nothing checks that every page under `docs/` (outside `docs/dev/`) gets an output file in `website/docs`.
 
 **Suggested fix.** First reproduce with plain `sbt --client` and a small heap (`SBT_OPTS=-Xmx2g`) to find who swallows the error. Then make `docs/mdoc` fail on it, or add a post-mdoc check, for example in `docs/checkDocsOnFreshWebsite` or a website unit test, that every source page has an output.
+
+### `scaladoc-coverage.py`: a multi-line annotation hides the Scaladoc, and `--drift` pairs members of different types
+
+**Where found.** Running the coverage and drift gates for the maybe/combinators/context rollout, 2026-11-05, base `c2e4a39fd`.
+
+- **Multi-line annotation.** `trait ContextHas` (`context/shared/src/main/scala/zio/blocks/context/ContextHas.scala`) has a full Scaladoc above `@implicitNotFound(` / `"..."` / `)`, but `_doc_before` skips only single-line annotations (`_is_annotation_line`), so the trait counts as undocumented: context reports 36/37 with every member documented. The annotation string is longer than `maxColumn`, so scalafmt keeps it multi-line.
+- **Drift keying.** `_keyed` keys members by `"<kind> <name>"` and occurrence index within the file, ignoring the enclosing type. In `Maybe.scala`, Scala 2 has one `def apply` (`Maybe.apply`) while Scala 3 has two (`Present.apply`, then `Maybe.apply`), so `--drift` compares Scala 2 `Maybe.apply` with Scala 3 `Present.apply` and reports `def apply` although both `Maybe.apply` copies have identical text. (The same keying paired `MaybeOps.map` with `WithFilter.map`; those docs were made identical, see the report.)
+
+Suggested fix: in `_doc_before`, walk back over a balanced multi-line annotation (a line starting with `@name(` up to its closing `)`); in `scan`, record the enclosing type names and key drift by `(enclosing path, kind name, index)`, falling back to the current key when the paths differ only by a version-specific wrapper. Add both cases to `test_scaladoc_coverage.py`.
 
 ## Resolved
 
