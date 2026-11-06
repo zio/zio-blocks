@@ -220,6 +220,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(elementsPath, 30) == "Snippet_html_shared_scala_2_HtmlElements_L30"
       )
     },
+    test("moduleImport and objectName give a jwt example the jwt import and drop the jwt package") {
+      val jwtPath = "jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(jwtPath) == "zio.blocks.jwt._",
+        ScaladocSnippets.objectName(jwtPath, 12) == "Snippet_jwt_shared_scala_Jwt_L12"
+      )
+    },
     test("moduleImport follows the module directory") {
       assertTrue(
         ScaladocSnippets.moduleImport("schema/shared/src/main/scala/zio/blocks/schema/Schema.scala") ==
