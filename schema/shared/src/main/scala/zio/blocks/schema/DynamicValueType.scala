@@ -31,7 +31,7 @@ import zio.blocks.chunk.Chunk
  *     `Chunk[(String, DynamicValue)]`).
  *
  * Because it extends a function type, its `toString` is `<function1>`, and so
- * are the type names in some error messages (see `docs/dev/issues.md`).
+ * are the type names in some error messages (a known bug).
  */
 sealed trait DynamicValueType extends (DynamicValue => Boolean) {
 
@@ -64,6 +64,8 @@ object DynamicValueType {
   case object Primitive extends DynamicValueType {
     override final type Type   = DynamicValue.Primitive
     override final type Unwrap = PrimitiveValue
+
+    /** The index 0, the same as `DynamicValue.Primitive#typeIndex`. */
     val typeIndex = 0
   }
 
@@ -74,6 +76,8 @@ object DynamicValueType {
   case object Record extends DynamicValueType {
     override final type Type   = DynamicValue.Record
     override final type Unwrap = Chunk[(String, DynamicValue)]
+
+    /** The index 1, the same as `DynamicValue.Record#typeIndex`. */
     val typeIndex = 1
   }
 
@@ -84,6 +88,8 @@ object DynamicValueType {
   case object Variant extends DynamicValueType {
     override final type Type   = DynamicValue.Variant
     override final type Unwrap = (String, DynamicValue)
+
+    /** The index 2, the same as `DynamicValue.Variant#typeIndex`. */
     val typeIndex = 2
   }
 
@@ -94,6 +100,8 @@ object DynamicValueType {
   case object Sequence extends DynamicValueType {
     override final type Type   = DynamicValue.Sequence
     override final type Unwrap = Chunk[DynamicValue]
+
+    /** The index 3, the same as `DynamicValue.Sequence#typeIndex`. */
     val typeIndex = 3
   }
 
@@ -104,6 +112,8 @@ object DynamicValueType {
   case object Map extends DynamicValueType {
     override final type Type   = DynamicValue.Map
     override final type Unwrap = Chunk[(DynamicValue, DynamicValue)]
+
+    /** The index 4, the same as `DynamicValue.Map#typeIndex`. */
     val typeIndex = 4
   }
 
@@ -113,6 +123,8 @@ object DynamicValueType {
   case object Null extends DynamicValueType {
     override final type Type   = DynamicValue.Null.type
     override final type Unwrap = Unit
+
+    /** The index 5, the same as `DynamicValue.Null.typeIndex`. */
     val typeIndex = 5
   }
 }

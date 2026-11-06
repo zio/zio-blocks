@@ -111,17 +111,18 @@ object Changeset {
  * example. Each method returns a new builder.
  *
  * The record methods take selectors made of field accesses only, and record the
- * fields they touch in the `Changeset` type. [[build]] uses it to check at
- * compile time that the migration is complete: every field of `B` is provided
- * and every field of `A` handled, either by an action or because both types
- * have a field of that name whose types are equal or one a subtype of the
- * other. The case and collection methods are not part of that check. The
- * selector syntax of [[MigrationSelectorSyntax]], such as `_.books.each`, does
- * not compile in any method (see `docs/dev/issues.md`).
+ * fields they touch in the `Changeset` type. [[MigrationComplete]] reads it to
+ * check that the migration is complete: every field of `B` is provided and
+ * every field of `A` handled, either by an action or because both types have a
+ * field of that name whose types are equal or one a subtype of the other. On
+ * Scala 2, [[build]] does not run that check (a known bug). The case and
+ * collection methods are not part of that check. The selector syntax of
+ * [[MigrationSelectorSyntax]], such as `_.books.each`, does not compile in any
+ * method (a known bug).
  *
  * On Scala 2 the macro methods and `build` expand to code that uses
  * package-private members, so they compile only inside
- * `zio.blocks.schema.migration` (see `docs/dev/issues.md`).
+ * `zio.blocks.schema.migration` (a known bug).
  *
  * @tparam A
  *   the source type
@@ -186,8 +187,8 @@ final class MigrationBuilder[A, B, Changeset](
    * Turns the `Option` field that `source` selects into a required field, using
    * the value of `default` for a `None`. `source` and `target` must select
    * fields with the same name, or compilation fails. The migration currently
-   * fails for every `Some`, and so does its reverse, an `OptionalizeField` (see
-   * `docs/dev/issues.md`).
+   * fails for every `Some`, and so does its reverse, an `OptionalizeField` (a
+   * known bug).
    */
   transparent inline def mandateField(
     inline source: A => Option[?],
@@ -200,7 +201,7 @@ final class MigrationBuilder[A, B, Changeset](
   /**
    * Turns the field that `source` selects into an `Option` field. `source` and
    * `target` must select fields with the same name, or compilation fails. The
-   * migration currently fails to decode the result (see `docs/dev/issues.md`).
+   * migration currently fails to decode the result (a known bug).
    */
   transparent inline def optionalizeField(
     inline source: A => Any,
@@ -313,7 +314,10 @@ final class MigrationBuilder[A, B, Changeset](
   /**
    * Runs `migration` on the field that `selector` selects. The field and all
    * its nested fields count as handled and provided, so this fits a field whose
-   * type changes between `A` and `B`.
+   * type changes between `A` and `B`. On Scala 2 only its direct fields count:
+   * fields nested deeper (`author.address.city` under `_.author`) do not, and
+   * `MigrationComplete.derive` called with explicit type arguments reports them
+   * as missing (a known bug).
    */
   transparent inline def migrateField[F1, F2](
     inline selector: A => F1,
@@ -342,9 +346,13 @@ final class MigrationBuilder[A, B, Changeset](
   }
 
   /**
-   * Returns the migration. It compiles only when the actions make the migration
-   * complete; otherwise the [[MigrationComplete]] macro fails compilation with
-   * the target fields not provided and the source fields not handled.
+   * Returns the migration. The implicit [[MigrationComplete]] stops an
+   * incomplete migration from compiling: its macro fails compilation with the
+   * target fields not provided and the source fields not handled. On Scala 2
+   * the compiler infers `MigrationComplete.derive[Any, Any, Any]` instead,
+   * which checks no field (a known bug), so an incomplete migration compiles: a
+   * target field that no action provides fails every run with `Missing field`,
+   * and a source field that no action handles is dropped silently.
    */
   inline def build(using
     ev: MigrationComplete[A, B, Changeset]
@@ -370,7 +378,9 @@ object MigrationBuilder {
  * Evidence that a builder's `Changeset` makes the migration from `A` to `B`
  * complete. A macro derives it; when fields are missing, compilation fails with
  * a message that lists the target fields not provided and the source fields not
- * handled.
+ * handled. On Scala 2 this happens only when `derive` is called with explicit
+ * type arguments: the implicit search behind `MigrationBuilder#build` infers
+ * `Any` for all three and checks nothing (a known bug).
  */
 trait MigrationComplete[-A, -B, -Changeset]
 
@@ -384,6 +394,8 @@ object MigrationComplete {
 
   /**
    * Checks the changeset at compile time, as [[MigrationComplete]] describes.
+   * Found by implicit search on Scala 2, it receives `Any` for `A`, `B` and
+   * `CS` and checks nothing (a known bug).
    */
   inline given derive[A, B, CS]: MigrationComplete[A, B, CS] =
     ${ MigrationValidationMacros.validateMigration[A, B, CS] }

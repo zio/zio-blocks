@@ -691,6 +691,8 @@ object Reflect {
    * `NodeBinding` is the kind of binding that such a node holds.
    */
   sealed trait Type {
+
+    /** The kind of binding that a node of this kind holds. */
     type NodeBinding <: BindingType
   }
 
@@ -702,36 +704,50 @@ object Reflect {
 
     /** The kind of a [[Reflect.Record]] node. */
     case object Record extends Type {
+
+      /** `BindingType.Record`. */
       type NodeBinding = BindingType.Record
     }
 
     /** The kind of a [[Reflect.Variant]] node. */
     case object Variant extends Type {
+
+      /** `BindingType.Variant`. */
       type NodeBinding = BindingType.Variant
     }
 
     /** The kind of a [[Reflect.Sequence]] node of collection type `C`. */
     case class Sequence[C[_]]() extends Type {
+
+      /** `BindingType.Seq[C]`. */
       type NodeBinding = BindingType.Seq[C]
     }
 
     /** The kind of a [[Reflect.Map]] node of map type `M`. */
     case class Map[M[_, _]]() extends Type {
+
+      /** `BindingType.Map[M]`. */
       type NodeBinding = BindingType.Map[M]
     }
 
     /** The kind of a [[Reflect.Dynamic]] node. */
     case object Dynamic extends Type {
+
+      /** `BindingType.Dynamic`. */
       type NodeBinding = BindingType.Dynamic
     }
 
     /** The kind of a [[Reflect.Primitive]] node. */
     case object Primitive extends Type {
+
+      /** `BindingType.Primitive`. */
       type NodeBinding = BindingType.Primitive
     }
 
     /** The kind of a [[Reflect.Wrapper]] node of `A` wrapping `B`. */
     case class Wrapper[A, B]() extends Type {
+
+      /** `BindingType.Wrapper[A, B]`. */
       type NodeBinding = BindingType.Wrapper[A, B]
     }
   }
@@ -781,22 +797,44 @@ object Reflect {
 
     protected def inner: Any = (fields, typeId, doc, modifiers)
 
+    /**
+     * `BindingType.Record`: a record holds a `Binding.Record` in a bound
+     * reflect.
+     */
     type NodeBinding = BindingType.Record
 
+    /** Returns a copy of this record whose documentation is `value`. */
     def doc(value: Doc): Record[F, A] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with this record's `fromDynamicValue`,
+     * or returns `None` when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `toDynamicValue`.
+     */
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with this record's `fromDynamicValue`, in
+     * order, leaving out those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `toDynamicValue`, replacing the old ones.
+     */
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Record[F, A] =
       copy(storedExamples = values.prepended(value).map(toDynamicValue))
 
+    /** Returns `recordBinding` as a `Binding.Record`. */
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Record, A] = F.binding(recordBinding)
 
     /**
@@ -880,10 +918,16 @@ object Reflect {
         new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
 
+    /** Returns `recordBinding`. */
     def metadata: F[NodeBinding, A] = recordBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Record[F, A] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this record's
+     * modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Record[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     /**
@@ -901,6 +945,11 @@ object Reflect {
       } else None
     }
 
+    /**
+     * Takes `value` apart with the deconstructor and returns a
+     * `DynamicValue.Record` with one entry per field, in field order, each
+     * converted by the field's node.
+     */
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val regs = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(regs, 0, value)
@@ -921,6 +970,12 @@ object Reflect {
       new DynamicValue.Record(Chunk.fromArray(result))
     }
 
+    /**
+     * Transforms the node of each field at `path` extended by a field step with
+     * the field's name, then passes the transformed fields and this record's
+     * type ID, `recordBinding`, documentation, modifiers, stored default value
+     * and stored examples to `f.transformRecord` with `path`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
         fields <- Lazy.foreach(fields)(_.transform(path, Term.Type.Record, f))
@@ -942,8 +997,10 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
+    /** Returns a copy of this record whose type ID is `value`. */
     def typeId(value: TypeId[A]): Record[F, A] = copy(typeId = value)
 
+    /** Returns `Reflect.Type.Record`. */
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
     override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
@@ -1063,22 +1120,44 @@ object Reflect {
 
     protected def inner: Any = (cases, typeId, doc, modifiers)
 
+    /**
+     * `BindingType.Variant`: a variant holds a `Binding.Variant` in a bound
+     * reflect.
+     */
     type NodeBinding = BindingType.Variant
 
+    /** Returns a copy of this variant whose documentation is `value`. */
     def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with this variant's `fromDynamicValue`,
+     * or returns `None` when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `toDynamicValue`.
+     */
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with this variant's `fromDynamicValue`, in
+     * order, leaving out those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `toDynamicValue`, replacing the old ones.
+     */
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Variant[F, A] =
       copy(storedExamples = values.prepended(value).map(toDynamicValue))
 
+    /** Returns `variantBinding` as a `Binding.Variant`. */
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
     /**
@@ -1120,10 +1199,16 @@ object Reflect {
      */
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
 
+    /** Returns `variantBinding`. */
     def metadata: F[NodeBinding, A] = variantBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Variant[F, A] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this variant's
+     * modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Variant[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     /**
@@ -1158,11 +1243,22 @@ object Reflect {
         new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
 
+    /**
+     * Finds the case of `value` with the discriminator and returns a
+     * `DynamicValue.Variant` named after that case, whose payload is the case
+     * node's conversion of `value`.
+     */
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val case_ = cases(discriminator.discriminate(value))
       new DynamicValue.Variant(case_.name, case_.value.asInstanceOf[Reflect[F, A]].toDynamicValue(value))
     }
 
+    /**
+     * Transforms the node of each case at `path` extended by a case step with
+     * the case's name, then passes the transformed cases and this variant's
+     * type ID, `variantBinding`, documentation, modifiers, stored default value
+     * and stored examples to `f.transformVariant` with `path`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
@@ -1170,8 +1266,10 @@ object Reflect {
           f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield variant
 
+    /** Returns a copy of this variant whose type ID is `value`. */
     def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
 
+    /** Returns `Reflect.Type.Variant`. */
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
     override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
@@ -1215,21 +1313,43 @@ object Reflect {
 
     protected def inner: Any = (element, typeId, doc, modifiers)
 
+    /**
+     * `BindingType.Seq[C]`: a sequence holds a `Binding.Seq` in a bound
+     * reflect.
+     */
     type NodeBinding = BindingType.Seq[C]
 
+    /** Returns `seqBinding` as a `Binding.Seq`. */
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Seq[C], C[A]] = F.binding(seqBinding)
 
+    /** Returns a copy of this sequence whose documentation is `value`. */
     def doc(value: Doc): Sequence[F, A, C] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with this sequence's `fromDynamicValue`,
+     * or returns `None` when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[C[A]] =
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `toDynamicValue`.
+     */
     def defaultValue(value: => C[A])(implicit F: HasBinding[F]): Sequence[F, A, C] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with this sequence's `fromDynamicValue`, in
+     * order, leaving out those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[C[A]] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `toDynamicValue`, replacing the old ones.
+     */
     def examples(value: C[A], values: C[A]*)(implicit F: HasBinding[F]): Sequence[F, A, C] =
       copy(storedExamples = values.prepended(value).map(toDynamicValue))
 
@@ -1260,13 +1380,23 @@ object Reflect {
       }
     }
 
+    /** Returns `seqBinding`. */
     def metadata: F[NodeBinding, C[A]] = seqBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Sequence[F, A, C] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this sequence's
+     * modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Sequence[F, A, C] =
       copy(modifiers = this.modifiers ++ modifiers)
 
+    /**
+     * Returns a `DynamicValue.Sequence` of the elements in the order the
+     * deconstructor yields them, each converted by the element node.
+     */
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
       val len      = seqDeconstructor.size(value)
@@ -1279,6 +1409,12 @@ object Reflect {
       new DynamicValue.Sequence(Chunk.fromArray(result))
     }
 
+    /**
+     * Transforms the element node at `path` extended by the elements step, then
+     * passes it and this sequence's type ID, `seqBinding`, documentation,
+     * modifiers, stored default value and stored examples to
+     * `f.transformSequence` with `path`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
         element  <- element.transform(path(DynamicOptic.elements), f)
@@ -1304,8 +1440,13 @@ object Reflect {
      */
     def elemClassTag: ClassTag[A] = element.typeId.classTag.asInstanceOf[ClassTag[A]]
 
+    /** Returns a copy of this sequence whose type ID is `value`. */
     def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 
+    /**
+     * Returns a new `Reflect.Type.Sequence[C]()`, which equals every other
+     * `Reflect.Type.Sequence` value.
+     */
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
     override def asSequence(implicit ev: IsCollection[C[A]]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
@@ -1373,21 +1514,40 @@ object Reflect {
 
     protected def inner: Any = (key, value, typeId, doc, modifiers)
 
+    /** `BindingType.Map[M]`: a map holds a `Binding.Map` in a bound reflect. */
     type NodeBinding = BindingType.Map[M]
 
+    /** Returns `mapBinding` as a `Binding.Map`. */
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Map[M], M[K, V]] = F.binding(mapBinding)
 
+    /** Returns a copy of this map whose documentation is `value`. */
     def doc(value: Doc): Map[F, K, V, M] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with this map's `fromDynamicValue`, or
+     * returns `None` when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[M[K, V]] =
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `toDynamicValue`.
+     */
     def defaultValue(value: => M[K, V])(implicit F: HasBinding[F]): Map[F, K, V, M] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with this map's `fromDynamicValue`, in order,
+     * leaving out those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[M[K, V]] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `toDynamicValue`, replacing the old ones.
+     */
     def examples(value: M[K, V], values: M[K, V]*)(implicit F: HasBinding[F]): Map[F, K, V, M] =
       copy(storedExamples = values.prepended(value).map(toDynamicValue))
 
@@ -1432,13 +1592,24 @@ object Reflect {
      */
     def mapDeconstructor(implicit F: HasBinding[F]): MapDeconstructor[M] = F.mapDeconstructor(mapBinding)
 
+    /** Returns `mapBinding`. */
     def metadata: F[NodeBinding, M[K, V]] = mapBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Map[F, K, V, M] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this map's
+     * modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Map[F, K, V, M] =
       copy(modifiers = this.modifiers ++ modifiers)
 
+    /**
+     * Returns a `DynamicValue.Map` with one entry per entry of `value`, in the
+     * order the deconstructor yields them, the key and value converted by the
+     * key and value nodes.
+     */
     def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
@@ -1454,6 +1625,12 @@ object Reflect {
       new DynamicValue.Map(Chunk.fromArray(result))
     }
 
+    /**
+     * Transforms the key node at `path` extended by the map-keys step and the
+     * value node at `path` extended by the map-values step, then passes them
+     * and this map's type ID, `mapBinding`, documentation, modifiers, stored
+     * default value and stored examples to `f.transformMap` with `path`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, K, V, M]] =
       for {
         key   <- key.transform(path(DynamicOptic.mapKeys), f)
@@ -1462,8 +1639,13 @@ object Reflect {
           f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield map
 
+    /** Returns a copy of this map whose type ID is `value`. */
     def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
 
+    /**
+     * Returns a new `Reflect.Type.Map[M]()`, which equals every other
+     * `Reflect.Type.Map` value.
+     */
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
     override def asMap(implicit ev: IsMap[M[K, V]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
@@ -1528,19 +1710,35 @@ object Reflect {
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, doc)
 
+    /**
+     * `BindingType.Dynamic`: a dynamic node holds a `Binding.Dynamic` in a
+     * bound reflect.
+     */
     type NodeBinding = BindingType.Dynamic
 
+    /** Returns `dynamicBinding` as a `Binding.Dynamic`. */
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Dynamic, DynamicValue] = F.binding(dynamicBinding)
 
+    /** Returns a copy of this dynamic node whose documentation is `value`. */
     def doc(value: Doc): Dynamic[F] = copy(doc = value)
 
+    /** Returns the stored default value as it is. */
     def getDefaultValue(implicit F: HasBinding[F]): Option[DynamicValue] = storedDefaultValue
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and stored as it is.
+     */
     def defaultValue(value: => DynamicValue)(implicit F: HasBinding[F]): Dynamic[F] =
       copy(storedDefaultValue = new Some(value))
 
+    /** Returns the stored examples as they are. */
     def examples(implicit F: HasBinding[F]): Seq[DynamicValue] = storedExamples
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * stored as they are, replacing the old ones.
+     */
     def examples(value: DynamicValue, values: DynamicValue*)(implicit F: HasBinding[F]): Dynamic[F] =
       copy(storedExamples = values.prepended(value))
 
@@ -1548,22 +1746,36 @@ object Reflect {
       F: HasBinding[F]
     ): Either[SchemaError, DynamicValue] = new Right(value)
 
+    /** Returns `dynamicBinding`. */
     def metadata: F[NodeBinding, DynamicValue] = dynamicBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Dynamic[F] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this dynamic
+     * node's modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Dynamic[F] = copy(modifiers = this.modifiers ++ modifiers)
 
+    /** Returns `value` unchanged. */
     def toDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): DynamicValue = value
 
+    /**
+     * Passes `path` and this node's type ID, `dynamicBinding`, documentation,
+     * modifiers, stored default value and stored examples to
+     * `f.transformDynamic`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
         dynamic <-
           f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers, storedDefaultValue, storedExamples)
       } yield dynamic
 
+    /** Returns a copy of this dynamic node whose type ID is `value`. */
     def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
 
+    /** Returns `Reflect.Type.Dynamic`. */
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
     override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
@@ -1606,21 +1818,44 @@ object Reflect {
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeId, doc, modifiers)
 
+    /**
+     * `BindingType.Primitive`: a primitive node holds a `Binding.Primitive` in
+     * a bound reflect.
+     */
     type NodeBinding = BindingType.Primitive
 
+    /** Returns `primitiveBinding` as a `Binding.Primitive`. */
     def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
+    /** Returns a copy of this primitive node whose documentation is `value`. */
     def doc(value: Doc): Primitive[F, A] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with `primitiveType`, or returns `None`
+     * when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
       storedDefaultValue.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `primitiveType.toDynamicValue`.
+     */
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Primitive[F, A] =
       copy(storedDefaultValue = new Some(primitiveType.toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with `primitiveType`, in order, leaving out
+     * those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => primitiveType.fromDynamicValue(dv, Nil).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `primitiveType.toDynamicValue`, replacing the old
+     * ones.
+     */
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Primitive[F, A] =
       copy(storedExamples = values.prepended(value).map(primitiveType.toDynamicValue))
 
@@ -1628,15 +1863,30 @@ object Reflect {
       F: HasBinding[F]
     ): Either[SchemaError, A] = primitiveType.fromDynamicValue(value, trace)
 
+    /** Returns `primitiveBinding`. */
     def metadata: F[NodeBinding, A] = primitiveBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Primitive[F, A] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this primitive
+     * node's modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Primitive[F, A] =
       copy(modifiers = this.modifiers ++ modifiers)
 
+    /**
+     * Converts `value` with `primitiveType.toDynamicValue`, which wraps it in a
+     * `DynamicValue.Primitive` without checking the validation.
+     */
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = primitiveType.toDynamicValue(value)
 
+    /**
+     * Passes `path` and this node's primitive type, type ID,
+     * `primitiveBinding`, documentation, modifiers, stored default value and
+     * stored examples to `f.transformPrimitive`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
         primitive <- f.transformPrimitive(
@@ -1651,8 +1901,10 @@ object Reflect {
                      )
       } yield primitive
 
+    /** Returns a copy of this primitive node whose type ID is `value`. */
     def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
 
+    /** Returns `Reflect.Type.Primitive`. */
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
     override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
@@ -1705,21 +1957,43 @@ object Reflect {
     def underlyingPrimitiveType: Option[PrimitiveType[A]] =
       PrimitiveType.fromTypeId(typeId)
 
+    /**
+     * `BindingType.Wrapper[A, B]`: a wrapper holds a `Binding.Wrapper` in a
+     * bound reflect.
+     */
     type NodeBinding = BindingType.Wrapper[A, B]
 
+    /** Returns `wrapperBinding` as a `Binding.Wrapper`. */
     def binding(implicit F: HasBinding[F]): Binding.Wrapper[A, B] = F.wrapper(wrapperBinding)
 
+    /** Returns a copy of this wrapper whose documentation is `value`. */
     def doc(value: Doc): Wrapper[F, A, B] = copy(doc = value)
 
+    /**
+     * Decodes the stored default value with this wrapper's `fromDynamicValue`,
+     * or returns `None` when there is none or it does not decode.
+     */
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] =
       storedDefaultValue.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored default value is `value`, evaluated when this
+     * method is called and converted with `toDynamicValue`.
+     */
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
       copy(storedDefaultValue = new Some(toDynamicValue(value)))
 
+    /**
+     * Decodes each stored example with this wrapper's `fromDynamicValue`, in
+     * order, leaving out those that do not decode.
+     */
     def examples(implicit F: HasBinding[F]): Seq[A] =
       storedExamples.flatMap(dv => fromDynamicValue(dv).toOption)
 
+    /**
+     * Returns a copy whose stored examples are `value` followed by `values`,
+     * each converted with `toDynamicValue`, replacing the old ones.
+     */
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
       copy(storedExamples = values.prepended(value).map(toDynamicValue))
 
@@ -1736,16 +2010,32 @@ object Reflect {
         case left => left.asInstanceOf[Either[SchemaError, A]]
       }
 
+    /** Returns `wrapperBinding`. */
     def metadata: F[NodeBinding, A] = wrapperBinding
 
+    /** Returns a copy with `modifier` appended to `modifiers`. */
     def modifier(modifier: Modifier.Reflect): Wrapper[F, A, B] = copy(modifiers = modifiers.appended(modifier))
 
+    /**
+     * Returns a copy with `modifiers` appended, in order, to this wrapper's
+     * modifiers.
+     */
     def modifiers(modifiers: Iterable[Modifier.Reflect]): Wrapper[F, A, B] =
       copy(modifiers = this.modifiers ++ modifiers)
 
+    /**
+     * Unwraps `value` with the binding's `unwrap` and converts the result with
+     * the `wrapped` node, so the dynamic value has the form of `B`.
+     */
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
       wrapped.toDynamicValue(binding.unwrap(value))
 
+    /**
+     * Transforms the `wrapped` node at the same `path`, without a wrapped step,
+     * then passes it and this wrapper's type ID, `wrapperBinding`,
+     * documentation, modifiers, stored default value and stored examples to
+     * `f.transformWrapper` with `path`.
+     */
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
@@ -1761,6 +2051,7 @@ object Reflect {
                    )
       } yield wrapper
 
+    /** Returns a copy of this wrapper whose type ID is `value`. */
     def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
@@ -1771,6 +2062,10 @@ object Reflect {
 
     override def toString: String = ReflectPrinter.printWrapper(this)
 
+    /**
+     * Returns a new `Reflect.Type.Wrapper[A, B]()`, which equals every other
+     * `Reflect.Type.Wrapper` value.
+     */
     def nodeType: Reflect.Type.Wrapper[A, B] = new Reflect.Type.Wrapper
   }
 
@@ -1827,8 +2122,10 @@ object Reflect {
     /** The node that this one stands for, built on first access. */
     final lazy val value: Reflect[F, A] = _value()
 
+    /** The kind of binding of `value`, the node that this one stands for. */
     type NodeBinding = value.NodeBinding
 
+    /** Returns the binding of `value`, the node that this one stands for. */
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
     /**
@@ -1868,6 +2165,7 @@ object Reflect {
       F: HasBinding[F]
     ): Either[SchemaError, A] = this.value.fromDynamicValue(value, trace)
 
+    /** Returns the metadata of `value`, the node that this one stands for. */
     def metadata: F[NodeBinding, A] = value.metadata
 
     /** Returns the modifiers of `value`. */
@@ -1883,6 +2181,9 @@ object Reflect {
     /** Returns the documentation of `value`. */
     def doc: Doc = value.doc
 
+    /**
+     * Converts `value` with `this.value`, the node that this one stands for.
+     */
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = this.value.toDynamicValue(value)
 
     /**
