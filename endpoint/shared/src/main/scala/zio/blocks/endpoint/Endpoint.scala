@@ -199,7 +199,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
    * Builds the `(body, status)` codec pair shared by every `out(schema, ...)`
    * overload. `status = None` pairs the body with [[HttpCodec.Ok]] (200), while
    * `Some(status)` pairs it with exactly that status. The pair is returned
-   * uncombined so each call site keeps its own `++` / `|` implicit resolution.
+   * uncombined so each call site keeps its own `++` or `|` implicit resolution.
    */
   private def bodyOut[O2](
     status: Option[Status],
@@ -349,9 +349,9 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
 
   /**
    * Builds the `(body, status)` codec pair shared by every
-   * `outError(status, ...)` / `orOutError(status, ...)` overload. Unlike
+   * `outError(status, ...)` or `orOutError(status, ...)` overload. Unlike
    * `bodyOut`, the status is always explicit — error bodies never default to
-   * `Ok`. Returned uncombined so each call site keeps its own `++` / `|`
+   * `Ok`. Returned uncombined so each call site keeps its own `++` or `|`
    * implicit resolution.
    */
   private def errorOut[E2](

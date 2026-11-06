@@ -169,9 +169,9 @@ sealed trait SegmentCodec[A] { self =>
   }
 
   /**
-   * Writes `value` as a one-segment path with a leading slash, as in `/42`.
-   * Numbers and UUIDs use `toString`, so a UUID is written in lower case. A
-   * string is copied as it is.
+   * Writes `value` after a leading slash, as in `/42`. Numbers and UUIDs use
+   * `toString`, so a UUID is written in lower case. A string is copied as it
+   * is.
    */
   final def format(value: A): Path =
     Path(s"/${SegmentCodec.formatSegment(self, value)}")

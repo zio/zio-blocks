@@ -77,8 +77,8 @@ sealed trait HttpCodec[+K <: CodecKind, A] { self =>
    * Combines this codec with `that`: both sets of parts are present, and their
    * values join with `Tuples`: `Unit` drops out, and adding values one at a
    * time on the right builds a flat tuple. When `that` is itself a combination,
-   * Scala 3 flattens the result, but Scala 2 nests it: `a ++ (b
-   * ++ c)` gives `(A, (B, C))`.
+   * Scala 3 flattens the result and Scala 2 nests it, so on Scala 2
+   * `a ++ (b ++ c)` gives `(A, (B, C))`.
    */
   def ++[B, C](that: HttpCodec[K @uncheckedVariance, B])(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C]
