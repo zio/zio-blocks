@@ -848,6 +848,91 @@ Found 2026-11-06 while fact-checking `ElementPatchMode`, on branch `scala3-web-m
 
 **Fix.** "`Outer` | Morph the target element into the new content *(default)*", "`Inner` | Morph the target's children", "`Replace` | Replace the target element without morphing".
 
+### `reference/telemetry/common/index.md`: `AttributeKey` is not a case class, and a wrong key name or type is not a compile error
+
+Found 2026-11-06 while fact-checking the telemetry Scaladoc (Task 1) against `docs/reference/telemetry/common/index.md`, on `main` at `121cb1024`. Same at tag `v0.0.56`.
+
+**Summary.** The "Design" list says "`AttributeKey` is a small case class carrying the name and the value type, so a typo in a name or a mismatched type is a compile error rather than a silently separate series." `AttributeKey` is a sealed trait whose cases are private case classes (`telemetry/shared/src/main/scala/zio/blocks/telemetry/AttributeKey.scala:29-32`, `:84-114`). A typo in a key name compiles and reads a different attribute, and a key of the wrong type compiles and returns a wrongly typed value (see the Usability traps entry "`Attributes#get` ignores the key's type"; run output: `Some(503)` for a `String` key over a `Long` attribute, then `ClassCastException`).
+
+**Suggested fix.** Replace the bullet with: "`AttributeKey` ties a name to a value type, so `Attributes#get` returns a typed `Option`. Define each key once as a `val` and reuse it: two keys with the same name read the same attribute whatever their type."
+
+### `reference/telemetry/metrics/metric-data.md` and `metrics/index.md`: a histogram point's `bucketCounts` and `boundaries` are fresh copies, not the instrument's arrays
+
+Found 2026-11-06 while fact-checking the telemetry Scaladoc (Task 2) against `docs/reference/telemetry/metrics/`, on `main` at `121cb1024`. Same at tag `v0.0.56`.
+
+**Summary.** `metric-data.md:12` says "Each collection builds fresh points, though a histogram point exposes its `boundaries` and `bucketCounts` arrays as-is, so read them and don't write to them", and `index.md:99` says "a histogram point hands you its `boundaries` and `bucketCounts` arrays directly, so treat them as read-only". `Histogram.collect` copies both arrays into each point (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Histogram.scala:87-88`, `state.bucketCounts.clone()` and `boundaries.clone()`), so writing to a point's arrays changes nothing in the histogram or in later points. Verified with this program (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false HistogramArrays.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object HistogramArrays {
+  def firstPoint(h: Histogram): HistogramDataPoint =
+    h.collect() match {
+      case MetricData.HistogramData(points) => points.head
+      case other                            => throw new IllegalStateException(other.toString)
+    }
+
+  def main(args: Array[String]): Unit = {
+    val latency = MeterProvider.builder.build().get("shop").histogramBuilder("http.latency").build()
+    latency.record(42.0)
+
+    val first = firstPoint(latency)
+    first.bucketCounts(0) = 99L
+    first.boundaries(0) = -1.0
+
+    val second = firstPoint(latency)
+    println(second.bucketCounts.toList.take(5))
+    println(second.boundaries.toList.take(3))
+    println(first.bucketCounts eq second.bucketCounts)
+  }
+}
+// List(0, 0, 0, 0, 1)
+// List(0.0, 5.0, 10.0)
+// false
+```
+
+(The array that is shared is the one passed to `Histogram(name, description, unit, boundaries)`: the histogram keeps it without copying, so changing it afterwards changes the bucketing. That is a different array from the one in the data points.)
+
+**Suggested fix.** In `metric-data.md:12`, replace the sentence with: "Each collection builds fresh points; a histogram point holds its own copies of the bucket counts and boundaries." In `index.md:99`, replace "— a fresh value each call, though a histogram point hands you its `boundaries` and `bucketCounts` arrays directly, so treat them as read-only." with "— a fresh value on each call, including fresh copies of a histogram's `boundaries` and `bucketCounts` arrays."
+
+### `reference/telemetry/otel/index.md` and `custom-exporter.md`: `ExporterConfig#timeout` is never read, and the internal batch processor retries in place rather than re-queuing
+
+Found 2026-11-06 while fact-checking the otel Scaladoc (Task 3) against `docs/reference/telemetry/otel/`, on `main` at `121cb1024`. Same at tag `v0.0.56`.
+
+**Summary.** Four statements on the two otel reference pages do not match the code.
+
+1. `index.md:39` says "`timeout` bounds a single send attempt". Nothing in the module reads `ExporterConfig#timeout`: the exporters take an `HttpSender` built separately and use only `endpoint`, `headers`, `maxQueueSize`, `maxBatchSize` and `flushIntervalMillis` (`git grep -n "config\." -- otel/src/main` lists `config.endpoint`, `config.maxQueueSize`, `config.maxBatchSize`, `config.flushIntervalMillis` and `config.headers` in `OtlpJsonExporter.scala:22`, never `config.timeout`). The timeout that bounds a send is the one given to `HttpSender.jdk(timeout)`.
+2. `custom-exporter.md:202` says the internal `BatchProcessor` "re-queues a batch whose `ExportResult` was `Failure(retryable = true)`". It never re-queues: `exportWithRetry` retries the same batch in place up to 5 more times (6 attempts), sleeping 1 s, 2 s, 4 s, 8 s and 16 s on the exporting thread (`otel/src/main/scala/zio/blocks/telemetry/otel/BatchProcessor.scala:96-129`, the sleep at `:124`), then drops it with a line on standard error; it also stops retrying once `shutdown` has begun (`:112`, `:119`). An exception from the export counts as a retryable failure (`:97-101`). The `otel/test` run prints `[zio-blocks-telemetry] BatchProcessor export failed after 6 attempts: HTTP 429. Dropping 1 items.`
+3. `index.md:129` says "`extract` returns `None` when the header is absent or malformed". Two known bugs make this untrue: `W3CTraceContextPropagator.extract` accepts some malformed `traceparent` values (extra characters after the flags, upper-case hex, a `+` sign) and `B3Propagator.single.extract` returns `Some` of an invalid context for a sampling-only `b3` header. The page could say "returns `None` for a missing header or one it cannot parse; check `SpanContext#isValid`, since `B3Propagator.single` returns an invalid context for a sampling-only header".
+4. `custom-exporter.md:73` says "`trace.collectedSpans` returns everything recorded so far". It returns the last 1024 ended spans, oldest first (Task 2's probe R1), and after `trace.install` or `trace.removeAll()` it gets no new spans except from tracers taken with `trace.get` before (a known bug). A flush loop built on it loses spans beyond 1024 between flushes.
+
+Minor: the encoding table at `custom-exporter.md:54` says control characters are escaped "including lone surrogates"; the encoder escapes every UTF-16 surrogate, paired or not (`OtlpJsonEncoder.scala:114`), so an emoji is written as an escaped pair. The output is valid JSON either way.
+
+**Suggested fix.** In `index.md:39`, replace "and `timeout` bounds a single send attempt" with "and `timeout` is the value to pass to `HttpSender.jdk`, which bounds a single send attempt (nothing else reads it)". In `custom-exporter.md:202`, replace the bullet with "**Retry on retryable failures.** It retries a batch whose `ExportResult` was `Failure(retryable = true)` (or whose export threw) up to five more times, waiting 1, 2, 4, 8 and 16 seconds on the flushing thread, and drops it after that or at once when the failure is not retryable." In `index.md:129`, apply the wording in item 3. In `custom-exporter.md:73`, replace "returns everything recorded so far" with "returns the last 1024 ended spans". In `custom-exporter.md:54`, replace "including lone surrogates" with "and every UTF-16 surrogate".
+
+### `reference/telemetry/logging/` and `tracing/index.md`: four statements about the global `log` and `trace` that the code does not keep
+
+Found 2026-11-06 while fact-checking the telemetry Scaladoc against `docs/reference/telemetry/`, on `main` at `121cb1024`. Same at tag `v0.0.56`.
+
+**Summary.** Four statements on the logging and tracing reference pages do not match the code.
+
+1. `logging/logger.md:14` says of the name passed to `LoggerProvider#get`: "That name travels with every record". Records from the global `log.*` calls keep the instrumentation scope `zio.blocks.telemetry.log` after `log.install(provider.get("com.shop.payments", "2.1.0"))`; only records from the `Logger`'s own methods carry the name (run output of Task 1's Usability traps entry "`log.*` records ignore the name and version of the logger given to `log.install`": `through log -> zio.blocks.telemetry.log None`, `through the logger -> com.shop.payments Some(2.1.0)`). Cause: `telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:23-24`.
+2. `logging/index.md:150` says `withMinSeverity(severity) { … }` "lowers the floor for just that block and restores it afterward — no cleanup needed". The floor applies to every thread while the block runs, not only to the caller, and when the block ends it puts back the whole earlier state, so a processor, writer, logger or prefix override added inside the block stops working (Task 1's Library bugs entry "`log.withMinSeverity` undoes every logging change made inside its block"; restore at `log.scala:80`).
+3. `logging/log-formatter.md:17` says the two built-in formatters are "both safe to share across threads, with `TextLogFormatter` caching its timestamp prefix for the current second". The cache is two separate `@volatile` fields written one after the other (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:49-50`, writes at `:71-72` and `:156-157`), so two threads formatting records from different seconds can print a line with the other record's date and time (entry 2 below, run output: 379 and 561 wrong lines of 400000 in two runs).
+4. `tracing/index.md:120` says that "once you call `trace.install(...)`, they stop seeing new spans" (`collectedSpans` and `clearSpans`). Spans from tracers taken with `trace.get` before the install still land in the buffer, because those tracers keep the default provider and its in-memory processor (review probe: after `trace.install`, a span from a tracer taken before appeared in `trace.collectedSpans` as `List(early-span)`; `telemetry/shared/src/main/scala/zio/blocks/telemetry/trace.scala:53`, `install` replaces only the provider reference).
+
+**Suggested fix.**
+
+1. In `logger.md:14`, replace "That name travels with every record" with "That name travels with every record the logger's own methods emit; records from the global `log.*` calls keep the scope `zio.blocks.telemetry.log` even after `log.install` (a known bug in 0.0.56)".
+2. In `index.md:150`, replace "lowers the floor for just that block and restores it afterward — no cleanup needed" with "lowers the floor, for every thread, while the block runs, then puts back the logging set-up from before the block. A known bug in 0.0.56: anything the block itself changes, such as a processor added with `log.addProcessor`, is undone too".
+3. In `log-formatter.md:17`, replace "both safe to share across threads, with `TextLogFormatter` caching its timestamp prefix for the current second" with "both can be shared across threads; `TextLogFormatter` caches its timestamp prefix for the current second, and a known bug in 0.0.56 lets a line logged at a second boundary from another thread carry the wrong second".
+4. In `tracing/index.md:120`, replace "they stop seeing new spans" with "they stop seeing new spans, except from tracers taken with `trace.get` before the install".
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

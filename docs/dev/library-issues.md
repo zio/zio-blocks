@@ -16632,6 +16632,604 @@ Real output:
 
 **Suggested fix.** Add `(?s)` to the regex (`"""(?s)\"extensions\"\s*:\s*\[(.*?)\]"""`). Fixing it changes the generated data (`MediaTypes.scala` gains `fileExtensions = List("disposition-notification")`), so do it in a PR together with a mime-db refresh. The generator also fetches `master` and nothing pins the data (master already has 6 types the committed file lacks); pinning the fetch to a commit makes runs reproducible.
 
+### telemetry: `JsonLogFormatter` writes invalid JSON for a record with an exception and a trace or span id
+
+Found 2026-11-06 while writing the Scaladoc of `JsonLogFormatter` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `JsonLogFormatter` puts an exception's stack trace into the `attributes` array by deleting the last character of the line so far, assuming it is the `]` that closes the array. When the record also has a trace or span id, the line ends with the closing quote of that id instead, so the quote is deleted and the stack-trace attribute is appended after the id. Every `log.error("...", e)` inside a span therefore produces a line that a JSON parser rejects. `log.*` records always have attributes (the four `code.*` keys), so only the span condition matters in practice.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false JsonStacktrace.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import scala.collection.mutable.ListBuffer
+
+object JsonStacktrace {
+  def main(args: Array[String]): Unit = {
+    val lines = ListBuffer.empty[String]
+    val memory = new LogWriter {
+      def write(content: CharSequence): Unit = lines += content.toString
+    }
+    log.install(LoggerProvider.builder.build().get("shop"))
+    log.writer(JsonLogFormatter, memory)
+    val failure: Throwable = new IllegalStateException("card declined")
+    trace.span("checkout") { _ =>
+      log.error("charge failed", failure)
+    }
+    val line = lines.head
+    val at   = line.indexOf("\"spanId\"")
+    println(line.substring(at, at + 80))
+  }
+}
+// "spanId":"81012d904c68ee99,{"key":"exception.stacktrace","value":{"stringValue":
+```
+
+The span id has no closing quote, and the stack-trace attribute sits outside the `attributes` array.
+
+**Expected.** `"spanId":"81012d904c68ee99"` followed by a valid structure, with `exception.stacktrace` inside the `attributes` array.
+
+**Root cause.** `JsonLogFormatter.format` and `JsonLogFormatter.formatRecord` write the attributes array, then `traceId` and `spanId`, and only then handle the throwable with `sb.setLength(sb.length - 1)` to reopen the array (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:431-443` and `:533-545`, `setLength` at `:438` and `:540`). After `traceId`/`spanId` (`:419-428`, `:521-530`) the last character is `"`, not `]`.
+
+**Impact.** Any JSON log line of an error logged with its exception inside a span is not valid JSON, so a log collector drops or mangles exactly the lines that matter most. It affects `log.writer(JsonLogFormatter, ...)` outputs, the most common production set-up.
+
+**Test gap.** `LogFormatterSpec.scala:344-385` and `telemetry/jvm/src/test/scala/zio/blocks/telemetry/BranchCoverageSpec.scala:585` test the stack trace with no trace ids, or check fragments with `.contains`; no test parses a line that has an exception and a span id.
+
+**Suggested fix.** Write the `exception.stacktrace` attribute into the attributes array before appending `traceId` and `spanId` (or collect the attributes first and close the array once). Add a test that parses the full line for a record with attributes, both ids and a throwable, through `format` and `formatRecord`.
+
+### telemetry (Scala 3): `log.error("...", e)` does not compile when `e`'s static type is a subclass of `Throwable`
+
+Found 2026-11-06 while writing the Scaladoc of the `log.*` methods (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The `log.*` macros promise that a `Throwable` argument attaches an exception. On Scala 3, an argument whose static type is `IOException`, `RuntimeException` or any other subclass fails to compile with "No LogEnrichment instance found". Only a value typed exactly `Throwable` compiles, and it takes the slower `LogEnrichment` fallback path rather than the macro's own branch. `catch { case e: java.io.IOException => log.error("write failed", e) }`, the usual way to log a caught exception, does not compile.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli compile --server=false Repro.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val asThrowable: Throwable = new IllegalStateException("card declined")
+    log.error("charge failed", asThrowable)
+
+    val asRuntime: RuntimeException = new IllegalStateException("card declined")
+    log.error("charge failed", asRuntime)
+
+    try throw new java.io.IOException("disk full")
+    catch { case e: java.io.IOException => log.error("write failed", e) }
+  }
+}
+// -- Error: .../Repro.scala:14:31
+// 14 |    log.error("charge failed", asRuntime)
+//    |                               ^^^^^^^^^
+//    |No LogEnrichment instance found for type java.lang.RuntimeException. Provide an implicit LogEnrichment[java.lang.RuntimeException] instance.
+// -- Error: .../Repro.scala:17:69
+// 17 |    catch { case e: java.io.IOException => log.error("write failed", e) }
+//    |                                                                     ^
+//    |No LogEnrichment instance found for type java.io.IOException. Provide an implicit LogEnrichment[java.io.IOException] instance.
+// 2 errors found
+```
+
+The `Throwable`-typed call compiles but takes the `LogEnrichment` fallback rather than the fast path. With a `ConsoleLogRecordProcessor` subclass as the only processor, a plain `log.info` never calls its `onEmit` (the fast path formats the line itself), while `log.error` with a `Throwable`-typed value does (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false ThrowablePath.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object ThrowablePath {
+  final class CountingConsole extends ConsoleLogRecordProcessor {
+    var count = 0
+    override def onEmit(record: LogRecord): Unit = count += 1
+  }
+
+  def main(args: Array[String]): Unit = {
+    val counting = new CountingConsole
+    log.install(LoggerProvider.builder.addLogRecordProcessor(counting).build().get("shop"))
+    val failure: Throwable = new IllegalStateException("card declined")
+    log.info("plain")
+    println("onEmit calls: " + counting.count)
+    log.error("charge failed", failure)
+    println("onEmit calls: " + counting.count)
+  }
+}
+// 2026-11-06T20:04:58.350Z INFO  [(shop.ThrowablePath$,5,19).main:18] plain
+// onEmit calls: 0
+// onEmit calls: 1
+```
+
+The first line comes from the fast path (its bracket shows a separate known bug); the error line goes to the overriding `onEmit`, which prints nothing. Pairs, `Severity`, `Attributes` and `String` arguments all take the fast path.
+
+**Expected.** Any argument whose type conforms to `Throwable` compiles and is handled by the macro's `ThrowableKind` branch, as on Scala 2.13 (where the check is `argType <:< throwableType`, `scala-2/.../LogMacros.scala:223`).
+
+**Root cause.** The Scala 3 classifier tests for a throwable with `case '[_] if tpe <:< TypeRepr.of[Throwable] => ThrowableKind(idx)` inside `tpe.asType match` (`telemetry/shared/src/main/scala-3/zio/blocks/telemetry/LogMacros.scala:170`). The run shows that this case never matches, so every throwable reaches the `case '[t]` fallback (`:174-183`), which summons `LogEnrichment[t]`. `LogEnrichment` is invariant and has an instance only for `Throwable`, so any subclass fails.
+
+**Impact.** On Scala 3 the documented way to log an exception fails for nearly every real exception, whose static type is a subclass. Users must ascribe `e: Throwable` at every call. The reference page's example works only because it catches `case e: Throwable`.
+
+**Test gap.** `LogSpec.scala:184-185` passes a value declared `val ex: Throwable`; no test passes an argument whose static type is a subclass.
+
+**Suggested fix.** Test `tpe <:< TypeRepr.of[Throwable]` in a plain `if` before the `asType` match (or match `'[t]` and check `TypeRepr.of[t] <:< TypeRepr.of[Throwable]`), and add a test that logs a `java.io.IOException`-typed value on both Scala versions.
+
+### telemetry: `log.withMinSeverity` undoes every logging change made inside its block
+
+Found 2026-11-06 while writing the Scaladoc of `log.withMinSeverity` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `log.withMinSeverity(severity)(f)` is documented as "temporarily lower the filter threshold for the duration of a block". To restore the floor afterwards, it puts back the whole state it saw before the block: the logger, the floor and the prefix overrides. Anything `f` changed is lost: a processor added with `log.addProcessor`, a writer added with `log.writer`, a logger installed with `log.install`, or an override set with `log.setMinSeverity(prefix, ...)` stops working once the block ends, without an error. The floor also applies to every thread while `f` runs, not just the caller.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false WithMinSeverityDrops.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import scala.collection.mutable.ListBuffer
+
+object WithMinSeverityDrops {
+  def main(args: Array[String]): Unit = {
+    val records = ListBuffer.empty[String]
+    val inMemory = new LogRecordProcessor {
+      def onEmit(record: LogRecord): Unit = records += record.body.value
+      def shutdown(): Unit = ()
+      def forceFlush(): Unit = ()
+    }
+    log.install(LoggerProvider.builder.build().get("shop"), Severity.Info)
+    log.withMinSeverity(Severity.Debug) {
+      log.addProcessor(inMemory)
+      log.info("inside the block")
+    }
+    log.info("after the block")
+    println(records.toList)
+  }
+}
+// List(inside the block)
+```
+
+**Expected.** `List(inside the block, after the block)`: only the floor goes back to `Info`, and the processor stays.
+
+**Root cause.** `withMinSeverity` saves `prev = GlobalLogState.get()` and, in `finally`, sets `LogState(prev.logger, prev.minSeverity, prev.levelOverridesMap)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:76-81`, restore at `:80`), which replaces the logger and overrides that `f` installed.
+
+**Impact.** Code that sets up logging lazily inside a debugging block (for example, a library initialised for the first time inside a `withMinSeverity` call) silently loses its outputs. Hard to diagnose, since the outputs work inside the block.
+
+**Test gap.** `AdditionalCoverageSpec.scala:551-575` uses `withMinSeverity` only with a body that logs; no test changes the configuration inside it.
+
+**Suggested fix.** Restore only the floor: in `finally`, read the current state and set `LogState(current.logger, prev.minSeverity, current.levelOverridesMap)` (with a CAS loop like `setLevel`). Document that the floor is global, not per thread, or make it per thread with a `ContextStorage`.
+
+### telemetry: `LogMessage.Templated` equals a `Simple` message, but not the other way round
+
+Found 2026-11-06 while writing the Scaladoc of `LogMessage` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Templated#equals` returns `true` for a `LogMessage.Simple` with the same text, but `Simple` is a case class whose generated `equals` only accepts another `Simple`. Equality is therefore not symmetric, which breaks the `equals` contract; whether two records count as equal depends on which one is on the left, and a collection may or may not treat them as duplicates depending on insertion order. The `hashCode` contract is broken too: when `templated == simple` is `true`, their hash codes still differ, because `Templated#hashCode` is `value.hashCode` and `Simple` uses the case-class hash, so a `HashSet` or `HashMap` keyed by `LogMessage` treats them as different even where `==` says they are equal. On Scala 2.13 the compiler even warns that `simple == templated` "will always yield false".
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false TemplatedEquals.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object TemplatedEquals {
+  def main(args: Array[String]): Unit = {
+    val templated = new LogMessage.Templated(Array("order ", " placed"), Array(42))
+    val simple    = LogMessage.Simple("order 42 placed")
+    println(templated == simple)
+    println(simple == templated)
+    println(templated.hashCode == simple.hashCode)
+  }
+}
+// true
+// false
+// false
+```
+
+The same program on Scala 2.13.18 (directives `//> using scala 2.13.18` and `//> using dep dev.zio::zio-blocks-telemetry:0.0.56` in place of the first three lines) prints the same three lines, after this compiler warning:
+
+```
+// .../TemplatedEquals.scala:12: warning: comparing values of types zio.blocks.telemetry.LogMessage.Simple and zio.blocks.telemetry.LogMessage.Templated using `==` will always yield false
+//     println(simple == templated)
+//                    ^
+// 1 warning
+```
+
+**Expected.** Both `true` with equal hash codes, or both `false`.
+
+**Root cause.** `Templated.equals` has `case Simple(text) => value == text` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogRecord.scala:69-73`), and `Templated.hashCode` is `value.hashCode` (`:75`); `Simple` (`:38`) uses the case-class `equals` and `hashCode`.
+
+**Impact.** Small: tests that compare a recorded `LogRecord` with an expected one can pass or fail depending on argument order.
+
+**Test gap.** `AdditionalCoverageSpec.scala:150-165` asserts `templated == simple` but not `simple == templated`.
+
+**Suggested fix.** Override `equals` and `hashCode` on `Simple` to compare `value` against any `LogMessage` and give `Simple` the same `hashCode` as `Templated` (`text.hashCode`), or drop the cross-type case from `Templated`.
+
+### telemetry: `Resource#merge` keeps both values of a shared key, so `Resource.default.merge(...)` exports `service.name` twice
+
+Found 2026-11-06 while reviewing the telemetry Scaladoc rollout (`Resource`), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The reference page `reference/telemetry/index.md` ("Production Provider Installation", line 236 at `121cb1024`, line 225 at `v0.0.56`) builds the service resource with `Resource.default.merge(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))`, and `common/resource.md:24` says the other resource's attributes "take precedence on duplicate keys". `merge` appends, so the result holds `service.name` twice. `attributes.get` returns the later value, but `OtlpJsonEncoder` writes every entry, so each export carries `service.name = unknown_service` and then the real name. OpenTelemetry requires each attribute key once; a backend that keeps the first entry groups the service's telemetry under `unknown_service`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-telemetry` and `zio-blocks-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false MergedResource.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+import java.nio.charset.StandardCharsets
+
+object MergedResource {
+  def main(args: Array[String]): Unit = {
+    val resource = Resource.default.merge(Resource.create(Attributes.of(Attributes.ServiceName, "checkout")))
+    println(resource.attributes.get(Attributes.ServiceName))
+    val json = new String(OtlpJsonEncoder.encodeTraces(Nil, resource, InstrumentationScope("checkout")), StandardCharsets.UTF_8)
+    println(json.substring(0, json.indexOf(",\"scopeSpans\"")))
+  }
+}
+// Some(checkout)
+// {"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"unknown_service"}},{"key":"telemetry.sdk.name","value":{"stringValue":"zio-blocks"}},{"key":"telemetry.sdk.language","value":{"stringValue":"scala"}},{"key":"telemetry.sdk.version","value":{"stringValue":"0.0.56"}},{"key":"service.name","value":{"stringValue":"checkout"}}]}
+```
+
+**Expected.** One `service.name` entry, `checkout`, as the reference page's "take precedence" promises.
+
+**Root cause.** `ResourceOps#merge` is `Resource(self.attributes ++ other.attributes)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Resource.scala:78-79`), and `Attributes#++` concatenates the arrays without removing keys that `other` redefines (`Attributes.scala:155`). `OtlpJsonEncoder.writeAttributes` writes every entry (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:197`).
+
+**Impact.** Every service that follows the documented set-up exports a duplicate `service.name`, with `unknown_service` first, on every span, log record and metric.
+
+**Test gap.** `telemetry/jvm/src/test/scala/zio/blocks/telemetry/AdditionalCoverageSpec.scala:359-373` ("Resource create default and merge behave as expected") merges resources with disjoint keys only; no test merges a shared key or encodes a merged resource.
+
+**Suggested fix.** Make `merge` drop the entries of `self` whose key `other` holds (or make `Attributes#++` do so), and add a test that merges `Resource.default` with a `service.name` and asserts one entry in `toMap` order and in the encoded JSON. Until then, change the reference page's example to `Resource.create(Attributes.builder.put(Attributes.ServiceName, "payments").build)`.
+
+### telemetry: `JsonLogFormatter` writes a `NaN` or infinite `Double` attribute as a bare `NaN` or `Infinity`, which is not valid JSON
+
+Found 2026-11-06 while reviewing the Scaladoc of `JsonLogFormatter` (telemetry Scaladoc rollout), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Related.** The otel entry "otel: `OtlpJsonEncoder` writes a `NaN` or infinite `Double` as a bare `NaN` or `Infinity`, which is not valid JSON" has the same cause: both JSON writers append a `Double` with `StringBuilder#append(Double)`; fix them together.
+
+**Summary.** `JsonLogFormatter`, the JSON output for `log.writer`, writes a `Double` attribute that is `NaN`, `Infinity` or `-Infinity` as a bare word. JSON (RFC 8259) has no such values, so a log collector that parses each line rejects the whole line. A ratio computed before its first sample (`hits / lookups` with no lookups) is enough to trigger it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false JsonNaN.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import scala.collection.mutable.ListBuffer
+
+object JsonNaN {
+  def main(args: Array[String]): Unit = {
+    val lines  = ListBuffer.empty[String]
+    val memory = new LogWriter { def write(content: CharSequence): Unit = lines += content.toString }
+    log.install(LoggerProvider.builder.build().get("shop"))
+    log.writer(JsonLogFormatter, memory)
+    log.info("cache stats", "hit.ratio" -> 0.0 / 0.0)
+    val line = lines.head
+    println(line.substring(line.indexOf("{\"key\":\"hit.ratio\"")))
+  }
+}
+// {"key":"hit.ratio","value":{"doubleValue":NaN}}]}
+```
+
+**Expected.** `"doubleValue":"NaN"`, as the protobuf JSON mapping that the OTLP log data model follows writes it, so the line stays valid JSON.
+
+**Root cause.** `JsonLogFormatter` writes `"doubleValue":` and then `sb.append(doubleValue)` in `appendJsonAttribute` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:563-565`) and in `appendJsonScalarValue` (`:594-596`), which the elements of a `Double` sequence also reach through `jsonDoubleSeq` (`:609`).
+
+**Impact.** One non-finite attribute makes its log line unparseable; a collector drops or mangles it, and nothing warns at the call site.
+
+**Test gap.** No telemetry test logs a non-finite `Double` (`grep -rn NaN telemetry/*/src/test` finds nothing), and no test parses a `JsonLogFormatter` line with a JSON parser.
+
+**Suggested fix.** In `appendJsonAttribute` and `appendJsonScalarValue`, write `"NaN"`, `"Infinity"` or `"-Infinity"` (quoted) when `value.isNaN || value.isInfinite`, and add a test that logs each of them and parses the line.
+
+### telemetry: `TraceId.fromHex`, `SpanId.fromHex` and `TraceFlags.fromHex` accept a leading `+` or `-`, so the W3C propagator accepts a malformed `traceparent`
+
+Found 2026-11-06 while writing the Scaladoc of `SpanId.fromHex` (telemetry Scaladoc rollout, Task 2), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The three `fromHex` parsers check only the length of the string, then hand it to `java.lang.Long.parseUnsignedLong` or `java.lang.Integer.parseInt`, which accept a sign. So `SpanId.fromHex("+0f067aa0ba902b7")` returns a span id, `TraceId.fromHex` accepts a `+` at the start of either 16-digit half, and `TraceFlags.fromHex("-1")` returns the flags `ff`. `W3CTraceContextPropagator.extract` relies on these parsers to validate the ids, so it accepts a `traceparent` such as `00-+bf92f3577b34da6a3ce929d0e0e4736-+0f067aa0ba902b7--1`, which the W3C Trace Context specification rejects (each field is lowercase hex digits only), and turns the flags field `-1` into `ff` (every flag bit set, including the sampled bit).
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` and `zio-blocks-next-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false SignedHex.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+object SignedHex {
+  def main(args: Array[String]): Unit = {
+    println(SpanId.fromHex("+0f067aa0ba902b7"))
+    println(TraceId.fromHex("+bf92f3577b34da6a3ce929d0e0e4736").map { case (hi, lo) => TraceId.toHex(hi, lo) })
+    println(TraceFlags.fromHex("-1"))
+    println(TraceFlags.fromHex("+1"))
+
+    val header  = "00-+bf92f3577b34da6a3ce929d0e0e4736-+0f067aa0ba902b7--1"
+    val headers = Map("traceparent" -> header)
+    val ctx     = W3CTraceContextPropagator.extract[Map[String, String]](headers, (m, k) => m.get(k))
+    println(ctx.map(c => (c.traceIdHex, c.spanId.toHex, c.traceFlags.toHex)))
+  }
+}
+// Some(SpanId(00f067aa0ba902b7))
+// Some(0bf92f3577b34da6a3ce929d0e0e4736)
+// Some(TraceFlags(ff))
+// Some(TraceFlags(01))
+// Some((0bf92f3577b34da6a3ce929d0e0e4736,00f067aa0ba902b7,ff))
+```
+
+A `+` at the start of the second half is accepted too (Scala 2.13.18, `zio-blocks-telemetry` 0.0.56): `TraceId.fromHex("4bf92f3577b34da6+3ce929d0e0e4736")` gives `4bf92f3577b34da603ce929d0e0e4736`. A leading `-` in a span or trace id is rejected (`SpanId.fromHex("-0f067aa0ba902b7")` is `None`), because `parseUnsignedLong` refuses negative input.
+
+**Expected.** `None` for every string that is not made of hex digits only, and `None` from `W3CTraceContextPropagator.extract` for the header above.
+
+**Root cause.** `SpanId.fromHex` checks `s.length != 16` and calls `java.lang.Long.parseUnsignedLong(s, 16)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/SpanId.scala:89-98`, the call at `:93`); `TraceId.fromHex` does the same on both halves (`TraceId.scala:89-99`, `:93-94`); `TraceFlags.fromHex` calls `java.lang.Integer.parseInt(s, 16) & 0xff` (`TraceFlags.scala:79-88`, `:83`), so `-1` becomes `0xff`. Both JDK methods accept a leading `+`, and `parseInt` a leading `-`. `W3CTraceContextPropagator.extract` checks only the length, the three `-` separators and the version before calling them (`otel/src/main/scala/zio/blocks/telemetry/otel/W3CTraceContextPropagator.scala:40-56`).
+
+**Impact.** A service accepts and propagates trace context from a malformed header instead of starting a new trace, and a `-1` flags field turns on the sampled bit. Small in practice, since well-behaved clients never send signs, but the parsers are public and documented as rejecting non-hex input.
+
+**Test gap.** `TraceIdSpec.scala:44-75` and `ExtraCoverageSpec.scala:72-116` test non-hex letters (`"0102...0f1g"`, `"xyz"`) and wrong lengths, never a sign; `W3CTraceContextSpec.scala` has no header with a sign in it.
+
+**Suggested fix.** Check that every character is in `[0-9a-fA-F]` before parsing (or parse the digits by hand), in all three `fromHex` methods, and add tests with `+` and `-` for each, plus a `traceparent` test in `W3CTraceContextSpec`.
+
+**Addition (2026-11-06, otel side).** Append to the summary: `B3Propagator.single` and `B3Propagator.multi` parse ids with the same methods (`otel/src/main/scala/zio/blocks/telemetry/otel/B3Propagator.scala:57`, `:82`, `:122`), so they accept a `+` at the start of an id too. Reproduction (Scala 3.9.0, `zio-blocks-next-telemetry` and `zio-blocks-next-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false B3Sign.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry.otel._
+
+object B3Sign {
+  def main(args: Array[String]): Unit = {
+    val get = (headers: Map[String, String], name: String) => headers.get(name)
+    val single = B3Propagator.single.extract(Map("b3" -> "+bf92f3577b34da6-+0f067aa0ba902b7-1"), get)
+    println(single.map(c => (c.traceIdHex, c.spanId.toHex)))
+    val multi = B3Propagator.multi.extract(Map("X-B3-TraceId" -> "+bf92f3577b34da6a3ce929d0e0e4736", "X-B3-SpanId" -> "+0f067aa0ba902b7"), get)
+    println(multi.map(c => (c.traceIdHex, c.spanId.toHex)))
+  }
+}
+// Some((00000000000000000bf92f3577b34da6,00f067aa0ba902b7))
+// Some((0bf92f3577b34da6a3ce929d0e0e4736,00f067aa0ba902b7))
+```
+
+Append to **Test gap**: `B3PropagatorSpec.scala:130-145` and `:333-350` test non-hex letters and wrong lengths, never a sign. The suggested fix in the three `fromHex` methods fixes B3 too.
+
+### otel: `OtlpJsonEncoder.encodeMetrics` marks every sum monotonic and writes no `aggregationTemporality`
+
+Found 2026-11-06 while writing the Scaladoc of `OtlpJsonEncoder.encodeMetrics` (telemetry/otel Scaladoc rollout, Task 3), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `encodeMetrics` writes every `MetricData.SumData` as a `sum` with `"isMonotonic":true`, including the sums of an `UpDownCounter` and an `ObservableUpDownCounter`, whose values go down and can be negative. It writes no `aggregationTemporality` field on sums or on histograms, so a receiver reads the default `AGGREGATION_TEMPORALITY_UNSPECIFIED`, which the OTLP metrics data model says must not be used for these points. A backend may then treat an up-down counter as a counter (computing rates from values that go down) or drop the points for their unknown temporality.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` and `zio-blocks-next-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false SumTemporality.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+import java.nio.charset.StandardCharsets
+
+object SumTemporality {
+  def main(args: Array[String]): Unit = {
+    val meter  = MeterProvider.builder.build().get("checkout")
+    val active = meter.upDownCounterBuilder("db.pool.active").build()
+    active.add(5L)
+    active.add(-7L)
+    val latency = meter.histogramBuilder("http.latency").build()
+    latency.record(12.5)
+
+    val metrics = Seq(
+      NamedMetric("db.pool.active", "Connections in use", "1", active.collect()),
+      NamedMetric("http.latency", "Request latency", "ms", latency.collect())
+    )
+    val json = new String(OtlpJsonEncoder.encodeMetrics(metrics, Resource.empty, InstrumentationScope("checkout")), StandardCharsets.UTF_8)
+    println(json.substring(json.indexOf("\"asInt\""), json.indexOf("},{\"name\":\"http.latency\"")))
+    println(json.contains("aggregationTemporality"))
+  }
+}
+// "asInt":"-2"}],"isMonotonic":true}
+// false
+```
+
+**Expected.** `"isMonotonic":false` for an up-down counter's sum, and an `aggregationTemporality` on every sum and histogram (`2`, cumulative, since the instruments never reset).
+
+**Root cause.** `writeNamedMetric` writes `writeKeyBool(sb, "isMonotonic", true)` for every `SumData` and no temporality for `SumData` or `HistogramData` (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:372-390`, the flag at `:380`). `MetricData.SumData` does not record whether it came from a monotonic instrument: `UpDownCounter.collect` and `ObservableUpDownCounter.collect` return the same `SumData` as `Counter` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/UpDownCounter.scala:63`, `ObservableUpDownCounter.scala:36`), so the encoder cannot tell them apart.
+
+**Impact.** Every up-down counter exported through the encoder reaches the backend as a monotonic counter, and every sum and histogram reaches it with an unspecified temporality. The module's own (internal) metric exporter uses the same encoder.
+
+**Test gap.** `OtlpJsonEncoderSpec.scala:261` ("encodes sum metric (counter) with correct structure") checks `"isMonotonic":true` for a counter; no test encodes an up-down counter or checks for `aggregationTemporality`.
+
+**Suggested fix.** Add the monotonicity (and the temporality) to `MetricData.SumData`, set by each instrument's `collect`, or let `NamedMetric` carry them, and write `"aggregationTemporality":2` and the right `isMonotonic` in `writeNamedMetric`. Add an encoder test for an up-down counter and assert the temporality field on sums and histograms.
+
+### otel: `OtlpJsonEncoder` writes a `NaN` or infinite `Double` as a bare `NaN` or `Infinity`, which is not valid JSON
+
+Found 2026-11-06 while writing the Scaladoc of `OtlpJsonEncoder` (telemetry/otel Scaladoc rollout, Task 3), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The encoder writes every `Double` with `StringBuilder#append(Double)`, so `NaN`, `Infinity` and `-Infinity` come out as bare words. JSON (RFC 8259) has no such values, so the whole request body is invalid and a collector rejects the batch, losing every other span, record or point in it. The protobuf JSON mapping that OTLP/JSON follows writes them as the strings `"NaN"`, `"Infinity"` and `"-Infinity"`. A gauge of a ratio (`hits / lookups` before the first lookup) or a `Double` attribute computed from a division is enough to trigger it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` and `zio-blocks-next-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false NonFiniteDouble.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+import java.nio.charset.StandardCharsets
+
+object NonFiniteDouble {
+  def main(args: Array[String]): Unit = {
+    val meter = MeterProvider.builder.build().get("checkout")
+    val ratio = meter.gaugeBuilder("cache.hit.ratio").build()
+    ratio.record(0.0 / 0.0) // hits / lookups before the first lookup
+
+    val json = new String(
+      OtlpJsonEncoder.encodeMetrics(Seq(NamedMetric("cache.hit.ratio", "", "1", ratio.collect())), Resource.empty, InstrumentationScope("checkout")),
+      StandardCharsets.UTF_8
+    )
+    println(json.substring(json.indexOf("\"asDouble\"")))
+
+    val span = Attributes.of(AttributeKey.double("discount.rate"), Double.PositiveInfinity)
+    val res  = new String(OtlpJsonEncoder.encodeTraces(Nil, Resource.create(span), InstrumentationScope("checkout")), StandardCharsets.UTF_8)
+    println(res.substring(0, res.indexOf("]},")))
+  }
+}
+// "asDouble":NaN}]}}]}]}]}
+// {"resourceSpans":[{"resource":{"attributes":[{"key":"discount.rate","value":{"doubleValue":Infinity}}
+```
+
+**Expected.** `"asDouble":"NaN"` and `"doubleValue":"Infinity"`, as the protobuf JSON mapping writes them, so the body stays valid JSON.
+
+**Root cause.** `writeKeyDouble` appends the `Double` directly (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:149-152`); it writes `doubleValue` attributes (`:218`), histogram `sum`, `min` and `max` (`:433-437`) and gauge `asDouble` (`:477`). The `Double` sequences of `DoubleSeqValue` (`:247`) and the histogram's `explicitBounds` (`:460`) append the value the same way.
+
+**Impact.** One non-finite value makes a whole export request invalid, so a collector drops every signal in that batch, not only the bad value. Nothing warns: the encoder returns the bytes and the failure shows up only as a `400` from the collector.
+
+**Test gap.** `OtlpJsonEncoderSpec.scala:317` ("encodes gauge metric") and `:456` ("encodes double attribute") use finite values; no test encodes `NaN` or an infinity, and no test parses the output with a JSON parser.
+
+**Suggested fix.** In `writeKeyDouble` and the two inline loops, write `"NaN"`, `"Infinity"` or `"-Infinity"` (quoted) when `value.isNaN || value.isInfinite`, and add tests that encode each of them and parse the result.
+
+### otel: a histogram point with no values is exported with `min` `1.79E308` and `max` `-1.79E308`
+
+Found 2026-11-06 while writing the Scaladoc of `OtlpJsonEncoder.encodeMetrics` (telemetry/otel Scaladoc rollout, Task 3), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Histogram#bind` opens a series that `collect` reports right away, with a count of `0` and the sentinels `Double.MaxValue` and `Double.MinValue` as its `min` and `max` (Task 2 documented this in `Histogram#bind`). `encodeMetrics` writes them as they are, so a backend receives `"min":1.7976931348623157E308,"max":-1.7976931348623157E308` for a route that has served no request yet, and shows a minimum latency of 1.8e308 ms or ruins a min/max panel. OTLP's `min` and `max` are optional fields meant to be left out when there is nothing to report.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` and `zio-blocks-next-telemetry-otel` 0.0.56, JDK 25, `scala-cli run --server=false EmptyHistogramPoint.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+//> using dep dev.zio::zio-blocks-next-telemetry-otel:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+import java.nio.charset.StandardCharsets
+
+object EmptyHistogramPoint {
+  def main(args: Array[String]): Unit = {
+    val latency = MeterProvider.builder.build().get("checkout").histogramBuilder("http.latency").build()
+    latency.bind(Attributes.of(AttributeKey.string("http.route"), "/cart"))
+
+    val json = new String(
+      OtlpJsonEncoder.encodeMetrics(Seq(NamedMetric("http.latency", "", "ms", latency.collect())), Resource.empty, InstrumentationScope("checkout")),
+      StandardCharsets.UTF_8
+    )
+    println(json.substring(json.indexOf("\"count\""), json.indexOf(",\"bucketCounts\"")))
+  }
+}
+// "count":"0","sum":0.0,"min":1.7976931348623157E308,"max":-1.7976931348623157E308
+```
+
+**Expected.** `"count":"0","sum":0.0` with no `min` and `max` fields (or no point at all for an empty series).
+
+**Root cause.** `Histogram.State` starts `min` at `Double.MaxValue` and `max` at `Double.MinValue` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Histogram.scala:115-116`), and `bind` creates the state before any value arrives (`:48`). `writeHistogramDataPoint` writes `min` and `max` unconditionally (`otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonEncoder.scala:435-437`).
+
+**Impact.** Every bound but unused histogram series reaches the backend with absurd extremes, which distort min/max queries and dashboards until the first value arrives.
+
+**Test gap.** `OtlpJsonEncoderSpec.scala:284` ("encodes histogram metric") builds a point with `count` 3 and real `min`/`max`; no test encodes a point with a count of `0`.
+
+**Suggested fix.** In `writeHistogramDataPoint`, write `min` and `max` only when `pt.count > 0`, and add a test with an empty point.
+
+### telemetry: `TextLogFormatter` can print another record's timestamp when two threads log at once
+
+Found 2026-11-06 while applying review 1 of the telemetry Scaladoc rollout (`TextLogFormatter`), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `TextLogFormatter` caches the formatted date and time up to the second in two `@volatile` fields, `cachedSecond` and `cachedPrefix`, and updates them one after the other with no lock. While one thread has written the new second but not yet the new prefix, another thread that sees the new second uses the old prefix; two threads updating at once can also leave the second of one record paired with the prefix of the other. A line then shows a date and time that belongs to another record. `TextLogFormatter` is a shared singleton used by the default console output and by every `log.writer(TextLogFormatter, ...)` output, and the reference page says it is safe to share across threads. In a live program the records of concurrent threads are at most a second or so apart, so a line near a second boundary shows the neighbouring second; with timestamps further apart (as in the reproducer) the hour or date can be wrong too.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false TimestampRace.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
+
+object TimestampRace {
+  def record(epochSecond: Long): LogRecord =
+    LogRecord(epochSecond * 1000000000L, 0L, Severity.Info, "INFO", LogMessage.Simple("order placed"),
+      Attributes.empty, 0L, 0L, 0L, 0, Resource.empty, InstrumentationScope("shop"))
+
+  def main(args: Array[String]): Unit = {
+    val wrong   = new AtomicInteger(0)
+    val example = new java.util.concurrent.atomic.AtomicReference[String](null)
+    val threads = (0 until 2).map { t =>
+      new Thread(new Runnable {
+        def run(): Unit = {
+          val sb = new StringBuilder
+          var i  = 0
+          while (i < 200000) {
+            val second   = 1793990000L + (i % 7) * 3600L + t
+            val expected = Instant.ofEpochSecond(second).toString.dropRight(1) + ".000Z"
+            sb.clear()
+            TextLogFormatter.formatRecord(sb, record(second))
+            val line = sb.toString
+            if (!line.startsWith(expected)) {
+              wrong.incrementAndGet()
+              example.compareAndSet(null, "expected " + expected + ", got " + line.take(24))
+            }
+            i += 1
+          }
+        }
+      })
+    }
+    threads.foreach(_.start())
+    threads.foreach(_.join())
+    println("lines with a wrong timestamp: " + wrong.get() + " of 400000")
+    println(example.get())
+  }
+}
+// lines with a wrong timestamp: 379 of 400000
+// expected 2026-11-06T18:33:20.000Z, got 2026-11-06T18:33:21.000Z
+```
+
+The count changes from run to run; a second run printed `lines with a wrong timestamp: 561 of 400000` and `expected 2026-11-06T21:33:20.000Z, got 2026-11-06T23:33:21.000Z`. The other 399000-odd lines match, so the expected strings follow the formatter's format.
+
+**Expected.** `lines with a wrong timestamp: 0 of 400000`.
+
+**Root cause.** `TextLogFormatter.format` and `formatRecord` run `if (epochSecond != cachedSecond) { cachedSecond = epochSecond; cachedPrefix = formatDateTimePrefix(epochSecond) }` and then `sb.append(cachedPrefix)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/LogFormatter.scala:49-50` for the fields, `:70-74` in `format` and `:155-159` in `formatRecord`). The two writes are not atomic as a pair, and the window includes the whole `formatDateTimePrefix` computation, because `cachedSecond` is written before the new prefix is computed.
+
+**Impact.** Under concurrent logging, a few lines near each second boundary carry the wrong second, so they sort out of order and line up with the wrong events when a reader correlates logs by time. Rare, silent, and impossible to spot in the output.
+
+**Test gap.** `telemetry/jvm/src/test/scala/zio/blocks/telemetry/LogFormatterSpec.scala:125-134` sets the two cache fields by reflection to test the cache; `telemetry/jvm/src/test/scala/zio/blocks/telemetry/TelemetrySafetySpec.scala` tests `FileLogWriter`, `LogRateLimit` and `InMemorySpanProcessor` under contention, never a formatter.
+
+**Suggested fix.** Keep the second and the prefix in one immutable object held in a single `@volatile` field (for example `final class Cached(second: Long, prefix: String)`), read it once per call, and replace it with a new object when the second changes. Add a test that formats records from two different seconds on two threads and checks every line's timestamp.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -21714,6 +22312,226 @@ val events: List[DatastarEvent] = List(
 **Test gap.** `DatastarEventSpec` calls `renderSSE` on builders only; no test declares a `DatastarEvent`-typed value.
 
 **Suggested fix.** Make the three builders `extends DatastarEvent` (their `renderSSE` already matches), keeping the private case classes as the implementation.
+
+### telemetry: `log.setMinSeverity(severity)` removes every prefix override
+
+Found 2026-11-06 while writing the Scaladoc of `log.setMinSeverity` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. The reference page `docs/reference/telemetry/logging/index.md` ("Filter by Severity") already warns about it; the library behaviour is unchanged. Not filed on GitHub yet.
+
+**Summary.** The one-argument `log.setMinSeverity(severity)` sets the global floor by reinstalling the current logger, which also clears every override set with `log.setMinSeverity(prefix, severity)`. A program that reads its per-package levels first and its global level afterwards (a natural order when both come from configuration) loses the per-package levels with no error.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false GlobalFloorClearsOverrides.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import scala.collection.mutable.ListBuffer
+
+object GlobalFloorClearsOverrides {
+  def main(args: Array[String]): Unit = {
+    val records = ListBuffer.empty[String]
+    val inMemory = new LogRecordProcessor {
+      def onEmit(record: LogRecord): Unit = records += record.body.value
+      def shutdown(): Unit = ()
+      def forceFlush(): Unit = ()
+    }
+    log.install(LoggerProvider.builder.addLogRecordProcessor(inMemory).build().get("shop"))
+    log.setMinSeverity("shop", Severity.Error)
+    log.info("1: dropped by the shop override")
+    log.setMinSeverity(Severity.Info)
+    log.info("2: the shop override should still drop this")
+    println(records.toList)
+  }
+}
+// List(2: the shop override should still drop this)
+```
+
+**Expected.** `List()`: the `shop` override at `Error` still applies after the global floor changes.
+
+**Root cause.** `log.setMinSeverity(severity)` calls `GlobalLogState.install(GlobalLogState.get().logger, severity)` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:30-31`), and `install` builds `LogState(logger, minSeverity.number, Map.empty)` (`GlobalLogState.scala:88-89`).
+
+**Impact.** Silent loss of per-package levels; noisy dependencies come back after a global level change.
+
+**Test gap.** No test sets a prefix override and then the global floor.
+
+**Suggested fix.** Keep `current.levelOverridesMap` in `setMinSeverity(severity)` (a CAS loop like `setLevel`), and leave `install` as the call that resets everything.
+
+### telemetry: `Attributes#get` ignores the key's type and returns a wrongly typed value
+
+Found 2026-11-06 while writing the Scaladoc of `Attributes#get` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `AttributeKey[A]` exists so that `attrs.get(key)` returns an `Option[A]` without casting. `get` compares only the key's name, then casts the stored value to `A`. Reading a `Long` attribute with a `String` key returns `Some(503)` typed as `Option[String]`, and the program fails with a `ClassCastException` later, where the value is used, far from the mistake.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false WrongKeyType.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object WrongKeyType {
+  def main(args: Array[String]): Unit = {
+    val attrs  = Attributes.of(AttributeKey.long("http.status_code"), 503L)
+    val status = attrs.get(AttributeKey.string("http.status_code"))
+    println(status)
+    println(status.map(_.length))
+  }
+}
+// Some(503)
+// Exception in thread "main" java.lang.ClassCastException: class java.lang.Long cannot be cast to class java.lang.String (java.lang.Long and java.lang.String are in module java.base of loader 'bootstrap')
+// 	at scala.Option.map(Option.scala:279)
+// 	at shop.WrongKeyType$.main(WrongKeyType.scala:13)
+// 	at shop.WrongKeyType.main(WrongKeyType.scala)
+```
+
+**Expected.** `None` (the set holds no `String` attribute with that name), or a check that fails at the `get` call.
+
+**Root cause.** `Attributes.get` matches on `keys(i) == key.name` only and returns `Some(value.asInstanceOf[A])` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Attributes.scala:76-95`, cast at `:91`); the stored type tag `types(i)` is never compared with `key.type`.
+
+**Impact.** A typo in the key factory (`AttributeKey.string` for a numeric attribute, common with `http.status_code`) turns into a `ClassCastException` in unrelated code. The reference page `common/index.md` says a mismatched type is a compile error.
+
+**Test gap.** No test reads an attribute with a key of a different type.
+
+**Suggested fix.** Compare `types(i)` with the tag of `key.type` and return `None` when they differ.
+
+### telemetry: `log.*` records ignore the name and version of the logger given to `log.install`
+
+Found 2026-11-06 while writing the Scaladoc of `log.install` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** The docs tell users to install a logger with `log.install(provider.get("com.example.catalog"))`, and the Logger page says "That name travels with every record". Records from `log.*` calls take the installed logger's resource, processors and context storage, but their instrumentation scope is always `zio.blocks.telemetry.log` with no version. The name and version passed to `LoggerProvider#get` reach only records from the `Logger`'s own methods.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false LogScopeName.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+import scala.collection.mutable.ListBuffer
+
+object LogScopeName {
+  def main(args: Array[String]): Unit = {
+    val records = ListBuffer.empty[LogRecord]
+    val inMemory = new LogRecordProcessor {
+      def onEmit(record: LogRecord): Unit = records += record
+      def shutdown(): Unit = ()
+      def forceFlush(): Unit = ()
+    }
+    val logger = LoggerProvider.builder.addLogRecordProcessor(inMemory).build().get("com.shop.payments", "2.1.0")
+    log.install(logger)
+    log.info("through log")
+    logger.info("through the logger")
+    records.foreach(r => println(r.body.value + " -> " + r.instrumentationScope.name + " " + r.instrumentationScope.version))
+  }
+}
+// through log -> zio.blocks.telemetry.log None
+// through the logger -> com.shop.payments Some(2.1.0)
+```
+
+**Expected.** Either both records carry `com.shop.payments` / `2.1.0`, or `log.install`'s documentation says the name is not used.
+
+**Root cause.** The macros and `log.emit` pass `$self.logInstrumentationScope` / `logInstrumentationScope` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/log.scala:23-24`, used at `:150` and `:192`; the Scala 3 and Scala 2 `LogMacros` do the same) instead of `state.logger.instrumentationScope`.
+
+**Impact.** In an OTLP backend every log line from the global `log` shows the scope `zio.blocks.telemetry.log`, whatever name the application chose, so scope-based filtering of logs does not work.
+
+**Test gap.** No test checks the instrumentation scope of a `log.*` record after `log.install`.
+
+**Suggested fix.** Use `state.logger.instrumentationScope` in the expansion and in `log.emit`/`baseRecord`, or document the fixed scope on `log.install` and the Logger page.
+
+### telemetry: a subclass of `ConsoleLogRecordProcessor` does not see most `log.*` calls when it is the only processor
+
+Found 2026-11-06 while writing the Scaladoc of `ConsoleLogRecordProcessor` (telemetry Scaladoc rollout, Task 1), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `ConsoleLogRecordProcessor` is a public, non-final class. When a logger's only processor is an instance of it (or of a subclass), the logger switches to a fast path that formats `log.*` calls with `TextLogFormatter` and writes them to stdout itself, without calling `onEmit`. A subclass that overrides `onEmit` (to count, filter or redirect lines) is not called for `log.*` records, and the line still goes to stdout; only calls with an argument that takes the `LogEnrichment` fallback (a custom enrichment, or on Scala 3 a `Throwable`-typed exception, see the entry "`log.error("...", e)` does not compile when `e`'s static type is a subclass of `Throwable`") reach it.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false ConsoleSubclass.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object ConsoleSubclass {
+  final class CountingConsole extends ConsoleLogRecordProcessor {
+    var count = 0
+    override def onEmit(record: LogRecord): Unit = { count += 1; super.onEmit(record) }
+  }
+  def main(args: Array[String]): Unit = {
+    val counting = new CountingConsole
+    log.install(LoggerProvider.builder.addLogRecordProcessor(counting).build().get("shop"))
+    log.info("order placed")
+    println("onEmit calls: " + counting.count)
+  }
+}
+// 2026-11-06T20:04:27.300Z INFO  [(shop.ConsoleSubclass$,5,21).main:16] order placed
+// onEmit calls: 0
+```
+
+**Expected.** `onEmit calls: 1`, or `ConsoleLogRecordProcessor` is `final` so the override is impossible.
+
+**Root cause.** `Logger.emitter` picks `new FormattedLogEmitter(TextLogFormatter, StdoutWriter)` when `processors.length == 1 && processors(0).isInstanceOf[ConsoleLogRecordProcessor]` (`telemetry/shared/src/main/scala/zio/blocks/telemetry/Logger.scala:53-57`), which accepts subclasses.
+
+**Impact.** Small, but confusing: the override works with `Logger#emit` and as soon as a second processor is added, and not otherwise.
+
+**Test gap.** No test subclasses `ConsoleLogRecordProcessor`.
+
+**Suggested fix.** Make `ConsoleLogRecordProcessor` `final`, or test `processors(0).getClass == classOf[ConsoleLogRecordProcessor]`.
+
+### telemetry: an exception in one observable instrument's callback makes `collectAllMetrics()` fail for every instrument
+
+Found 2026-11-06 while writing the Scaladoc of `MetricReaderImpl` and the observable instruments (telemetry Scaladoc rollout, Task 2), on `main` at `121cb1024`. Same at tag `v0.0.56`. Verified by running against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `MetricReader#collectAllMetrics()` runs every registered instrument's `collect()` in turn, and the observable instruments run their user callback inside `collect()` with no error handling. One callback that throws (a closed connection pool, a cache that is not initialised yet) makes the whole call throw, so no data at all comes back, including the data of the synchronous counters and gauges that have nothing to do with the failure. OpenTelemetry SDKs catch and report callback errors per instrument.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-telemetry` 0.0.56, JDK 25, `scala-cli run --server=false CallbackFailure.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-telemetry:0.0.56
+package shop
+
+import zio.blocks.telemetry._
+
+object CallbackFailure {
+  def main(args: Array[String]): Unit = {
+    val provider = MeterProvider.builder.build()
+    val meter    = provider.get("shop")
+    meter.counterBuilder("orders.placed").build().add(3L)
+    meter.gaugeBuilder("pool.idle").buildWithCallback { _ =>
+      throw new IllegalStateException("pool closed")
+    }
+    meter.gaugeBuilder("cache.entries").build().record(512.0)
+
+    val collected =
+      try provider.reader.collectAllMetrics().size.toString
+      catch { case e: IllegalStateException => "failed: " + e.getMessage }
+    println(collected)
+  }
+}
+// failed: pool closed
+```
+
+**Expected.** `3`, or the two healthy instruments' data with the failing one skipped and the error reported.
+
+**Root cause.** `ObservableGauge.collect` calls `callback(cb)` directly (`telemetry/shared/src/main/scala/zio/blocks/telemetry/ObservableGauge.scala:26-37`, the call at `:35`; the same in `ObservableCounter.scala:35` and `ObservableUpDownCounter.scala:35`). `Meter.collectInstruments` (`Meter.scala:126-141`) and `MeterRegistry.collectAll` (`Meter.scala:32-40`) loop over the instruments with no `try`.
+
+**Impact.** An exporter that pulls metrics on a schedule loses every metric of the process for as long as one callback keeps failing, and the stack trace points at the reader, not at the callback's owner. The Scaladoc now says that an exception from a callback propagates and no data is returned.
+
+**Test gap.** The callback tests (`MetricSpec.scala:279-328`, `telemetry/jvm/src/test/scala/zio/blocks/telemetry/BranchCoverageSpec.scala:362-364`) use callbacks that always succeed; none throws.
+
+**Suggested fix.** Wrap each instrument's `collect()` in `MeterRegistry.collectAll` (or the callback call in each observable instrument) in a `try`/`catch NonFatal` that skips that instrument and reports the error (as `BatchProcessor` does, on standard error), and add a test with one failing callback among healthy instruments.
 
 ## Test and CI
 
