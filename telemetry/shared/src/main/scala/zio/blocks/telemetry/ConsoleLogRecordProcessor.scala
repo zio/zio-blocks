@@ -22,10 +22,12 @@ package zio.blocks.telemetry
  * followed by the stack trace when the record carries an exception. It is the
  * default output of the global [[log]].
  *
- * When it is a logger's only processor, `log.*` calls skip `onEmit` and format
- * the line with [[TextLogFormatter]] themselves, so a subclass that overrides
- * `onEmit` does not see them. On that path, a known bug prints the full class
- * name and two numbers in the bracket when the class is in a package.
+ * When it is a logger's only processor, most `log.*` calls skip `onEmit` and
+ * format the line with [[TextLogFormatter]] themselves, so a subclass that
+ * overrides `onEmit` does not see them; only calls with an argument that goes
+ * through a [[LogEnrichment]] instance reach it. On that fast path, a known bug
+ * prints the full class name and two numbers in the bracket when the class is
+ * in a package.
  */
 class ConsoleLogRecordProcessor extends LogRecordProcessor {
 
