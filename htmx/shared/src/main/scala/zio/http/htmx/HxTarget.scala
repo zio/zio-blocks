@@ -85,8 +85,8 @@ object HxTarget {
 
   /**
    * `next` or `next <selector>`: without a selector, the next sibling element;
-   * with one, the first element after this one in document order that matches
-   * it.
+   * with one, the first element after this one in document order, not counting
+   * its descendants, that matches it.
    */
   final case class Next private[htmx] (selector: Option[String]) extends HxTarget {
 
@@ -97,7 +97,7 @@ object HxTarget {
   /**
    * `previous` or `previous <selector>`: without a selector, the previous
    * sibling element; with one, the nearest element before this one in document
-   * order that matches it.
+   * order, not counting its ancestors, that matches it.
    */
   final case class Previous private[htmx] (selector: Option[String]) extends HxTarget {
 
@@ -133,7 +133,8 @@ object HxTarget {
 
   /**
    * Creates a `next <selector>` target: the first element after this one in
-   * document order that matches the selector, which is trimmed.
+   * document order, not counting its descendants, that matches the selector,
+   * which is trimmed.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `selector` is blank
@@ -145,7 +146,8 @@ object HxTarget {
 
   /**
    * Creates a `previous <selector>` target: the nearest element before this one
-   * in document order that matches the selector, which is trimmed.
+   * in document order, not counting its ancestors, that matches the selector,
+   * which is trimmed.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `selector` is blank

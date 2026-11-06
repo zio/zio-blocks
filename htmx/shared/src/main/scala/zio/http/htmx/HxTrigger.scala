@@ -154,7 +154,8 @@ final case class HxTrigger private (
 
   /**
    * Adds or replaces the `root:` modifier of an `intersect` trigger: the CSS
-   * selector of the element whose visible area is observed. The selector is
+   * selector of the element that htmx uses as the visible area (the
+   * `IntersectionObserver` root) in place of the viewport. The selector is
    * trimmed.
    *
    * @throws java.lang.IllegalArgumentException
