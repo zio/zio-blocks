@@ -26,8 +26,9 @@ import java.time.Duration
  * The module's exporters that read it are internal, so it serves as the one
  * place for these settings in an export loop of your own, built from
  * [[OtlpJsonEncoder]], [[HttpSender]] and [[ExportResult]]. `toString` prints
- * the number of headers, not their values, so a logged config does not leak a
- * token.
+ * the number of headers, not their values, so printing a config with `toString`
+ * does not show a token; the `headers` field, and anything that reads the case
+ * class's fields, still does.
  *
  * {{{
  * import java.time.Duration
