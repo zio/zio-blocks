@@ -864,7 +864,7 @@ Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de
 
 ## 13q. Scaladoc: projection, dataMigration, htmx and datastar (in progress)
 
-Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries.
+Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
 
 ## 13. Scaladoc: next modules
 
