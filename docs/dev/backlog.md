@@ -878,9 +878,21 @@ Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de
 
 Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
 
-## 13r. Scaladoc: markdown module (in progress)
+## 13r. Scaladoc: markdown module
 
 Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks: 6 in 5 files (`Parser`, `Doc`, `package` ×2, `ToMarkdown`, `Renderer`), all flattened into run-on lines by an earlier scalafmt pass, so none can compile; only `MdInterpolator` has scala-2/scala-3 copies; sources byte-identical to `v0.0.56`. Milad's Phase 1 decisions: one PR (tooling and all Scaladoc); tier 1 = `Doc`, `Block`, `Inline`, `Parser`, `HtmlRenderer`, `TerminalRenderer`, `ToMarkdown`, `Renderer`, the `md"..."` interpolator, each with an overview, one compiled example and `@see` to `docs/reference/docs.md`; AGENTS.md: markdown in the scaladoc-check list and a `markdown*` downstream row (dependents checked in build.sbt).
+
+| Item | Result |
+|---|---|
+| PR | #1958 (one PR), opened 2026-11-06; two merges of main |
+| Coverage | 91 / 107 (85%) → 107 / 107; 16 files, comments only; `packageOverrides` `markdown` → `zio.blocks.docs` |
+| Examples | 14 compiled (checker on 2.13.18, 3.9.0, 3.10.0); the 6 old blocks rewritten on their own lines, which survive scalafmt |
+| Existing comments | 91 fact-checked; e.g. "output can be re-parsed to an equal AST" was false in three ways (unescaped text, backtick code, centred table columns); normalisation claims hold per class only |
+| Review | Opus fact-check 5 Important + 10 Minor, all fixed; Sonnet re-review APPROVE with 3 optional notes, applied |
+| Bugs | 11 entries (5 Library bugs, 6 Usability traps) and an addition to the openapi `md"..."` round-trip entry (its root cause, `Doc#normalize`) |
+| Time | about 2 h 45 min active |
+
+Lessons: single-line `{{{ x }}}` blocks get flattened by scalafmt; `md"..."` parts are raw, so `"\n"` in a single-line literal stays two characters; check every bug entry's test-gap sentence against the spec assertions, not the test names.
 
 ## 13s. Scaladoc: telemetry and otel (in progress)
 
