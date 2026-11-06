@@ -506,8 +506,10 @@ object OpenAPICodec {
    * Builds the codec of `ReferenceOr[A]` from the codec of `A`. A JSON object
    * with a `\$ref` key decodes as `ReferenceOr.Ref`, keeping only `\$ref`,
    * `summary` and `description`; any other JSON decodes as `ReferenceOr.Value`.
-   * In a schema, where JSON Schema allows `\$ref` next to other keywords, the
-   * other keywords are lost (a known bug).
+   * JSON Schema allows `\$ref` next to other keywords, so a schema held in a
+   * `ReferenceOr` (a component schema, or the schema of a parameter or media
+   * type) loses those keywords (a known bug). Schemas nested inside
+   * `SchemaObject.jsonSchema` stay raw JSON and keep them.
    */
   implicit def referenceOrCodec[A](implicit codec: JsonCodec[A]): JsonCodec[ReferenceOr[A]] =
     new JsonASTCodec[ReferenceOr[A]] {

@@ -522,9 +522,10 @@ object Reference {
  * or a pointer such as `#/components/schemas/Pet`. The library does not resolve
  * references; look the name up in [[Components]] yourself.
  *
- * In JSON, an object with a `\$ref` key decodes as a `Ref` and any other value
- * as a `Value`. A schema that has `\$ref` next to other JSON Schema keywords
- * therefore loses those keywords (a known bug).
+ * In JSON, an object with a `\$ref` key decodes as a `Ref` (keeping only
+ * `\$ref`, `summary` and `description`) and any other value as a `Value`. A
+ * schema held in a `ReferenceOr` that has `\$ref` next to other JSON Schema
+ * keywords therefore loses those keywords (a known bug).
  *
  * {{{
  * import zio.blocks.schema.json.Json
