@@ -369,7 +369,7 @@ object DynamicSchemaExpr {
 
       /**
        * Returns a `Boolean` primitive that is `true` when `x.compare(y) <= 0`,
-       * so it holds for two NaNs although `Equal` does not. Primitives of
+       * so it holds for two NaNs, which `Equal` can find unequal. Primitives of
        * different types compare by type, not by number (`Int` 5 is less than
        * `Long` 1), a NaN is greater than every other value of its type, and
        * `-0.0` is less than `0.0`. Two `Int` values more than `Int.MaxValue`
@@ -404,10 +404,10 @@ object DynamicSchemaExpr {
 
       /**
        * Returns a `Boolean` primitive that is `true` when `x.compare(y) >= 0`,
-       * so it holds for two NaNs although `Equal` does not, and `-0.0 >= 0.0`
-       * is `false`. Primitives of different types compare by type, not by
-       * number. Two `Int` values more than `Int.MaxValue` apart compare the
-       * wrong way round (a known bug).
+       * so it holds for two NaNs, which `Equal` can find unequal, and
+       * `-0.0 >= 0.0` is `false`. Primitives of different types compare by
+       * type, not by number. Two `Int` values more than `Int.MaxValue` apart
+       * compare the wrong way round (a known bug).
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x >= y))
@@ -419,10 +419,12 @@ object DynamicSchemaExpr {
     case object Equal extends RelationalOperator {
 
       /**
-       * Returns a `Boolean` primitive that is `x == y`: values of different
-       * types are never equal (`Int` 1 is not `Long` 1), a NaN is not equal to
-       * itself, and `-0.0` equals `0.0`, unlike in the order of
-       * `DynamicValue#compare` that `LessThan` and the other comparisons use.
+       * Returns a `Boolean` primitive that is `x == y`: primitives of different
+       * types are not equal (`Int` 1 is not `Long` 1), two NaN values are equal
+       * only when they are the same instance, and `-0.0` equals `0.0`. The
+       * order of `DynamicValue#compare`, which `LessThan` and the other
+       * comparisons use, treats NaN and `-0.0` differently, so `-0.0 < 0.0` and
+       * `-0.0 == 0.0` both hold.
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x == y))
@@ -435,7 +437,8 @@ object DynamicSchemaExpr {
 
       /**
        * Returns a `Boolean` primitive that is `x != y`, the negation of
-       * `Equal`: `true` for two NaNs and `false` for `-0.0` and `0.0`.
+       * `Equal`: `true` for two NaN values that are not the same instance, and
+       * `false` for `-0.0` and `0.0`.
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x != y))
