@@ -18,8 +18,35 @@ package zio.blocks.openapi
 
 import zio.blocks.schema.Schema
 
+/**
+ * Builds OpenAPI schema components from ZIO Blocks `Schema`s. Each schema is
+ * named after the simple name of its type (`Pet`), so two types with the same
+ * simple name, such as `List[Int]` and `List[String]`, get the same name.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Pet(id: Long, name: String)
+ * object Pet {
+ *   implicit val schema: Schema[Pet] = Schema.derived
+ * }
+ *
+ * val (ref, definitions) = OpenAPIGen.schema[Pet]
+ * // ref: Ref(Reference(#/components/schemas/Pet,None,None))
+ * definitions.keys // Set(Pet)
+ * OpenAPIGen.schemas(Schema[Pet], Schema[Int]).keySet // Set(Pet, Int)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#converting-schemas-to-schemaobject Converting Schemas to SchemaObject]]
+ */
 object OpenAPIGen {
 
+  /**
+   * Returns a reference to `#/components/schemas/<name>` for the schema of `A`,
+   * and a one-entry map from that name to its [[SchemaObject]]. The name is the
+   * simple name of `A`.
+   */
   def schema[A](implicit s: Schema[A]): (ReferenceOr[SchemaObject], Map[String, SchemaObject]) = {
     val name = s.reflect.typeId.name
     val obj  = s.toOpenAPISchema
@@ -27,6 +54,11 @@ object OpenAPIGen {
     (ref, Map(name -> obj))
   }
 
+  /**
+   * Returns a map from each schema's type name to its [[SchemaObject]], ready
+   * for `Components.schemas`. When two schemas have the same type name, the
+   * later one wins.
+   */
   def schemas(ss: Schema[_]*): Map[String, SchemaObject] =
     ss.map(s => s.reflect.typeId.name -> SchemaObject.fromJsonSchema(s.toJsonSchema)).toMap
 }

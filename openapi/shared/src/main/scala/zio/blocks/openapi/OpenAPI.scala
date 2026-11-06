@@ -22,12 +22,33 @@ import zio.blocks.schema._
 import zio.blocks.schema.json._
 
 /**
- * The root object of an OpenAPI 3.1 document.
+ * The root object of an OpenAPI 3.1 document: the API's metadata, its paths and
+ * operations, and the reusable components they refer to. Build one by hand or
+ * decode one, and read or write its JSON with `OpenAPICodec.openAPICodec`.
+ *
+ * {{{
+ * import zio.blocks.chunk.ChunkMap
+ * import zio.blocks.docs._
+ * import zio.blocks.openapi.OpenAPICodec.openAPICodec
+ *
+ * val listPets = Operation(
+ *   operationId = Some("listPets"),
+ *   responses = Responses(ChunkMap("200" -> ReferenceOr.Value(Response(md"A list of pets."))))
+ * )
+ * val api = OpenAPI(
+ *   openapi = "3.1.0",
+ *   info = Info(title = "Petstore", version = "1.0.0"),
+ *   paths = Some(Paths(ChunkMap("/pets" -> PathItem(get = Some(listPets)))))
+ * )
+ *
+ * val json = openAPICodec.encodeValue(api)
+ * openAPICodec.decode(json).map(_.paths.map(_.paths.keys.toList)) // Right(Some(List(/pets)))
+ * }}}
  *
  * @param openapi
- *   REQUIRED. This string MUST be the version number of the OpenAPI
- *   Specification that the OpenAPI document uses. The openapi field SHOULD be
- *   used by tooling to interpret the OpenAPI document.
+ *   REQUIRED. The version of the OpenAPI Specification that the document uses,
+ *   such as "3.1.0". Decoding fails when it is missing, but the value is not
+ *   checked, so an OpenAPI 3.0 document decodes too.
  * @param info
  *   REQUIRED. Provides metadata about the API. The metadata MAY be used by
  *   tooling as required.
@@ -36,12 +57,16 @@ import zio.blocks.schema.json._
  *   within this OAS document. This MUST be in the form of a URI.
  * @param servers
  *   An array of Server Objects, which provide connectivity information to a
- *   target server. If the servers property is not provided, or is an empty
- *   array, the default value would be a Server Object with a url value of /.
+ *   target server. The specification reads an empty array as a single server
+ *   with the URL `/`; this library does not add that server.
  * @param paths
  *   The available paths and operations for the API.
+ * @param webhooks
+ *   Incoming requests that the API provider may send to the consumer, keyed by
+ *   a name, each described by a Path Item.
  * @param components
- *   An element to hold various schemas for the document.
+ *   Reusable objects (schemas, responses, parameters, security schemes and
+ *   more) that the rest of the document refers to.
  * @param security
  *   A declaration of which security mechanisms can be used across the API. The
  *   list of values includes alternative security requirement objects that can
@@ -53,7 +78,10 @@ import zio.blocks.schema.json._
  *   Additional external documentation.
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
- *   properties beyond the standard OpenAPI fields.
+ *   properties beyond the standard OpenAPI fields. The encoder writes every
+ *   entry, but the decoder reads back only keys that start with `x-`.
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#openapi OpenAPI]]
  */
 final case class OpenAPI(
   openapi: String,
@@ -69,7 +97,15 @@ final case class OpenAPI(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[OpenAPI]]. */
 object OpenAPI {
+
+  /**
+   * The derived `Schema` of the document type. Its JSON codec writes the Scala
+   * structure (Markdown trees for descriptions, an `extensions` key, a nested
+   * `paths` key), not OpenAPI JSON; use `OpenAPICodec.openAPICodec` to read and
+   * write documents.
+   */
   implicit val schema: Schema[OpenAPI] = Schema.derived
 }
 
@@ -110,7 +146,8 @@ object Contact {
 /**
  * License information for the exposed API. Optional SPDX license expression
  * (identifier) and a URL to the license are mutually exclusive per the OpenAPI
- * spec.
+ * spec: the constructor throws `IllegalArgumentException` when both are set,
+ * and decoding such a license returns a `Left`.
  *
  * @param name
  *   REQUIRED. The license name used for the API.
@@ -121,6 +158,8 @@ object Contact {
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
+ * @throws java.lang.IllegalArgumentException
+ *   when both `identifier` and `url` are set
  */
 final case class License(
   name: String,
@@ -153,8 +192,10 @@ object Server {
 }
 
 /**
- * Creates a ServerVariable with validation. If `enum` is non-empty, the
- * `default` value MUST be one of the enum values.
+ * A variable for substitution in a server URL template. If `enum` is non-empty,
+ * the `default` value MUST be one of the enum values: the constructor throws
+ * `IllegalArgumentException` otherwise, and decoding such a variable returns a
+ * `Left`.
  *
  * @param default
  *   REQUIRED. The default value to use for substitution.
@@ -165,6 +206,8 @@ object Server {
  *   An optional description for the server variable.
  * @param extensions
  *   Specification extensions (x-* fields).
+ * @throws java.lang.IllegalArgumentException
+ *   when `enum` is non-empty and does not contain `default`
  */
 final case class ServerVariable(
   default: String,
@@ -195,7 +238,50 @@ object Paths {
 }
 
 /**
- * Describes the operations available on a single path.
+ * Describes the operations available on a single path, one optional
+ * [[Operation]] per HTTP method, plus servers and parameters shared by all of
+ * them. A [[Paths]] object maps each path, such as `/pets/{petId}`, to its
+ * PathItem.
+ *
+ * {{{
+ * val pets = PathItem(
+ *   get = Some(Operation(operationId = Some("listPets"))),
+ *   post = Some(Operation(operationId = Some("createPet")))
+ * )
+ * List(pets.get, pets.post, pets.delete).map(_.flatMap(_.operationId))
+ * // List(Some(listPets), Some(createPet), None)
+ * }}}
+ *
+ * @param summary
+ *   A short summary for all operations on this path.
+ * @param description
+ *   A longer description for all operations on this path.
+ * @param get
+ *   The GET operation, if any.
+ * @param put
+ *   The PUT operation, if any.
+ * @param post
+ *   The POST operation, if any.
+ * @param delete
+ *   The DELETE operation, if any.
+ * @param options
+ *   The OPTIONS operation, if any.
+ * @param head
+ *   The HEAD operation, if any.
+ * @param patch
+ *   The PATCH operation, if any.
+ * @param trace
+ *   The TRACE operation, if any.
+ * @param servers
+ *   Alternative servers for all operations on this path.
+ * @param parameters
+ *   Parameters for all operations on this path. The specification lets an
+ *   operation override one with a parameter of the same name and location; the
+ *   library does not merge them.
+ * @param extensions
+ *   Specification extensions (x-* fields).
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#paths--pathitem Paths & PathItem]]
  */
 final case class PathItem(
   summary: Option[Doc] = None,
@@ -213,12 +299,62 @@ final case class PathItem(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[PathItem]]. */
 object PathItem {
+
+  /**
+   * The derived `Schema` of [[PathItem]]. Its JSON is not OpenAPI JSON; use
+   * `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[PathItem] = Schema.derived
 }
 
 /**
- * Holds a set of reusable objects for different aspects of the OAS.
+ * Holds a set of reusable objects for different aspects of the OAS: schemas,
+ * responses, parameters, examples, request bodies, headers, security schemes,
+ * links, callbacks and path items, each keyed by a name. Other parts of the
+ * document refer to them with a `ReferenceOr.Ref` such as
+ * `#/components/schemas/Pet`.
+ *
+ * {{{
+ * import zio.blocks.chunk.ChunkMap
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Pet(id: Long, name: String)
+ * object Pet {
+ *   implicit val schema: Schema[Pet] = Schema.derived
+ * }
+ *
+ * val (petRef, (petName, petSchema)) = Schema[Pet].toRefSchema
+ * val components = Components(schemas = ChunkMap(petName -> ReferenceOr.Value(petSchema)))
+ * // petRef: Ref(Reference(#/components/schemas/Pet,None,None))
+ * components.schemas.keys.toList // List(Pet)
+ * }}}
+ *
+ * @param schemas
+ *   Reusable Schema Objects.
+ * @param responses
+ *   Reusable Response Objects.
+ * @param parameters
+ *   Reusable Parameter Objects.
+ * @param examples
+ *   Reusable Example Objects.
+ * @param requestBodies
+ *   Reusable Request Body Objects.
+ * @param headers
+ *   Reusable Header Objects.
+ * @param securitySchemes
+ *   Reusable Security Scheme Objects, which `security` requirements name.
+ * @param links
+ *   Reusable Link Objects.
+ * @param callbacks
+ *   Reusable Callback Objects.
+ * @param pathItems
+ *   Reusable Path Item Objects.
+ * @param extensions
+ *   Specification extensions (x-* fields).
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#components Components]]
  */
 final case class Components(
   schemas: ChunkMap[String, ReferenceOr[SchemaObject]] = ChunkMap.empty,
@@ -234,7 +370,13 @@ final case class Components(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Components]]. */
 object Components {
+
+  /**
+   * The derived `Schema` of [[Components]]. Its JSON is not OpenAPI JSON; use
+   * `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Components] = Schema.derived
 }
 
@@ -277,11 +419,26 @@ object ExternalDocumentation {
 }
 
 /**
- * Describes a single API operation on a path.
+ * Describes a single API operation on a path: its parameters, request body,
+ * responses, security and metadata such as `operationId` and `tags`. A
+ * [[PathItem]] holds one Operation per HTTP method.
+ *
+ * {{{
+ * import zio.blocks.chunk.{Chunk, ChunkMap}
+ * import zio.blocks.docs._
+ *
+ * val showPetById = Operation(
+ *   operationId = Some("showPetById"),
+ *   parameters = Chunk(ReferenceOr.Value(Parameter("petId", ParameterLocation.Path, required = true))),
+ *   responses = Responses(ChunkMap("200" -> ReferenceOr.Value(Response(md"The pet."))))
+ * )
+ * showPetById.responses.responses.keys.toList // List(200)
+ * }}}
  *
  * @param responses
- *   REQUIRED. The list of possible responses as they are returned from
- *   executing this operation.
+ *   The list of possible responses as they are returned from executing this
+ *   operation. It defaults to no responses; the encoder always writes the
+ *   `responses` key, and the decoder accepts an operation without one.
  * @param tags
  *   A list of tags for API documentation control.
  * @param summary
@@ -306,6 +463,8 @@ object ExternalDocumentation {
  *   An alternative server array to service this operation.
  * @param extensions
  *   Extension fields starting with x-.
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#operation Operation]]
  */
 final case class Operation(
   responses: Responses = Responses(),
@@ -323,7 +482,13 @@ final case class Operation(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 )
 
+/** Holds the derived `Schema` of [[Operation]]. */
 object Operation {
+
+  /**
+   * The derived `Schema` of [[Operation]]. Its JSON is not OpenAPI JSON; use
+   * `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit lazy val schema: Schema[Operation] = Schema.derived
 }
 
@@ -352,13 +517,36 @@ object Reference {
 
 /**
  * A type that can either be a Reference or a concrete value of type A. This
- * pattern is used extensively in OpenAPI 3.1 to allow reusable components.
+ * pattern is used extensively in OpenAPI 3.1 to allow reusable components: a
+ * field that takes a `ReferenceOr[SchemaObject]` holds either an inline schema
+ * or a pointer such as `#/components/schemas/Pet`. The library does not resolve
+ * references; look the name up in [[Components]] yourself.
+ *
+ * In JSON, an object with a `\$ref` key decodes as a `Ref` and any other value
+ * as a `Value`. A schema that has `\$ref` next to other JSON Schema keywords
+ * therefore loses those keywords (a known bug).
+ *
+ * {{{
+ * import zio.blocks.schema.json.Json
+ *
+ * def describe(schema: ReferenceOr[SchemaObject]): String = schema match {
+ *   case ReferenceOr.Ref(Reference(uri, _, _)) => "reference to " + uri
+ *   case ReferenceOr.Value(obj)              => "inline schema " + obj.toJson.print
+ * }
+ *
+ * describe(ReferenceOr.Ref(Reference("#/components/schemas/Pet"))) // reference to #/components/schemas/Pet
+ * describe(ReferenceOr.Value(SchemaObject(Json.Object("type" -> Json.String("string")))))
+ * // inline schema {"type":"string"}
+ * }}}
  *
  * @tparam A
  *   The type of the concrete value when not using a reference.
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#referenceor ReferenceOr]]
  */
 sealed trait ReferenceOr[+A]
 
+/** The two cases of [[ReferenceOr]]. */
 object ReferenceOr {
 
   /**
@@ -377,6 +565,11 @@ object ReferenceOr {
    */
   final case class Value[A](value: A) extends ReferenceOr[A]
 
+  /**
+   * The derived `Schema` of `ReferenceOr[A]`. Its JSON wraps each case in an
+   * object named after it (`{"Ref":{...}}`), which is not OpenAPI JSON; use
+   * `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit def schema[A: Schema]: Schema[ReferenceOr[A]] = Schema.derived
 }
 
@@ -425,12 +618,15 @@ object XML {
  * In OpenAPI 3.1, the Schema Object is fully compatible with JSON Schema
  * 2020-12, with the addition of OpenAPI-specific vocabulary.
  *
- * This implementation wraps the existing JsonSchema from zio-blocks-schema and
- * adds OpenAPI-specific vocabulary fields.
+ * This implementation keeps the JSON Schema keywords as raw `Json` (parse them
+ * with [[toJsonSchema]]) and holds the OpenAPI-specific vocabulary in its own
+ * fields.
  *
  * @param jsonSchema
- *   The underlying JSON Schema 2020-12 schema represented as Json. This
- *   contains all standard JSON Schema keywords (type, properties, items, etc.).
+ *   The underlying JSON Schema 2020-12 schema represented as Json: an object,
+ *   or `true` / `false`. A decoded schema keeps every key here except
+ *   `discriminator`, `xml`, `externalDocs`, `example` and keys starting with
+ *   `x-`, which go to the fields below.
  * @param discriminator
  *   Adds support for polymorphism. The discriminator is an object name that is
  *   used to differentiate between other schemas which may satisfy the payload
@@ -461,6 +657,11 @@ final case class SchemaObject(
   extensions: ChunkMap[String, Json] = ChunkMap.empty
 ) {
 
+  /**
+   * Returns the schema as one JSON value: `jsonSchema` with `discriminator`,
+   * `xml`, `externalDocs`, `example` and the extensions added, replacing keys
+   * of the same name. A boolean `jsonSchema` is returned as is, without them.
+   */
   def toJson: Json = jsonSchema match {
     case obj: Json.Object =>
       val extra = Chunk.newBuilder[(String, Json)]
@@ -490,12 +691,15 @@ final case class SchemaObject(
   }
 
   /**
-   * Attempts to parse the underlying JSON Schema.
+   * Attempts to parse the underlying JSON Schema (`jsonSchema` only, not the
+   * OpenAPI fields). Returns a `Left` when it is neither an object nor a
+   * boolean.
    */
   def toJsonSchema: Either[zio.blocks.schema.SchemaError, zio.blocks.schema.json.JsonSchema] =
     zio.blocks.schema.json.JsonSchema.fromJson(jsonSchema)
 }
 
+/** Converts a ZIO Blocks `JsonSchema` into a [[SchemaObject]]. */
 object SchemaObject {
 
   /**
@@ -505,6 +709,10 @@ object SchemaObject {
   def fromJsonSchema(js: zio.blocks.schema.json.JsonSchema): SchemaObject =
     SchemaObject(jsonSchema = js.toJson)
 
+  /**
+   * The derived `Schema` of [[SchemaObject]]. Its JSON is not OpenAPI JSON; use
+   * `OpenAPICodec.openAPICodec` for documents.
+   */
   implicit val schema: Schema[SchemaObject] = Schema.derived
 }
 
@@ -664,7 +872,8 @@ object Header {
  *   REQUIRED. The content of the request body. The key is a media type or media
  *   type range and the value describes it. For requests that match multiple
  *   keys, only the most specific key is applicable. e.g. text/plain overrides
- *   text/wildcard
+ *   text/wildcard. When the map is empty the encoder leaves the key out, which
+ *   makes the request body invalid (a known bug).
  * @param description
  *   A brief description of the request body. This could contain examples of
  *   use. CommonMark syntax MAY be used for rich text representation.
@@ -852,7 +1061,9 @@ object Response {
 }
 
 /**
- * An object representing an example.
+ * An object representing an example. `value` and `externalValue` are mutually
+ * exclusive: the constructor throws `IllegalArgumentException` when both are
+ * set, and decoding such an example returns a `Left`.
  *
  * In all cases, the example value is expected to be compatible with the type
  * schema of its associated value. Tooling implementations MAY choose to
@@ -877,6 +1088,8 @@ object Response {
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
+ * @throws java.lang.IllegalArgumentException
+ *   when both `value` and `externalValue` are set
  */
 final case class Example(
   summary: Option[Doc] = None,
@@ -899,7 +1112,9 @@ object Example {
  * The Link object represents a possible design-time link for a response. The
  * presence of a link does not guarantee the caller's ability to successfully
  * invoke it, rather it provides a known relationship and traversal mechanism
- * between responses and other operations.
+ * between responses and other operations. `operationRef` and `operationId` are
+ * mutually exclusive: the constructor throws `IllegalArgumentException` when
+ * both are set, and decoding such a link returns a `Left`.
  *
  * Unlike dynamic links (i.e. links provided in the response payload), the OAS
  * linking mechanism does not require link information in the runtime response.
@@ -932,6 +1147,8 @@ object Example {
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
+ * @throws java.lang.IllegalArgumentException
+ *   when both `operationRef` and `operationId` are set
  */
 final case class Link(
   operationRef: Option[String] = None,
@@ -1144,18 +1361,20 @@ object OAuthFlows {
  * @param authorizationUrl
  *   The authorization URL to be used for this flow. This MUST be in the form of
  *   a URL. The OAuth2 standard requires the use of TLS. REQUIRED for implicit
- *   and authorizationCode flows.
+ *   and authorizationCode flows; the library does not check it.
  * @param tokenUrl
  *   The token URL to be used for this flow. This MUST be in the form of a URL.
  *   The OAuth2 standard requires the use of TLS. REQUIRED for password,
- *   clientCredentials, and authorizationCode flows.
+ *   clientCredentials, and authorizationCode flows; the library does not check
+ *   it.
  * @param refreshUrl
  *   The URL to be used for obtaining refresh tokens. This MUST be in the form
  *   of a URL. The OAuth2 standard requires the use of TLS.
  * @param scopes
  *   REQUIRED. The available scopes for the OAuth2 security scheme. A map
  *   between the scope name and a short description for it. The map MAY be
- *   empty.
+ *   empty, but the encoder leaves an empty map out, which makes the flow
+ *   invalid (a known bug).
  * @param extensions
  *   Specification extensions (x-* fields). These allow adding additional
  *   properties beyond the standard OpenAPI fields.
