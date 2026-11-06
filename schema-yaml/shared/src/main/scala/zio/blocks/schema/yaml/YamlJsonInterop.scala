@@ -20,7 +20,16 @@ import zio.blocks.schema.json.{Json, JsonCodec}
 
 import scala.util.control.NonFatal
 
+/**
+ * Conversions between [[Yaml]] trees and [[zio.blocks.schema.json.Json]]
+ * values, behind `Yaml#toJson` and `Yaml.fromJson`.
+ */
 object YamlJsonInterop {
+
+  /**
+   * Converts a tree to JSON, guessing each scalar's type from its text, as
+   * `Yaml#toJson` describes.
+   */
   def yamlToJson(yaml: Yaml): Json = yaml match {
     case Yaml.Mapping(entries) =>
       new Json.Object(entries.map {
@@ -43,6 +52,10 @@ object YamlJsonInterop {
     case _ => Json.Null
   }
 
+  /**
+   * Converts JSON to a tree, tagging numbers and booleans, as `Yaml.fromJson`
+   * describes.
+   */
   def jsonToYaml(json: Json): Yaml = json match {
     case obj: Json.Object => new Yaml.Mapping(obj.value.map { case (k, v) => (Yaml.Scalar(k), jsonToYaml(v)) })
     case arr: Json.Array  => new Yaml.Sequence(arr.value.map(jsonToYaml))

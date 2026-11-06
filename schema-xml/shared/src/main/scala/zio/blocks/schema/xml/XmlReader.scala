@@ -18,7 +18,40 @@ package zio.blocks.schema.xml
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
+/**
+ * Parses XML text into an [[Xml]] tree.
+ *
+ * The parser accepts one root element, optionally preceded by one processing
+ * instruction such as the XML declaration (which it drops), and stops after the
+ * root element: content that follows it is ignored. Known limits in 0.0.56:
+ *   - A comment, a second processing instruction or `<!DOCTYPE ...>` before the
+ *     root element fails with `Invalid element name`.
+ *   - Only the five predefined entities (`&amp;`, `&lt;`, `&gt;`, `&quot;`,
+ *     `&apos;`) are replaced; a character reference such as `&#233;` fails with
+ *     `Unknown entity reference` (a known bug).
+ *   - Names must start with an ASCII letter, `_` or `:`.
+ *   - Namespaces are not resolved: a prefix stays in [[XmlName]]'s `prefix`,
+ *     `namespace` stays empty, and `xmlns` declarations stay attributes. A
+ *     closing tag is matched by local name only.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/xml/ XML]]
+ */
 object XmlReader {
+
+  /**
+   * Parses an XML string. With the default `config`, text is trimmed and
+   * whitespace-only text is dropped; see [[ReaderConfig]].
+   *
+   * {{{
+   * XmlReader.read("<?xml version=\"1.0\"?><greeting lang=\"en\">  hi  </greeting>")
+   * // Element(greeting,Chunk((lang,en)),Chunk(Text(hi)))
+   * }}}
+   *
+   * @throws zio.blocks.schema.xml.XmlCodecError
+   *   if the input is malformed or exceeds a limit of `config`; the message
+   *   ends with `(line: L, column: C)`
+   */
   def read(input: String, config: ReaderConfig = ReaderConfig.default): Xml =
     new XmlReaderImpl(input, config).parse()
 
@@ -27,6 +60,9 @@ object XmlReader {
    *
    * Note: This method always decodes bytes as UTF-8. For other encodings,
    * decode the bytes to a String first and use the `read` method.
+   *
+   * @throws zio.blocks.schema.xml.XmlCodecError
+   *   if the input is malformed or exceeds a limit of `config`
    */
   def readFromBytes(input: Array[Byte], config: ReaderConfig = ReaderConfig.default): Xml =
     read(new String(input, "UTF-8"), config)
