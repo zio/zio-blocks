@@ -1428,6 +1428,9 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `schema-csv`.jvm,
     `schema-thrift`,
     jwt.jvm,
+    `schema-toon`.jvm,
+    `schema-xml`.jvm,
+    `schema-yaml`.jvm,
     maybe.jvm,
     combinators.jvm,
     context.jvm

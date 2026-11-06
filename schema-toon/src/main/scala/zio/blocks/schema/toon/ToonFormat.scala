@@ -18,4 +18,32 @@ package zio.blocks.schema.toon
 
 import zio.blocks.schema.codec.BinaryFormat
 
+/**
+ * The TOON [[zio.blocks.schema.codec.BinaryFormat]]: MIME type `text/toon`,
+ * with codecs derived by the default [[ToonCodecDeriver]]. Pass it to
+ * `Schema#derive` to get a [[ToonCodec]] for a type. TOON (Token-Oriented
+ * Object Notation) writes the JSON data model as indented `key: value` lines,
+ * with each array's length in its header and an optional table form for arrays
+ * of records. To change a derivation setting, pass a configured
+ * `ToonCodecDeriver` to `Schema#derive` instead.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class Sensor(id: String, celsius: Double, online: Boolean)
+ * object Sensor {
+ *   implicit val schema: Schema[Sensor] = Schema.derived
+ * }
+ *
+ * val codec = Sensor.schema.derive(ToonFormat)
+ *
+ * codec.encodeToString(Sensor("greenhouse-1", 21.5, online = true))
+ * // id: greenhouse-1
+ * // celsius: 21.5
+ * // online: true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/toon/ TOON]]
+ */
 object ToonFormat extends BinaryFormat("text/toon", ToonCodecDeriver)
