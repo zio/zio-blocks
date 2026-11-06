@@ -36,7 +36,34 @@ import zio.blocks.typeid.AnnotationArg
  * history and then follow the new events. A [[ProjectionEngine]] reads each
  * source of a projection from one event store.
  *
- * [[SQLiteEventStore]] keeps the events in a SQLite file.
+ * [[SQLiteEventStore]] keeps the events in a SQLite file:
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.schema.Schema
+ *
+ * sealed trait OrderEvent
+ * object OrderEvent {
+ *   case class Placed(customer: String, total: Long) extends OrderEvent
+ *   case class Shipped()                             extends OrderEvent
+ *   implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent]
+ * }
+ *
+ * // Needs sqlite-jdbc at run time, and the folder events/
+ * val program: ZIO[Scope, Throwable, Chunk[(Long, String)]] =
+ *   for {
+ *     cache  <- TransactorCache.make()
+ *     tx     <- cache.get("events/orders.db")
+ *     orders <- SQLiteEventStore.make[OrderEvent](tx)
+ *     _      <- orders.append("order-1", OrderEvent.Placed("ada", 80L))
+ *     _      <- orders.append("order-1", OrderEvent.Shipped())
+ *     all    <- orders.readAll().runCollect
+ *   } yield all.map(e => (e.seq, e.tag))
+ * // On a new file, ZIO.scoped(program) gives Chunk((1,Placed),(2,Shipped))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/event-store/ EventStore]]
  *
  * @tparam E
  *   the event type, usually a sealed trait with one case for each kind of event
@@ -70,8 +97,9 @@ trait EventStore[E] {
    * @param afterSeq
    *   the sequence number to read after; `0` reads from the first event
    * @param tags
-   *   the tags of the events to keep; the empty set, the default, keeps them
-   *   all
+   *   the tags of the events to keep; the empty set, the default, sets no tag
+   *   filter of its own. [[SQLiteEventStore]] still keeps only the tags it
+   *   knows
    */
   def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
@@ -81,8 +109,9 @@ trait EventStore[E] {
    * A schema rebuild uses it to replay all the events.
    *
    * @param tags
-   *   the tags of the events to keep; the empty set, the default, keeps them
-   *   all
+   *   the tags of the events to keep; the empty set, the default, sets no tag
+   *   filter of its own. [[SQLiteEventStore]] still keeps only the tags it
+   *   knows
    */
   def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
@@ -107,14 +136,19 @@ trait EventStore[E] {
  * JSON, and `ts` is the time it was appended, in milliseconds. An index on
  * `tag` and `seq` serves filtered reads.
  *
- * The store knows the tags of `E` through a [[TagInfo]]. When a case was
- * renamed, a read that asks for the new tag also returns the events saved under
- * the old one, decodes them as the renamed case, and reports them under the new
- * tag.
+ * The store knows the tags of `E` through a [[TagInfo]]. Every read keeps only
+ * the events whose tag the `TagInfo` knows, also when it asks for no tags: an
+ * event of a removed case, or of a case renamed without a migration, is skipped
+ * without an error. When a case was renamed and the store was made with the
+ * migration, a read that asks for the new tag also returns the events saved
+ * under the old one, decodes them as the renamed case, and reports them under
+ * the new tag.
  *
  * A read opens its own connection and pulls the rows through a cursor as the
- * stream is consumed. An event whose payload cannot be decoded fails the
- * stream.
+ * stream is consumed. It gets the connection from the transactor's private
+ * connection factory by reflection, so the transactor must be a
+ * `JdbcTransactor`; with another `Transactor` the read fails. An event whose
+ * payload cannot be decoded fails the stream.
  *
  * The constructor is private: create a store with the factories of the
  * companion object, which also create the table and its index if they are
@@ -177,6 +211,11 @@ final class SQLiteEventStore[E] private (
       case _: Throwable => event.getClass.getSimpleName.stripSuffix("$")
     }
 
+  /**
+   * Stores the event as a new row, then publishes its envelope to `subscribe`.
+   * The tag is worked out from the event's case, and the timestamp is the
+   * current time, cut to milliseconds.
+   */
   def append(entityId: String, event: E): Task[Long] =
     for {
       tagAndPayload <- ZIO.attempt {
@@ -221,6 +260,12 @@ final class SQLiteEventStore[E] private (
       _       <- subscribe.publish(envelope).unit
     } yield seq
 
+  /**
+   * Streams the stored events after `afterSeq` whose tag is one of `tags`,
+   * widened with [[TagInfo#expandRequested]]: the old tags of renamed cases are
+   * added, and an empty set stands for all the tags the store knows. Old tags
+   * are reported as their current ones.
+   */
   def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
     // M4: cursor streaming via ZStream.managed + ZIO.attemptBlocking(rs.next()) - uses ZStream.acquireReleaseWith for ZIO2
     ZStream
@@ -287,6 +332,7 @@ final class SQLiteEventStore[E] private (
         )
       }
 
+  /** Same as `readFrom(0L, tags)`. */
   def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
     readFrom(0L, tags)
 
@@ -455,6 +501,7 @@ final class SQLiteEventStore[E] private (
     }
 }
 
+/** Creates [[SQLiteEventStore]]s. */
 object SQLiteEventStore {
 
   /**
@@ -462,9 +509,10 @@ object SQLiteEventStore {
    *
    * It creates the `events` table and its index if they are missing, and a
    * bounded hub of 4,096 events to publish to. The tags of `E` are worked out
-   * from its schema with `TagResolver.resolve`. When the store starts, it
+   * from its schema with `TagResolver.resolve`. When the store is created, it
    * compares the tags in the database with the ones it knows, and logs a
-   * warning for any it cannot explain.
+   * warning for any it cannot explain: the events under such tags are skipped
+   * by every read.
    *
    * @param transactor
    *   the connection to the database file, usually from a [[TransactorCache]]

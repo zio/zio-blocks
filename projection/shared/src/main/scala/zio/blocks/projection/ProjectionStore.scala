@@ -31,7 +31,34 @@ import zio.blocks.chunk.Chunk
  * The engine applies the [[ProjectionAction]] that a handler returns with one
  * of these methods, and reads a row back with `findById`.
  * [[SQLiteProjectionStore]] keeps the rows in a SQLite file, and
- * `testing.InMemoryProjectionStore` keeps them in memory, for tests.
+ * `testing.InMemoryProjectionStore` keeps them in memory, for tests:
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.chunk.Chunk
+ * import zio.blocks.projection.testing.InMemoryProjectionStore
+ * import zio.blocks.schema.{Modifier, Schema}
+ *
+ * case class DailyVisits(@Modifier.id day: String, visits: Long)
+ * object DailyVisits {
+ *   implicit val schema: Schema[DailyVisits]         = Schema.derived[DailyVisits]
+ *   implicit val entityPath: EntityPath[DailyVisits] = EntityPath.derived[DailyVisits]
+ * }
+ *
+ * val visit: Chunk[FieldUpdate] = Chunk(FieldUpdate.Increment("visits", 1L))
+ *
+ * val program: Task[Option[DailyVisits]] =
+ *   for {
+ *     store <- InMemoryProjectionStore.make[DailyVisits]
+ *     _     <- store.updateFields("2026-11-06", visit) // creates the row
+ *     _     <- store.updateFields("2026-11-06", visit)
+ *     row   <- store.findById("2026-11-06")
+ *   } yield row
+ * // Some(DailyVisits(2026-11-06,2))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/projection-store/ ProjectionStore]]
  *
  * @tparam A
  *   the type of a row: a case class with an ID field
@@ -62,6 +89,14 @@ trait ProjectionStore[A] {
    * If there is no such row yet, it is first created with a default value in
    * each column, so that, for example, the first increment of a counter gives
    * `1`. The updates are applied in order.
+   *
+   * The two stores differ on the edges. [[SQLiteProjectionStore]] gives an
+   * `Option` column of a new row the default of its inner type, such as
+   * `Some(0)`, and on an unknown column makes the task die with an
+   * `IllegalArgumentException` instead of failing, which is a known bug.
+   * `InMemoryProjectionStore` ignores an unknown column, and fails on a row
+   * type with an `Option` field when the row is missing or the update sets that
+   * field, which is a known bug too.
    *
    * @param entityId
    *   the ID of the row to change
@@ -139,8 +174,9 @@ trait ProjectionStore[A] {
    * Adds the column `columnName`, if the rows do not have it yet. The migration
    * shortcut calls it for each field that a migration adds.
    *
-   * The default does nothing. [[SQLiteProjectionStore]] checks the name against
-   * `^[a-zA-Z_][a-zA-Z0-9_]*$` and runs `ALTER TABLE ... ADD COLUMN`.
+   * The default does nothing. [[SQLiteProjectionStore]] fails if the name is
+   * not made of ASCII letters, digits and `_`, or starts with a digit, and
+   * otherwise runs `ALTER TABLE ... ADD COLUMN` when the column is missing.
    *
    * @param columnName
    *   the name of the column, in snake_case

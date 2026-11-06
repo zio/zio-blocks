@@ -26,19 +26,46 @@ import zio.blocks.sql.*
  * one for each projection; with `ProjectionEngine.makeWithStores` you create
  * them yourself.
  *
- * The rows are kept in a table named after `A`, with one column for each field,
- * in snake_case, and a unique index on the ID column. The watermark and the
- * schema hash are kept in a table called `_projection_meta`, in a row named
- * after the rows' table. The tables are created the first time the store is
- * used, not when it is made.
+ * The rows are kept in a table named after `A` in snake_case, such as `counter`
+ * for a row type `Counter`, with one column for each field, also in snake_case,
+ * and a unique index on the ID column. The watermark and the schema hash are
+ * kept in a table called `_projection_meta`, in a row named after the rows'
+ * table. The tables are created the first time the store is used, not when it
+ * is made.
  *
  * `upsert` uses `INSERT ... ON CONFLICT DO UPDATE`, and falls back to
- * `INSERT OR REPLACE` if SQLite rejects that statement. `updateFields` checks
- * every field name against the table's columns before it starts, then runs
- * `INSERT OR IGNORE` for the default row and one `UPDATE` for each field
- * update, in one transaction.
+ * `INSERT OR REPLACE` if SQLite rejects that statement, after printing the
+ * error to standard error. `updateFields` checks every field name against the
+ * table's columns before it starts, then runs `INSERT OR IGNORE` for the
+ * default row and one `UPDATE` for each field update, in one transaction.
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.chunk.Chunk
+ * import zio.blocks.schema.{Modifier, Schema}
+ *
+ * case class ShelfStock(@Modifier.id sku: String, quantity: Long)
+ * object ShelfStock {
+ *   implicit val schema: Schema[ShelfStock]         = Schema.derived[ShelfStock]
+ *   implicit val entityPath: EntityPath[ShelfStock] = EntityPath.derived[ShelfStock]
+ * }
+ *
+ * // Needs sqlite-jdbc at run time, and the folder skus/
+ * val program: ZIO[Scope, Throwable, Option[ShelfStock]] =
+ *   for {
+ *     cache <- TransactorCache.make()
+ *     store <- SQLiteProjectionStore.make[ShelfStock]("skus/stock.db", cache)
+ *     _     <- store.upsert(ShelfStock("sku-42", 3L))
+ *     _     <- store.updateFields("sku-42", Chunk(FieldUpdate.Decrement("quantity", 1L)))
+ *     row   <- store.findById("sku-42")
+ *   } yield row
+ * // ZIO.scoped(program) gives Some(ShelfStock(sku-42,2))
+ * }}}
  *
  * The constructor is private: create a store with `SQLiteProjectionStore.make`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/projection-store/ ProjectionStore]]
  *
  * @tparam A
  *   the type of a row, with an [[EntityPath]] that names its ID field
@@ -160,6 +187,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       case other                        => writer.setString(idx, other.toString)
     }
 
+  /**
+   * Inserts `a` as a new row. A row with the same ID fails the task with a
+   * `SQLiteException` from the unique index.
+   */
   def insert(a: A): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -185,6 +216,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Inserts `a`, or replaces every column of the row with the same ID. */
   def upsert(a: A): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -235,6 +267,12 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /**
+   * Applies `updates` in one transaction, after creating the row with the
+   * column defaults if it is missing: `0`, `""`, `false`, and for an `Option`
+   * column the default of its inner type. A field name that is not a column
+   * makes the task die with an `IllegalArgumentException`, a known bug.
+   */
   def updateFields(entityId: String, updates: Chunk[FieldUpdate]): Task[Unit] =
     if (updates.isEmpty) ZIO.unit
     else
@@ -335,6 +373,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
           }
         }
 
+  /** Deletes the row with the ID `entityId`; a missing row is not an error. */
   def delete(entityId: String): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -353,6 +392,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Deletes every row, and keeps the `_projection_meta` row. */
   def truncate: Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -369,6 +409,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Reads the row with the ID `entityId`. */
   def findById(entityId: String): Task[Option[A]] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -390,6 +431,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Reads the watermark from `_projection_meta`, or `0` if it has no row. */
   def getLastProcessedSeq: Task[Long] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -411,6 +453,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Saves the watermark in `_projection_meta`, with the current time. */
   def updateLastProcessedSeq(seq: Long): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -435,6 +478,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /** Reads the schema hash from `_projection_meta`. */
   def getSchemaHash: Task[Option[String]] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -458,6 +502,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /**
+   * Saves the schema hash in `_projection_meta`, keeping the watermark, or `0`
+   * when the row is new.
+   */
   def updateSchemaHash(hash: String): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -481,6 +529,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /**
+   * Drops the rows' table and creates it again, with its index, for the current
+   * shape of `A`. The watermark and the schema hash are kept.
+   */
   override def recreateTable(): Task[Unit] =
     ensureTables *>
       cache.get(path).flatMap { tx =>
@@ -508,6 +560,11 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  /**
+   * Adds the column with `ALTER TABLE ... ADD COLUMN`, unless the table has it
+   * already. Fails with an `IllegalArgumentException` if the name is not made
+   * of ASCII letters, digits and `_`, or starts with a digit.
+   */
   override def addColumn(columnName: String, sqlType: String): Task[Unit] =
     ZIO.attempt(validateColumnName(columnName)).flatMap { _ =>
       ensureTables *>
@@ -541,6 +598,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
     }
 }
 
+/** Creates [[SQLiteProjectionStore]]s. */
 object SQLiteProjectionStore {
 
   /**
@@ -562,8 +620,8 @@ object SQLiteProjectionStore {
     } yield new SQLiteProjectionStore[A](path, cache, flag, sem)
 
   /**
-   * Like `make`, but runs on the calling thread and returns the store directly,
-   * for tests that need one outside a ZIO program.
+   * Like `make`, but runs the effect at once on the default ZIO runtime and
+   * returns the store directly, for tests that need one outside a ZIO program.
    *
    * @param path
    *   the database file, such as `users/user_profiles.db`
