@@ -868,7 +868,7 @@ Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07
 
 ## 13r. Scaladoc: markdown module (in progress)
 
-Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks in 5 files (`Parser`, `Doc`, `package`, `ToMarkdown`, `Renderer`), never compiled.
+Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks: 6 in 5 files (`Parser`, `Doc`, `package` ×2, `ToMarkdown`, `Renderer`), all flattened into run-on lines by an earlier scalafmt pass, so none can compile; only `MdInterpolator` has scala-2/scala-3 copies; sources byte-identical to `v0.0.56`. Milad's Phase 1 decisions: one PR (tooling and all Scaladoc); tier 1 = `Doc`, `Block`, `Inline`, `Parser`, `HtmlRenderer`, `TerminalRenderer`, `ToMarkdown`, `Renderer`, the `md"..."` interpolator, each with an overview, one compiled example and `@see` to `docs/reference/docs.md`; AGENTS.md: markdown in the scaladoc-check list and a `markdown*` downstream row (dependents checked in build.sbt).
 
 ## 13. Scaladoc: next modules
 
