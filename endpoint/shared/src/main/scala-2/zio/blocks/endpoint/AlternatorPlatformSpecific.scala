@@ -16,4 +16,8 @@
 
 package zio.blocks.endpoint
 
+/**
+ * Version-specific members of the [[Alternator]] companion: none on Scala 2,
+ * the union-backed instances on Scala 3.
+ */
 private[endpoint] trait AlternatorPlatformSpecific

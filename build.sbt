@@ -1434,7 +1434,8 @@ lazy val scaladocCheckedModules: Seq[Project] =
     jwt.jvm,
     `schema-toon`.jvm,
     `schema-xml`.jvm,
-    `schema-yaml`.jvm
+    `schema-yaml`.jvm,
+    endpoint.jvm
   )
 
 lazy val `scaladoc-check` = project
