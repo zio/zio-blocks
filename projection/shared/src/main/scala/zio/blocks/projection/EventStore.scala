@@ -145,9 +145,10 @@ trait EventStore[E] {
  *
  * A read opens its own connection and pulls the rows through a cursor as the
  * stream is consumed. It gets the connection from the transactor's private
- * connection factory by reflection, so the transactor must be a
- * `JdbcTransactor`; with another `Transactor` the read fails. An event whose
- * payload cannot be decoded fails the stream.
+ * connection factory by reflection, so the transactor must be an instance of
+ * `JdbcTransactor` itself, such as one from `TransactorCache#get`; with a
+ * subclass or another `Transactor`, the read fails with `NoSuchFieldException`.
+ * An event whose payload cannot be decoded fails the stream.
  *
  * The constructor is private: create a store with the factories of the
  * companion object, which also create the table and its index if they are

@@ -62,6 +62,10 @@ import zio.blocks.sql.*
  * // ZIO.scoped(program) gives Some(ShelfStock(sku-42,2))
  * }}}
  *
+ * A row type with a `java.time.Instant` field cannot be read back: after an
+ * `insert`, `findById` fails with `Error parsing time stamp`. That is a known
+ * bug of the `sql` module's SQLite mapping of `Instant`.
+ *
  * The constructor is private: create a store with `SQLiteProjectionStore.make`.
  *
  * @see

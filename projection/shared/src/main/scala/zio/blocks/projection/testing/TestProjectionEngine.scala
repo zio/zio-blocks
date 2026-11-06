@@ -21,8 +21,9 @@ import zio.blocks.projection.{ProjectionAction, ProjectionContext, Projection, P
 
 /**
  * Runs a projection's handlers on events by hand, with no event store and no
- * fibers, for unit tests of a [[zio.blocks.projection.Projection]]. Each method
- * finds the handler with `Projection#dispatch`, without naming a source.
+ * fibers, for unit tests of a [[zio.blocks.projection.Projection]]. The methods
+ * that take an event find its handler with `Projection#dispatch`, without
+ * naming a source.
  */
 class TestProjectionEngine {
 
