@@ -17,10 +17,10 @@
 package zio.blocks.telemetry
 
 /**
- * Names the library or component that produced a span, log record or metric,
- * so a backend can tell your telemetry from a dependency's.
- * `LoggerProvider#get`, `TracerProvider#get` and `MeterProvider#get` build one
- * from the name and version they receive.
+ * Names the library or component that produced a span, log record or metric, so
+ * a backend can tell your telemetry from a dependency's. `LoggerProvider#get`,
+ * `TracerProvider#get` and `MeterProvider#get` build one from the name and
+ * version they receive.
  *
  * @see
  *   [[https://zioblocks.com/reference/telemetry/common/instrumentation-scope/ InstrumentationScope]]

@@ -63,7 +63,9 @@ object ContextStorage {
    */
   val implementationName: String = "JSGlobal"
 
-  /** Returns a new storage whose value is `initial` outside any `scoped` block. */
+  /**
+   * Returns a new storage whose value is `initial` outside any `scoped` block.
+   */
   def create[A](initial: A): ContextStorage[A] = new JsStorage[A](initial)
 
   private[telemetry] val defaultSpanContextStorage: ContextStorage[Option[SpanContext]] =

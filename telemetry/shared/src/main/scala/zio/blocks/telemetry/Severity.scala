@@ -19,9 +19,9 @@ package zio.blocks.telemetry
 import java.util.Locale
 
 /**
- * The level of a log record, on the 24-step scale of the OpenTelemetry log
- * data model: Trace (1 to 4), Debug (5 to 8), Info (9 to 12), Warn (13 to 16),
- * Error (17 to 20) and Fatal (21 to 24).
+ * The level of a log record, on the 24-step scale of the OpenTelemetry log data
+ * model: Trace (1 to 4), Debug (5 to 8), Info (9 to 12), Warn (13 to 16), Error
+ * (17 to 20) and Fatal (21 to 24).
  *
  * The six named levels (`Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`) are
  * the first of each group; the numbered ones (`Warn2` and so on) are finer
@@ -60,32 +60,40 @@ object Severity {
   // Trace levels (1-4)
   /** Severity 1, the first TRACE level. */
   case object Trace extends Severity {
+
     /** Returns 1. */
-    def number: Int  = 1
+    def number: Int = 1
+
     /** Returns `"TRACE"`. */
     def text: String = "TRACE"
   }
 
   /** Severity 2, TRACE level 2 of 4. */
   case object Trace2 extends Severity {
+
     /** Returns 2. */
-    def number: Int  = 2
+    def number: Int = 2
+
     /** Returns `"TRACE"`. */
     def text: String = "TRACE"
   }
 
   /** Severity 3, TRACE level 3 of 4. */
   case object Trace3 extends Severity {
+
     /** Returns 3. */
-    def number: Int  = 3
+    def number: Int = 3
+
     /** Returns `"TRACE"`. */
     def text: String = "TRACE"
   }
 
   /** Severity 4, TRACE level 4 of 4. */
   case object Trace4 extends Severity {
+
     /** Returns 4. */
-    def number: Int  = 4
+    def number: Int = 4
+
     /** Returns `"TRACE"`. */
     def text: String = "TRACE"
   }
@@ -93,32 +101,40 @@ object Severity {
   // Debug levels (5-8)
   /** Severity 5, the first DEBUG level. */
   case object Debug extends Severity {
+
     /** Returns 5. */
-    def number: Int  = 5
+    def number: Int = 5
+
     /** Returns `"DEBUG"`. */
     def text: String = "DEBUG"
   }
 
   /** Severity 6, DEBUG level 2 of 4. */
   case object Debug2 extends Severity {
+
     /** Returns 6. */
-    def number: Int  = 6
+    def number: Int = 6
+
     /** Returns `"DEBUG"`. */
     def text: String = "DEBUG"
   }
 
   /** Severity 7, DEBUG level 3 of 4. */
   case object Debug3 extends Severity {
+
     /** Returns 7. */
-    def number: Int  = 7
+    def number: Int = 7
+
     /** Returns `"DEBUG"`. */
     def text: String = "DEBUG"
   }
 
   /** Severity 8, DEBUG level 4 of 4. */
   case object Debug4 extends Severity {
+
     /** Returns 8. */
-    def number: Int  = 8
+    def number: Int = 8
+
     /** Returns `"DEBUG"`. */
     def text: String = "DEBUG"
   }
@@ -126,32 +142,40 @@ object Severity {
   // Info levels (9-12)
   /** Severity 9, the first INFO level. */
   case object Info extends Severity {
+
     /** Returns 9. */
-    def number: Int  = 9
+    def number: Int = 9
+
     /** Returns `"INFO"`. */
     def text: String = "INFO"
   }
 
   /** Severity 10, INFO level 2 of 4. */
   case object Info2 extends Severity {
+
     /** Returns 10. */
-    def number: Int  = 10
+    def number: Int = 10
+
     /** Returns `"INFO"`. */
     def text: String = "INFO"
   }
 
   /** Severity 11, INFO level 3 of 4. */
   case object Info3 extends Severity {
+
     /** Returns 11. */
-    def number: Int  = 11
+    def number: Int = 11
+
     /** Returns `"INFO"`. */
     def text: String = "INFO"
   }
 
   /** Severity 12, INFO level 4 of 4. */
   case object Info4 extends Severity {
+
     /** Returns 12. */
-    def number: Int  = 12
+    def number: Int = 12
+
     /** Returns `"INFO"`. */
     def text: String = "INFO"
   }
@@ -159,32 +183,40 @@ object Severity {
   // Warn levels (13-16)
   /** Severity 13, the first WARN level. */
   case object Warn extends Severity {
+
     /** Returns 13. */
-    def number: Int  = 13
+    def number: Int = 13
+
     /** Returns `"WARN"`. */
     def text: String = "WARN"
   }
 
   /** Severity 14, WARN level 2 of 4. */
   case object Warn2 extends Severity {
+
     /** Returns 14. */
-    def number: Int  = 14
+    def number: Int = 14
+
     /** Returns `"WARN"`. */
     def text: String = "WARN"
   }
 
   /** Severity 15, WARN level 3 of 4. */
   case object Warn3 extends Severity {
+
     /** Returns 15. */
-    def number: Int  = 15
+    def number: Int = 15
+
     /** Returns `"WARN"`. */
     def text: String = "WARN"
   }
 
   /** Severity 16, WARN level 4 of 4. */
   case object Warn4 extends Severity {
+
     /** Returns 16. */
-    def number: Int  = 16
+    def number: Int = 16
+
     /** Returns `"WARN"`. */
     def text: String = "WARN"
   }
@@ -192,32 +224,40 @@ object Severity {
   // Error levels (17-20)
   /** Severity 17, the first ERROR level. */
   case object Error extends Severity {
+
     /** Returns 17. */
-    def number: Int  = 17
+    def number: Int = 17
+
     /** Returns `"ERROR"`. */
     def text: String = "ERROR"
   }
 
   /** Severity 18, ERROR level 2 of 4. */
   case object Error2 extends Severity {
+
     /** Returns 18. */
-    def number: Int  = 18
+    def number: Int = 18
+
     /** Returns `"ERROR"`. */
     def text: String = "ERROR"
   }
 
   /** Severity 19, ERROR level 3 of 4. */
   case object Error3 extends Severity {
+
     /** Returns 19. */
-    def number: Int  = 19
+    def number: Int = 19
+
     /** Returns `"ERROR"`. */
     def text: String = "ERROR"
   }
 
   /** Severity 20, ERROR level 4 of 4. */
   case object Error4 extends Severity {
+
     /** Returns 20. */
-    def number: Int  = 20
+    def number: Int = 20
+
     /** Returns `"ERROR"`. */
     def text: String = "ERROR"
   }
@@ -225,32 +265,40 @@ object Severity {
   // Fatal levels (21-24)
   /** Severity 21, the first FATAL level. */
   case object Fatal extends Severity {
+
     /** Returns 21. */
-    def number: Int  = 21
+    def number: Int = 21
+
     /** Returns `"FATAL"`. */
     def text: String = "FATAL"
   }
 
   /** Severity 22, FATAL level 2 of 4. */
   case object Fatal2 extends Severity {
+
     /** Returns 22. */
-    def number: Int  = 22
+    def number: Int = 22
+
     /** Returns `"FATAL"`. */
     def text: String = "FATAL"
   }
 
   /** Severity 23, FATAL level 3 of 4. */
   case object Fatal3 extends Severity {
+
     /** Returns 23. */
-    def number: Int  = 23
+    def number: Int = 23
+
     /** Returns `"FATAL"`. */
     def text: String = "FATAL"
   }
 
   /** Severity 24, FATAL level 4 of 4. */
   case object Fatal4 extends Severity {
+
     /** Returns 24. */
-    def number: Int  = 24
+    def number: Int = 24
+
     /** Returns `"FATAL"`. */
     def text: String = "FATAL"
   }

@@ -16,7 +16,9 @@
 
 package zio.blocks.telemetry
 
-/** Hands out a cleared attribute builder per thread, reused by every log call. */
+/**
+ * Hands out a cleared attribute builder per thread, reused by every log call.
+ */
 private[telemetry] object AttributeBuilderPool {
   private val cached: Attributes.AttributesBuilder = Attributes.builder
 

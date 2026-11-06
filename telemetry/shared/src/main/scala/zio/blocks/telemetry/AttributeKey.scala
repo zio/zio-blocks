@@ -21,9 +21,9 @@ package zio.blocks.telemetry
  * read it back as an `A`. Create keys with the methods of the companion, such
  * as `AttributeKey.long("http.status_code")`.
  *
- * Two keys with the same name and type are equal. [[Attributes]] compares
- * only names, so a key of the wrong type reads the stored value under a wrong
- * type (see `Attributes#get`).
+ * Two keys with the same name and type are equal. [[Attributes]] compares only
+ * names, so a key of the wrong type reads the stored value under a wrong type
+ * (see `Attributes#get`).
  *
  * @tparam A
  *   the type of the values this key maps to

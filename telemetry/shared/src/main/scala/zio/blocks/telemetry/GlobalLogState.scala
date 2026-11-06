@@ -29,6 +29,7 @@ final class LogState private[telemetry] (
   val levelOverrideKeys: Array[String],
   val levelOverrideValues: Array[Int]
 ) {
+
   /**
    * Returns the minimum severity number for a call from `className`: the value
    * of its longest matching prefix override, or the global floor.

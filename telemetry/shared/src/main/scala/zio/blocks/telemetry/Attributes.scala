@@ -26,8 +26,7 @@ import Attributes._
  * A value is a `String`, `Long`, `Double` or `Boolean`, or a `Seq` of one of
  * them. Build a set with `Attributes.builder` or `Attributes.of`, and read a
  * value back with a typed [[AttributeKey]]. `Long`, `Double` and `Boolean`
- * values are stored unboxed, so building a set on a hot path does not box
- * them.
+ * values are stored unboxed, so building a set on a hot path does not box them.
  *
  * {{{
  * val attrs = Attributes.builder
@@ -116,8 +115,8 @@ final class Attributes private (
 
   /**
    * Calls the `visitor` method that matches each entry's value type, in
-   * insertion order, passing `Long`, `Double` and `Boolean` values unboxed.
-   * An entry whose `Seq` method the visitor does not override is skipped.
+   * insertion order, passing `Long`, `Double` and `Boolean` values unboxed. An
+   * entry whose `Seq` method the visitor does not override is skipped.
    *
    * {{{
    * val attrs = Attributes.builder.put("http.route", "/orders").put("http.status_code", 503L).build
@@ -303,7 +302,9 @@ object Attributes {
   /** The key `service.name`, which names the service in a [[Resource]]. */
   val ServiceName: AttributeKey[String] = AttributeKey.string("service.name")
 
-  /** The key `service.version`, the version of the service in a [[Resource]]. */
+  /**
+   * The key `service.version`, the version of the service in a [[Resource]].
+   */
   val ServiceVersion: AttributeKey[String] = AttributeKey.string("service.version")
 
   /**
@@ -339,7 +340,9 @@ object Attributes {
       this
     }
 
-    /** Adds a `String` value under `key`, or replaces the value already there. */
+    /**
+     * Adds a `String` value under `key`, or replaces the value already there.
+     */
     def put(key: String, value: String): AttributesBuilder = {
       val i = findOrAdd(key)
       _types(i) = T_STRING
@@ -359,7 +362,9 @@ object Attributes {
       this
     }
 
-    /** Adds a `Double` value under `key`, or replaces the value already there. */
+    /**
+     * Adds a `Double` value under `key`, or replaces the value already there.
+     */
     def put(key: String, value: Double): AttributesBuilder = {
       val i = findOrAdd(key)
       _types(i) = T_DOUBLE
@@ -369,7 +374,9 @@ object Attributes {
       this
     }
 
-    /** Adds a `Boolean` value under `key`, or replaces the value already there. */
+    /**
+     * Adds a `Boolean` value under `key`, or replaces the value already there.
+     */
     def put(key: String, value: Boolean): AttributesBuilder = {
       val i = findOrAdd(key)
       _types(i) = T_BOOLEAN
@@ -413,7 +420,9 @@ object Attributes {
       _len = 0
     }
 
-    /** Returns the entries put so far as [[Attributes]]; the builder keeps them. */
+    /**
+     * Returns the entries put so far as [[Attributes]]; the builder keeps them.
+     */
     def build: Attributes =
       if (_len == 0) Attributes.empty
       else {

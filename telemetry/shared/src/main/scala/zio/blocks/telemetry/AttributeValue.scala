@@ -18,9 +18,9 @@ package zio.blocks.telemetry
 
 /**
  * An attribute value of any of the eight types, as a case class to match on.
- * [[Logger]] methods take attributes in this form, and `Attributes#foreach`
- * and `Attributes#toMap` return them in it. It mirrors the scalar and array
- * cases of OpenTelemetry's `AnyValue`.
+ * [[Logger]] methods take attributes in this form, and `Attributes#foreach` and
+ * `Attributes#toMap` return them in it. It mirrors the scalar and array cases
+ * of OpenTelemetry's `AnyValue`.
  *
  * @see
  *   [[https://zioblocks.com/reference/telemetry/common/any-value/ AttributeValue]]

@@ -63,7 +63,9 @@ object ContextStorage {
    */
   val implementationName: String = "ScopedValue"
 
-  /** Returns a new storage whose value is `initial` outside any `scoped` block. */
+  /**
+   * Returns a new storage whose value is `initial` outside any `scoped` block.
+   */
   def create[A](initial: A): ContextStorage[A] =
     new ScopedValueStorage[A](initial)
 

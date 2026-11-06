@@ -79,8 +79,8 @@ object log extends LogVersionSpecific {
    * Nested blocks add to the outer pairs, and an inner value replaces an outer
    * one with the same key. The pairs follow the current thread: on the JVM they
    * are bound with a `ScopedValue`, so a thread that `f` starts does not see
-   * them, and on Scala.js they are removed when `f` returns, before any callback
-   * it scheduled runs. [[Logger]] instances do not read them.
+   * them, and on Scala.js they are removed when `f` returns, before any
+   * callback it scheduled runs. [[Logger]] instances do not read them.
    *
    * {{{
    * // scala-3-only
@@ -202,8 +202,8 @@ object log extends LogVersionSpecific {
     GlobalLogState.install(logger, minSeverity)
 
   /**
-   * Shuts down every processor of the current backend, forgets the outputs added
-   * with `log.writer`, and turns `log.*` calls into no-ops.
+   * Shuts down every processor of the current backend, forgets the outputs
+   * added with `log.writer`, and turns `log.*` calls into no-ops.
    *
    * `log.install` turns logging back on. A known bug: `log.writer` and
    * `log.addProcessor` alone do not, because the floor stays above every
@@ -220,8 +220,8 @@ object log extends LogVersionSpecific {
   }
 
   /**
-   * Runs `f` with the global floor set to `severity`, then puts back the backend
-   * that was active before.
+   * Runs `f` with the global floor set to `severity`, then puts back the
+   * backend that was active before.
    *
    * The floor applies to every thread while `f` runs, not only to the caller,
    * and prefix overrides still take precedence inside the block. A known bug:

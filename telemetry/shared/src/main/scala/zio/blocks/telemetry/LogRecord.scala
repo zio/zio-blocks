@@ -83,7 +83,10 @@ object LogMessage {
     override def hashCode(): Int = value.hashCode
   }
 
-  /** Converts a string to a [[LogMessage.Simple]] where a `LogMessage` is expected. */
+  /**
+   * Converts a string to a [[LogMessage.Simple]] where a `LogMessage` is
+   * expected.
+   */
   implicit def fromString(s: String): LogMessage = Simple(s)
 
   /** Returns a [[LogMessage.Simple]] with the text `s`. */
@@ -165,10 +168,10 @@ object LogRecord {
  * Builds a [[LogRecord]] step by step; each setter returns a new builder.
  *
  * The defaults: both timestamps are the time of `build`, the severity is
- * `Severity.Info`, the body is empty, there are no attributes and no trace
- * ids, the resource is `Resource.empty` and the instrumentation scope is named
- * `"unknown"`. The severity text always comes from the severity, and the
- * record has no exception.
+ * `Severity.Info`, the body is empty, there are no attributes and no trace ids,
+ * the resource is `Resource.empty` and the instrumentation scope is named
+ * `"unknown"`. The severity text always comes from the severity, and the record
+ * has no exception.
  *
  * {{{
  * val record = LogRecord.builder
@@ -177,7 +180,7 @@ object LogRecord {
  *   .setAttribute(AttributeKey.long("disk.free_mb"), 512L)
  *   .build
  *
- * record.severityText // WARN
+ * record.severity.text // WARN
  * record.attributes.get(AttributeKey.long("disk.free_mb")) // Some(512)
  * record.hasTraceId // false
  * }}}

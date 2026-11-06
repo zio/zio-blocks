@@ -49,7 +49,10 @@ trait LogFormatter {
     throwable: Option[Throwable]
   ): Unit
 
-  /** Appends `record`, rendered, to `sb`; outputs added with `log.writer` call it. */
+  /**
+   * Appends `record`, rendered, to `sb`; outputs added with `log.writer` call
+   * it.
+   */
   def formatRecord(sb: StringBuilder, record: LogRecord): Unit
 }
 
@@ -368,8 +371,8 @@ object TextLogFormatter extends LogFormatter {
  * such as
  * `{"timeUnixNano":"1793990790777118658","severityNumber":9,"severityText":"INFO","body":{"stringValue":"order placed"},"attributes":[...]}`.
  *
- * Every attribute is listed, the `code.*` source location included, followed
- * by `traceId` and `spanId` when the record has them. An exception becomes an
+ * Every attribute is listed, the `code.*` source location included, followed by
+ * `traceId` and `spanId` when the record has them. An exception becomes an
  * `exception.stacktrace` attribute. A known bug: when a record has attributes,
  * a trace or span id and an exception, the line is not valid JSON, because the
  * closing quote of the last id is dropped and the stack trace attribute follows

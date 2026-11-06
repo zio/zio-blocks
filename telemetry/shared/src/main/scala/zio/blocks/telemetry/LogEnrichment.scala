@@ -23,9 +23,9 @@ package zio.blocks.telemetry
  *
  * The macro handles `String`, `Throwable`, [[Severity]], [[Attributes]] and
  * `(String, String)`, `(String, Long)`, `(String, Int)`, `(String, Double)` and
- * `(String, Boolean)` pairs directly, and calls `enrich` for any other type.
- * A [[Severity]] changes the recorded level but not the one the call was
- * filtered at.
+ * `(String, Boolean)` pairs directly, and calls `enrich` for any other type. A
+ * [[Severity]] changes the recorded level but not the one the call was filtered
+ * at.
  *
  * {{{
  * // scala-3-only
