@@ -886,6 +886,10 @@ Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. 
 
 Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage: telemetry 203/567, otel 17/33; otel's package is `zio.blocks.telemetry.otel` (needs a `packageOverrides` entry). telemetry needs JDK 21+ even to compile (its jar is class file 65 and its `log.*` macros run in the compiler), and CI runs telemetry/otel tests and docs only via `whenJdkAtLeast(25, ...)`, so the examples need a JDK-gated checker; options for Milad: a separate `scaladoc-check-jdk21` project (recommended), a JDK-dependent `scaladoc-check`, or `// no-check`.
 
+## 13t. Scaladoc: mediatype (in progress)
+
+Session `mediatype-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage 0 / 2634; 2,622 items are `lazy val`s in the generated `MediaTypes.scala` (from mime-db via `project/GenerateMediaTypes.scala`, task `generateMediaTypes`), so the comments come from the generator; the generator fetches mime-db `master`, so regenerating may change data, and the PR must stay comments-only (Milad picks: pin mime-db, a no-fetch rewrite mode, or a separate data refresh).
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
