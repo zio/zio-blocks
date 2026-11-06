@@ -282,7 +282,9 @@ object HxSwap {
 
   /**
    * Parses an `hx-swap` string, such as one read from an `HX-Reswap` header,
-   * into an [[HxSwap]]. It reads every string that [[HxSwap#render]] produces.
+   * into an [[HxSwap]]. It reads every string that [[HxSwap#render]] produces,
+   * except a negative delay set through the [[HxSwap.Value]] constructor
+   * (`swap:-1s` gives `Left("HTMX duration must be non-negative: -1")`).
    *
    * Tokens are separated by whitespace, and the first one must be an exact
    * strategy name. A delay is a whole number followed by `ms` or `s`, or a bare
