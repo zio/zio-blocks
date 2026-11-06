@@ -43,22 +43,49 @@ private[ringbuffer] class SpscPad2 extends SpscConsumerFields {
 }
 
 /**
- * A high-performance, non-blocking SPSC ring buffer for generic reference
- * types.
+ * A bounded first-in, first-out queue of non-`null` references for one producer
+ * thread and one consumer thread. Neither side blocks: [[offer]] returns
+ * `false` when the buffer is full and [[take]] returns `null` when it is empty,
+ * so the caller decides whether to retry, back off or drop the element.
+ * [[fill]] and [[drain]] move several elements per call.
  *
- * Uses the FastFlow pattern: the array element's null/non-null state IS the
- * synchronization signal. The producer never reads `consumerIndex`; the
- * consumer never reads `producerIndex`. This minimizes cross-core cache
- * traffic.
+ * On the JVM the two threads share no lock: a slot's `null` or non-`null`
+ * content tells each side whether the slot is free (the FastFlow design), so on
+ * the fast path neither side reads the other's index. Call `offer` and `fill`
+ * from one thread only, and `take` and `drain` from one thread only; nothing
+ * checks this. On Scala.js, which runs one thread, the class is a plain
+ * array-backed queue with the same methods and results.
  *
- * Optimized for SPSC (Single Producer, Single Consumer). Only one producer
- * thread and one consumer thread should access the buffer concurrently.
+ * `null` marks an empty slot, so `offer(null)` throws `NullPointerException`.
  *
- * **Null elements are not permitted.** `offer(null)` throws
- * `NullPointerException`.
+ * {{{
+ * val jobs = SpscRingBuffer[String](2)
+ *
+ * val consumer = new Thread(() => {
+ *   var handled = 0
+ *   while (handled < 3) {
+ *     val job = jobs.take()
+ *     if (job != null) {
+ *       println(job)
+ *       handled += 1
+ *     }
+ *   }
+ * })
+ * consumer.start()
+ *
+ * for (job <- List("resize-image", "send-email", "rebuild-index"))
+ *   while (!jobs.offer(job)) Thread.onSpinWait()
+ * consumer.join()
+ * // resize-image
+ * // send-email
+ * // rebuild-index
+ * }}}
  *
  * @param capacity
- *   the buffer capacity, must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spsc/ SPSC RingBuffer]]
  */
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -70,17 +97,11 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   private val lookAheadStep: Long   = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
   /**
-   * Tries to insert an element into the buffer without blocking.
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. Call it from the producer thread only.
    *
-   * @param a
-   *   the element to insert; must not be `null`
    * @throws java.lang.NullPointerException
-   *   if the element is `null`
-   * @return
-   *   `true` if the element was successfully inserted, `false` if the buffer is
-   *   full
-   * @note
-   *   Must be called from the producer thread only.
+   *   if `a` is `null`
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("offer(null) is not permitted")
@@ -99,13 +120,8 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 
   /**
-   * Tries to remove an element from the buffer without blocking. Uses FastFlow:
-   * reads the array slot directly. Null = empty, non-null = data available.
-   *
-   * @return
-   *   the element, or `null` if the buffer is empty
-   * @note
-   *   Must be called from the consumer thread only.
+   * Removes and returns the oldest element, or returns `null`, without waiting,
+   * when the buffer is empty. Call it from the consumer thread only.
    */
   def take(): A = {
     val buf    = buffer
@@ -122,8 +138,10 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 
   /**
-   * Returns the number of elements currently in the buffer (approximate under
-   * concurrency).
+   * Returns the number of elements in the buffer. While other threads offer or
+   * take (JVM only), the result is an estimate: the two indices are read one
+   * after the other, so it can be out of date, negative, or larger than
+   * `capacity`.
    */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -132,8 +150,8 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 
   /**
-   * Returns `true` if the buffer contains no elements (approximate under
-   * concurrency).
+   * Returns `true` when the buffer holds no elements. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
    */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -141,7 +159,10 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
     pIdx == cIdx
   }
 
-  /** Returns `true` if the buffer is full (approximate under concurrency). */
+  /**
+   * Returns `true` when every slot holds an element. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
+   */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -149,24 +170,16 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 
   /**
-   * Drains up to `limit` elements from the buffer, passing each to the given
-   * consumer callback.
+   * Removes up to `limit` elements, oldest first, and passes each one to
+   * `consumer`; returns how many it removed, which is 0 when the buffer is
+   * empty. Call it from the consumer thread only.
    *
-   * Elements are consumed in FIFO order. The consumer index is advanced after
-   * each element is passed to the callback, so if the callback throws, all
-   * previously consumed elements remain consumed and the buffer is in a
-   * consistent state.
+   * Each element leaves the buffer before `consumer` sees it, so when
+   * `consumer` throws, that element and the ones before it stay removed, the
+   * rest stay in the buffer, and the exception propagates.
    *
-   * @param consumer
-   *   the callback invoked for each drained element
-   * @param limit
-   *   the maximum number of elements to drain; must be non-negative
    * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
-   * @return
-   *   the number of elements actually drained (0 if the buffer is empty)
-   * @note
-   *   Must be called from the consumer thread only.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
@@ -189,25 +202,20 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 
   /**
-   * Fills up to `limit` slots in the buffer by calling the supplier for each
-   * new element.
+   * Calls `supplier` once per free slot, up to `limit` times, and appends each
+   * result; returns how many elements it appended, which is 0 when the buffer
+   * is full. It checks for a free slot before each call, so `supplier` never
+   * runs for an element that does not fit. Call it from the producer thread
+   * only.
    *
-   * Elements are inserted in order. The producer index is advanced after each
-   * element is stored. If the supplier throws, all previously inserted elements
-   * remain in the buffer.
+   * When `supplier` throws, the elements appended before stay in the buffer and
+   * the exception propagates.
    *
-   * @param supplier
-   *   the callback invoked to produce each new element; must not return `null`
-   * @param limit
-   *   the maximum number of elements to insert; must be non-negative
    * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
    * @throws java.lang.NullPointerException
-   *   if the supplier returns `null`
-   * @return
-   *   the number of elements actually inserted (0 if the buffer is full)
-   * @note
-   *   Must be called from the producer thread only.
+   *   if `supplier` returns `null`; the elements appended before stay in the
+   *   buffer
    */
   def fill(supplier: () => A, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
@@ -260,6 +268,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
   }
 }
 
+/**
+ * Creates [[SpscRingBuffer]] instances.
+ */
 object SpscRingBuffer {
   private val PRODUCER_INDEX: VarHandle =
     MethodHandles
@@ -275,14 +286,11 @@ object SpscRingBuffer {
     MethodHandles.arrayElementVarHandle(classOf[Array[AnyRef]])
 
   /**
-   * Creates a new [[SpscRingBuffer]] with the given capacity.
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new SpscRingBuffer[A](capacity)`.
    *
-   * @param capacity
-   *   the buffer capacity, must be a positive power of two
-   * @tparam A
-   *   the element type (must be a reference type)
-   * @return
-   *   a new SPSC ring buffer
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
    */
   def apply[A <: AnyRef](capacity: Int): SpscRingBuffer[A] = new SpscRingBuffer[A](capacity)
 }

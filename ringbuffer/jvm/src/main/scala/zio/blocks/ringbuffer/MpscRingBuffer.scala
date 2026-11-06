@@ -50,29 +50,39 @@ private[ringbuffer] class MpscPad3 extends MpscConsumerFields {
 }
 
 /**
- * A high-performance, non-blocking Multi-Producer Single-Consumer (MPSC) ring
- * buffer for generic reference types.
+ * A bounded first-in, first-out queue of non-`null` references for many
+ * producer threads and one consumer thread. Any number of threads may call
+ * [[offer]] at once; call [[take]] and [[drain]] from one consumer thread only,
+ * which nothing checks. Neither side blocks: `offer` returns `false` when the
+ * buffer is full and `take` returns `null` when no element is ready.
  *
- * Multiple threads may call [[offer]] concurrently, but only a single consumer
- * thread may call [[take]]. This is enforced by contract — no runtime check is
- * performed for the single-consumer invariant.
+ * On the JVM producers claim a slot with a compare-and-set on the shared
+ * producer index and then store the element, as in the JCTools
+ * `MpscArrayQueue`; elements from one producer come out in the order that
+ * producer offered them. A producer that has claimed a slot but not yet stored
+ * its element makes `take` return `null` until it does, even when later slots
+ * already hold elements. On Scala.js, which runs one thread, the class is a
+ * plain array-backed queue with the same methods and results.
  *
- * The algorithm follows the JCTools `MpscArrayQueue` design:
- *   - Producers claim a slot via CAS on `producerIndex`, then write the element
- *     with release semantics.
- *   - The consumer reads elements using acquire semantics. A `null` slot
- *     indicates either an empty queue or a producer that has claimed a slot but
- *     has not yet written the element (the "FastFlow" pattern). In the latter
- *     case, `take` returns `null` rather than spinning, following `relaxedPoll`
- *     semantics.
- *   - A cached `producerLimit` avoids reading `consumerIndex` on every offer,
- *     reducing cross-core traffic.
+ * `null` marks an empty slot, so `offer(null)` throws `NullPointerException`.
  *
- * **Null elements are not permitted.** `offer(null)` throws
- * `NullPointerException`.
+ * {{{
+ * val events = MpscRingBuffer[String](4)
+ *
+ * events.offer("user-42 signed in")  // true
+ * events.offer("user-7 signed out")  // true
+ *
+ * val seen = List.newBuilder[String]
+ * events.drain(e => seen += e, 10)   // 2
+ * seen.result()                      // List(user-42 signed in, user-7 signed out)
+ * events.take()                      // null
+ * }}}
  *
  * @param capacity
- *   the buffer capacity, must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/mpsc/ MPSC RingBuffer]]
  */
 final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -86,19 +96,14 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   producerLimit = capacity.toLong
 
   /**
-   * Tries to insert an element into the buffer without blocking.
+   * Appends `a` and returns `true` if a slot is free; returns `false` when the
+   * buffer is full. Any number of threads may call it at once: on the JVM a
+   * producer that loses the compare-and-set for a slot to another producer
+   * tries the next slot, so the call never blocks, but it can loop while other
+   * producers keep winning.
    *
-   * Any thread may call this method concurrently. The implementation uses a CAS
-   * loop to claim a slot in the circular buffer, then writes the element with
-   * release semantics.
-   *
-   * @param a
-   *   the element to insert; must not be `null`
    * @throws java.lang.NullPointerException
-   *   if the element is `null`
-   * @return
-   *   `true` if the element was successfully inserted, `false` if the buffer is
-   *   full
+   *   if `a` is `null`
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("offer(null) is not permitted")
@@ -136,18 +141,14 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 
   /**
-   * Tries to remove an element from the buffer without blocking.
+   * Removes and returns the oldest element, or returns `null`, without waiting,
+   * when none is ready: the buffer is empty, or (JVM only) the producer that
+   * claimed the next slot has not stored its element yet.
    *
-   * Uses the FastFlow pattern: reads the array slot directly with acquire
-   * semantics. A `null` value means either the buffer is empty or a producer
-   * has claimed the slot but has not yet written the element. In both cases,
-   * `null` is returned (relaxed poll semantics).
-   *
-   * @return
-   *   the element, or `null` if the buffer is empty (or a producer is
-   *   mid-write)
-   * @note
-   *   Must be called from the consumer thread only.
+   * Call it from the consumer thread only; nothing checks this. Two threads
+   * taking at once on the JVM can receive the same element twice, lose
+   * elements, and leave the buffer looking full for good, a known bug that
+   * `MuxStream#receive` and `MuxStream#takeOutbound` inherit.
    */
   def take(): A = {
     val buf    = buffer
@@ -164,10 +165,10 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 
   /**
-   * Returns the approximate number of elements currently in the buffer.
-   *
-   * Under concurrent access this value is a snapshot and may be stale by the
-   * time the caller observes it.
+   * Returns the number of elements in the buffer. While other threads offer or
+   * take (JVM only), the result is an estimate: the two indices are read one
+   * after the other, so it can be out of date or larger than `capacity`. It is
+   * never negative.
    */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -176,8 +177,8 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 
   /**
-   * Returns `true` if the buffer appears to contain no elements (approximate
-   * under concurrency).
+   * Returns `true` when the buffer holds no elements. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
    */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -186,8 +187,8 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 
   /**
-   * Returns `true` if the buffer appears to be full (approximate under
-   * concurrency).
+   * Returns `true` when every slot holds an element. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
    */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -196,22 +197,17 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 
   /**
-   * Drains up to `limit` elements from the buffer, passing each to the given
-   * consumer callback.
+   * Removes up to `limit` elements, oldest first, and passes each one to
+   * `consumer`; returns how many it removed, which is 0 when the buffer is
+   * empty. Like [[take]], it stops at the first slot with no element ready, and
+   * must be called from the consumer thread only.
    *
-   * Elements are consumed in FIFO order. Uses relaxed poll semantics: stops at
-   * the first `null` slot (either empty or producer mid-write).
+   * Each element leaves the buffer before `consumer` sees it, so when
+   * `consumer` throws, that element and the ones before it stay removed, the
+   * rest stay in the buffer, and the exception propagates.
    *
-   * @param consumer
-   *   the callback invoked for each drained element
-   * @param limit
-   *   the maximum number of elements to drain; must be non-negative
    * @throws java.lang.IllegalArgumentException
    *   if `limit` is negative
-   * @return
-   *   the number of elements actually drained (0 if the buffer is empty)
-   * @note
-   *   Must be called from the consumer thread only.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     if (limit < 0) throw new IllegalArgumentException(s"limit is negative: $limit")
@@ -234,6 +230,9 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) extends MpscPad3 {
   }
 }
 
+/**
+ * Creates [[MpscRingBuffer]] instances.
+ */
 object MpscRingBuffer {
   private val PRODUCER_INDEX: VarHandle =
     MethodHandles
@@ -254,14 +253,11 @@ object MpscRingBuffer {
     MethodHandles.arrayElementVarHandle(classOf[Array[AnyRef]])
 
   /**
-   * Creates a new `MpscRingBuffer` with the given capacity.
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new MpscRingBuffer[A](capacity)`.
    *
-   * @param capacity
-   *   the buffer capacity, must be a positive power of two
-   * @tparam A
-   *   the element type (must be a reference type)
-   * @return
-   *   a new lock-free MPSC ring buffer
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
    */
   def apply[A <: AnyRef](capacity: Int): MpscRingBuffer[A] = new MpscRingBuffer[A](capacity)
 }
