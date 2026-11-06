@@ -473,14 +473,12 @@ html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
   }
   .zb-chat #bytebrain-ask-button:hover { background: var(--ifm-color-primary-dark) !important; }
 
-  /* Maximized view, as on zio.dev:
-     - display: the widget centres the panel with flexbox, but its Tailwind `block` class (display: block, !important)
-       wins over that rule, so the panel stays at the left edge. Restore the flex layout so the panel is centred.
+  /* Maximized view:
      - top: the widget starts the maximized view at --bytebrain-offset-top (the navbar height, set above), so it stops
        below the navbar. Start at 0 instead so the maximized view fills the full window height; the normal window keeps the offset.
      - z-index: the sticky navbar sits at Docusaurus' --ifm-z-index-fixed (200). Put the maximized view above it so it
        covers the navbar and its Restore and Close buttons stay clickable. */
-  .zb-chat #container.bytebrain-maximized { display: flex !important; top: 0 !important; z-index: 1000; }
+  .zb-chat #container.bytebrain-maximized { top: 0 !important; z-index: 1000; }
 
   @media (prefers-reduced-motion: reduce) {
     .zb-chat #chat-button { transition: none !important; }
