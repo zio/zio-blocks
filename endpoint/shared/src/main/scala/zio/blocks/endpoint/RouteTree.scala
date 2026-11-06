@@ -35,11 +35,11 @@ import zio.http.{Method, Path}
  * still fail to decode the path. The trailing slash of the request path is
  * ignored.
  *
- * A `HEAD` request with no `HEAD` route uses the `GET` routes. A trailing route
- * such as `/assets/...` also matches its prefix `/assets` when there is no
- * exact route for it. Adding a route that has the same method and segment
- * shapes as an existing one replaces its value, and so does `merge` (the
- * right-hand tree wins).
+ * A `HEAD` request with no matching `HEAD` route uses the `GET` routes. A
+ * trailing route such as `/assets/...` also matches its prefix `/assets` when
+ * there is no exact route for it. Adding a route that has the same method and
+ * segment shapes as an existing one replaces its value, and so does `merge`
+ * (the right-hand tree wins).
  *
  * {{{
  * import zio.blocks.endpoint.RoutePattern._
@@ -74,7 +74,8 @@ final case class RouteTree[A](
    *
    * A pattern with an empty path adds nothing, so a route for `/` cannot be
    * stored: a known bug (see [[RoutePattern.alternatives]]). Throws
-   * `IllegalStateException` for an `orElse` branch of several segments.
+   * `IllegalStateException` for an `orElse` branch that is not a single
+   * literal, such as `PathCodec("api/v1")`.
    */
   def add[A1 >: A](pattern: RoutePattern[_], value: A1): RouteTree[A1] =
     pattern.alternatives.foldLeft(this.asInstanceOf[RouteTree[A1]]) { (tree, alternative) =>
@@ -91,8 +92,8 @@ final case class RouteTree[A](
 
   /**
    * Finds the value for a request, or `None`. A `HEAD` request with no matching
-   * `HEAD` route falls back to the `GET` routes. `Method.ANY` is not a key of
-   * the tree, so looking it up finds nothing.
+   * `HEAD` route falls back to the `GET` routes. `add` never stores
+   * `Method.ANY` as a key, so looking it up finds nothing.
    */
   def get(method: Method, path: Path): Option[A] =
     roots.get(method).flatMap(_.get(path.segments, 0)).orElse {

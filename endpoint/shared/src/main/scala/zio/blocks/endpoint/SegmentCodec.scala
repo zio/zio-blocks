@@ -29,8 +29,8 @@ import zio.http.Path
  * through [[PathCodec]]; build one directly to use `~`.
  *
  * Numbers are ASCII digits with an optional leading `-` (no `+`), in the range
- * of the type; booleans are `true` or `false` in lower case; UUIDs are 36 hex
- * characters in the `8-4-4-4-12` layout, in either case.
+ * of the type; booleans are `true` or `false` in lower case; UUIDs are 32 hex
+ * digits in the hyphenated `8-4-4-4-12` layout, in either case.
  *
  * Join segments with `~` first, then map the value with [[transform]] or
  * [[transformOrFail]]: these return a [[PathCodec]], which has no `~`.
@@ -81,11 +81,11 @@ sealed trait SegmentCodec[A] { self =>
    * codec is built: two strings side by side ("Cannot combine two string
    * segments. Their names are a and b"), two numbers (`Int` or `Long`, in any
    * order: "Cannot combine two numeric segments. ..."), and
-   * [[SegmentCodec.Trailing]] next to any segment ("Cannot combine trailing
-   * path segments with `~`: int ~ trailing"). Put a literal, bool or UUID
-   * between two strings or two numbers. Other neighbours are split by trying
-   * the longest left part first, so `string("s") ~ int("n")` decodes `abc12` as
-   * `("abc1", 2)`.
+   * [[SegmentCodec.Trailing]] next to any segment other than `Empty` ("Cannot
+   * combine trailing path segments with `~`: int ~ trailing"). Put a literal,
+   * bool or UUID between two strings or two numbers. Other neighbours are split
+   * by trying the longest left part first, so `string("s") ~ int("n")` decodes
+   * `abc12` as `("abc1", 2)`.
    *
    * The result captures when either side captures.
    *
@@ -196,8 +196,8 @@ sealed trait SegmentCodec[A] { self =>
  * [[PathCodec]] and [[RouteTree]] use.
  *
  * On Scala 3, `literal` checks its argument when the code compiles, so it must
- * be a string literal; on Scala 2 it checks when the code runs and throws
- * `IllegalArgumentException`.
+ * be a compile-time constant (a string literal or a `final val`); on Scala 2 it
+ * checks when the code runs and throws `IllegalArgumentException`.
  */
 object SegmentCodec extends SegmentCodecPlatformSpecific {
 
@@ -498,9 +498,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   /**
-   * Orders route-tree keys by match priority: literals (alphabetically), int,
-   * long, UUID, bool, string, `~` compositions (fewer parts first), trailing,
-   * then empty.
+   * Orders route-tree keys by match priority: literals (by `String.compareTo`),
+   * int, long, UUID, bool, string, `~` compositions (fewer parts first),
+   * trailing, then empty.
    */
   implicit val keyOrdering: Ordering[Key] = new Ordering[Key] {
     def compare(a: Key, b: Key): Int = {
@@ -531,8 +531,8 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   /**
-   * The segment that matches nothing and consumes no path segment, used for an
-   * empty path. It renders as `/`.
+   * The segment that consumes no path segment, used for an empty path: on its
+   * own it matches only `/`. It renders as `/`.
    */
   case object Empty extends SegmentCodec[Unit] {
 
@@ -642,8 +642,8 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   /**
-   * Captures a `java.util.UUID`: 36 hex characters in the `8-4-4-4-12` layout,
-   * upper or lower case, with any version. Build it with
+   * Captures a `java.util.UUID`: 32 hex digits in the hyphenated `8-4-4-4-12`
+   * layout, upper or lower case, with any version. Build it with
    * `SegmentCodec.uuid(name)`.
    */
   final case class UUIDSeg[N <: String](

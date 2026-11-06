@@ -66,11 +66,12 @@ sealed trait PathCodec[A] { self =>
    * decodes to `(Int, String)`. The result captures when either side captures
    * (see [[SegmentCodec.CombinePathVars]]).
    *
-   * Joining two literal-only codecs, as in `PathCodec.literal("api") /
-   * PathCodec.literal("v1")`, needs `import RoutePattern._` (or
-   * `PathCodec.unitUnit`) in scope: otherwise the compiler finds two `Tuples`
-   * instances for `Unit` and `Unit` and reports them as ambiguous, a known bug.
-   * A string on the right, as in `PathCodec("api") / "v1"`, has the same need.
+   * Joining two codecs whose value is `Unit`, such as two literal-only paths
+   * (`PathCodec.literal("api") / PathCodec.literal("v1")`) or a literal and an
+   * `unused` capture, needs `import RoutePattern._` (or `PathCodec.unitUnit`)
+   * in scope: otherwise the compiler finds two `Tuples` instances for `Unit`
+   * and `Unit` and reports them as ambiguous, a known bug. A string on the
+   * right, as in `PathCodec("api") / "v1"`, has the same need.
    */
   final def ++[B, C, PV2, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C],
@@ -95,8 +96,9 @@ sealed trait PathCodec[A] { self =>
    * such as `PathCodec.int("id").transform(_ => (), _ => 0)`, does not compile
    * here.
    *
-   * Use one segment per branch. A branch of two or more literal segments, such
-   * as `PathCodec("api/v1")`, compiles and decodes, but `alternatives` (and so
+   * Use one literal segment per branch. A branch of two or more literal
+   * segments, such as `PathCodec("api/v1")`, or a literal passed through
+   * `transform`, compiles and decodes, but `alternatives` (and so
    * [[RoutePattern.alternatives]] and [[RouteTree.add]]) throws
    * `IllegalStateException` for it: a known bug.
    *
@@ -121,9 +123,11 @@ sealed trait PathCodec[A] { self =>
 
   /**
    * Expands `orElse` branches into one literal-only path per branch, without
-   * duplicates. A path without `orElse` gives itself, and the empty path gives
-   * an empty list. Throws `IllegalStateException` when a branch has more than
-   * one segment (see `orElse`).
+   * duplicates. A path without `orElse` gives itself. The empty path gives an
+   * empty list, and an empty branch, as in `orElse(PathCodec.empty)`, gives no
+   * path: a known bug. Throws `IllegalStateException` when a branch is not a
+   * single literal, such as `PathCodec("api/v1")` or a literal passed through
+   * `transform` (see `orElse`).
    */
   final def alternatives: List[PathCodec[A]] =
     PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]].distinct
@@ -134,11 +138,13 @@ sealed trait PathCodec[A] { self =>
    * with `Path.fromEncoded` when it is still percent-encoded. The leading and
    * trailing slash are ignored.
    *
-   * The error names the first segment that did not match, as in `Path
-   * /notes/abc did not match /notes/{id}: failed at segment 1 ('abc')`, or says
-   * `matched N of M segments without a complete match` when the path ran out or
-   * a `transformOrFail` decoder failed. The decoder's own message is not
-   * included.
+   * The error names the segment where the furthest partial match stopped, as in
+   * `Path /notes/abc did not match /notes/{id}: failed at segment 1 ('abc')`,
+   * or says `matched N of M segments without a complete match` when the path
+   * ran out or a `transformOrFail` decoder at the end of the path failed. A
+   * decoder that fails earlier in the path makes the error name the segment
+   * after it (`failed at segment 1 ('x')` for `/-1/x`). The decoder's own
+   * message is not included.
    *
    * {{{
    * import zio.http.Path
@@ -183,9 +189,10 @@ sealed trait PathCodec[A] { self =>
   /**
    * Tests whether `path` matches, like `decode(path).isRight` but without
    * building the decoded value for literal and capturing segments; a
-   * `transform` or `transformOrFail` still runs its decoder. They agree for the
-   * paths `orElse` supports; with an `orElse` branch of several segments,
-   * `matches` can return `false` where `decode` succeeds.
+   * `transform` or `transformOrFail` still runs its decoder. They agree when
+   * every `orElse` branch is one literal segment. With an empty branch
+   * (`orElse(PathCodec.empty)`) or a branch of several segments, `matches` can
+   * return `false` where `decode` succeeds: a known bug.
    */
   final def matches(path: Path): Boolean =
     PathCodecRuntime.matchesCodec(self, path.segments)
@@ -311,8 +318,8 @@ object PathCodec extends PathCodecPlatformSpecific {
 
   /**
    * The `Tuples` instance that joins two `Unit` values into `Unit`. It is not
-   * found automatically: import it, or `RoutePattern._`, to join two
-   * literal-only paths with `/` or `++`.
+   * found automatically: import it, or `RoutePattern._`, to join two paths
+   * whose value is `Unit` with `/` or `++`.
    */
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 
@@ -376,8 +383,9 @@ object PathCodec extends PathCodecPlatformSpecific {
   final case class Segment[A](segment: SegmentCodec[A]) extends PathCodec[A] {
 
     /**
-     * Left abstract: only `PathCodec.apply(segment)`, which knows the segment's
-     * own marker, gives it a concrete one.
+     * Left abstract: only `PathCodec.apply(segment)` and the
+     * `segmentToPathCodec` conversion, which know the segment's own marker,
+     * give it a concrete one.
      */
     type PathVars
   }
@@ -394,7 +402,8 @@ object PathCodec extends PathCodecPlatformSpecific {
 
     /**
      * Left abstract: only `++` and `/`, which combine both sides' markers with
-     * `CombinePathVars`, give it a concrete one.
+     * `CombinePathVars`, and `PathCodec.apply(String)`, which builds literals
+     * only, give it a concrete one.
      */
     type PathVars
   }
