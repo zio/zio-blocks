@@ -376,7 +376,8 @@ object TextLogFormatter extends LogFormatter {
  * `exception.stacktrace` attribute. A known bug: when a record has attributes,
  * a trace or span id and an exception, the line is not valid JSON, because the
  * closing quote of the last id is dropped and the stack trace attribute follows
- * it.
+ * it. A `Double` attribute that is `NaN` or infinite is written as a bare `NaN`
+ * or `Infinity`, which is not valid JSON either, a known bug.
  */
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
