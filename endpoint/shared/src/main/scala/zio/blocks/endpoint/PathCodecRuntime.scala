@@ -50,8 +50,9 @@ private[endpoint] object PathCodecRuntime {
 
   /**
    * Expands every `Fallback` into its alternatives, one codec per combination
-   * across a `Concat` (a cross product). An empty alternative is dropped, and a
-   * `Fallback` branch that is not a literal throws `IllegalStateException`.
+   * across a `Concat` (a cross product). An empty alternative is dropped (a
+   * known bug), and a `Fallback` branch that is not a single literal, such as
+   * two literals or a transformed literal, throws `IllegalStateException`.
    */
   def expand(codec: PathCodec[_]): List[PathCodec[_]] =
     codec match {

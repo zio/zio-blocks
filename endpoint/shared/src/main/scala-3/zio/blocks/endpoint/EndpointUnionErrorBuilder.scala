@@ -77,7 +77,8 @@ object EndpointUnionErrorBuilder {
      * Returns a [[HttpCodec.Fallback]] with `existing` on the left and `next`
      * on the right, and the union `Err | E2` as the error type, using
      * [[zio.blocks.combinators.Unions]]. It does not compile when `Err` and
-     * `E2` share a type. To split a union value into its sides, see
+     * `E2` share a type. Choosing the codec for an error value is a known bug
+     * when one error type is a subtype of the other: see
      * [[Alternator#separate]].
      */
     given unionError[Err, E2, E3](using alternator: Unions.Unions.WithOut[Err, E2, E3]): ErrorBuilder[Err, E2] with {

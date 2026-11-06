@@ -51,7 +51,9 @@ trait Alternator[L, R] {
    * an instance of `R` comes back as `Right`; for example, with `L` a sealed
    * trait `AppError` and `R` its subclass `NotFound`, `Left(NotFound(1))`
    * separates as `Right(NotFound(1))`, and when `L` is a subclass of `R` every
-   * value separates as `Right`.
+   * value separates as `Right`. The test sees only the erased class, so with
+   * `L = List[Int]` and `R = List[String]` (an unchecked-type warning) every
+   * list separates as `Right`.
    */
   def separate(out: Out): Either[L, R]
 }
