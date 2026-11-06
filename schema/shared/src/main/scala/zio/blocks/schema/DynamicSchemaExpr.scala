@@ -358,8 +358,9 @@ object DynamicSchemaExpr {
        * Returns a `Boolean` primitive that is `true` when `x.compare(y) < 0`.
        * Primitives of different types compare by type, not by number (`Int` 5
        * is less than `Long` 1), a NaN is greater than every other value of its
-       * type, and `-0.0` is less than `0.0`. Two `Int` values more than
-       * `Int.MaxValue` apart compare the wrong way round (a known bug).
+       * type, and `-0.0` is less than `0.0`. Two `Int` values compare the wrong
+       * way round when `x - y` overflows, such as `x` = `Int.MaxValue` and `y` =
+       * -1 (a known bug).
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x < y))
@@ -376,8 +377,9 @@ object DynamicSchemaExpr {
        * so it holds for two NaNs, which `Equal` can find unequal. Primitives of
        * different types compare by type, not by number (`Int` 5 is less than
        * `Long` 1), a NaN is greater than every other value of its type, and
-       * `-0.0` is less than `0.0`. Two `Int` values more than `Int.MaxValue`
-       * apart compare the wrong way round (a known bug).
+       * `-0.0` is less than `0.0`. Two `Int` values compare the wrong way round
+       * when `x - y` overflows, such as `x` = `Int.MaxValue` and `y` = -1 (a
+       * known bug).
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x <= y))
@@ -391,8 +393,8 @@ object DynamicSchemaExpr {
 
       /**
        * Returns a `Boolean` primitive that is `true` when `x.compare(y) > 0`,
-       * so `Int.MaxValue > -1` is `false` (a known bug: two `Int` values more
-       * than `Int.MaxValue` apart compare the wrong way round). Primitives of
+       * so `Int.MaxValue > -1` is `false` (a known bug: two `Int` values
+       * compare the wrong way round when `x - y` overflows). Primitives of
        * different types compare by type, not by number, a NaN is greater than
        * every other value of its type, and `0.0` is greater than `-0.0`.
        */
@@ -410,8 +412,9 @@ object DynamicSchemaExpr {
        * Returns a `Boolean` primitive that is `true` when `x.compare(y) >= 0`,
        * so it holds for two NaNs, which `Equal` can find unequal, and
        * `-0.0 >= 0.0` is `false`. Primitives of different types compare by
-       * type, not by number. Two `Int` values more than `Int.MaxValue` apart
-       * compare the wrong way round (a known bug).
+       * type, not by number. Two `Int` values compare the wrong way round when
+       * `x - y` overflows, such as `x` = `Int.MaxValue` and `y` = -1 (a known
+       * bug).
        */
       def apply(x: DynamicValue, y: DynamicValue): DynamicValue =
         DynamicValue.Primitive(PrimitiveValue.Boolean(x >= y))
