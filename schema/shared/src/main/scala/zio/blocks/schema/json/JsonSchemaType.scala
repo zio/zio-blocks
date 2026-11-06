@@ -36,36 +36,50 @@ object JsonSchemaType {
 
   /** `"null"`. */
   case object Null extends JsonSchemaType {
+
+    /** Returns `"null"`. */
     def toJsonString: String = "null"
   }
 
   /** `"boolean"`. */
   case object Boolean extends JsonSchemaType {
+
+    /** Returns `"boolean"`. */
     def toJsonString: String = "boolean"
   }
 
   /** `"string"`. */
   case object String extends JsonSchemaType {
+
+    /** Returns `"string"`. */
     def toJsonString: String = "string"
   }
 
   /** `"number"`: any number, integers included. */
   case object Number extends JsonSchemaType {
+
+    /** Returns `"number"`. */
     def toJsonString: String = "number"
   }
 
   /** `"integer"`: a number with no fraction, such as `2021` or `2021.0`. */
   case object Integer extends JsonSchemaType {
+
+    /** Returns `"integer"`. */
     def toJsonString: String = "integer"
   }
 
   /** `"array"`. */
   case object Array extends JsonSchemaType {
+
+    /** Returns `"array"`. */
     def toJsonString: String = "array"
   }
 
   /** `"object"`. */
   case object Object extends JsonSchemaType {
+
+    /** Returns `"object"`. */
     def toJsonString: String = "object"
   }
 
