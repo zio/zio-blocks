@@ -93,8 +93,10 @@ abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val d
   /** The codec type of this format, `TC`. */
   final type TypeClass[A] = TC[A]
 
-  /** Codecs of this format decode from, and encode into, a `ByteBuffer`. */
-  type DecodeInput  = ByteBuffer
+  /** Codecs of this format decode from a `ByteBuffer`. */
+  type DecodeInput = ByteBuffer
+
+  /** Codecs of this format encode into a `ByteBuffer`. */
   type EncodeOutput = ByteBuffer
 
   /**
@@ -129,8 +131,10 @@ abstract class TextFormat[TC[A] <: TextCodec[A]](val mimeType: String, val deriv
   /** The codec type of this format, `TC`. */
   final type TypeClass[A] = TC[A]
 
-  /** Codecs of this format decode from, and encode into, a `CharBuffer`. */
-  type DecodeInput  = CharBuffer
+  /** Codecs of this format decode from a `CharBuffer`. */
+  type DecodeInput = CharBuffer
+
+  /** Codecs of this format encode into a `CharBuffer`. */
   type EncodeOutput = CharBuffer
 
   /**

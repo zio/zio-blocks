@@ -18,6 +18,15 @@ package zio.blocks.schema.msgpack
 
 import java.nio.charset.StandardCharsets.UTF_8
 
+/**
+ * Reads MessagePack values one at a time, moving forward through a byte array;
+ * a [[MessagePackCodec]] gets one in `decodeValue`, as the constructor is
+ * private to the module. Each `read...` method except `readFieldNameEquals`
+ * consumes one value, or one header, and fails by throwing the module's codec
+ * error, which `decode` turns into a `Left`, when the next bytes have another
+ * format or the input ends. A known bug: `readChar`, `readFieldNameEquals` and
+ * `skipValue` do not check the end of the input (see each method).
+ */
 final class MessagePackReader private[msgpack] (
   private[this] var buf: Array[Byte] = null,
   private[this] var pos: Int = 0,
@@ -29,23 +38,37 @@ final class MessagePackReader private[msgpack] (
 
   import MessagePackReader._
 
+  /**
+   * Points the reader at the `length` bytes of `bytes` that start at `offset`.
+   * `decode` calls it before `decodeValue`.
+   */
   def reset(bytes: Array[Byte], offset: Int, length: Int): Unit = {
     buf = bytes
     pos = offset
     limit = offset + length
   }
 
+  /** Returns `true` while unread bytes remain. */
   def hasRemaining: Boolean = pos < limit
 
+  /**
+   * Returns the first byte of the next value, its format byte, without
+   * consuming it; fails with `Unexpected end of input` at the end.
+   */
   def peekType: Byte =
     if (pos < limit) buf(pos)
     else endOfInputError()
 
+  /** Reads nil (`0xc0`), or fails with `Expected nil (0xc0), got: ...`. */
   def readNil(): Unit = {
     val b = readByte()
     if (b != NIL) decodeError("Expected nil (0xc0), got: " + (b & 0xff))
   }
 
+  /**
+   * Reads `true` (`0xc3`) or `false` (`0xc2`), or fails with
+   * `Expected boolean, got: ...`.
+   */
   def readBoolean(): Boolean = {
     val b = readByte()
     if (b == TRUE) true
@@ -53,6 +76,11 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected boolean, got: " + (b & 0xff))
   }
 
+  /**
+   * Reads a fixint, `int8` or `uint8` as a `Byte`; any other format, `int16`
+   * included, fails with `Expected byte value, got: ...`. A `uint8` above 127
+   * wraps to a negative `Byte`, a known bug.
+   */
   def readByteValue(): Byte = {
     val b = peekByte()
     pos += 1
@@ -63,6 +91,11 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected byte value, got: " + (b & 0xff))
   }
 
+  /**
+   * Reads a fixint, `int8`, `int16`, `uint8` or `uint16` as a `Short`. A
+   * `uint16` above 32767 fails with `Value 40000 exceeds Short range` (for
+   * 40000), and any other format with `Expected short value, got: ...`.
+   */
   def readShortValue(): Short = {
     val b = peekByte()
     pos += 1
@@ -78,6 +111,12 @@ final class MessagePackReader private[msgpack] (
     } else decodeError("Expected short value, got: " + (b & 0xff))
   }
 
+  /**
+   * Reads any integer format up to 32 bits as an `Int`. A `uint32` above
+   * `Int.MaxValue` fails with `Value 4294967295 exceeds Int range` (for
+   * 4294967295), and any other format, `int64` and `uint64` included, with
+   * `Expected int value, got: ...`.
+   */
   def readIntValue(): Int = {
     val b = peekByte()
     pos += 1
@@ -95,6 +134,11 @@ final class MessagePackReader private[msgpack] (
     } else decodeError("Expected int value, got: " + (b & 0xff))
   }
 
+  /**
+   * Reads any integer format as a `Long`. A `uint64` above `Long.MaxValue`
+   * fails with `Value exceeds Long range (unsigned 64-bit)`, and any other
+   * format with `Expected long value, got: ...`.
+   */
   def readLongValue(): Long = {
     val b = peekByte()
     pos += 1
@@ -114,6 +158,11 @@ final class MessagePackReader private[msgpack] (
     } else decodeError("Expected long value, got: " + (b & 0xff))
   }
 
+  /**
+   * Reads a `float32`, a `float64` rounded to the nearest `Float`, or any
+   * integer format as a `Float`. Any other format fails with the message of
+   * `readLongValue`, `Expected long value, got: ...`.
+   */
   def readFloatValue(): Float = {
     val b = peekByte()
     if (b == FLOAT32) {
@@ -125,6 +174,11 @@ final class MessagePackReader private[msgpack] (
     } else readLongValue().toFloat
   }
 
+  /**
+   * Reads a `float64`, a `float32` widened to `Double`, or any integer format
+   * as a `Double`. Any other format fails with the message of `readLongValue`,
+   * `Expected long value, got: ...`.
+   */
   def readDoubleValue(): Double = {
     val b = peekByte()
     if (b == FLOAT64) {
@@ -136,6 +190,13 @@ final class MessagePackReader private[msgpack] (
     } else readLongValue().toDouble
   }
 
+  /**
+   * Reads a string in any of the four string formats and decodes its bytes as
+   * UTF-8. Any other format, `bin` included, fails with
+   * `Expected string header, got: ...`, and a string longer than the rest of
+   * the input with `String length 5 exceeds remaining bytes 1` (for those
+   * numbers).
+   */
   def readString(): String = {
     val len = readStringHeader()
     if ((len | (limit - pos - len)) < 0)
@@ -145,6 +206,15 @@ final class MessagePackReader private[msgpack] (
     str
   }
 
+  /**
+   * Returns `true` and consumes the next value when it is a string whose UTF-8
+   * bytes equal `expected`; otherwise returns `false` and leaves the reader
+   * where it was. `expected` holds the bytes of the name only, without a string
+   * header. A known bug: it does not check the end of the input, so a name cut
+   * short by the end of an array fails with an index-out-of-bounds message
+   * instead of returning `false`, and on a heap `ByteBuffer` it compares the
+   * bytes past the limit.
+   */
   def readFieldNameEquals(expected: Array[Byte]): Boolean = {
     val savedPos = pos
     try {
@@ -177,6 +247,14 @@ final class MessagePackReader private[msgpack] (
     }
   }
 
+  /**
+   * Reads a string of one char, one to three UTF-8 bytes long, as a `Char`. An
+   * empty or longer string fails with
+   * `Expected single char, got string of length ... bytes`, and a first byte
+   * that does not start a sequence of the string's length fails with
+   * `Invalid 2-byte UTF-8 sequence` or a similar message. A known bug: it
+   * checks neither the end of the input nor the bytes after the first.
+   */
   def readChar(): Char = {
     val len = readStringHeader()
     if (len == 1) {
@@ -201,6 +279,11 @@ final class MessagePackReader private[msgpack] (
     } else decodeError("Expected single char, got string of length " + len + " bytes")
   }
 
+  /**
+   * Reads a string header in any of the four string formats and returns the
+   * length in bytes of the string after it, or fails with
+   * `Expected string header, got: ...`.
+   */
   def readStringHeader(): Int = {
     val b = readByte() & 0xff
     if ((b & 0xe0) == 0xa0) b & 0x1f
@@ -210,6 +293,12 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected string header, got: " + b)
   }
 
+  /**
+   * Reads a `bin8`, `bin16` or `bin32` value into a new array. Any other
+   * format, a string included, fails with `Expected binary header, got: ...`,
+   * and a value longer than the rest of the input with
+   * `Binary length ... exceeds remaining bytes ...`.
+   */
   def readBinary(): Array[Byte] = {
     val len = readBinaryHeader()
     if ((len | (limit - pos - len)) < 0)
@@ -220,6 +309,10 @@ final class MessagePackReader private[msgpack] (
     bytes
   }
 
+  /**
+   * Reads a `bin8`, `bin16` or `bin32` header and returns the number of bytes
+   * after it, or fails with `Expected binary header, got: ...`.
+   */
   def readBinaryHeader(): Int = {
     val b = readByte() & 0xff
     if (b == 0xc4) readByte() & 0xff
@@ -228,6 +321,10 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected binary header, got: " + b)
   }
 
+  /**
+   * Reads a fixarray, `array16` or `array32` header and returns the number of
+   * elements that follow, or fails with `Expected array header, got: ...`.
+   */
   def readArrayHeader(): Int = {
     val b = readByte() & 0xff
     if ((b & 0xf0) == 0x90) b & 0x0f
@@ -236,6 +333,11 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected array header, got: " + b)
   }
 
+  /**
+   * Reads a fixmap, `map16` or `map32` header and returns the number of entries
+   * that follow, each a key and then its value, or fails with
+   * `Expected map header, got: ...`.
+   */
   def readMapHeader(): Int = {
     val b = readByte() & 0xff
     if ((b & 0xf0) == 0x80) b & 0x0f
@@ -244,8 +346,20 @@ final class MessagePackReader private[msgpack] (
     else decodeError("Expected map header, got: " + b)
   }
 
+  /**
+   * Reads a `bin` value as the big-endian two's-complement bytes of a `BigInt`,
+   * as `MessagePackWriter#writeBigInt` writes it. An empty `bin` fails with
+   * `Zero length BigInteger`.
+   */
   def readBigInt(): BigInt = BigInt(readBinary())
 
+  /**
+   * Reads the map of three entries that `MessagePackWriter#writeBigDecimal`
+   * writes (`unscaled`, `precision` and `scale`, in any order), rounding the
+   * unscaled value to `precision` digits (0 means unlimited). A map of another
+   * size fails with `Expected BigDecimal map of 3, got: ...`, and an unknown
+   * key with `Unknown BigDecimal field`.
+   */
   def readBigDecimal(): BigDecimal = {
     val len = readMapHeader()
     if (len != 3) decodeError("Expected BigDecimal map of 3, got: " + len)
@@ -264,6 +378,14 @@ final class MessagePackReader private[msgpack] (
     new BigDecimal(new java.math.BigDecimal(unscaled.bigInteger, scale, new java.math.MathContext(precision)))
   }
 
+  /**
+   * Skips the next value, with all the elements of an array and all the entries
+   * of a map. The extension formats (`fixext`, `ext8`, `ext16`, `ext32`) and
+   * the unused byte `0xc1` fail with `Unknown MessagePack type: ...`. A known
+   * bug: a value longer than the rest of the input, such as a string, a `bin`
+   * or a cut-short number, is skipped without an error, leaving the reader past
+   * the end.
+   */
   def skipValue(): Unit = {
     val b = readByte() & 0xff
     if ((b & 0x80) == 0 || (b & 0xe0) == 0xe0) return
@@ -371,20 +493,47 @@ final class MessagePackReader private[msgpack] (
   private[this] def decodeError(msg: String): Nothing = throw MessagePackCodecError(Nil, msg)
 }
 
+/** The format bytes that the reader compares against. */
 object MessagePackReader {
-  final val NIL: Byte     = 0xc0.toByte
-  final val FALSE: Byte   = 0xc2.toByte
-  final val TRUE: Byte    = 0xc3.toByte
+
+  /** The nil format byte, `0xc0`. */
+  final val NIL: Byte = 0xc0.toByte
+
+  /** The `false` format byte, `0xc2`. */
+  final val FALSE: Byte = 0xc2.toByte
+
+  /** The `true` format byte, `0xc3`. */
+  final val TRUE: Byte = 0xc3.toByte
+
+  /** The `float32` format byte, `0xca`, followed by 4 bytes. */
   final val FLOAT32: Byte = 0xca.toByte
+
+  /** The `float64` format byte, `0xcb`, followed by 8 bytes. */
   final val FLOAT64: Byte = 0xcb.toByte
-  final val UINT8: Byte   = 0xcc.toByte
-  final val UINT16: Byte  = 0xcd.toByte
-  final val UINT32: Byte  = 0xce.toByte
-  final val UINT64: Byte  = 0xcf.toByte
-  final val INT8: Byte    = 0xd0.toByte
-  final val INT16: Byte   = 0xd1.toByte
-  final val INT32: Byte   = 0xd2.toByte
-  final val INT64: Byte   = 0xd3.toByte
+
+  /** The `uint8` format byte, `0xcc`, followed by 1 byte. */
+  final val UINT8: Byte = 0xcc.toByte
+
+  /** The `uint16` format byte, `0xcd`, followed by 2 bytes. */
+  final val UINT16: Byte = 0xcd.toByte
+
+  /** The `uint32` format byte, `0xce`, followed by 4 bytes. */
+  final val UINT32: Byte = 0xce.toByte
+
+  /** The `uint64` format byte, `0xcf`, followed by 8 bytes. */
+  final val UINT64: Byte = 0xcf.toByte
+
+  /** The `int8` format byte, `0xd0`, followed by 1 byte. */
+  final val INT8: Byte = 0xd0.toByte
+
+  /** The `int16` format byte, `0xd1`, followed by 2 bytes. */
+  final val INT16: Byte = 0xd1.toByte
+
+  /** The `int32` format byte, `0xd2`, followed by 4 bytes. */
+  final val INT32: Byte = 0xd2.toByte
+
+  /** The `int64` format byte, `0xd3`, followed by 8 bytes. */
+  final val INT64: Byte = 0xd3.toByte
 
   private[msgpack] val SecondsName: Array[Byte]   = Array('s', 'e', 'c', 'o', 'n', 'd', 's')
   private[msgpack] val NanosName: Array[Byte]     = Array('n', 'a', 'n', 'o', 's')

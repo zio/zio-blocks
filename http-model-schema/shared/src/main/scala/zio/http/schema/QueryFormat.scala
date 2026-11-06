@@ -19,19 +19,36 @@ package zio.http.schema
 import zio.blocks.schema.derive.{Derivable, Deriver}
 
 /**
- * Base class for query-parameter serialization formats. Pairs a MIME type with
- * a [[zio.blocks.schema.derive.Deriver]] that can derive [[QueryCodec]]
- * instances for arbitrary schema-described types.
+ * A query-string format for `Schema#derive`: it pairs a MIME type with the
+ * [[zio.blocks.schema.derive.Deriver]] that builds its codecs, and supplies the
+ * implicit `Derivable` that lets `Schema[A].derive(format)` take the format
+ * object itself. `DefaultQueryFormat` is the built-in one; extend this class to
+ * report another MIME type or to plug in another deriver. Not every schema
+ * derives: [[QueryCodec]] lists the shapes the built-in deriver supports.
+ *
+ * @tparam TC
+ *   the codec type the deriver builds, a `QueryCodec` or a subclass
+ * @param mimeType
+ *   the media type the format reports; nothing in this module reads it
+ * @param deriver
+ *   the deriver that `Schema#derive` calls to build a codec
  */
 abstract class QueryFormat[TC[A] <: QueryCodec[A]](val mimeType: String, val deriver: Deriver[TC]) {
 
+  /** Lets `Schema#derive` accept this format object in place of its deriver. */
   implicit final def derivable: Derivable[this.type, TC] =
     new Derivable[this.type, TC] {
       def deriver(d: QueryFormat.this.type): Deriver[TC] = QueryFormat.this.deriver
     }
 }
 
+/** The type of the `DefaultQueryFormat` object. */
 sealed abstract class DefaultQueryFormat
     extends QueryFormat[QueryCodec]("application/x-www-form-urlencoded", QueryCodecDeriver)
 
+/**
+ * The built-in query-string format: MIME type
+ * `application/x-www-form-urlencoded`, codecs built by [[QueryCodecDeriver]].
+ * `Schema[A].derive(DefaultQueryFormat)` returns a `QueryCodec[A]`.
+ */
 case object DefaultQueryFormat extends DefaultQueryFormat
