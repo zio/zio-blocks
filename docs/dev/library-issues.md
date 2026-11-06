@@ -3774,6 +3774,8 @@ import zio.blocks.openapi.OpenAPICodec._
 
 **Suggested fix.** Make `Doc.normalize` (or `Doc#equals`) map the top-level inline classes to their `Inline` counterparts, the way `normalizeInline` in `OpenAPICodec` does, so that equal Markdown compares equal whichever class built it. Longer term, keep one inline hierarchy in `markdown`. Add an openapi round-trip test with `md"..."` descriptions.
 
+**Addition (2026-11-06, markdown Scaladoc rollout).** The root cause is in markdown: `Doc#normalize` leaves lone leaf `Inline` cases (`Inline.Text`, `Inline.Code`, `Inline.Image`, ...) unconverted (`markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala:202-211`), so a parsed description and a decoded one can hold different but equivalent trees. See the markdown entry "markdown: `Doc#normalize` leaves a lone `Inline.Text` (and `Inline.Code`, `Inline.Image` and the other leaf `Inline.` cases) unconverted, so documents from the two inline families are never equal".
+
 ### openapi: every description in the exported JSON ends with `\n\n`
 
 Found 2026-10-21 while writing the how-to guide `docs/guides/write-and-export-openapi.md` (backlog H-39), on `main` at `a44dc6db`. The code is the same at tag `v0.0.56`. Verified by running.
@@ -15522,6 +15524,164 @@ object Repro {
 
 **Suggested fix.** Use `HttpCodec.status(Status.Ok, doc)` when `doc` is not empty (or always), and add a test with a non-empty `Doc` for each overload.
 
+### markdown: `Parser.parse` throws `NumberFormatException` for an ordered-list marker above `Int.MaxValue`
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** `Parser.parse` returns `Either[ParseError, Doc]`, but a line such as `2147483648. a` (any marker above 2147483647, ten digits or more) makes it throw. The list-marker digits are converted with `String#toInt`, which fails above `Int.MaxValue`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(scala.util.Try(Parser.parse("12345678901. a")))
+// Failure(java.lang.NumberFormatException: For input string: "12345678901")
+```
+
+**Expected.** A `Left(ParseError(...))`, or a paragraph, like any other input the parser does not accept. The Scaladoc of `Parser` says only three conditions give a `Left`; no input should throw.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:296` (`val num = digits.toInt` in `parseOrderedList`). `isOrderedListItem` (`:227`) accepts any run of digits.
+
+**Impact.** A caller that parses untrusted text (a README, a user comment) and relies on the `Either` can be crashed by one line. In an `md` literal the same line fails the compilation with the exception (2.13.18: `exception during macro expansion: java.lang.NumberFormatException: For input string: "12345678901"`; 3.9.0: `Exception occurred while executing macro expansion.`), because the macro runs the same parser.
+
+**Test gap.** No test in `ParserSpec` or `ParserErrorSpec` uses a marker longer than a few digits.
+
+**Suggested fix.** Parse the digits with `scala.util.Try`/`toIntOption` and, on failure, treat the line as paragraph text (CommonMark limits a marker to nine digits and treats a longer one as text).
+
+### markdown: `Parser` flattens a nested list into one list of siblings
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** A list marker indented under an item is read as a new item of the same list, so `- a\n  - b\n  - c\n- d` gives one `BulletList` with four items. The list item continuation test `isListContinuation` rejects any line that itself looks like a list marker, so the indented lines never reach the recursive item parse that would have built a nested list. The same happens for a bullet list nested under an ordered list: the bullet becomes a separate top-level list.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+val doc = Parser.parse("- a\n  - b\n  - c\n- d").toOption.get
+println(doc.blocks.size)
+println(doc.blocks.head.asInstanceOf[BulletList].items.size)
+println(Renderer.render(doc).replace("\n", "\\n"))
+// 1
+// 4
+// - a\n- b\n- c\n- d\n
+```
+
+**Expected.** One `BulletList` with two items; the first holds `a` and a nested `BulletList` of `b` and `c`.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:279-284` (`isListContinuation`: `!isBulletListItem(line) && !isOrderedListItem(line)`); the item loop at `:251` and `:309` then starts a new item for the indented marker. `Renderer` can write nested lists (`renderListItemForList` indents the nested block by two spaces), so the model supports them.
+
+**Impact.** Any document with a nested list loses its structure when parsed. The `Parser` Scaladoc now lists nested lists as not read.
+
+**Test gap.** `ParserSpec` "parses nested list item content" (`:834`) covers a continuation line, not a nested list; no test indents a list marker under an item.
+
+**Suggested fix.** Let a continuation line that is a list marker indented deeper than the current item belong to the item, so the recursive `ParserState` parses it as a nested list.
+
+### markdown: `Renderer` writes a centered table column as `:--:`, which `Parser` does not read as a delimiter row
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** `Renderer` writes `Alignment.Center` as `:--:` (two dashes). `Parser` accepts a delimiter cell only when it matches `:?-{3,}:?`, so a rendered table with a centered column is read back as a paragraph. A test asserts the two-dash output.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+val table = Table(TableRow(Chunk(Chunk(Text("a")))), Chunk(Alignment.Center), Chunk.empty)
+val rendered = Renderer.render(Doc(Chunk(table)))
+println(rendered.replace("\n", "\\n"))
+println(Parser.parse(rendered).toOption.get.blocks)
+println(Parser.parse("| a |\n|:---:|\n").toOption.get.blocks)
+// | a |\n|:--:|\n
+// Chunk(Paragraph(Chunk(Text(| a |),SoftBreak,Text(|:--:|))))
+// Chunk(Table(TableRow(Chunk(Chunk(Text(a)))),Chunk(Center),Chunk()))
+```
+
+**Expected.** The rendered table parses back to the same `Table`: the alignment row should be `:---:`.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Renderer.scala:181` (`case Alignment.Center => ":--:"`) against `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:343` (`c.matches(":?-{3,}:?")`).
+
+**Impact.** A document with a centered column does not survive `Renderer.render` then `Parser.parse`. `Doc#toString` is `Renderer.render`, so the same loss shows when a table is printed and read back.
+
+**Test gap.** `RendererSpec` asserts the wrong output (`markdown/shared/src/test/scala/zio/blocks/docs/RendererSpec.scala:199`: `"| x | y |\n|:--:|---|\n| 1 | 2 |\n"`). `RoundTripSpec` "table round-trips" (`:186`) uses only `:---` and `---:` columns.
+
+**Suggested fix.** Write `:---:` for `Center`, and update the `RendererSpec` expectation; add a centered column to the round-trip test.
+
+### markdown: `Doc#normalize` leaves a lone `Inline.Text` (and `Inline.Code`, `Inline.Image` and the other leaf `Inline.` cases) unconverted, so documents from the two inline families are never equal
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** Add to the root cause of the openapi entry: `Doc.normalizeInline` converts only the `Inline.` versions of `Emphasis`, `Strong`, `Strikethrough` and `Link` to the package-level classes. A single `Inline.Text`, and `Inline.Code`, `Inline.Image`, `Inline.HtmlInline`, `Inline.SoftBreak`, `Inline.HardBreak` and `Inline.Autolink`, are returned unchanged (`case other => other`). `normalizeInlines` turns `Inline.Text` into `Text` only when it merges two adjacent text nodes. So `Doc#equals` is false whenever one side uses the `Inline.` leaf classes.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+val a = Doc(Chunk(Paragraph(Chunk(Text("a")))))
+val b = Doc(Chunk(Paragraph(Chunk(Inline.Text("a")))))
+println(a == b)
+println(b.normalize.blocks.head.asInstanceOf[Paragraph].content.head.getClass.getName)
+println(Doc(Chunk(Paragraph(Chunk(Code("a"))))) == Doc(Chunk(Paragraph(Chunk(Inline.Code("a"))))))
+// false
+// zio.blocks.docs.Inline$Text
+// false
+```
+
+**Expected.** `b.normalize` should hold a package-level `Text`, and `a == b` should be true.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala:202-211` (`normalizeInline`, `case other => other`) and `:177` (`normalizeInlines`).
+
+**Impact.** Same as the openapi entry: equality after a decode that builds `Inline.` values fails. The `Doc` Scaladoc now describes the rule.
+
+**Test gap.** `AdtSpec` covers the `Inline.Emphasis`, `Strong`, `Strikethrough` and `Link` variants (`:311`-`:330`) and merging `Inline.Text` with a neighbour (`:406`-`:425`), but no test normalizes a lone `Inline.Text`, an `Inline.Code` or another leaf `Inline.` case, or compares such a document with its package-level twin.
+
+**Suggested fix.** Map every `Inline.X` leaf to its package-level class in `normalizeInline`, or keep a single inline hierarchy.
+
+### markdown: `Parser` swallows an unclosed fence or a 7-hash line inside a list item, and block-quote errors report quote-relative line numbers
+
+Found 2026-11-06 while writing the markdown Scaladoc (fact-check review), on `main` at `04b56bc92`; the sources are identical at `v0.0.56`. Verified against the published 0.0.56 (`scala-cli run --server=false`, Scala 3.9.0 and 2.13.18). Not filed on GitHub yet.
+
+**Summary.** A list item is parsed by a nested `ParserState` whose result is read with `getOrElse(Chunk.empty)`, so an error inside the item (an unclosed code fence, a line with more than six `#`) is dropped and the item becomes a plain paragraph. A block quote is parsed by a fresh `ParserState` too, so its errors are reported, but with a line number counted from the first line of the quote.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+
+println(Parser.parse("- ```\n  code").toString.replace("\n", "\\n"))
+println(Parser.parse("intro\n\n> ```\n> code").toString.replace("\n", "\\n"))
+// Right(- ```\n  code\n)
+// Left(ParseError at line 2, column 1: Unclosed code fence\n  ```)
+```
+
+**Expected.** The first input is `Left(... Unclosed code fence)` like the same text at the top level; the second reports line 3 (the fence is on line 3 of the input).
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:258` and `:316` (`innerState.parseBlocks().getOrElse(Chunk.empty)`, then `Chunk(Paragraph(parseInlines(itemText)))` when the result is empty); `parseBlockQuote` (`:204`) builds `new ParserState(innerInput)` from the quote text (`:215`), so `ParseError.line` is relative to it.
+
+**Impact.** A broken fence inside a list item is accepted silently and renders as text; the `ParseError` of a quote points at the wrong line.
+
+**Test gap.** `ParserErrorSpec` has no fence or heading error inside a list item or a quote; all its inputs start at column 1 of the top level.
+
+**Suggested fix.** Propagate the item parse error, and add the quote's first line number to the inner error's `line`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -20368,6 +20528,197 @@ The same inline file with `//> using scala 3.9.0` (`probes/fix1/q3`) compiles an
 **Test gap.** The shared tests build `~` segments in a `val` or wrap them in `PathCodec(...)` (`PathCodecRoutingSpec.scala:160-161`); the inline form appears only in Scala-3-only specs (`RouteTreeSpec.scala:219`).
 
 **Suggested fix.** Add `/` overloads on `PathCodec` and `RoutePatternOps` that take a `SegmentCodec[B] { type PathVars = PV2 }`, so no view is needed; or document the workaround.
+
+### markdown: the `md` interpolator does not process escape sequences, so `md"## A\nB"` is one heading containing a backslash and an `n`
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** The macro reads the raw parts of the `StringContext`, so `\n` (and other escapes) in a single-line `md"..."` literal stay as two characters. A triple-quoted literal with a real newline works. Scala string literals and `s"..."` interpolation process the escape, so the difference is easy to miss, and the package Scaladoc example used `\n` before this change.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(md"## A\nB".blocks)
+println(md"""## A
+B""".blocks)
+// Chunk(Heading(H2,Chunk(Text(A\nB))))
+// Chunk(Heading(H2,Chunk(Text(A))),Paragraph(Chunk(Text(B))))
+```
+
+**Expected.** Either processing the escapes like `s"..."` does, or a compile error for a backslash in a literal part; at least a documented rule.
+
+**Root cause.** `markdown/shared/src/main/scala-3/zio/blocks/docs/MdInterpolator.scala:35` (`rawPart.valueOrAbort` on the `StringContext` parts) and `markdown/shared/src/main/scala-2/zio/blocks/docs/MdInterpolator.scala:37` (`Literal(Constant(part: String))`); `MdInterpolatorRuntime.scala:22` passes `sc.parts` to `buildMarkdownString`, which joins the same parts. Same on 2.13.18 and 3.9.0.
+
+**Impact.** A document that looks multi-line in the source is one block at run time, with no error. The `md` Scaladoc now states the rule.
+
+**Test gap.** The only single-line literal with an escape sequence (`md"```scala\nval x = 1"`, `MdInterpolatorSpec.scala:469`, inside `typeCheck`) expects a compile error that happens whether or not `\n` is processed, so no test pins the rule.
+
+**Suggested fix.** Document it (done in Scaladoc) or process escapes with `StringContext.processEscapes` on each part.
+
+### markdown: `Parser` starts emphasis inside a word (`snake_case_name`, `2*3*4`)
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** An `_` or `*` anywhere in a word opens emphasis when another one follows, so identifiers and arithmetic are rewritten. CommonMark does not open `_` emphasis inside a word and needs a delimiter run that can open and close.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(Parser.parse("snake_case_name").toOption.get.blocks)
+println(Parser.parse("2*3*4").toOption.get.blocks)
+// Chunk(Paragraph(Chunk(Text(snake),Emphasis(Chunk(Text(case))),Text(name))))
+// Chunk(Paragraph(Chunk(Text(2),Emphasis(Chunk(Text(3))),Text(4))))
+```
+
+**Expected.** `snake_case_name` stays one `Text`; `2*3*4` is plain text (or at least not `_` inside words).
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:523` (`remaining.startsWith("*") || remaining.startsWith("_")` then `remaining.indexOf(marker, 1)`); `findNextSpecial` (`:659`) stops at every `_`.
+
+**Impact.** Prose and code identifiers in a README lose their underscores and gain italics when rendered to HTML or the terminal.
+
+**Test gap.** No `ParserSpec` test has an underscore or star inside a word.
+
+**Suggested fix.** Apply the flanking rules for `_` at least: do not open or close `_` emphasis between two alphanumeric characters.
+
+### markdown: a bare `http://` or `https://` address swallows the punctuation after it
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** A bare address runs to the next space, newline or tab, so a trailing comma, full stop or parenthesis becomes part of the link.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(Parser.parse("see http://a.b, ok").toOption.get.blocks)
+println(Parser.parse("(http://a.b)").toOption.get.blocks)
+// Chunk(Paragraph(Chunk(Text(see ),Autolink(http://a.b,,false),Text( ok))))
+// Chunk(Paragraph(Chunk(Text((),Autolink(http://a.b),false))))
+```
+
+**Expected.** The address ends before trailing punctuation, as in GFM extended autolinks (`http://a.b` then `,`; `http://a.b` then `)`).
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:611` (`remaining.indexWhere(c => c == ' ' || c == '\n' || c == '\t', 0)`).
+
+**Impact.** Links in prose and in parentheses point at a wrong address in the HTML output.
+
+**Test gap.** The bare-URL tests (`ParserSpec.scala:547`, `:805`, `:924`) end the address with a space or the end of the input; none puts punctuation after it.
+
+**Suggested fix.** Trim trailing `.`, `,`, `;`, `:`, `!`, `?`, `'`, `"` and an unmatched `)` from the address.
+
+### markdown: `Parser` rejects any text that starts with a `---` line and has another `---` line later, not only YAML frontmatter
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** The check looks for a second `---` line anywhere after line 2, whatever lies between. A document that opens with a thematic break and uses another one later is rejected with `Frontmatter is not supported`; `---\n---` (nothing between) is accepted, and a CRLF text is never rejected because the first line must be exactly `---`.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(Parser.parse("---\n\ntext\n\n---").left.toOption.get.message)
+println(Parser.parse("---\n---").toOption.get.blocks)
+// Frontmatter is not supported
+// Chunk(ThematicBreak,ThematicBreak)
+```
+
+**Expected.** Only a `---` block followed by `key: value` lines is frontmatter; a thematic break at the start is valid Markdown.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:84` (`if (foundEnd && i > 2)` in `checkFrontmatter`).
+
+**Impact.** Text that begins with `---` as a divider cannot be parsed, and the `md` interpolator rejects it at compile time.
+
+**Test gap.** `ParserErrorSpec` covers frontmatter with `key: value` content and a thematic break that is not on the first line, not a divider first line with another later.
+
+**Suggested fix.** Require the lines between the two `---` to look like YAML (`key: value`, comments or blank lines) before rejecting, or document the rule as it is.
+
+### markdown: `Parser` turns `#hello` into a level-1 heading, keeps closing hashes before trailing spaces, makes a line that starts with a tag an HTML block, and restarts an ordered list after a blank line
+
+Found 2026-11-06 while writing the markdown Scaladoc (branch `markdown-scaladoc`), on `main` at `04b56bc92`. The markdown sources are identical at tag `v0.0.56` (`git diff v0.0.56 04b56bc92 -- markdown/shared/src/main` is empty); every line below is at `v0.0.56` (= `04b56bc92`). Verified by running against the published 0.0.56 (`scala-cli run --server=false Repro.sc`, Scala 3.9.0). Not filed on GitHub yet.
+
+**Summary.** Four small behaviours, each with a one-line probe: (1) a line that starts with one to six `#` and has no space after them becomes a level-1 heading holding the whole line; (2) a heading closed with hashes and then trailing spaces keeps them (`## x ###  ` gives `x ###`); (3) a paragraph line that starts with an HTML tag becomes one `HtmlBlock` for the whole line, so `<b>hi</b> there` is not a paragraph with inline HTML; (4) an ordered list restarts: `1. a\n\n2. b` is two lists, the second starting at 2.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(Parser.parse("## x ###  ").toOption.get.blocks)
+println(Parser.parse("#hello").toOption.get.blocks)
+println(Parser.parse("<b>hi</b> there").toOption.get.blocks)
+println(Parser.parse("1. a\n\n2. b").toOption.get.blocks.size)
+// Chunk(Heading(H2,Chunk(Text(x ###))))
+// Chunk(Heading(H1,Chunk(Text(#hello))))
+// Chunk(HtmlBlock(<b>hi</b> there))
+// 2
+```
+
+**Expected.** CommonMark: `#hello` is a paragraph, `## x ###  ` is `x`, `<b>hi</b> there` is a paragraph with inline HTML, and a blank line between items keeps one (loose) list.
+
+**Root cause.** `markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:156-159` (the no-space branch builds `Heading(HeadingLevel.H1, ...)` from the whole line), `:162` (`reverse.dropWhile(_ == '#').dropWhile(_ == ' ')` runs on the string before its trailing spaces are removed), `isHtmlBlockStart` (`:381`) and `parseHtmlBlock`, `parseOrderedList` (`:287`).
+
+**Impact.** Low: surprising output for plain prose that starts with `#` or `<`. The `Parser` Scaladoc describes each case.
+
+**Test gap.** `ParserSpec` "parses heading with trailing hashes" (`:61`) has no trailing spaces after the closing hashes. The `#NoSpace` test (`ParserSpec.scala:657`-`:658`) asserts `Heading(HeadingLevel.H1, Chunk(Text("#NoSpace")))`, so fixing (1) changes that expectation.
+
+**Suggested fix.** Make the no-space `#` line a paragraph, trim trailing spaces before removing the closing hashes, and parse a line that starts with an inline tag as a paragraph unless it is a block-level tag.
+
+### markdown: backslash escapes are not read, and `Renderer` does not escape, so text with Markdown characters does not round-trip
+
+Found 2026-11-06 while writing the markdown Scaladoc, on `main` at `04b56bc92` (identical at `v0.0.56`). Verified against the published 0.0.56. Not filed on GitHub yet.
+
+**Summary.** `Parser` has no backslash escape: `\*not\*` reads as a backslash and emphasis. `Renderer` writes `Text`, `Code`, URLs and titles as they are, so a `Text("2 * 3 * 4")` renders to something that parses back as emphasis, and `Code("a`b")` renders as `` `a`b` ``.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-markdown` 0.0.56, `Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-markdown:0.0.56
+import zio.blocks.docs._
+import zio.blocks.chunk.Chunk
+
+println(Parser.parse("\\*not\\*").toOption.get.blocks)
+val doc = Doc(Chunk(Paragraph(Chunk(Text("2 * 3 * 4")))))
+val back = Parser.parse(Renderer.render(doc)).toOption.get
+println(back.blocks)
+println(back == doc)
+println(Renderer.renderInline(Code("a`b")))
+// Chunk(Paragraph(Chunk(Text(\),Emphasis(Chunk(Text(not\))))))
+// Chunk(Paragraph(Chunk(Text(2 ),Emphasis(Chunk(Text( 3 ))),Text( 4))))
+// false
+// `a`b`
+```
+
+**Expected.** A backslash before a Markdown character gives that character as text, and `Renderer` escapes the characters it would otherwise write as syntax, so `Parser.parse(Renderer.render(doc)) == Right(doc)`.
+
+**Root cause.** `Parser.parseInlines` (`markdown/shared/src/main/scala/zio/blocks/docs/Parser.scala:471`) has no escape branch; `Renderer.renderInline` (`markdown/shared/src/main/scala/zio/blocks/docs/Renderer.scala:207`, `case Text(value)` at `:208`) copies `Text` and `Code` values unchanged.
+
+**Impact.** Programmatically built documents (and the `md` interpolator, which renders every argument to Markdown first) can change meaning on the way through; a `Code` span containing a backtick is corrupted. The `Renderer` and `Parser` Scaladoc now state both limits.
+
+**Test gap.** `RoundTripSpec` round-trips only inputs without special characters in text.
+
+**Suggested fix.** Read `\` + punctuation as the literal character, and escape `*`, `_`, `` ` ``, `[`, `<`, `~` and `\` at the start of `Text` rendering; use a longer backtick fence for `Code` that contains a backtick.
 
 ## Test and CI
 
