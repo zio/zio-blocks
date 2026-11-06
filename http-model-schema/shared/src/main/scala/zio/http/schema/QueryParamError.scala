@@ -16,17 +16,42 @@
 
 package zio.http.schema
 
+/**
+ * Why `query` or `queryAll` could not read a query parameter (`queryOrElse`
+ * returns its default instead): the key is [[QueryParamError.Missing]], or its
+ * value is [[QueryParamError.Malformed]]. Match on the case to tell a client's
+ * omission from a bad value, or use `message` for a ready-made sentence.
+ */
 sealed trait QueryParamError extends Product with Serializable {
+
+  /** A one-line, human-readable description of the error. */
   def message: String
 }
 
+/** The two kinds of [[QueryParamError]]. */
 object QueryParamError {
 
+  /**
+   * The query parameter `key` is absent. Its `message` reads
+   * `Missing query parameter: page`.
+   */
   final case class Missing(key: String) extends QueryParamError {
+
+    /** `Missing query parameter: ` followed by the key. */
     def message: String = s"Missing query parameter: $key"
   }
 
+  /**
+   * The query parameter `key` is present but its `value` does not decode;
+   * `cause` says why, for example `Cannot parse 'abc' as Int`. Its `message`
+   * names the key, the value and the cause, as in "Malformed query parameter
+   * 'limit' value 'abc': Cannot parse 'abc' as Int". A derived [[QueryCodec]]
+   * reports a bad value with this same message inside its
+   * [[zio.blocks.schema.SchemaError]].
+   */
   final case class Malformed(key: String, value: String, cause: String) extends QueryParamError {
+
+    /** Names the key, the raw value and the cause, in that order. */
     def message: String = s"Malformed query parameter '$key' value '$value': $cause"
   }
 }
