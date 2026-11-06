@@ -18,20 +18,33 @@ package zio.http.htmx
 
 import scala.concurrent.duration.FiniteDuration
 
+/** Validation, duration and JSON helpers shared by the htmx value types. */
 private[htmx] object HtmxSupport {
 
+  /**
+   * Returns `value` trimmed, or throws
+   * `IllegalArgumentException(label + " must be non-empty")` if it is blank.
+   */
   def requireNonBlank(value: String, label: String): String = {
     val trimmed = value.trim
     if (trimmed.isEmpty) throw new IllegalArgumentException(label + " must be non-empty")
     else trimmed
   }
 
+  /**
+   * Renders whole seconds as `<n>s` and anything else as `<n>ms`, after
+   * truncating to milliseconds.
+   */
   def renderDuration(duration: FiniteDuration): String = {
     val millis = duration.toMillis
     if (millis % 1000 == 0) (millis / 1000).toString + "s"
     else millis.toString + "ms"
   }
 
+  /**
+   * Parses `<n>ms`, `<n>s` or a bare number of milliseconds, where `n` is a
+   * non-negative whole number.
+   */
   def parseDuration(value: String): Either[String, FiniteDuration] =
     if (value.endsWith("ms")) {
       val raw = value.substring(0, value.length - 2)
@@ -45,6 +58,11 @@ private[htmx] object HtmxSupport {
       parseNonNegativeLong(value).map(FiniteDuration(_, scala.concurrent.duration.MILLISECONDS))
     } else Left("Unsupported HTMX duration: " + value)
 
+  /**
+   * Returns `duration`, or throws
+   * `IllegalArgumentException(label + " must be non-negative")` if it is
+   * negative.
+   */
   def requireNonNegativeDuration(duration: FiniteDuration, label: String): FiniteDuration =
     if (duration < DurationZero) throw new IllegalArgumentException(label + " must be non-negative")
     else duration
@@ -60,6 +78,7 @@ private[htmx] object HtmxSupport {
       case _: NumberFormatException => Left("Invalid number: " + value)
     }
 
+  /** Returns `value` as a quoted, escaped JSON string literal. */
   def quoteJson(value: String): String =
     _root_.zio.blocks.schema.json.Json.String(value).print
 }

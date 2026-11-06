@@ -17,41 +17,95 @@
 package zio.http.htmx
 
 /**
- * Typed parameter inclusion strategies for the `hx-params` attribute.
+ * An `hx-params` value: which parameters htmx sends with a request.
+ *
+ * [[HxParams.All]] sends every parameter, [[HxParams.None]] sends none,
+ * [[HxParams.only]] sends only the named ones and [[HxParams.not]] sends all
+ * but the named ones. The factory methods trim each name and reject blank ones.
+ *
+ * {{{
+ * import zio.blocks.html._
+ *
+ * val checkout = form(
+ *   hxPost := "/checkout",
+ *   hxParams := HxParams.not("coupon_draft", "debug")
+ * )(button("Pay")).render
+ * // <form hx-post="/checkout" hx-params="not coupon_draft,debug"><button>Pay</button></form>
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/htmx/hx-params/ HxParams]]
  */
 sealed trait HxParams extends Product with Serializable {
+
+  /** Renders this value as the literal `hx-params` attribute value. */
   def render: String
 }
 
+/** The [[HxParams]] values, factories and parser. */
 object HxParams {
 
-  /** Includes all parameters. */
+  /** `*`: sends every parameter. */
   case object All extends HxParams {
+
+    /** Renders `*`. */
     def render: String = "*"
   }
 
-  /** Includes no parameters. */
+  /** `none`: sends no parameters. */
   case object None extends HxParams {
+
+    /** Renders `none`. */
     def render: String = "none"
   }
 
-  /** Excludes the listed parameters. */
+  /**
+   * `not a,b`: sends every parameter except the listed ones. The constructor
+   * does not check the names (`Not(Nil)` renders `"not "`); [[HxParams.not]]
+   * does.
+   */
   final case class Not(params: Seq[String]) extends HxParams {
+
+    /** Renders `not ` followed by the names joined with commas. */
     def render: String = "not " + params.mkString(",")
   }
 
-  /** Includes only the listed parameters. */
+  /**
+   * `a,b`: sends only the listed parameters. The constructor does not check the
+   * names (`Only(Nil)` renders an empty string); [[HxParams.only]] does.
+   */
   final case class Only(params: Seq[String]) extends HxParams {
+
+    /** Renders the names joined with commas. */
     def render: String = params.mkString(",")
   }
 
-  /** Creates a `not ...` parameter strategy. */
+  /**
+   * Creates a [[Not]] value that leaves out the named parameters. Each name is
+   * trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is blank
+   */
   def not(first: String, rest: String*): HxParams = Not(validateNames(first +: rest))
 
-  /** Creates an allow-list parameter strategy. */
+  /**
+   * Creates an [[Only]] value that sends just the named parameters. Each name
+   * is trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is blank
+   */
   def only(first: String, rest: String*): HxParams = Only(validateNames(first +: rest))
 
-  /** Parses a rendered `hx-params` string back into a typed [[HxParams]]. */
+  /**
+   * Parses an `hx-params` string, after trimming it: `*`, `none`, `not `
+   * followed by a list, or a list. A list is comma-separated names, each
+   * trimmed. The keywords are case-sensitive, so `NONE` and a bare `not` parse
+   * as an [[Only]] list of that one name. An empty list gives
+   * `Left("HTMX params list must be non-empty")` and an empty name gives
+   * `Left("HTMX params list cannot contain empty names")`.
+   */
   def parse(value: String): Either[String, HxParams] = {
     val trimmed = value.trim
     if (trimmed == "*") Right(All)
@@ -73,6 +127,7 @@ object HxParams {
   private def validateNames(names: Seq[String]): Seq[String] =
     names.map(name => HtmxSupport.requireNonBlank(name, "HTMX param name"))
 
+  /** Renders an [[HxParams]] with [[HxParams#render]]. */
   implicit val toHtmxValue: ToHtmxValue[HxParams] = new ToHtmxValue[HxParams] {
     def toHtmxValue(value: HxParams): String = value.render
   }

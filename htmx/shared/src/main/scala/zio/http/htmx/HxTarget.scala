@@ -19,79 +19,163 @@ package zio.http.htmx
 import _root_.zio.blocks.html.CssSelector
 
 /**
- * Typed representation of the target selector forms accepted by HTMX.
+ * An element reference in htmx's extended selector syntax: `this`, a relative
+ * form (`closest`, `find`, `next`, `previous`) or a plain CSS selector.
  *
- * These values are used by attributes such as `hx-target`, `hx-include`, and
- * `hx-sync`.
+ * `hxTarget` and `hxInclude` take an `HxTarget`, and it also names the element
+ * in [[HxSync]], `HxTrigger#from`, `HxSwapOob.using` and the `target` of
+ * [[zio.http.htmx.headers.HxLocation]]. htmx resolves the relative forms from
+ * the element that carries the attribute. The `hx-swap-oob` selector and the
+ * `HX-Location` target have no such element, so pass an `HxTarget.css` target
+ * there: a relative form such as `closest` renders without complaint and then
+ * fails in the browser (a known bug).
+ *
+ * {{{
+ * import zio.blocks.html._
+ *
+ * val row = tr(
+ *   hxGet := "/orders/1001/edit",
+ *   hxTarget := HxTarget.closest("tr"),
+ *   hxSwap := HxSwap.OuterHTML
+ * )(td("Order 1001")).render
+ * // <tr hx-get="/orders/1001/edit" hx-target="closest tr" hx-swap="outerHTML"><td>Order 1001</td></tr>
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/htmx/hx-target/ HxTarget]]
  */
 sealed trait HxTarget extends Product with Serializable {
+
+  /** Renders this target in htmx syntax, such as `closest tr` or `#results`. */
   def render: String
 }
 
+/** The [[HxTarget]] forms, factories and parser. */
 object HxTarget {
 
-  /** Targets the current element (`this`). */
+  /** `this`: the element that carries the attribute. */
   case object This extends HxTarget {
+
+    /** Renders `this`. */
     def render: String = "this"
   }
 
-  /** Backtick-friendly alias for [[This]]. */
+  /** Returns [[This]]; the backticked name matches htmx's `this`. */
   def `this`: HxTarget = This
 
-  /** Identifier-friendly alias for [[This]]. */
+  /** Returns [[This]], under a name that needs no backticks. */
   def this_ : HxTarget = This
 
-  /** Targets the closest ancestor matching the selector. */
+  /**
+   * `closest <selector>`: the nearest ancestor (or the element itself) that
+   * matches the selector.
+   */
   final case class Closest private[htmx] (selector: String) extends HxTarget {
+
+    /** Renders `closest` followed by the selector. */
     def render: String = "closest " + selector
   }
 
-  /** Targets the first descendant matching the selector. */
+  /** `find <selector>`: the first descendant that matches the selector. */
   final case class Find private[htmx] (selector: String) extends HxTarget {
+
+    /** Renders `find` followed by the selector. */
     def render: String = "find " + selector
   }
 
-  /** Targets the next sibling, optionally filtered by selector. */
+  /**
+   * `next` or `next <selector>`: without a selector, the next sibling element;
+   * with one, the first element after this one in document order that matches
+   * it.
+   */
   final case class Next private[htmx] (selector: Option[String]) extends HxTarget {
+
+    /** Renders `next`, followed by the selector when there is one. */
     def render: String = selector.fold("next")(s => "next " + s)
   }
 
-  /** Targets the previous sibling, optionally filtered by selector. */
+  /**
+   * `previous` or `previous <selector>`: without a selector, the previous
+   * sibling element; with one, the nearest element before this one in document
+   * order that matches it.
+   */
   final case class Previous private[htmx] (selector: Option[String]) extends HxTarget {
+
+    /** Renders `previous`, followed by the selector when there is one. */
     def render: String = selector.fold("previous")(s => "previous " + s)
   }
 
-  /** Targets the CSS selector as-is. */
+  /** A plain CSS selector, rendered as-is. */
   final case class Css private[htmx] (selector: String) extends HxTarget {
+
+    /** Renders the selector unchanged. */
     def render: String = selector
   }
 
-  /** Creates a `closest ...` selector. */
+  /**
+   * Creates a `closest <selector>` target. The selector is trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `selector` is blank
+   */
   def closest(selector: String): HxTarget = new Closest(HtmxSupport.requireNonBlank(selector, "HTMX closest selector"))
 
-  /** Creates a `find ...` selector. */
+  /**
+   * Creates a `find <selector>` target. The selector is trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `selector` is blank
+   */
   def find(selector: String): HxTarget = new Find(HtmxSupport.requireNonBlank(selector, "HTMX find selector"))
 
-  /** Targets the next sibling. */
+  /** Creates a bare `next` target: the next sibling element. */
   def next: HxTarget = new Next(None)
 
-  /** Targets the next sibling matching the selector. */
+  /**
+   * Creates a `next <selector>` target: the first element after this one in
+   * document order that matches the selector, which is trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `selector` is blank
+   */
   def next(selector: String): HxTarget = new Next(Some(HtmxSupport.requireNonBlank(selector, "HTMX next selector")))
 
-  /** Targets the previous sibling. */
+  /** Creates a bare `previous` target: the previous sibling element. */
   def previous: HxTarget = new Previous(None)
 
-  /** Targets the previous sibling matching the selector. */
+  /**
+   * Creates a `previous <selector>` target: the nearest element before this one
+   * in document order that matches the selector, which is trimmed.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `selector` is blank
+   */
   def previous(selector: String): HxTarget =
     new Previous(Some(HtmxSupport.requireNonBlank(selector, "HTMX previous selector")))
 
-  /** Uses a raw CSS selector string. */
+  /**
+   * Creates a CSS selector target from a string, which is trimmed and otherwise
+   * written as given.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `selector` is blank
+   */
   def css(selector: String): HxTarget = new Css(HtmxSupport.requireNonBlank(selector, "HTMX CSS selector"))
 
-  /** Uses a typed CSS selector. */
+  /**
+   * Creates a CSS selector target from a
+   * [[zio.blocks.html.CssSelector CssSelector]]'s rendered form. An empty
+   * rendered selector is not rejected.
+   */
   def css(selector: CssSelector): HxTarget = new Css(selector.render)
 
-  /** Parses a rendered HTMX target selector back into a typed [[HxTarget]]. */
+  /**
+   * Parses a rendered target, after trimming it: `this`, `next`, `previous`, or
+   * a `closest `, `find `, `next ` or `previous ` prefix followed by a
+   * selector. Anything else becomes a [[Css]] target, including a bare
+   * `closest` with no selector. A blank input gives
+   * `Left("HTMX target selector must be non-empty")`.
+   */
   def parse(value: String): Either[String, HxTarget] = {
     val trimmed = value.trim
     if (trimmed.isEmpty) Left("HTMX target selector must be non-empty")
@@ -111,6 +195,7 @@ object HxTarget {
       case error: IllegalArgumentException => Left(error.getMessage)
     }
 
+  /** Renders an [[HxTarget]] with [[HxTarget#render]]. */
   implicit val toHtmxValue: ToHtmxValue[HxTarget] = new ToHtmxValue[HxTarget] {
     def toHtmxValue(value: HxTarget): String = value.render
   }

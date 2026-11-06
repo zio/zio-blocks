@@ -17,25 +17,32 @@
 package zio.http.htmx
 
 /**
- * Encodings supported by the `hx-encoding` attribute.
+ * An `hx-encoding` value: how htmx encodes a request body.
  *
- * The current DSL exposes HTMX's explicit multipart form encoding for requests
- * that include file uploads or other multipart data.
+ * The only value is [[HxEncoding.Multipart]], for requests that upload files.
+ * htmx's default, URL-encoded form data, has no value here: leave the attribute
+ * out to get it.
  *
- * HTMX's default URL-encoded form behavior is represented by omitting the
- * attribute entirely, so there is no separate DSL value for the default case.
+ * @see
+ *   [[https://zioblocks.com/reference/htmx/hx-encoding/ HxEncoding]]
  */
 sealed trait HxEncoding extends Product with Serializable {
+
+  /** Renders this value as the literal `hx-encoding` attribute value. */
   def render: String
 }
 
+/** The [[HxEncoding]] values. */
 object HxEncoding {
 
-  /** Uses `multipart/form-data`, typically for file uploads. */
+  /** `multipart/form-data`, typically for file uploads. */
   case object Multipart extends HxEncoding {
+
+    /** Renders `multipart/form-data`. */
     def render: String = "multipart/form-data"
   }
 
+  /** Renders an [[HxEncoding]] with [[HxEncoding#render]]. */
   implicit val toHtmxValue: ToHtmxValue[HxEncoding] = new ToHtmxValue[HxEncoding] {
     def toHtmxValue(value: HxEncoding): String = value.render
   }
