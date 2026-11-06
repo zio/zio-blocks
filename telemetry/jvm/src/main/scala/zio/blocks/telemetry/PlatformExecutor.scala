@@ -19,10 +19,10 @@ package zio.blocks.telemetry
 import java.util.concurrent._
 
 /**
- * A scheduler that runs periodic tasks on one virtual thread, named `otel-0`
- * (`otel-1` and so on if it is replaced); the OTLP trace and log exporters of
- * the `otel` module run their periodic exports on one; the metric exporter does
- * not use it. JVM only.
+ * A scheduler that runs periodic tasks on one virtual thread, named `otel-0`.
+ * The OTLP trace and log exporters of the `otel` module run their periodic
+ * exports on a `PlatformExecutor`; the metric exporter does not use one. JVM
+ * only.
  */
 final class PlatformExecutor private (val executor: ScheduledExecutorService) {
 
