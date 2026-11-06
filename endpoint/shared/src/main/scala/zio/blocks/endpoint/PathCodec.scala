@@ -65,6 +65,12 @@ sealed trait PathCodec[A] { self =>
    * `Tuples`: a literal side adds nothing, so `int("id") ++ string("slug")`
    * decodes to `(Int, String)`. The result captures when either side captures
    * (see [[SegmentCodec.CombinePathVars]]).
+   *
+   * Joining two literal-only codecs, as in `PathCodec.literal("api") /
+   * PathCodec.literal("v1")`, needs `import RoutePattern._` (or
+   * `PathCodec.unitUnit`) in scope: otherwise the compiler finds two `Tuples`
+   * instances for `Unit` and `Unit` and reports them as ambiguous, a known bug.
+   * A string on the right, as in `PathCodec("api") / "v1"`, has the same need.
    */
   final def ++[B, C, PV2, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C],
@@ -304,8 +310,9 @@ object PathCodec extends PathCodecPlatformSpecific {
   private type DecodeError = String
 
   /**
-   * The `Tuples` instance that joins two `Unit` values into `Unit`, for paths
-   * of literal segments only.
+   * The `Tuples` instance that joins two `Unit` values into `Unit`. It is not
+   * found automatically: import it, or `RoutePattern._`, to join two
+   * literal-only paths with `/` or `++`.
    */
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 

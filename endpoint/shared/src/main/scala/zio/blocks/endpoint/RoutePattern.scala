@@ -145,8 +145,9 @@ final case class RoutePattern[A](
 object RoutePattern {
 
   /**
-   * The `Tuples` instance that joins two `Unit` values into `Unit`, for routes
-   * of literal segments only.
+   * The `Tuples` instance that joins two `Unit` values into `Unit`, which
+   * `import RoutePattern._` brings into scope so that `Method.GET / "api" /
+   * "notes"` and other joins of two literal-only paths compile.
    */
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 

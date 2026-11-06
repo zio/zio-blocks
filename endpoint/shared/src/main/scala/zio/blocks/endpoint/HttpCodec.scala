@@ -183,7 +183,7 @@ object HttpCodec {
   /**
    * A header called `name` whose value `schema` describes, with an optional
    * default, documentation, named examples and deprecation note. Build it with
-   * [[HttpCodec.requestHeader]] or [[HttpCodec.responseHeader]].
+   * `HttpCodec.requestHeader` or `HttpCodec.responseHeader`.
    */
   final case class Header[K <: CodecKind, A](
     name: String,

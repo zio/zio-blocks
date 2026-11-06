@@ -140,8 +140,8 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
     copy(input = input ++ codec)
 
   /**
-   * Adds a request header built with [[HttpCodec.requestHeader]]. The value
-   * joins `Input` as with `in`.
+   * Adds a request header built with `HttpCodec.requestHeader`. The value joins
+   * `Input` as with `in`.
    */
   def header[I2, I3](codec: HttpCodec.Header[CodecKind.Request, I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
@@ -502,7 +502,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   }
 
   /**
-   * Adds a response header built with [[HttpCodec.responseHeader]]. Its value
+   * Adds a response header built with `HttpCodec.responseHeader`. Its value
    * joins `Output` as a tuple member, the way request parts join `Input`.
    */
   def outHeader[O2, O3](codec: HttpCodec.Header[CodecKind.Response, O2])(implicit
