@@ -32,8 +32,8 @@ import _root_.zio.blocks.html.{CssSelector, Dom, Js}
  * `hxTarget` takes [[HxTarget]], and selector-only keys take a
  * [[zio.blocks.html.CssSelector CssSelector]], so a misspelled value fails at
  * compile time. The request keys (`hxGet`, `hxPost`, ...) take a `String`, a
- * [[zio.http.Path Path]] or a [[zio.http.URL URL]], and [[hxOn]] takes raw
- * JavaScript as [[zio.blocks.html.Js Js]].
+ * [[zio.http.Path Path]] or a [[zio.http.URL URL]], and the [[HxOnKey]] keys of
+ * [[hxOn]] take raw JavaScript as [[zio.blocks.html.Js Js]].
  *
  * {{{
  * import zio.blocks.html._
@@ -55,10 +55,11 @@ trait HtmxAttributes {
 
   /**
    * `hx-get`: htmx sends a GET request to this URL. A `String` is written as
-   * given, while a [[zio.http.Path Path]] or [[zio.http.URL URL]] is
-   * percent-encoded. A user's text in the query of a `String` URL can therefore
-   * add parameters (a known bug); percent-encode such text before building the
-   * string.
+   * given, except that the HTML renderer prefixes a `javascript:`, `vbscript:`
+   * or `data:text/html` URL with `unsafe:`, while a [[zio.http.Path Path]] or
+   * [[zio.http.URL URL]] is percent-encoded. A user's text in the query of a
+   * `String` URL can therefore add parameters (a known bug); percent-encode
+   * such text before building the string.
    */
   lazy val hxGet: HtmxAttrKey[UrlLike] = HtmxAttrKey.stringValue[UrlLike]("hx-get")
 

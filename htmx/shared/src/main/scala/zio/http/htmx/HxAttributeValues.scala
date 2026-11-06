@@ -28,7 +28,9 @@ import _root_.zio.http.{Path, URL}
  * `HxUrlUpdate(true)` uses the request URL, `HxUrlUpdate(false)` turns the
  * update off, and a `String`, [[zio.http.Path Path]] or [[zio.http.URL URL]]
  * sets the URL to show. A `Path` or `URL` is percent-encoded; a `String` is
- * trimmed and otherwise written as given.
+ * trimmed and otherwise written as given, except that in an attribute the HTML
+ * renderer prefixes a `javascript:`, `vbscript:` or `data:text/html` URL with
+ * `unsafe:`.
  *
  * {{{
  * import zio.blocks.html._
