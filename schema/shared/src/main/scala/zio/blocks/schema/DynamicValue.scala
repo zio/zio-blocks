@@ -755,7 +755,7 @@ object DynamicValue {
 
     /**
      * Compares two records field by field, in order: the names with
-     * `String#compare` first, then the values. When one record runs out of
+     * `String#compareTo` first, then the values. When one record runs out of
      * fields first, it is the smaller. Any other kind of value gives
      * `1 - that.typeIndex`.
      */
@@ -833,7 +833,7 @@ object DynamicValue {
       else DynamicValueSelection.fail(SchemaError(s"Variant case '$name' does not match '$caseNameValue'"))
 
     /**
-     * Compares two variants by case name with `String#compare`, then by
+     * Compares two variants by case name with `String#compareTo`, then by
      * payload. Any other kind of value gives `2 - that.typeIndex`.
      */
     def compare(that: DynamicValue): Int = that match {
