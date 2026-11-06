@@ -16,6 +16,7 @@
 
 package zio.blocks.telemetry
 
+/** Prints records as text lines; [[ConsoleLogRecordProcessor]] delegates to it. */
 private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
 
   override def onEmit(logRecord: LogRecord): Unit = {

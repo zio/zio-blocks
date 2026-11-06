@@ -18,6 +18,7 @@ package zio.blocks.telemetry
 
 import java.util.concurrent.atomic.AtomicLongArray
 
+/** Per-call-site counters and timestamps for the `*Every` and `*AtMost` log methods. */
 private[telemetry] object LogRateLimit {
   private val SIZE       = 4096
   private val MASK       = SIZE - 1
