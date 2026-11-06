@@ -22,18 +22,24 @@ package zio.blocks.telemetry
  * `LoggerProvider` or `TracerProvider` builder, and every log record and span
  * they create carries it, so a backend can group signals by service.
  *
- * Start from `Resource.default` and merge your service's attributes over it.
- * `zio.blocks.scope` also defines a `Resource`, so a file that imports both
- * packages with wildcards gets "reference to Resource is ambiguous", a known
- * bug: import one of them by name.
+ * Build it with `Resource.create` and an attributes builder. `merge` keeps both
+ * values of a key that both resources hold, and the exporters write both, so
+ * `Resource.default.merge(...)` with a `service.name` exports `service.name`
+ * twice, `unknown_service` first, a known bug. `zio.blocks.scope` also defines
+ * a `Resource`, so a file that imports both packages with wildcards gets
+ * "reference to Resource is ambiguous", a known bug: import one of them by
+ * name.
  *
  * {{{
- * val resource = Resource.default.merge(
- *   Resource.create(Attributes.of(Attributes.ServiceName, "checkout"))
+ * val resource = Resource.create(
+ *   Attributes.builder
+ *     .put(Attributes.ServiceName, "checkout")
+ *     .put(Attributes.ServiceVersion, "1.4.0")
+ *     .build
  * )
  *
  * resource.attributes.get(Attributes.ServiceName) // Some(checkout)
- * resource.attributes.size // 5
+ * resource.attributes.size // 2
  * }}}
  *
  * @see
@@ -52,10 +58,10 @@ object Resource {
     Resource(attrs)
 
   /**
-   * The resource that `LoggerProvider.builder` and `TracerProvider.builder`
-   * start from: `service.name` is `"unknown_service"`, `telemetry.sdk.name` is
-   * `"zio-blocks"`, `telemetry.sdk.language` is `"scala"` and
-   * `telemetry.sdk.version` is the library version.
+   * The resource that `LoggerProvider.builder`, `TracerProvider.builder` and
+   * `MeterProvider.builder` start from: `service.name` is `"unknown_service"`,
+   * `telemetry.sdk.name` is `"zio-blocks"`, `telemetry.sdk.language` is
+   * `"scala"` and `telemetry.sdk.version` is the library version.
    */
   val default: Resource = {
     val attrs = Attributes.builder
@@ -72,8 +78,8 @@ object Resource {
 
     /**
      * Returns a resource with the attributes of `self` followed by those of
-     * `other`, with `Attributes#++`: a key in both stays twice, and lookups
-     * return the value from `other`.
+     * `other`, with `Attributes#++`: a key in both stays twice. Lookups return
+     * the value from `other`, and the exporters write both entries.
      */
     def merge(other: Resource): Resource =
       Resource(self.attributes ++ other.attributes)
