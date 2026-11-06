@@ -56,7 +56,7 @@ import scala.annotation.StaticAnnotation
  * keep the old name readable with `@Modifier.alias` on the renamed case
  * instead. Adding or removing `@eventTag` on a case that already has stored
  * events changes its tag, so the events stored under the old tag are skipped by
- * every read.
+ * every read that does not ask for that tag by name.
  *
  * @see
  *   [[https://zioblocks.com/reference/projection/migration/ Migration]]

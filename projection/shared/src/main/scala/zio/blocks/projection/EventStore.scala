@@ -97,9 +97,9 @@ trait EventStore[E] {
    * @param afterSeq
    *   the sequence number to read after; `0` reads from the first event
    * @param tags
-   *   the tags of the events to keep; the empty set, the default, sets no tag
-   *   filter of its own. [[SQLiteEventStore]] still keeps only the tags it
-   *   knows
+   *   the tags of the events to keep; the empty set, the default, asks for no
+   *   particular tag. With it, [[SQLiteEventStore]] keeps only the events whose
+   *   tag it knows
    */
   def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
@@ -109,9 +109,9 @@ trait EventStore[E] {
    * A schema rebuild uses it to replay all the events.
    *
    * @param tags
-   *   the tags of the events to keep; the empty set, the default, sets no tag
-   *   filter of its own. [[SQLiteEventStore]] still keeps only the tags it
-   *   knows
+   *   the tags of the events to keep; the empty set, the default, asks for no
+   *   particular tag. With it, [[SQLiteEventStore]] keeps only the events whose
+   *   tag it knows
    */
   def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
@@ -136,13 +136,12 @@ trait EventStore[E] {
  * JSON, and `ts` is the time it was appended, in milliseconds. An index on
  * `tag` and `seq` serves filtered reads.
  *
- * The store knows the tags of `E` through a [[TagInfo]]. Every read keeps only
- * the events whose tag the `TagInfo` knows, also when it asks for no tags: an
- * event of a removed case, or of a case renamed without a migration, is skipped
- * without an error. When a case was renamed and the store was made with the
- * migration, a read that asks for the new tag also returns the events saved
- * under the old one, decodes them as the renamed case, and reports them under
- * the new tag.
+ * The store knows the tags of `E` through a [[TagInfo]]. A read that asks for
+ * no tags keeps only the events whose tag the `TagInfo` knows: an event of a
+ * removed case, or of a case renamed without a migration, is skipped without an
+ * error. When a case was renamed and the store was made with the migration, a
+ * read that asks for the new tag also returns the events saved under the old
+ * one, decodes them as the renamed case, and reports them under the new tag.
  *
  * A read opens its own connection and pulls the rows through a cursor as the
  * stream is consumed. It gets the connection from the transactor's private
@@ -512,7 +511,7 @@ object SQLiteEventStore {
    * from its schema with `TagResolver.resolve`. When the store is created, it
    * compares the tags in the database with the ones it knows, and logs a
    * warning for any it cannot explain: the events under such tags are skipped
-   * by every read.
+   * by every read that does not ask for those tags by name.
    *
    * @param transactor
    *   the connection to the database file, usually from a [[TransactorCache]]

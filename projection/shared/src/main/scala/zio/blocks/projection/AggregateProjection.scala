@@ -22,23 +22,23 @@ import zio.blocks.schema.{Modifier, Schema}
 /**
  * Helpers for global aggregate projections.
  *
- * Global projections share a single underlying store file (`global/<name>.db`)
- * and receive events from all sources regardless of entity routing. The entity
- * identifier acts as the grouping key (for example a date string
- * `"2025-08-26"`).
+ * A global projection keeps all its rows in one store, `global/<name>.db` when
+ * the engine creates it, and applies the events of every source to it, whatever
+ * their routing. The entity ID an event is recorded under picks the row, so it
+ * acts as the grouping key (for example a date string `"2025-08-26"`).
  *
- * The store layer guarantees that `Increment` / `Decrement` / `Max` / `Min`
- * `FieldUpdate`s translate to atomic SQL (`COALESCE(col,0)+?`, `MAX(...)`,
- * `MIN(...)`) and that a missing aggregate row is materialised on-the-fly via
- * `INSERT OR IGNORE` before the `UPDATE`. `Upsert` uses the SQLite
- * `INSERT ... ON CONFLICT DO UPDATE` form (falls back to `INSERT OR REPLACE`
- * when the driver does not advertise conflict support).
+ * On a [[SQLiteProjectionStore]], `Increment`, `Decrement`, `Max` and `Min`
+ * [[FieldUpdate]]s become single SQL `UPDATE`s (`COALESCE(col, 0) + ?`,
+ * `MAX(...)`, `MIN(...)`), and a missing row is created with `INSERT OR IGNORE`
+ * before them, all in one transaction. `Upsert` uses
+ * `INSERT ... ON CONFLICT DO UPDATE`, and falls back to `INSERT OR REPLACE`
+ * when SQLite rejects it.
  */
 object AggregateProjection {
 
   /**
-   * Convenience wrapper creating a global spec whose handlers emit atomic
-   * counter updates.
+   * Same as `Projection.global[A](name)`: an empty global projection, to which
+   * sources and handlers are added as usual. `bindings` is ignored.
    */
   def globalWithCounters[A: Schema](
     name: String,
@@ -47,8 +47,8 @@ object AggregateProjection {
     Projection.global[A](name)
 
   /**
-   * Example model used by the aggregate spec tests: daily statistics bucketed
-   * by date (`String` with `@Modifier.id`).
+   * A sample row type for daily statistics, one row per date: the date is the
+   * ID, marked with `@Modifier.id`.
    */
   final case class DailyStats(
     @Modifier.id date: String,
@@ -57,19 +57,31 @@ object AggregateProjection {
     peak: Long
   )
 
+  /** The schema of [[DailyStats]]. */
   object DailyStats {
+
+    /** The derived schema of [[DailyStats]]. */
     implicit val schema: Schema[DailyStats] = Schema.derived[DailyStats]
   }
 
-  /** Field-level counter helpers re-exported for discoverability. */
+  /** Same as `FieldUpdate.Increment(field, by)`; `by` defaults to `1`. */
   def inc(field: String, by: Long = 1L): FieldUpdate.Increment = FieldUpdate.Increment(field, by)
+
+  /** Same as `FieldUpdate.Decrement(field, by)`; `by` defaults to `1`. */
   def dec(field: String, by: Long = 1L): FieldUpdate.Decrement = FieldUpdate.Decrement(field, by)
-  def max(field: String, value: Long): FieldUpdate.Max         = FieldUpdate.Max(field, value)
-  def min(field: String, value: Long): FieldUpdate.Min         = FieldUpdate.Min(field, value)
-  def set(field: String, value: Any): FieldUpdate.Set          = FieldUpdate.Set(field, value)
+
+  /** Same as `FieldUpdate.Max(field, value)`. */
+  def max(field: String, value: Long): FieldUpdate.Max = FieldUpdate.Max(field, value)
+
+  /** Same as `FieldUpdate.Min(field, value)`. */
+  def min(field: String, value: Long): FieldUpdate.Min = FieldUpdate.Min(field, value)
+
+  /** Same as `FieldUpdate.Set(field, value)`. */
+  def set(field: String, value: Any): FieldUpdate.Set = FieldUpdate.Set(field, value)
 
   /**
-   * Build a chunk of atomic counter increments for convenient `aggregate` use.
+   * Puts `updates` in a `Chunk`, in order, for `HandlerBuilder.aggregate`. Any
+   * kind of [[FieldUpdate]] can be in it.
    */
   def counters(updates: FieldUpdate*): Chunk[FieldUpdate] = Chunk(updates: _*)
 }

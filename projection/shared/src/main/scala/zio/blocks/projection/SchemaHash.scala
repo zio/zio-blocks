@@ -21,14 +21,23 @@ import java.security.MessageDigest
 import zio.blocks.schema.{Reflect, Schema}
 
 /**
- * SHA-256 hash of a schema's structure for evolution detection.
+ * SHA-256 hash of a schema's structure, which the engine compares with the
+ * stored one to find out when a projection's rows are out of date.
  *
- * Records recurse into field schemas (not just type names) so nested changes
- * affect the hash.
+ * The hash covers the record's type name and, for each field, its name, its
+ * position and its type name, with the element type for an `Option` or a
+ * collection. A field whose type is itself a record is hashed field by field,
+ * so a change inside it changes the hash. A record held in an `Option` or a
+ * collection only contributes its type name, so a change to its fields does not
+ * change the hash, and neither does a new case of a sealed trait used as a
+ * field type.
  */
 object SchemaHash {
 
-  /** Compute a stable hash for `A`'s schema. */
+  /**
+   * Computes the hash of `A`'s schema, as 64 lowercase hex characters. The same
+   * schema always gives the same hash.
+   */
   def compute[A: Schema]: String = {
     val schema = summon[Schema[A]]
     val sb     = new StringBuilder

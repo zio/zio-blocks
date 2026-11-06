@@ -557,9 +557,9 @@ final class FromBuilder[A] private[projection] (
     )
 
   /**
-   * Like `routedBy`, but picks the key with a field selector such as
-   * `_.ownerId`, checked at compile time. The field's value is turned into the
-   * key with `toString`.
+   * Like `routedBy`, but the selector, such as `_.ownerId`, can return any
+   * type: its value is turned into the key with `toString`. Unlike
+   * `HandlerBuilder.update`, the selector is not checked to read a field.
    */
   inline def routedByField[E](inline selector: E => Any): Projection[A] =
     ${ ProjectionMacros.routedByFieldImpl[A, E]('this, 'selector) }

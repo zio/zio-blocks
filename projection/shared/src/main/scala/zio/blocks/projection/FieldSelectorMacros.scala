@@ -39,29 +39,36 @@ import zio.blocks.sql.SqlNameMapper
  */
 object FieldSelectorMacros {
 
+  /** Expands to the snake_case column name of the field `selector` reads. */
   def extractAndMapFieldImpl[A: Type](selector: Expr[A => Any])(using q: Quotes): Expr[String] = {
     val fieldName  = extractFieldNameRaw(selector)
     val snakeCased = SqlNameMapper.SnakeCase(fieldName)
     Expr(snakeCased)
   }
 
+  /** Expands to the Scala name of the field `selector` reads, unchanged. */
   def extractFieldNameImpl[A: Type](selector: Expr[A => Any])(using q: Quotes): Expr[String] = {
     val fieldName = extractFieldNameRaw(selector)
     Expr(fieldName)
   }
 
+  /** Implements `FieldUpdate.setValue`. */
   def setValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Any])(using q: Quotes): Expr[FieldUpdate.Set] =
     '{ FieldUpdate.Set(${ extractAndMapFieldImpl[A](selector) }, $value) }
 
+  /** Implements `FieldUpdate.increment`. */
   def incrementImpl[A: Type](selector: Expr[A => Any], by: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Increment] =
     '{ FieldUpdate.Increment(${ extractAndMapFieldImpl[A](selector) }, $by) }
 
+  /** Implements `FieldUpdate.decrement`. */
   def decrementImpl[A: Type](selector: Expr[A => Any], by: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Decrement] =
     '{ FieldUpdate.Decrement(${ extractAndMapFieldImpl[A](selector) }, $by) }
 
+  /** Implements `FieldUpdate.maxValue`. */
   def maxValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Max] =
     '{ FieldUpdate.Max(${ extractAndMapFieldImpl[A](selector) }, $value) }
 
+  /** Implements `FieldUpdate.minValue`. */
   def minValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Min] =
     '{ FieldUpdate.Min(${ extractAndMapFieldImpl[A](selector) }, $value) }
 
