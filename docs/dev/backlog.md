@@ -819,9 +819,22 @@ Skill lessons: probing the "who verifies what" boundary (`decode` vs `decodeWith
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, jwt 30%.
 
-## 13l. Scaladoc: maybe, combinators and context (in progress)
+## 13l. Scaladoc: maybe, combinators and context
 
-Session `maybe-combinators-context-scaladoc` (Opus), started 2026-11-05 on `main` `c2e4a39fd`. Phase 0: 25 / 251 (maybe 5/135, combinators 7/79, context 13/37); `--drift` lists 3 members in `Maybe.scala` (`class Present`, `def present`, `object Absent`); 2 existing `{{{` blocks (`ContextHas`); sources byte-identical to `v0.0.56`; packages fit `moduleImport`, so the build change is three list entries; no known entries for these modules apart from the combinators `Tuples` Scala 2 nesting bug filed by the async rollout. Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; one Opus writer for all three modules, then a fresh Opus fact-check review. PR #1953 opened 2026-11-06 (main with #1949 merged in): 25 → 251 / 251; 10 of 25 inherited comments wrong; 11 bug entries filed.
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 maybe-combinators-context Scaladoc). Session `maybe-combinators-context-scaladoc` (Opus controller; one Opus writer for all three modules, Milad's choice; two fresh Opus reviewers in parallel on disjoint files; Sonnet re-review). Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; AGENTS.md diff approved (module list and downstream rows for `maybe*`, `combinators*`, `context*`). Phase 0 on `main` `c2e4a39fd`: module sources identical to `v0.0.56`, so every probe ran against 0.0.56; drift 3 (`Present`, `present`, `Absent`); 2 `{{{` blocks (`ContextHas`), neither compiled.
+
+| Item | Result |
+|---|---|
+| PR | #1953 (one PR); CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
+| Coverage | maybe 5 / 135 → 135 / 135; combinators 7 / 79 → 79 / 79; context 13 / 37 → 37 / 37 (the script prints 36 / 37 because `ContextHas`'s comment sits above a 3-line `@implicitNotFound`); `--drift` prints one false positive (`def apply`: Scala 3 `Present.apply` paired with Scala 2 `Maybe.apply` by name order) |
+| Examples | 67 `{{{` blocks counting each Scala-version copy (`Unions` marked `// scala-3-only`); the 2 old `ContextHas` blocks now compile; every result comment from a real scala-cli run on 2.13.18 and 3.9.0; `Context` also probed on Scala.js |
+| Tooling | 3 `scaladocCheckedModules` entries; style-guide and AGENTS.md lists (approved); two merges of `main` (list-line conflicts only, both sides kept) |
+| Existing comments | 25 counted by the script: 1 false (`Context#prune`) and 9 imprecise (10, 40%), all fixed; plus uncounted ones (the Scala 3 `unsafeGet` cost claim; `ContextEntries` load factor; "used by schema codecs"); typical: claims true on one Scala version only ("zero allocation" for `Present` while primitives box; `Concat` on Scala 3 is always `L \| R`) |
+| Review (2 Opus, fresh, in parallel) | 7 Important + 13 Minor (A maybe+context 4 + 7; B combinators+tooling 3 + 6), nearly all per-Scala-version overclaims; 20 / 20 applied, each suggested sentence re-probed first; Sonnet re-review of the fix diff: APPROVE, 2 Minor (1 fixed, 1 cosmetic left) |
+| Bugs | 11 entries: 5 Library bugs and 1 amendment to the Scala 2 `Tuples` entry, 2 Usability traps (`library-issues.md`), 2 Documentation errors (`combinators.md`, `maybe.md`) and 1 Docs tooling entry (coverage-script blind spots) (`docs-issues.md`) |
+| Time | about 1 h 50 min active, across two machine reboots and a usage-limit stop; plus CI |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%.
 
 ## 13m. Scaladoc: schema-messagepack and http-model-schema
 
