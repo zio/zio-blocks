@@ -86,7 +86,7 @@ sealed trait DynamicValue {
    * name or key first, then the value) and sequences element by element; when
    * one runs out first, it is the smaller. Variants compare by case name, then
    * by payload. Two `Int` primitives more than `Int.MaxValue` apart compare the
-   * wrong way round (see `docs/dev/issues.md`).
+   * wrong way round (a known bug).
    */
   def compare(that: DynamicValue): Int
 
@@ -123,7 +123,7 @@ sealed trait DynamicValue {
    * and maps; other primitives, values of different kinds and variants of
    * different cases are replaced whole. A record diff only sets the fields of
    * `that` and never removes a field that `that` lacks, so applying it does not
-   * remove fields (see `docs/dev/issues.md`).
+   * remove fields (a known bug).
    */
   def diff(that: DynamicValue): DynamicPatch = DynamicValue.diff(this, that)
 
@@ -158,8 +158,8 @@ sealed trait DynamicValue {
    * a primitive that `pt` accepts. `pt` also accepts another numeric type or a
    * `Char` when converting there and back gives the same value, so
    * `DynamicValue.int(42).asPrimitive(PrimitiveType.Long(Validation.None))` is
-   * `Some(42L)` (`docs/dev/issues.md` lists conversions that still change the
-   * value). The `Validation` of `pt` is not checked.
+   * `Some(42L)`; `PrimitiveType#fromDynamicValue` lists the few conversions
+   * that still change the value. The `Validation` of `pt` is not checked.
    */
   def asPrimitive[A](pt: PrimitiveType[A]): Option[A] = pt.fromDynamicValue(this).toOption
 
@@ -263,9 +263,9 @@ sealed trait DynamicValue {
    * Like `modify`, with a partial function. Returns `Left` with
    * `Path not found` when the path reaches nothing. Values at which `pf` is not
    * defined are left unchanged and the result is `Right`; only for the root
-   * path does an undefined `pf` give `Left` (see `docs/dev/issues.md`). When a
-   * field or map-key step matches but a later step reaches nothing, it returns
-   * `Right` with this value unchanged (see `docs/dev/issues.md`).
+   * path does an undefined `pf` give `Left` (a known bug). When a field or
+   * map-key step matches but a later step reaches nothing, it returns `Right`
+   * with this value unchanged (a known bug).
    */
   def modifyOrFail(path: DynamicOptic)(
     pf: PartialFunction[DynamicValue, DynamicValue]
@@ -281,8 +281,7 @@ sealed trait DynamicValue {
   /**
    * Like `set`, but returns `Left` with `Path not found` when the path reaches
    * nothing. When a field or map-key step matches but a later step reaches
-   * nothing, it returns `Right` with this value unchanged (see
-   * `docs/dev/issues.md`).
+   * nothing, it returns `Right` with this value unchanged (a known bug).
    */
   def setOrFail(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
     DynamicValue.modifyAtPathOrFail(this, path, { case _ => value })
@@ -532,7 +531,7 @@ sealed trait DynamicValue {
    * children that are kept, so a matching record whose fields do not match
    * becomes an empty record. A primitive or `Null` root that does not satisfy
    * `p` becomes `Null`. A variant is always kept, and kept whole when nothing
-   * in it is kept (see `docs/dev/issues.md`).
+   * in it is kept (a known bug).
    */
   def retain(p: DynamicValue => Boolean): DynamicValue =
     DynamicValue.retain(this, DynamicOptic.root, (_, dv) => p(dv))
@@ -564,7 +563,7 @@ sealed trait DynamicValue {
   /**
    * Returns `(retain(p), prune(p))`: the parts that satisfy `p` and the parts
    * that do not. Because `retain` always keeps variants, a variant can appear
-   * in both (see `docs/dev/issues.md`).
+   * in both (a known bug).
    */
   def partition(p: DynamicValue => Boolean): (DynamicValue, DynamicValue) =
     DynamicValue.partition(this, DynamicOptic.root, (_, dv) => p(dv))
@@ -656,8 +655,8 @@ sealed trait DynamicValue {
    * `Duration` values are followed by `@ {type: ...}`. An `Instant` prints as
    * epoch milliseconds, so smaller units are lost; a `Char` prints as a string
    * and `Unit` as `null`. A `Float` or `Double` that is NaN or infinite makes
-   * it throw (see `docs/dev/issues.md`). Nothing parses this format back; use
-   * `toJson` or a codec to exchange values.
+   * it throw (a known bug). Nothing parses this format back; use `toJson` or a
+   * codec to exchange values.
    */
   override def toString: String = toEjson()
 }
@@ -685,8 +684,10 @@ object DynamicValue {
 
     override def hashCode: Int = value.hashCode
 
+    /** Returns 0: primitives sort before every other kind of value. */
     def typeIndex: Int = 0
 
+    /** Returns `DynamicValueType.Primitive`. */
     def valueType: DynamicValueType = DynamicValueType.Primitive
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -699,6 +700,10 @@ object DynamicValue {
 
     override def primitiveValue: Option[PrimitiveValue] = new Some(value)
 
+    /**
+     * Compares two primitives with `PrimitiveValue#compare`. Any other kind of
+     * value gives `-that.typeIndex`, a negative number.
+     */
     def compare(that: DynamicValue): Int = that match {
       case thatPrimitive: Primitive => value.compare(thatPrimitive.value)
       case _                        => -that.typeIndex
@@ -728,8 +733,10 @@ object DynamicValue {
 
     override def hashCode: Int = fields.hashCode
 
+    /** Returns 1: records sort after primitives and before variants. */
     def typeIndex: Int = 1
 
+    /** Returns `DynamicValueType.Record`. */
     def valueType: DynamicValueType = DynamicValueType.Record
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -746,6 +753,12 @@ object DynamicValue {
       else DynamicValueSelection.succeedMany(matches)
     }
 
+    /**
+     * Compares two records field by field, in order: the names with
+     * `String#compare` first, then the values. When one record runs out of
+     * fields first, it is the smaller. Any other kind of value gives
+     * `1 - that.typeIndex`.
+     */
     def compare(that: DynamicValue): Int = that match {
       case thatRecord: Record =>
         val xs     = fields
@@ -797,8 +810,10 @@ object DynamicValue {
 
     override def hashCode: Int = 31 * caseNameValue.hashCode + value.hashCode
 
+    /** Returns 2: variants sort after records and before sequences. */
     def typeIndex: Int = 2
 
+    /** Returns `DynamicValueType.Variant`. */
     def valueType: DynamicValueType = DynamicValueType.Variant
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -817,6 +832,10 @@ object DynamicValue {
       if (caseNameValue == name) DynamicValueSelection.succeed(value)
       else DynamicValueSelection.fail(SchemaError(s"Variant case '$name' does not match '$caseNameValue'"))
 
+    /**
+     * Compares two variants by case name with `String#compare`, then by
+     * payload. Any other kind of value gives `2 - that.typeIndex`.
+     */
     def compare(that: DynamicValue): Int = that match {
       case v: Variant =>
         val cmp = caseNameValue.compare(v.caseNameValue)
@@ -847,8 +866,10 @@ object DynamicValue {
 
     override def hashCode: Int = elements.hashCode
 
+    /** Returns 3: sequences sort after variants and before maps. */
     def typeIndex: Int = 3
 
+    /** Returns `DynamicValueType.Sequence`. */
     def valueType: DynamicValueType = DynamicValueType.Sequence
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -863,6 +884,11 @@ object DynamicValue {
       if (index >= 0 && index < elements.length) DynamicValueSelection.succeed(elements(index))
       else DynamicValueSelection.fail(SchemaError(s"Index $index out of bounds (size: ${elements.length})"))
 
+    /**
+     * Compares two sequences element by element. When one runs out of elements
+     * first, it is the smaller. Any other kind of value gives
+     * `3 - that.typeIndex`.
+     */
     def compare(that: DynamicValue): Int = that match {
       case s: Sequence =>
         val xs     = elements
@@ -919,8 +945,10 @@ object DynamicValue {
 
     override def hashCode: Int = entries.hashCode
 
+    /** Returns 4: maps sort after sequences and before `Null`. */
     def typeIndex: Int = 4
 
+    /** Returns `DynamicValueType.Map`. */
     def valueType: DynamicValueType = DynamicValueType.Map
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -937,6 +965,11 @@ object DynamicValue {
       else DynamicValueSelection.succeedMany(matches)
     }
 
+    /**
+     * Compares two maps entry by entry, in order: the keys first, then the
+     * values. When one map runs out of entries first, it is the smaller. Any
+     * other kind of value gives `4 - that.typeIndex`.
+     */
     def compare(that: DynamicValue): Int = that match {
       case m: Map =>
         val xs     = entries
@@ -979,8 +1012,11 @@ object DynamicValue {
    * `None`. `dropNulls` removes it from containers.
    */
   case object Null extends DynamicValue {
+
+    /** Returns 5: `Null` sorts after every other kind of value. */
     def typeIndex: Int = 5
 
+    /** Returns `DynamicValueType.Null`. */
     def valueType: DynamicValueType = DynamicValueType.Null
 
     override def as(t: DynamicValueType): Option[t.Type] =
@@ -991,6 +1027,10 @@ object DynamicValue {
       if (t eq DynamicValueType.Null) new Some(().asInstanceOf[t.Unwrap])
       else None
 
+    /**
+     * Returns 0 for `Null` and `5 - that.typeIndex`, a positive number, for any
+     * other value.
+     */
     def compare(that: DynamicValue): Int =
       if (that eq Null) 0
       else 5 - that.typeIndex
