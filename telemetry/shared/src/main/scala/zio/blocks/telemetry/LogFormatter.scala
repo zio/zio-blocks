@@ -67,6 +67,11 @@ trait LogFormatter {
  * `code.function` and `code.lineno`. A known bug: for a class in a package it
  * prints the full name and two numbers instead, as in
  * `[(shop.Checkout,5,13).reserve:42]`. Trace and span ids are not printed.
+ *
+ * The date and time up to the second are cached between calls. A known bug: the
+ * cache is updated in two steps, so when two threads format records from
+ * different seconds at the same moment, a line can carry the date and time of
+ * the other record, down to the second.
  */
 object TextLogFormatter extends LogFormatter {
 
