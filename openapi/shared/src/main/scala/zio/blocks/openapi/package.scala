@@ -43,8 +43,6 @@ package object openapi {
    *
    * Schema[Owner].schemaName      // Owner
    * Schema[Owner].toRefSchema._1 // Ref(Reference(#/components/schemas/Owner,None,None))
-   * Schema[Owner].toOpenAPISchema.toJson.print
-   * // {"properties":{"name":{"type":"string"}},"type":"object","required":["name"],"title":"Owner"}
    * }}}
    */
   implicit class SchemaOps[A](private val self: Schema[A]) extends AnyVal {

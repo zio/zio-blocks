@@ -182,8 +182,10 @@ object OpenAPICodec {
    * Normalize a Doc by converting all top-level inline types to their Inline.*
    * equivalents.
    *
-   * This is necessary because Parser.parse() creates top-level Text, Code, etc.
-   * instances, but DocsSchemas expects Inline.Text, Inline.Code, etc.
+   * Parser.parse() creates top-level Text, Code, etc. instances; the decoder
+   * converts them so that a decoded Doc holds only Inline.* inlines. A Doc
+   * built with `md"..."` keeps the top-level classes, so it is not `==` to its
+   * decoded copy (a known bug).
    */
   private[this] def normalizeDoc(doc: Doc): Doc = Doc(doc.blocks.map(normalizeBlock), doc.metadata)
 
