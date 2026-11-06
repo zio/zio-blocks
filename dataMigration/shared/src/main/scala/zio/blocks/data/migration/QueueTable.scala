@@ -132,8 +132,8 @@ object QueueTable {
    * `ids` does nothing and checks nothing, not even `tableName`.
    *
    * @throws java.lang.IllegalArgumentException
-   *   if `ids` is not empty and `tableName` is not a plain identifier, or the
-   *   key codec has more than one column
+   *   if `ids` is not empty and either `tableName` is not a plain identifier or
+   *   the key codec has more than one column
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return

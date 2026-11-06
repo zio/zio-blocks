@@ -30,7 +30,7 @@ import _root_.zio.http.{Path, URL}
  * sets the URL to show. A `Path` or `URL` is percent-encoded; a `String` is
  * trimmed and otherwise written as given, except that in an attribute the HTML
  * renderer prefixes a `javascript:`, `vbscript:` or `data:text/html` URL with
- * `unsafe:`.
+ * `unsafe:` (a best-effort check, not a sanitizer).
  *
  * {{{
  * import zio.blocks.html._

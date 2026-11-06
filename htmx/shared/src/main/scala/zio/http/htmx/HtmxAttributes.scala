@@ -56,10 +56,11 @@ trait HtmxAttributes {
   /**
    * `hx-get`: htmx sends a GET request to this URL. A `String` is written as
    * given, except that the HTML renderer prefixes a `javascript:`, `vbscript:`
-   * or `data:text/html` URL with `unsafe:`, while a [[zio.http.Path Path]] or
-   * [[zio.http.URL URL]] is percent-encoded. A user's text in the query of a
-   * `String` URL can therefore add parameters (a known bug); percent-encode
-   * such text before building the string.
+   * or `data:text/html` URL with `unsafe:` (a best-effort check, not a
+   * sanitizer), while a [[zio.http.Path Path]] or [[zio.http.URL URL]] is
+   * percent-encoded. A user's text in the query of a `String` URL can therefore
+   * add parameters (a known bug); percent-encode such text before building the
+   * string.
    */
   lazy val hxGet: HtmxAttrKey[UrlLike] = HtmxAttrKey.stringValue[UrlLike]("hx-get")
 
