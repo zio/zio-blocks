@@ -18,17 +18,30 @@ package zio.blocks.telemetry
 
 import java.util.concurrent._
 
+/**
+ * A scheduler that runs periodic tasks on one virtual thread, named `otel-0`
+ * (`otel-1` and so on if it is replaced); the OTLP exporters of the `otel`
+ * module export their batches on one. JVM only.
+ */
 final class PlatformExecutor private (val executor: ScheduledExecutorService) {
 
+  /**
+   * Runs `task` at a fixed rate, every `period` after `initialDelay`, and
+   * returns its future; cancel the future to stop it. An exception from `task`
+   * stops its later runs.
+   */
   def schedule(initialDelay: Long, period: Long, unit: TimeUnit)(task: Runnable): ScheduledFuture[_] =
     executor.scheduleAtFixedRate(task, initialDelay, period, unit)
 
+  /** Stops the scheduler: periodic tasks do not run again. */
   def shutdown(): Unit =
     executor.shutdown()
 }
 
+/** Creates [[PlatformExecutor]]s. */
 object PlatformExecutor {
 
+  /** Returns a new scheduler with its own virtual thread. */
   def create(): PlatformExecutor =
     new PlatformExecutor(
       Executors.newScheduledThreadPool(1, Thread.ofVirtual().name("otel-", 0L).factory())

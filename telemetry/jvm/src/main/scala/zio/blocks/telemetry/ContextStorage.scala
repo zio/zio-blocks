@@ -17,40 +17,60 @@
 package zio.blocks.telemetry
 
 /**
- * Scoped context storage for propagating values through call stacks.
+ * Holds a value for the code that runs inside `scoped`, and an initial value
+ * everywhere else. The global `log` and `trace` keep the current span in one.
  *
- * Only two operations:
- *   - get(): read the current value
- *   - scoped(): run a block with a different value, automatically restored
- *     after
+ * There is no setter: `scoped(value)(f)` binds `value` while `f` runs and
+ * restores the previous value afterwards, even when `f` throws. On the JVM the
+ * storage is a `ScopedValue`, so the binding belongs to the current thread, and
+ * a thread that `f` starts sees the initial value. On Scala.js it is a plain
+ * variable, so a callback that runs after `f` returns sees the previous value.
  *
- * No set() — context is immutable outside scoped blocks. This aligns with JDK
- * 25's ScopedValue semantics and prevents context leaks.
+ * The storage that the global `log` and `trace` share is not public. A program
+ * that needs its own span storage must pass the same instance to
+ * `LoggerProviderBuilder#setContextStorage` and
+ * `TracerProviderBuilder#setContextStorage`: with different storages, log
+ * records carry no trace or span ids and nothing warns about it, a known bug.
  *
- * @see
- *   docs/adr/0001-scoped-context-no-set.md
+ * {{{
+ * val requestId = ContextStorage.create("none")
+ *
+ * requestId.scoped("req-42") { requestId.get() } // req-42
+ * requestId.get() // none
+ * }}}
  */
 sealed trait ContextStorage[A] {
+
+  /**
+   * Returns the value bound by the innermost enclosing `scoped`, or the initial
+   * value outside one.
+   */
   def get(): A
+
+  /**
+   * Runs `f` with `value` bound, restores the previous value when `f` returns
+   * or throws, and returns the result of `f`.
+   */
   def scoped[B](value: A)(f: => B): B
 }
 
+/** Creates [[ContextStorage]]s. */
 object ContextStorage {
 
+  /**
+   * Names the mechanism behind the storage: `"ScopedValue"` on the JVM,
+   * `"JSGlobal"` on Scala.js.
+   */
   val implementationName: String = "ScopedValue"
 
+  /** Returns a new storage whose value is `initial` outside any `scoped` block. */
   def create[A](initial: A): ContextStorage[A] =
     new ScopedValueStorage[A](initial)
 
   private[telemetry] val defaultSpanContextStorage: ContextStorage[Option[SpanContext]] =
     create[Option[SpanContext]](None)
 
-  /**
-   * Pure ScopedValue storage for JDK 25+.
-   *
-   * ScopedValue is immutable — bindings only via `where().run()`. This aligns
-   * perfectly with our two-method API: `get()` reads, `scoped()` binds.
-   */
+  /** A storage backed by a `ScopedValue`. */
   private final class ScopedValueStorage[A](initial: A) extends ContextStorage[A] {
     private val sv: ScopedValue[A] = ScopedValue.newInstance()
 
