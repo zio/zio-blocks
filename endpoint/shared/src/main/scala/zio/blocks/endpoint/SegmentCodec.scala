@@ -22,47 +22,75 @@ import zio.blocks.docs.Doc
 import zio.http.Path
 
 /**
- * Typed descriptor for a single URL path segment. Subtypes include
- * [[SegmentCodec.Literal Literal]], [[SegmentCodec.IntSeg Int]],
- * [[SegmentCodec.StringSeg String]], [[SegmentCodec.Combined Combined]]
- * (intra-segment composition via `~`), and [[SegmentCodec.Trailing Trailing]]
- * (captures remaining path).
+ * A typed description of one URL path segment: a literal such as `notes`, a
+ * capture of a `Boolean`, `Int`, `Long`, `String` or `UUID` such as `{id}`, the
+ * rest of the path ([[SegmentCodec.Trailing]]), or several of these inside one
+ * segment, joined with `~` (`v{major}` matches `v2`). Most code uses segments
+ * through [[PathCodec]]; build one directly to use `~`.
  *
- * Combine representation first, then transform: `~` composes only physical
- * `SegmentCodec` structure, while [[transform]] / [[transformOrFail]] lift the
- * segment into a [[PathCodec]] (making `~` unavailable afterwards — a
- * transformed wire codec is a domain value, not intra-segment structure).
+ * Numbers are ASCII digits with an optional leading `-` (no `+`), in the range
+ * of the type; booleans are `true` or `false` in lower case; UUIDs are 36 hex
+ * characters in the `8-4-4-4-12` layout, in either case.
+ *
+ * Join segments with `~` first, then map the value with [[transform]] or
+ * [[transformOrFail]]: these return a [[PathCodec]], which has no `~`.
+ *
+ * {{{
+ * import zio.http.Path
+ *
+ * val version = SegmentCodec.literal("v") ~ SegmentCodec.int("major")
+ *
+ * version.render()                    // /v{major}
+ * PathCodec(version).decode(Path("/v2")) // Right(2)
+ * version.format(3)                   // /v3
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/endpoint/segment-codec/ SegmentCodec]]
  */
 sealed trait SegmentCodec[A] { self =>
 
   /**
-   * Phantom capture marker: [[SegmentCodec.NoPathVars]] when this segment
-   * captures nothing (empty and literal segments), [[SegmentCodec.HasPathVars]]
-   * when it captures a value (bool, int, long, string, UUID, trailing, and any
-   * composition containing one of those). This is a second, parallel type
-   * track: it never affects `A` (the runtime-decoded value type) and has zero
-   * runtime footprint. Its only consumer is [[PathCodec.orElse]], which
-   * requires both branches to be `NoPathVars` so a capturing codec mapped to
-   * `Unit` is rejected at the call site instead of failing `expand` at runtime.
+   * A type-level marker: [[SegmentCodec.NoPathVars]] when this segment captures
+   * nothing (empty and literal segments), [[SegmentCodec.HasPathVars]] when it
+   * captures a value (bool, int, long, string, UUID, trailing, and any `~`
+   * composition that contains one of those). It exists only at compile time and
+   * does not change `A`. [[PathCodec.orElse]] reads it to accept only branches
+   * that capture nothing.
    */
   type PathVars
 
+  /**
+   * Documentation for this segment; for a `~` composition, both sides'
+   * documentation joined.
+   */
   def doc: Doc
+
+  /**
+   * Named example values for this segment; empty for `~` compositions and for
+   * `Empty` and `Trailing`.
+   */
   def examples: Chunk[(String, A)]
 
   /**
-   * Composes two physical segments into one (for example
-   * `int("n") ~ literal("-") ~ string("rest")`).
+   * Joins two segment codecs into one segment, as in `int("n") ~ literal("-") ~
+   * string("rest")`, which matches `12-ab`. The values join with `Tuples`, so
+   * literals add nothing. Two adjacent literals merge into one.
    *
-   * Adjacent `string ~ string`, numeric ~ numeric (`Int`/`Long` in any order,
-   * including through a flattened combined tail), and anything involving
-   * `Trailing` are rejected at runtime with `IllegalArgumentException`
-   * (ambiguous splits); put a literal, bool, or UUID segment between them.
+   * A split that would be ambiguous throws `IllegalArgumentException` when the
+   * codec is built: two strings side by side ("Cannot combine two string
+   * segments. Their names are a and b"), two numbers (`Int` or `Long`, in any
+   * order: "Cannot combine two numeric segments. ..."), and
+   * [[SegmentCodec.Trailing]] next to any segment ("Cannot combine trailing
+   * path segments with `~`: int ~ trailing"). Put a literal, bool or UUID
+   * between two strings or two numbers. Other neighbours are split by trying
+   * the longest left part first, so `string("s") ~ int("n")` decodes `abc12` as
+   * `("abc1", 2)`.
    *
-   * The result's `PathVars` is the logical OR of both sides (computed by the
-   * `pathVarsCombiner` implicit, which defaults conservatively to `HasPathVars`
-   * when either side's marker is unknown), so `orElse` keeps rejecting
-   * compositions that capture.
+   * The result captures when either side captures.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   for two adjacent strings, two adjacent numbers, or a trailing segment
    */
   final def ~[B, C, PV2, PVC](that: SegmentCodec[B] { type PathVars = PV2 })(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C],
@@ -75,10 +103,13 @@ sealed trait SegmentCodec[A] { self =>
   }
 
   /**
-   * Composes a physical segment with a literal suffix (for example
-   * `string("word") ~ "!"`). The literal is validated exactly like
-   * [[SegmentCodec.literal]] (empty, `/`-carrying, or encoding-requiring values
-   * are rejected with `IllegalArgumentException`).
+   * Joins a literal suffix to this segment, as in `string("word") ~ "!"`. The
+   * suffix follows the rules of [[SegmentCodec.literal]], but is checked when
+   * the code runs, on Scala 3 too: an empty suffix, or one with `/` or a
+   * character that needs percent-encoding, throws `IllegalArgumentException`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   for an empty suffix or one that is not a plain single segment
    */
   final def ~[C, PVC](that: String)(implicit
     combiner: Tuples.Tuples.WithOut[A, Unit, C],
@@ -89,10 +120,10 @@ sealed trait SegmentCodec[A] { self =>
   }
 
   /**
-   * Maps the decoded segment value into a domain type, lifting into a
-   * [[PathCodec]].
-   *
-   * Example: `SegmentCodec.string("id").transform(CustomerId(_), _.value)`
+   * Maps the decoded segment value to another type, returning a one-segment
+   * [[PathCodec]] (see [[PathCodec#transform]]), as in
+   * `SegmentCodec.string("slug").transform(NoteSlug(_), (s: NoteSlug) =>
+   * s.value)`.
    *
    * @param decode
    *   maps the decoded segment value into the exposed type
@@ -118,13 +149,10 @@ sealed trait SegmentCodec[A] { self =>
   }
 
   /**
-   * Effectfully maps the decoded segment value into a domain type, lifting into
-   * a [[PathCodec]]. `decode` returning `Left` causes path decoding / matching
-   * to fail; `encode` returning `Left` is propagated as the `Left` result of
-   * `format`.
-   *
-   * Example:
-   * `SegmentCodec.string("id").transformOrFail(CustomerId.parse, id => Right(id.value))`
+   * Maps the decoded segment value to another type with functions that can
+   * fail, returning a one-segment [[PathCodec]] (see
+   * [[PathCodec#transformOrFail]]). When `decode` returns `Left`, decoding and
+   * matching fail; when `encode` returns `Left`, `format` returns it.
    */
   final def transformOrFail[B, PV](
     decode: A => Either[String, B],
@@ -140,85 +168,184 @@ sealed trait SegmentCodec[A] { self =>
       .asInstanceOf[PathCodec[B] { type PathVars = PV }]
   }
 
+  /**
+   * Writes `value` as a one-segment path with a leading slash, as in `/42`.
+   * Numbers and UUIDs use `toString`, so a UUID is written in lower case. A
+   * string is copied as it is; a `/` in it gives more than one segment.
+   */
   final def format(value: A): Path =
     Path(s"/${SegmentCodec.formatSegment(self, value)}")
 
+  /**
+   * Renders the segment as a template with a leading slash: literals as they
+   * are, captures as `{name}` (or between `prefix` and `suffix`), a trailing
+   * capture as `...`, and the empty segment as `/`.
+   *
+   * {{{
+   * SegmentCodec.int("id").render()         // /{id}
+   * SegmentCodec.int("id").render(":", "")  // /:id
+   * }}}
+   */
   final def render(prefix: String = "{", suffix: String = "}"): String =
     SegmentCodec.render(self, prefix, suffix)
 }
 
+/**
+ * The segment kinds, their constructors (`literal`, `bool`, `int`, `long`,
+ * `string`, `uuid`) and the matching, decoding and formatting functions that
+ * [[PathCodec]] and [[RouteTree]] use.
+ *
+ * On Scala 3, `literal` checks its argument when the code compiles, so it must
+ * be a string literal; on Scala 2 it checks when the code runs and throws
+ * `IllegalArgumentException`.
+ */
 object SegmentCodec extends SegmentCodecPlatformSpecific {
 
+  /**
+   * The kind of a segment codec, without its name or literal text.
+   */
   sealed trait Kind
+
+  /**
+   * The segment kinds.
+   */
   object Kind {
-    case object Empty    extends Kind
-    case object Literal  extends Kind
-    case object Bool     extends Kind
-    case object Int      extends Kind
-    case object Long     extends Kind
-    case object String   extends Kind
+
+    /** The empty segment. */
+    case object Empty extends Kind
+
+    /** A literal segment. */
+    case object Literal extends Kind
+
+    /** A `Boolean` capture. */
+    case object Bool extends Kind
+
+    /** An `Int` capture. */
+    case object Int extends Kind
+
+    /** A `Long` capture. */
+    case object Long extends Kind
+
+    /** A `String` capture. */
+    case object String extends Kind
+
+    /** A `~` composition. */
     case object Combined extends Kind
-    case object UUID     extends Kind
+
+    /** A `UUID` capture. */
+    case object UUID extends Kind
+
+    /** A capture of the rest of the path. */
     case object Trailing extends Kind
   }
 
+  /**
+   * The key of a segment codec in a [[RouteTree]] level: its kind, plus the
+   * text for a literal and the parts for a `~` composition. Capture names are
+   * not part of the key, so `int("id")` and `int("n")` share one.
+   * [[keyOrdering]] sorts keys in match order.
+   */
   sealed trait Key
-  object Key {
-    case object Empty                            extends Key
-    final case class Literal(value: String)      extends Key
-    case object Bool                             extends Key
-    case object Int                              extends Key
-    case object Long                             extends Key
-    case object String                           extends Key
-    case object UUID                             extends Key
-    final case class Combined(parts: Chunk[Key]) extends Key
-    case object Trailing                         extends Key
-  }
-
-  // `N <: String with Singleton` preserves the literal singleton type of a literal `name` argument
-  // (instead of widening it to plain `String`) on both Scala 2.13 and Scala 3 - a plain `N <: String`
-  // bound would let the compiler infer the widened `String` type instead. Overload resolution picks
-  // this singleton-preserving overload for literal call sites (its parameter type, instantiated at
-  // the literal's singleton type, is a subtype of the fallback's plain `String` parameter type).
 
   /**
-   * Phantom marker for segments that capture nothing (`Empty`, `Literal`).
-   * Never instantiated - exists purely as a `PathVars` tag with zero runtime
-   * footprint.
+   * The segment keys.
+   */
+  object Key {
+
+    /** The key of the empty segment. */
+    case object Empty extends Key
+
+    /** The key of a literal segment, with its text. */
+    final case class Literal(value: String) extends Key
+
+    /** The key of a `Boolean` capture. */
+    case object Bool extends Key
+
+    /** The key of an `Int` capture. */
+    case object Int extends Key
+
+    /** The key of a `Long` capture. */
+    case object Long extends Key
+
+    /** The key of a `String` capture. */
+    case object String extends Key
+
+    /** The key of a `UUID` capture. */
+    case object UUID extends Key
+
+    /** The key of a `~` composition, with the keys of its parts. */
+    final case class Combined(parts: Chunk[Key]) extends Key
+
+    /** The key of a capture of the rest of the path. */
+    case object Trailing extends Key
+  }
+
+  // The `bool`, `int`, `long`, `string` and `uuid` constructors (in `SegmentCodecPlatformSpecific`)
+  // bound the name with `N <: String with Singleton` on Scala 2.13 and `N <: String & Singleton` on
+  // Scala 3, which keeps the literal singleton type of the `name` argument in `N` instead of
+  // widening it to `String`.
+
+  /**
+   * The `PathVars` marker of segments that capture nothing (`Empty`,
+   * `Literal`). It is a type only; no value of it exists.
    */
   sealed trait NoPathVars
 
   /**
-   * Phantom marker for segments that capture a value (bool, int, long, string,
-   * UUID, trailing, and any composition containing one of those). Never
-   * instantiated - exists purely as a `PathVars` tag with zero runtime
-   * footprint.
+   * The `PathVars` marker of segments that capture a value (bool, int, long,
+   * string, UUID, trailing, and any composition that contains one of those). It
+   * is a type only; no value of it exists.
    */
   sealed trait HasPathVars
 
   /**
-   * Compile-time evidence combining two `PathVars` markers into their logical
-   * OR, driving `PVC` inference for `~` (and, transitively, `PathCodec.++` and
-   * `/`). The four precise instances cover every concrete pair; the
-   * low-priority fallback maps anything unknown (an unrefined codec type, whose
-   * marker is abstract) to `HasPathVars` - always sound (capturing is the safe
-   * over-approximation: `orElse` may reject a harmless unrefined codec, but it
-   * can never accept a capturing one through this path).
+   * Compile-time evidence that combines two `PathVars` markers: `Out` is
+   * `HasPathVars` when either side is, `NoPathVars` when both are. `~`,
+   * `PathCodec#++` and `/` use it to compute their result's marker. When a
+   * marker is unknown (a codec whose static type has no refinement), the
+   * low-priority instance gives `HasPathVars`, so `orElse` may reject such a
+   * codec but never accepts a capturing one.
    */
   sealed trait CombinePathVars[L, R, Out]
 
+  /**
+   * The instances for the four pairs of known markers.
+   */
   object CombinePathVars extends CombinePathVarsLowPriority {
+
+    /**
+     * Neither side captures, so neither does the result.
+     */
     implicit val noNo: CombinePathVars[NoPathVars, NoPathVars, NoPathVars] =
       new CombinePathVars[NoPathVars, NoPathVars, NoPathVars] {}
+
+    /**
+     * The right side captures, so the result does.
+     */
     implicit val noYes: CombinePathVars[NoPathVars, HasPathVars, HasPathVars] =
       new CombinePathVars[NoPathVars, HasPathVars, HasPathVars] {}
+
+    /**
+     * The left side captures, so the result does.
+     */
     implicit val yesNo: CombinePathVars[HasPathVars, NoPathVars, HasPathVars] =
       new CombinePathVars[HasPathVars, NoPathVars, HasPathVars] {}
+
+    /**
+     * Both sides capture, so the result does.
+     */
     implicit val yesYes: CombinePathVars[HasPathVars, HasPathVars, HasPathVars] =
       new CombinePathVars[HasPathVars, HasPathVars, HasPathVars] {}
   }
 
+  /**
+   * The fallback instance for unknown markers, found after the precise ones.
+   */
   trait CombinePathVarsLowPriority {
+
+    /**
+     * Treats a pair with an unknown marker as capturing.
+     */
     implicit def unknown[L, R]: CombinePathVars[L, R, HasPathVars] =
       new CombinePathVars[L, R, HasPathVars] {}
   }
@@ -245,10 +372,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   private[endpoint] def literalValidated(value: String): Literal = Literal(value)
 
   /**
-   * Runtime composition guard for [[SegmentCodec.~]] (mirroring zio-http's
-   * `Combinable`): adjacent `string ~ string`, numeric ~ numeric, and anything
-   * involving `Trailing` are ambiguous splits and fail fast with
-   * `IllegalArgumentException`. Never allocates, never throws otherwise.
+   * Checks a `~` composition (as zio-http's `Combinable` does): adjacent
+   * `string ~ string`, numeric ~ numeric, and `Trailing` next to a non-empty
+   * segment throw `IllegalArgumentException`. It returns normally otherwise.
    */
   private[endpoint] def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
     (suffixBoundary(left), prefixBoundary(right)) match {
@@ -311,9 +437,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   private def isNumeric(kind: Kind): Boolean = kind == Kind.Int || kind == Kind.Long
 
   /**
-   * Rejects empty literals and literals carrying `/` or characters requiring
-   * URL encoding (see the encoding trio on `PathCodec.apply(String)`): such
-   * literals cannot be expressed — use a capturing segment instead.
+   * Rejects empty literals and literals carrying `/` or characters that
+   * percent-encoding would change, by throwing `IllegalArgumentException`.
+   * `PathCodec.apply(String)` and `RoutePattern.apply` do not call it.
    */
   private[endpoint] def validateLiteralValue(value: String): Unit = {
     val path          = Path(s"/$value")
@@ -355,6 +481,10 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       case Trailing             => Key.Trailing
     }
 
+  /**
+   * Orders segment kinds by match priority: literal, int, long, UUID, bool,
+   * string, combined, trailing, then empty.
+   */
   implicit val segmentCodecOrdering: Ordering[Kind] = Ordering.by {
     case Kind.Literal  => -1
     case Kind.Int      => 0
@@ -367,6 +497,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     case Kind.Empty    => 7
   }
 
+  /**
+   * Orders route-tree keys by match priority: literals (alphabetically), int,
+   * long, UUID, bool, string, `~` compositions (fewer parts first), trailing,
+   * then empty.
+   */
   implicit val keyOrdering: Ordering[Key] = new Ordering[Key] {
     def compare(a: Key, b: Key): Int = {
       def rank(k: Key): Int = k match {
@@ -395,20 +530,41 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     }
   }
 
+  /**
+   * The segment that matches nothing and consumes no path segment, used for an
+   * empty path. It renders as `/`.
+   */
   case object Empty extends SegmentCodec[Unit] {
+
+    /** Captures nothing. */
     type PathVars = NoPathVars
 
-    val doc: Doc                        = Doc.empty
+    /** Empty documentation. */
+    val doc: Doc = Doc.empty
+
+    /** No examples. */
     val examples: Chunk[(String, Unit)] = Chunk.empty
   }
 
+  /**
+   * A literal segment that matches `value` exactly, case included. Build it
+   * with `SegmentCodec.literal`, which checks the text.
+   */
   final case class Literal(value: String, doc: Doc = Doc.empty, examples: Chunk[(String, Unit)] = Chunk.empty)
       extends SegmentCodec[Unit] {
+
+    /** Captures nothing. */
     type PathVars = NoPathVars
   }
 
+  /**
+   * Captures a `Boolean`: the segment `true` or `false`, in lower case. Build
+   * it with `SegmentCodec.bool(name)`.
+   */
   final case class BoolSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
       extends SegmentCodec[Boolean] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
     /**
@@ -421,8 +577,15 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       PathCodec(this).unused
   }
 
+  /**
+   * Captures an `Int`: ASCII digits with an optional `-`, in the `Int` range
+   * (`-0` and leading zeros are accepted, `+` is not). Build it with
+   * `SegmentCodec.int(name)`.
+   */
   final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
       extends SegmentCodec[Int] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
     /**
@@ -435,8 +598,14 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       PathCodec(this).unused
   }
 
+  /**
+   * Captures a `Long`, with the same rules as [[IntSeg]] in the `Long` range.
+   * Build it with `SegmentCodec.long(name)`.
+   */
   final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
       extends SegmentCodec[Long] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
     /**
@@ -449,11 +618,17 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       PathCodec(this).unused
   }
 
+  /**
+   * Captures a `String`: any segment, the empty one too. Build it with
+   * `SegmentCodec.string(name)`.
+   */
   final case class StringSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, String)] = Chunk.empty
   ) extends SegmentCodec[String] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
     /**
@@ -466,11 +641,18 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       PathCodec(this).unused
   }
 
+  /**
+   * Captures a `java.util.UUID`: 36 hex characters in the `8-4-4-4-12` layout,
+   * upper or lower case, with any version. Build it with
+   * `SegmentCodec.uuid(name)`.
+   */
   final case class UUIDSeg[N <: String](
     name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
   ) extends SegmentCodec[java.util.UUID] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
     /**
@@ -483,28 +665,49 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       PathCodec(this).unused
   }
 
+  /**
+   * Two segment codecs inside one segment, built by `~`; `combiner` joins their
+   * values.
+   */
   final case class Combined[A, B, C](
     left: SegmentCodec[A],
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
-    // Left abstract: only `~` (which proves the OR of both sides via
-    // `CombinePathVars`) may ascribe a concrete marker. A directly constructed
-    // `Combined` keeps an unknown marker, which the low-priority combiner
-    // treats as capturing - conservative and sound for `orElse`.
+
+    /**
+     * Left abstract: only `~`, which combines both sides' markers with
+     * `CombinePathVars`, gives it a concrete one. A `Combined` built directly
+     * keeps an unknown marker, which counts as capturing.
+     */
     type PathVars
 
-    val doc: Doc                     = left.doc ++ right.doc
+    /** The documentation of both sides, joined. */
+    val doc: Doc = left.doc ++ right.doc
+
+    /** No examples. */
     val examples: Chunk[(String, C)] = Chunk.empty
   }
 
+  /**
+   * Captures the rest of the path, zero or more segments, as a
+   * [[zio.http.Path]]. It renders as `...` and cannot be joined with `~`.
+   */
   case object Trailing extends SegmentCodec[Path] {
+
+    /** Captures a value. */
     type PathVars = HasPathVars
 
-    val doc: Doc                        = Doc.empty
+    /** Empty documentation. */
+    val doc: Doc = Doc.empty
+
+    /** No examples. */
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
 
+  /**
+   * Renders `codec` as a template (see `SegmentCodec#render`).
+   */
   def render(codec: SegmentCodec[_], prefix: String = "{", suffix: String = "}"): String = {
     val out                                  = new StringBuilder
     def loop(current: SegmentCodec[_]): Unit =
@@ -526,18 +729,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   /**
-   * Returns how many segments `codec` consumes at `index` (`-1` for no match).
-   *
-   * This is the boolean fast path for routing: `Literal` is a single `==`,
-   * `IntSeg`/`LongSeg` allocation-free ASCII window scans
-   * (`isIntWindow`/`isLongWindow`), `UUIDSeg` a hand-rolled shape check (no
-   * exceptions thrown), and `Combined` goes through the exhaustive-split
-   * `matchesWindow` below. Candidate lists are never built here (unlike
-   * [[decodeCombined]]), so per-request trie lookups pay no per-candidate tuple
-   * or substring-enumeration cost. The subsequent handler `decode` re-parses
-   * the matched segment once — that match-then-decode double parse is accepted
-   * deliberately (decode happens once per matched request, while `matches` runs
-   * per dynamic branch).
+   * Returns how many of `segments` `codec` consumes from `index`: `1` when the
+   * segment there matches, `-1` when it does not or `index` is out of range,
+   * `0` for [[Empty]], and all the remaining segments (possibly `0`) for
+   * [[Trailing]]. It checks the segment's shape without building the decoded
+   * value; [[RouteTree]] uses it to choose a branch.
    */
   def matches(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     if (index < 0 || index > segments.length) -1
@@ -552,26 +748,17 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       }
 
   /**
-   * Boolean counterpart to [[decodeComplete]]: does `codec` match `segment`
-   * exactly? Never builds candidate lists and never allocates — `StringSeg` is
-   * a constant-time accept, numerics validate each candidate window with the
-   * allocation-free ASCII scanners (no substring), `UUIDSeg` is validated
-   * index-by-index without exceptions, and `Combined` enumerates candidate
-   * split points with the same accept/reject predicate `decodeCombined` uses —
-   * so `matches` and `decode` agree structurally (one existential, one
-   * constructive, over the same split language). Used by [[matches]] and
-   * `PathCodecRuntime.matchesCodec`.
+   * Tests whether `codec` matches the whole of `segment`, without building the
+   * decoded value: the boolean counterpart of [[decodeComplete]], which accepts
+   * the same segments. A string capture matches any segment, the empty one too.
    */
   def matchesComplete(codec: SegmentCodec[_], segment: String): Boolean =
     matchesWindow(codec, segment, 0, segment.length)
 
   /**
-   * Value-carrying counterpart to [[matchesComplete]]: the full-length
-   * survivors of `decodeCombined(codec, segment, 0)` (candidates whose end
-   * equals `segment.length`), longest split first. `StringSeg` materializes one
-   * substring per surviving split only — the decoded `String` value IS a
-   * substring, so that allocation is the result, not a parse intermediate. Used
-   * by `PathCodecRuntime.decodeSegment` for `Combined` segments.
+   * Decodes the whole of `segment`: the results of `decodeCombined(codec,
+   * segment, 0)` that end at `segment.length`, each paired with that end, the
+   * longest left part first. An empty list means no match.
    */
   def decodeComplete(codec: SegmentCodec[_], segment: String): List[(Any, Int)] =
     decodeCombined(codec, segment, 0).filter(_._2 == segment.length)
@@ -782,6 +969,17 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     }
   }
 
+  /**
+   * Decodes a prefix of `segment` from `from`, listing every way it can: each
+   * result pairs a value with the index where it ends, the longest first. A
+   * string yields every prefix of the rest, a number every valid digit prefix,
+   * and a literal or boolean at most one. [[decodeComplete]] keeps the ones
+   * that reach the end of the segment.
+   *
+   * {{{
+   * SegmentCodec.decodeCombined(SegmentCodec.int("n"), "123x", 0) // List((123,3), (12,2), (1,1))
+   * }}}
+   */
   def decodeCombined(codec: SegmentCodec[_], segment: String, from: Int): List[(Any, Int)] =
     codec match {
       case Empty                => List(((), from))
@@ -878,6 +1076,10 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     }
   }
 
+  /**
+   * Writes `value` as the text of one segment, without a slash (see
+   * `SegmentCodec#format`).
+   */
   def formatSegment(codec: SegmentCodec[_], value: Any): String =
     codec match {
       case Empty                       => ""
@@ -894,6 +1096,10 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
         formatSegment(combined.left, leftValue) + formatSegment(combined.right, rightValue)
     }
 
+  /**
+   * Lists the parts of a `~` composition from left to right; any other codec
+   * gives itself.
+   */
   def flatten(codec: SegmentCodec[_]): Chunk[SegmentCodec[_]] =
     codec match {
       case Combined(left, right, _) => flatten(left) ++ flatten(right)
