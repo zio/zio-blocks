@@ -34,9 +34,9 @@ import zio.blocks.sql.Frag.*
  * On PostgreSQL, claims use `FOR UPDATE SKIP LOCKED`, so several workers can
  * share a queue. On SQLite, `JdbcTransactor` starts each `transact` block with
  * `BEGIN IMMEDIATE` and a 5-second busy timeout, so one worker claims at a
- * time. Every table and column name is checked: ASCII letters, digits and
- * underscores, not starting with a digit, or the method throws
- * `IllegalArgumentException`.
+ * time. The methods check every table and column name they use (ASCII letters,
+ * digits and underscores, not starting with a digit) and throw
+ * `IllegalArgumentException` otherwise; `enqueue` with no keys checks nothing.
  *
  * {{{
  * import zio.blocks.sql.{zio => _, _}
@@ -129,11 +129,11 @@ object QueueTable {
   /**
    * Queues `ids` in one `INSERT`, skipping keys that are already queued. Each
    * key is written as `CAST(? AS TEXT)`, since the key column is text. An empty
-   * `ids` does nothing.
+   * `ids` does nothing and checks nothing, not even `tableName`.
    *
    * @throws java.lang.IllegalArgumentException
-   *   if `tableName` is not a plain identifier or the key codec has more than
-   *   one column
+   *   if `ids` is not empty and `tableName` is not a plain identifier, or the
+   *   key codec has more than one column
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return

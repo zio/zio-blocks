@@ -24,10 +24,11 @@ import zio.blocks.sql.*
  * [[migrate]] before the application serves requests. It converts no rows; use
  * [[SmallMigrator]] or [[LargeMigrator]] for that.
  *
- * If `run` throws, the transaction rolls back and `migrate` rethrows, on
- * databases whose DDL is transactional, such as PostgreSQL and SQLite. The
- * class keeps no record of having run, so write statements that are safe to
- * repeat, such as `CREATE TABLE IF NOT EXISTS`.
+ * If `run` throws, `migrate` rolls the transaction back and rethrows the
+ * exception. On databases whose DDL is transactional, such as PostgreSQL and
+ * SQLite, the rollback also undoes the statements that already ran. The class
+ * keeps no record of having run, so write statements that are safe to repeat,
+ * such as `CREATE TABLE IF NOT EXISTS`.
  *
  * {{{
  * import zio.blocks.sql.{zio => _, _}

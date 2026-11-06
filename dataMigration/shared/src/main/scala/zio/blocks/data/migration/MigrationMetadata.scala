@@ -88,8 +88,8 @@ object MigrationMetadata {
 
   /**
    * Returns the recorded version of the aggregate, with no `timestampMillis`,
-   * or `None` when there is no record or the stored text is not
-   * `epoch.major.minor`.
+   * or `None` when there is no record or the stored text is not three
+   * dot-separated integers. A negative part throws `IllegalArgumentException`.
    */
   def getVersion(aggregateType: String, aggregateId: String)(using con: DbCon): Option[DataVersion] = {
     val parts = IndexedSeq(
