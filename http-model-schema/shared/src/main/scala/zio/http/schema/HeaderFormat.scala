@@ -19,19 +19,36 @@ package zio.http.schema
 import zio.blocks.schema.derive.{Derivable, Deriver}
 
 /**
- * Base class for HTTP header serialization formats. Pairs a MIME type with a
- * [[zio.blocks.schema.derive.Deriver]] that can derive [[HeaderCodec]]
- * instances for arbitrary schema-described types.
+ * A header format for `Schema#derive`: it pairs a MIME type with the
+ * [[zio.blocks.schema.derive.Deriver]] that builds its codecs, and supplies the
+ * implicit `Derivable` that lets `Schema[A].derive(format)` take the format
+ * object itself. `DefaultHeaderFormat` is the built-in one; extend this class
+ * to report another MIME type or to plug in another deriver. Not every schema
+ * derives: [[HeaderCodec]] lists the shapes the built-in deriver supports.
+ *
+ * @tparam TC
+ *   the codec type the deriver builds, a `HeaderCodec` or a subclass
+ * @param mimeType
+ *   the media type the format reports; nothing in this module reads it
+ * @param deriver
+ *   the deriver that `Schema#derive` calls to build a codec
  */
 abstract class HeaderFormat[TC[A] <: HeaderCodec[A]](val mimeType: String, val deriver: Deriver[TC]) {
 
+  /** Lets `Schema#derive` accept this format object in place of its deriver. */
   implicit final def derivable: Derivable[this.type, TC] =
     new Derivable[this.type, TC] {
       def deriver(d: HeaderFormat.this.type): Deriver[TC] = HeaderFormat.this.deriver
     }
 }
 
+/** The type of the `DefaultHeaderFormat` object. */
 sealed abstract class DefaultHeaderFormat
     extends HeaderFormat[HeaderCodec]("application/http-headers", HeaderCodecDeriver)
 
+/**
+ * The built-in header format: MIME type `application/http-headers`, codecs
+ * built by [[HeaderCodecDeriver]]. `Schema[A].derive(DefaultHeaderFormat)`
+ * returns a `HeaderCodec[A]`.
+ */
 case object DefaultHeaderFormat extends DefaultHeaderFormat

@@ -24,12 +24,24 @@ import java.util.UUID
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
+/**
+ * The per-field encoders and decoders that `QueryCodecDeriver` and
+ * `HeaderCodecDeriver` assemble into codecs: a field is a primitive, an
+ * `Option`, a sequence or a wrapper of one of these, and each value is one
+ * string. Primitives parse with the same rules as the `query` and `header`
+ * extension methods.
+ */
 private[schema] object ParamCodecSupport {
 
+  /** Builds the `Malformed` message that a failed field decode reports. */
   trait DecodeErrorFactory {
     def malformed(name: String, raw: String, cause: String): String
   }
 
+  /**
+   * Encodes one field to its strings and decodes it from the strings found
+   * under its name, `None` when the name is absent.
+   */
   sealed trait FieldCodec {
     def encodeAny(value: Any): Chunk[String]
     def decodeAny(
@@ -39,6 +51,7 @@ private[schema] object ParamCodecSupport {
     ): Either[SchemaError, Any]
   }
 
+  /** A primitive field: writes one string and reads the first one found. */
   final case class SinglePrimitive[A](primitiveType: PrimitiveType[A]) extends FieldCodec {
     def encodeAny(value: Any): Chunk[String] = Chunk.single(renderPrimitive(value.asInstanceOf[A], primitiveType))
 
@@ -54,6 +67,10 @@ private[schema] object ParamCodecSupport {
       }
   }
 
+  /**
+   * An `Option` field: `None` writes nothing and an absent name reads `None`;
+   * otherwise only the first string is passed to `inner`.
+   */
   final case class OptionalValue(inner: FieldCodec) extends FieldCodec {
     def encodeAny(value: Any): Chunk[String] =
       value match {
@@ -73,6 +90,7 @@ private[schema] object ParamCodecSupport {
       }
   }
 
+  /** A sequence field: one string per element, read back in order. */
   final case class SequenceValue[C[_]](constructor: SeqConstructor[C], elementCodec: FieldCodec) extends FieldCodec {
     def encodeAny(value: Any): Chunk[String] = {
       val builder  = Chunk.newBuilder[String]
@@ -108,6 +126,10 @@ private[schema] object ParamCodecSupport {
     }
   }
 
+  /**
+   * A wrapper field: encodes the unwrapped value with `inner`, and turns an
+   * exception thrown by `wrap` into a conversion `SchemaError`.
+   */
   final case class WrappedValue[A, B](wrap: B => A, unwrap: A => B, inner: FieldCodec) extends FieldCodec {
     def encodeAny(value: Any): Chunk[String] = inner.encodeAny(unwrap(value.asInstanceOf[A]))
 
@@ -124,6 +146,10 @@ private[schema] object ParamCodecSupport {
       }
   }
 
+  /**
+   * The codec of a record field, or a `Left` naming the field when its shape (a
+   * nested record, a map, a variant) is not supported.
+   */
   def buildFieldCodec[F[_, _], A](reflect: Reflect[F, A], fieldName: String)(implicit
     F: HasBinding[F]
   ): Either[String, FieldCodec] =
@@ -136,6 +162,10 @@ private[schema] object ParamCodecSupport {
         else s"Unsupported schema type for field '$fieldName'"
       }
 
+  /**
+   * Like `buildFieldCodec` for a whole non-record schema, with `value` as the
+   * field name; neither deriver calls it.
+   */
   def buildTopLevelCodec[F[_, _], A](reflect: Reflect[F, A])(implicit F: HasBinding[F]): Either[String, FieldCodec] =
     primitiveFieldCodec(reflect)
       .orElse(optionalFieldCodec(reflect, "value"))
@@ -143,11 +173,13 @@ private[schema] object ParamCodecSupport {
       .orElse(wrapperFieldCodec(reflect, "value"))
       .toRight("Only primitive, optional, sequence, and wrapped primitive schemas are supported at the top level")
 
+  /** An `OptionalValue` around the codec of `inner`. */
   def buildOptionalCodec[F[_, _], A](inner: Reflect[F, A], fieldName: String)(implicit
     F: HasBinding[F]
   ): Either[String, FieldCodec] =
     buildFieldCodec(inner, fieldName).map(OptionalValue.apply)
 
+  /** A `SequenceValue` around the codec of `element`. */
   def buildSequenceCodec[F[_, _], C[_], A](
     element: Reflect[F, A],
     constructor: SeqConstructor[C],
@@ -206,6 +238,10 @@ private[schema] object ParamCodecSupport {
       SchemaError.conversionFailed(Nil, errorFactory.malformed(fieldName, raw, cause))
     )
 
+  /**
+   * Parses `raw` as the given primitive type, with the rules and messages of
+   * the `query` and `header` extension methods.
+   */
   def decodePrimitiveString[A](raw: String, primitiveType: PrimitiveType[A]): Either[String, A] =
     try {
       primitiveType match {
