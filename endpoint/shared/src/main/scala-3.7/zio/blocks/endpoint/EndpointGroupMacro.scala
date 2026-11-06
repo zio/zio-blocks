@@ -510,7 +510,7 @@ private[endpoint] object EndpointGroupMacro {
           walk(withOutTerm.tpe)
         }
 
-        // Fold codecs left-to-right building precise PC chain; track precise A type via TypeRepr
+        // Prepend the prefixes, innermost first, building a precise PC chain; track precise A type via TypeRepr
         val composedPCWithType: (Expr[PathCodec[?]], TypeRepr) =
           prefixRefs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) {
             case ((acc, accATpe), codecExpr) =>

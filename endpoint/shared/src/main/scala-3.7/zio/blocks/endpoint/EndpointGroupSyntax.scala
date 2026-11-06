@@ -29,13 +29,15 @@ package zio.blocks.endpoint
  *   - `prefix / endpoints { ... }`, a nested group reached by the prefix's
  *     literal text or capture name, as in `.admin` or `.tenant`.
  *
- * Automatic names work for a method followed by one segment, or by one literal
- * and then one capture (`GET / "notes" / PathCodec.int("id")`). Other paths,
- * such as two literals (`GET / "notes" / "latest"`) or a literal and a `~`
- * segment, stop the compile with "cannot auto-name ...; assign it to a val": a
- * known bug. Two members with the same name, an endpoint that refers to another
- * member of the same block, a `val` that is not an endpoint, and an expression
- * that is neither an endpoint nor a nested group are compile errors too.
+ * Automatic names work for a method followed by one literal or capture, or by
+ * one literal and then one capture (`GET / "notes" / PathCodec.int("id")`).
+ * Other routes stop the compile with a "cannot auto-name" error that asks for a
+ * `val`: a known bug. They include two literals (`GET / "notes" / "latest"`),
+ * any `~` segment, and a route that starts from a `RoutePattern` value such as
+ * `RoutePattern.any`. Two members with the same name, an endpoint that refers
+ * to another member of the same block, a `val` that is not an endpoint, and an
+ * expression that is neither an endpoint nor a nested group are compile errors
+ * too.
  *
  * A prefix, literal or capturing, goes in front of every route in the group; a
  * capture's value comes first in each endpoint's `PathInput`.
