@@ -593,6 +593,90 @@ Found 2026-11-05 while fact-checking the `schema-csv` Scaladoc against `docs/ref
 - Introduction, step 4: "Handle errors — Catch `CsvError` for malformed input, and `SchemaError` for a cell that doesn't convert". Nothing throws `CsvError`: `CsvReader` returns it in a `Left`, and `CsvCodec#decode` turns malformed CSV into a `SchemaError` whose message is the `CsvError`'s `getMessage` (`CsvCodecDeriver.scala:182`), for example `Left(SchemaError: CSV error at row 1, column 14: Unclosed quoted field at: .)`. Suggested: "Handle errors — `CsvReader` returns a `CsvError` in a `Left`; `CsvCodec#decode` returns a `SchemaError` in a `Left` for a malformed row, a wrong number of cells or a bad cell."
 - CsvCodecDeriver › Record Type Support: "Each field becomes a CSV column with the field name as the header" does not say that `Modifier.rename` and `Modifier.transient` are ignored (library entry 3), and "Flat case classes ... are supported" does not warn that an `AnyVal` case class field counts as a nested record (amendment 5). Suggested: one sentence each, naming them as known bugs in 0.0.56.
 
+### `reference/schema/built-in-codecs/messagepack.md`: ext support, variant layout, primitive count and error-path format contradict the codec
+
+Found 2026-11-05 while fact-checking the `schema-messagepack` Scaladoc against `docs/reference/schema/built-in-codecs/messagepack.md` at `aa8164217` (module sources identical to v0.0.56). Verified on Scala 2.13.18 against published 0.0.56.
+
+**Summary.** Four claims on the page are false:
+
+1. Lines 13 and 420: "Full MessagePack type support (all fixint, fixarray, fixmap, ext types, ...)" and the reader handles "all MessagePack types (... ext ...)". No reader path accepts an extension type: the typed readers fail with `Expected ... value, got: 212`, `MessagePackReader#skipValue` with `Unknown MessagePack type: ...` (`MessagePackReader.scala:304`), and the `DynamicValue` codec with `Unsupported MessagePack type for DynamicValue: 212` (`MessagePackCodecDeriver.scala:559`).
+2. Line 370: "Sealed traits and sum types are encoded as MessagePack maps with discriminator fields". A variant is the case index as an int followed by the case's value (`MessagePackCodecDeriver.scala:327-331`); only `Either` is a map (`{"left": ...}` / `{"right": ...}`), and `Option` is an array of 0 or 1 element. (That layout is itself a known bug; see the Library bugs entry "a derived variant is written as two MessagePack values".)
+3. Lines 6, 50, 324 and 345: "27 primitive types". The page's own list under line 345 names 30, and `MessagePackCodecDeriver#derivePrimitive` maps 30 `PrimitiveType`s (`MessagePackCodecDeriver.scala:43-74`).
+4. Lines 82, 109 and 480: errors "render as paths like `.field[0].nested`". A sequence index renders as `.at(1)` (`.emails.at(1)`), a map value as `.atKey(...)`, a case as `.when[Case]`.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false RefPage.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack._
+
+sealed trait Status
+object Status {
+  case class Active(since: String)    extends Status
+  case class Inactive(reason: String) extends Status
+  implicit val schema: Schema[Status] = Schema.derived
+}
+
+case class Contact(emails: Seq[String])
+object Contact { implicit val schema: Schema[Contact] = Schema.derived }
+
+object RefPage {
+  def hex(bytes: Array[Byte]): String = bytes.map(b => "%02x".format(b & 0xff)).mkString(" ")
+
+  def main(args: Array[String]): Unit = {
+    // A variant is the case index (01) followed by the case's map, not a map with a discriminator
+    println(hex(Schema[Status].derive(MessagePackFormat).encode(Status.Inactive("x"))))
+    // 01 81 a6 72 65 61 73 6f 6e a1 78
+
+    // ext types (fixext1 d4 here) are rejected by every reader path
+    println(Schema[Int].derive(MessagePackFormat).decode(Array[Byte](0xd4.toByte, 1, 1)))
+    // Left(zio.blocks.schema.SchemaError: Expected int value, got: 212 at: .)
+    println(Schema[DynamicValue].derive(MessagePackFormat).decode(Array[Byte](0xd4.toByte, 1, 1)))
+    // Left(zio.blocks.schema.SchemaError: Unsupported MessagePack type for DynamicValue: 212 at: .)
+
+    // error paths render as .emails.at(1), not .emails[1]
+    val bytes = Array(0x81, 0xa6, 'e', 'm', 'a', 'i', 'l', 's', 0x92, 0xa1, 'a', 0x01).map(_.toByte)
+    println(Schema[Contact].derive(MessagePackFormat).decode(bytes))
+    // Left(zio.blocks.schema.SchemaError: Expected string header, got: 1 at: .emails.at(1))
+  }
+}
+```
+
+**Expected.** The page states what the codec does: no ext support, the index-then-value variant layout (with the interop warning), 30 primitives, and paths such as `.emails.at(1)`.
+
+**Root cause.** The page was written from the MessagePack spec and the JSON page, not from `MessagePackCodecDeriver`.
+
+**Impact.** Medium: a reader planning interop with another MessagePack library is told variants are self-describing maps and ext types work.
+
+**Suggested fix.** Correct the four claims; add a "Wire format" table (record = map by field name, exactly one entry per field; `Option` = array of 0/1; `Either` = one-entry map; other variants = index then value; sequences = arrays; maps = maps with codec-encoded keys); link the Library bugs entries on variants and duplicate keys by GitHub issue once filed.
+
+### `reference/http-model/schema-codecs.md` and `schema.md`: overrides do not apply to record fields; UUIDs need not be in the standard form
+
+Found 2026-11-05 while fact-checking the http-model-schema Scaladoc against the reference pages, on `aa8164217`; the module sources are the same at `v0.0.56`. Verified against the published 0.0.56 on Scala 3.9.0.
+
+1. `docs/reference/http-model/schema-codecs.md`, "Overriding a Single Type": "The override applies wherever that type appears, so the custom rendering is used on both sides". It applies only when the overridden type is the whole schema; a record field of that type keeps the built-in rules (reproducer and root cause in NEW 3: `QueryParams((number,42))` instead of `number=p-42`). The page's example uses a top-level `Schema[Int]`, so mdoc does not catch it. Suggested text: "The override applies when the overridden type is the whole schema. In 0.0.56 a record's fields ignore it, a known bug."
+2. `docs/reference/http-model/schema.md`, "UUID": "error on invalid format (must be standard UUID format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)". On the JVM, `java.util.UUID.fromString` also accepts short groups:
+
+   ```scala
+   //> using scala 3.9.0
+   //> using options -experimental
+   //> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+   import zio.http.QueryParams
+   import zio.http.schema._
+
+   object ShortUuid {
+     def main(args: Array[String]): Unit =
+       println(QueryParams("order" -> "1-2-3-4-5").query[java.util.UUID]("order"))
+   }
+   // Right(00000001-0002-0003-0004-000000000005)
+   ```
+
+   (`ShortUuid.scala`, `scala-cli run --server=false ShortUuid.scala`; Scala.js not probed.) Suggested text: "Parsed with `java.util.UUID.fromString`; on the JVM it also accepts shortened groups such as `1-2-3-4-5`."
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

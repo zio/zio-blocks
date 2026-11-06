@@ -4051,6 +4051,28 @@ The same file with `//> using scala 2.13.16` and `zio-blocks-http-model-schema` 
 
 **Suggested fix.** Either add `header[T](name: String)(implicit Schema[T])` overloads to `Request` and `Response` themselves (http-model would then depend on schema, which it does not today), or rename the extension (for example `headerAs[T]`) and keep `header[T]` only on `Headers`. Change both specs to call the methods through `import zio.http.schema._` so the tests compile the way users write the code.
 
+**Addition (2026-11-05, schema-messagepack/http-model-schema Scaladoc rollout).** "Re-verified 2026-11-05 on Scala 2.13.18 with `zio-blocks-http-model-schema` 0.0.56 (`scala-cli compile --server=false`): `type mismatch; found: String("X-Request-Id") required: zio.http.Header.Codec[Int]`, for both `Request` and `Response`. Scaladoc side: since the http-model-schema Scaladoc PR, `RequestSchemaOps`, `ResponseSchemaOps`, their `header` methods and the package object name it as a known bug and point to `request.headers.header[T](name)`." Line citations still hold at `v0.0.56` (`RequestSchemaOps.scala:34`, `ResponseSchemaOps.scala:25`).
+
+Also correct the entry's Summary ("Scala only looks for an implicit conversion when a member with that name does not exist") and Root cause ("A member with the right name always wins over an implicit conversion, even when its parameter types don't fit"), which are false on Scala 3. Add:
+
+> Correction: on Scala 3 the member wins only when a type argument is given. Without one, Scala 3 falls back to the implicit conversion when `Header.Codec` does not fit, so `val r: Either[HeaderError, Int] = request.header("X-Api-Version")` compiles and returns `Right(2)`. On 2.13.18 the same line fails with `type mismatch; found: String("X-Api-Version") required: zio.http.Header.Codec[?]`. The workaround `request.headers.header[T](name)` is unchanged.
+
+Reproducer (`NoTArg.sc`, `scala-cli run --server=false NoTArg.sc`; run 2026-11-05, scala-cli also prints its usual script-wrapper `$` warnings):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+import zio.http.{Request, URL}
+import zio.http.schema._
+val request = Request.get(URL.parse("/o").toOption.get).addHeader("X-Api-Version", "2")
+val r: Either[HeaderError, Int] = request.header("X-Api-Version")
+println(r)
+// Right(2)
+```
+
+The 2.13.18 failure of the same line is the reviewer's probe (`review-http/p4s2`), not re-run here.
+
 ### http-model-schema: derived `QueryCodec` and `HeaderCodec` ignore field default values
 
 **Status.** Docs side fixed in #1879 (`reference/http-model/schema.md`); the library bug is open.
@@ -4105,6 +4127,27 @@ object DefaultsIgnored {
 **Test gap.** `QueryCodecSpec` and `HeaderCodecSpec` have no case class with a default value.
 
 **Suggested fix.** In both `deriveRecord`s, read `field.value.getDefaultValue` and, when the raw value is absent and a default exists, store the default instead of calling `decodeAny`. Add tests for a missing defaulted field, a present defaulted field and a malformed defaulted field (which should still fail).
+
+**Addition (2026-11-05, schema-messagepack/http-model-schema Scaladoc rollout).** "Re-verified 2026-11-05 on Scala 2.13.18 (`Paging(limit: Int = 20, offset: Int = 0)` decoding `limit=5` gives `Left(... Missing field 'offset' at: .)`). The defaults of `Option` and sequence fields are ignored too, without an error: `Paging(limit: Option[Int] = Some(20), tags: List[String] = List("all"))` decodes `QueryParams.empty` to `Right(Paging(None,List()))` (`OptionDefault.scala`, Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli run --server=false`). Scaladoc side: `QueryCodec` and `HeaderCodec` name it as a known bug." Reproducer for the addition:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.http._
+import zio.http.schema._
+
+final case class Paging(limit: Option[Int] = Some(20), tags: List[String] = List("all"))
+object Paging { implicit val schema: Schema[Paging] = Schema.derived }
+
+object OptionDefault {
+  def main(args: Array[String]): Unit =
+    println(Schema[Paging].derive(DefaultQueryFormat).decode(QueryParams.empty))
+}
+// Right(Paging(None,List()))
+```
 
 ### schema: `json"..."` does not compile on Scala 2.13 outside the `zio.blocks.schema` package
 
@@ -6034,7 +6077,7 @@ The Scala 3 run uses the same file with the header changed to
 
 **Root cause.** Three things combine.
 1. `Schema[DynamicSchema]` (`schema/shared/src/main/scala/zio/blocks/schema/DynamicSchema.scala:1386-1404`; `:1379` at v0.0.56) is a record with one `Schema[DynamicValue]` field, so every format writes the schema through its generic `DynamicValue` codec.
-2. That codec is lossy for JSON. `JsonCodec.dynamicValueCodec` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:1423`, same at v0.0.56) writes a `DynamicValue.Variant` as a one-key object `{"Case": value}` (`:1522-1526`) but reads every object back as a `DynamicValue.Record` (`:1461-1471`), and it narrows every number to `Int`, `Long` or `BigDecimal` (`:1439-1448`). `Json#toDynamicValue` does the same (`Json.scala:1026-1043`). The serialized schema is made of variants (`{"Record": ...}`, `{"Primitive": ...}`, `{"None": {}}`), so all its tags are lost. MessagePack, TOON and YAML give the same result (verified by run; their codecs not traced). Avro writes a tag for each `DynamicValue` case (`schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:996-1007`, case 2 builds `DynamicValue.Variant`), so it round-trips.
+2. That codec is lossy for JSON. `JsonCodec.dynamicValueCodec` (`schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodec.scala:1423`, same at v0.0.56) writes a `DynamicValue.Variant` as a one-key object `{"Case": value}` (`:1522-1526`) but reads every object back as a `DynamicValue.Record` (`:1461-1471`), and it narrows every number to `Int`, `Long` or `BigDecimal` (`:1439-1448`). `Json#toDynamicValue` does the same (`Json.scala:1026-1043`). The serialized schema is made of variants (`{"Record": ...}`, `{"Primitive": ...}`, `{"None": {}}`), so all its tags are lost. TOON and YAML give the same result (verified by run; their codecs not traced). MessagePack is traced: `MessagePackCodecDeriver`'s `DynamicValue` codec (`schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodecDeriver.scala:492-638`, same at v0.0.56) writes a `DynamicValue.Variant` as the map `{"_case": name, "_value": value}` (`:577-582`) but reads every map whose keys are all strings back as a `DynamicValue.Record` (`:514-541`), every integer as `PrimitiveValue.Long` (`:500-501`, `:555-556`) and every `bin` as `PrimitiveValue.BigInt` (`:557-558`), and writes `Unit` as an empty map (`:607`); `MessagePackDynamicValueSpec` asserts this lossy result on purpose through its `normalize` helper (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackDynamicValueSpec.scala`, `Variant` case of `normalize`).. Avro writes a tag for each `DynamicValue` case (`schema-avro/src/main/scala/zio/blocks/schema/avro/AvroCodecDeriver.scala:996-1007`, case 2 builds `DynamicValue.Variant`), so it round-trips.
 3. `DynamicSchema.dynamicValueToReflect` falls back instead of failing: an unrecognised node becomes `new Reflect.Dynamic[NoBinding](NoBinding())` (`DynamicSchema.scala:1926-1927`; `:1919-1920` at v0.0.56), an unreadable term becomes a `Dynamic` term named `unknown` (`:1749`), and an unreadable `TypeId` becomes `TypeId.nominal[Any]("Unknown", Owner.Root)` (`:1664-1668`). `DynamicSchema.fromDynamicValue` returns `DynamicSchema`, not `Either`, so it has no way to report the problem (`:1415`).
 
 **Impact.** High. The reference page and two examples present the serialized form as storable (see the Documentation errors entry), and JSON is the obvious format for a registry. The result validates nothing and nothing warns. The H-09 guide stores Avro bytes, writes the JSON only as a human-readable view, and guards against a root `Reflect.Dynamic` after loading.
@@ -6044,6 +6087,8 @@ The Scala 3 run uses the same file with the header changed to
 **Suggested fix.** Give `DynamicSchema` a format-independent schema instead of a `Schema[DynamicValue]` field: a derived structural schema for the serialized `Reflect` tree (records and variants with real tags), so every codec writes tags its own way. Separately, make `DynamicSchema.fromDynamicValue` (or a new `DynamicSchema.decode`) return `Either[SchemaError, DynamicSchema]` and fail on unknown nodes instead of producing `Reflect.Dynamic`/`Unknown`. Add a round-trip test per format comparing with `==`.
 
 **Related.** The Scaladoc wave 5 entry "schema: `DynamicSchema.fromDynamicValue` never fails, so a damaged stored schema accepts values it should reject" (below) covers the same defect from the API side; file them as one GitHub issue.
+
+**Addition (2026-11-05, schema-messagepack/http-model-schema Scaladoc rollout).** Re-verified 2026-11-05: `Schema[DynamicSchema].derive(MessagePackFormat)` round trip of `Schema[Two].toDynamicSchema` gives `Right(true)` for `_.reflect.isDynamic` on 2.13.18 against 0.0.56. The new `MessagePackCodecDeriver` Scaladoc names it as "a known bug".
 
 ### schema: storing the `DynamicSchema` of a recursive type overflows the stack
 
@@ -14256,6 +14301,435 @@ object CsvLongCell {
 
 **Suggested fix.** Grow in a loop until the field fits (or encode the field to a `String` through a `StringBuilder`-backed path), and add a test with a 100 000-character cell.
 
+### schema-messagepack: a repeated key in a record's map silently gives another field `0` or `null`
+
+Found 2026-11-05 while writing the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** A derived record codec checks only that the map has as many entries as the record has fields. A map that repeats one field's key and leaves another out passes that check: the repeated field takes the last value, and the missing field is built from an untouched register, so it is `null` for a reference type and `0` (or `false`) for a primitive. `decode` returns `Right`, even for a non-`Option` `String` field.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false DuplicateKey.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack.MessagePackFormat
+
+case class Reading(sensor: String, celsius: Int)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+case class Station(a: Int, b: Int, c: Int, d: Int, e: Int)
+object Station { implicit val schema: Schema[Station] = Schema.derived }
+
+object DuplicateKey {
+  def hex(s: String): Array[Byte] = s.split(" ").map(Integer.parseInt(_, 16).toByte)
+
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Reading].derive(MessagePackFormat)
+    // {"celsius": 21, "celsius": 22}: two entries, as the record has two fields, but no "sensor"
+    println(codec.decode(hex("82 a7 63 65 6c 73 69 75 73 15 a7 63 65 6c 73 69 75 73 16")))
+    // Right(Reading(null,22))
+    // the same map without the repeated entry is rejected
+    println(codec.decode(hex("81 a7 63 65 6c 73 69 75 73 15")))
+    // Left(zio.blocks.schema.SchemaError: Expected 2 fields, got: 1 at: .)
+
+    // records of more than 4 fields look names up in a hash map; same result
+    val station = Schema[Station].derive(MessagePackFormat)
+    println(station.decode(hex("85 a1 61 01 a1 61 02 a1 62 03 a1 63 04 a1 64 05")))
+    // Right(Station(2,3,4,5,0))
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `Left` naming the repeated key or the missing field, as for a map with a missing key (`Expected 2 fields, got: 1`).
+
+**Root cause.** `MessagePackCodecDeriver#deriveRecord`'s decoder (`schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodecDeriver.scala:139-169`) compares the map size with the field count (`:143`), then for each entry looks the name up (hash map for more than 4 fields `:147-150`, linear scan otherwise `:151-160`) and writes the value into its register (`:162`). Nothing records which fields were seen, so `constructor.construct(regs, 0)` (`:168`) reads the default register contents for a field that never came.
+
+**Impact.** Medium. Bytes from another MessagePack producer, or tampered input, decode into values that break the record's types (`null` in a `String` field), and the error shows up later as a `NullPointerException` far from the decoder. JSON's derived codec reports duplicate keys.
+
+**Test gap.** `MessagePackFormatSpec` "error handling" has "record with wrong field count" (`Expected 1 fields, got: 0`) and "record with wrong field name" (`Unknown field: wrong`) (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackFormatSpec.scala:750-756`); no test sends a repeated key.
+
+**Suggested fix.** Track the fields seen in a bit set (one `Long` for up to 64 fields, an array beyond), fail with `Duplicate field: <name>` on a second occurrence, and check that every field was seen before `construct`. Add tests for both record sizes (linear and hash lookup).
+
+### schema-messagepack: a derived variant is written as two MessagePack values, so other readers misread the bytes
+
+Found 2026-11-05 while writing the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** A derived codec writes a sealed-trait or enum value (any variant except `Option` and `Either`) as the case index followed by the case's value, two top-level MessagePack values with nothing around them. Inside a record or a list, every other MessagePack reader then sees one more value than the enclosing map or array declares: the record `Sensor(1, Online)` becomes a map `{id: 1, status: 0}` followed by a stray empty map. The module's own `DynamicValue` codec reads it that way, drops the case's value, and a list of variants comes back with the wrong elements. Round trips through the same derived codec still work, which is why the tests pass.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false VariantTwoValues.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack.MessagePackFormat
+
+sealed trait Status
+object Status {
+  case object Online                 extends Status
+  case class Offline(reason: String) extends Status
+  implicit val schema: Schema[Status] = Schema.derived
+}
+
+case class Sensor(id: Int, status: Status)
+object Sensor { implicit val schema: Schema[Sensor] = Schema.derived }
+
+object VariantTwoValues {
+  def hex(bytes: Array[Byte]): String = bytes.map(b => "%02x".format(b & 0xff)).mkString(" ")
+
+  def main(args: Array[String]): Unit = {
+    val sensor = Schema[Sensor].derive(MessagePackFormat)
+    val bytes  = sensor.encode(Sensor(1, Status.Online))
+    println(hex(bytes))
+    // 82 a2 69 64 01 a6 73 74 61 74 75 73 00 80
+    // map of 2: "id" -> 1, "status" -> 0, and then a stray empty map (80), the case's value
+    println(sensor.decode(bytes))
+    // Right(Sensor(1,Online))
+
+    // Any other MessagePack reader sees the stray value; the module's own DynamicValue codec is one
+    val dynamic = Schema[DynamicValue].derive(MessagePackFormat)
+    println(dynamic.decode(bytes).map(_.toString.replaceAll("\\s+", " ")))
+    // Right({ id: 1, status: 0 })
+
+    val list = Schema[List[Status]].derive(MessagePackFormat)
+    val two  = list.encode(List(Status.Offline("battery"), Status.Online))
+    println(hex(two))
+    // 92 01 81 a6 72 65 61 73 6f 6e a7 62 61 74 74 65 72 79 00 80
+    println(dynamic.decode(two).map(_.toString.replaceAll("\\s+", " ")))
+    // Right([ 1, { reason: "battery" } ])
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Each value is one MessagePack value, so generic MessagePack tools (and `Schema[DynamicValue]`) read the same structure the codec wrote: for example a two-element array `[index, value]` or a one-entry map `{caseName: value}`.
+
+**Root cause.** `MessagePackCodecDeriver#deriveVariant`, general case (`schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodecDeriver.scala:313-332`): `encodeValue` calls `out.writeInt(idx)` and then the case codec (`:327-331`) with no array or map header; `decodeValue` reads `in.readIntValue()` and then the case (`:317-325`). `Option` (`:207-262`, an array of 0 or 1) and `Either` (`:269-302`, a map of 1) are wrapped correctly.
+
+**Impact.** High for interop: MessagePack is chosen to exchange data with other languages, and any payload that contains a sealed trait or enum is not readable by them (msgpack libraries report an extra value or misalign every following key). It also breaks `MessagePackReader#skipValue` on such data and makes `Schema[DynamicValue]` useless for inspecting derived bytes.
+
+**Test gap.** The variant tests in `MessagePackFormatSpec` (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackFormatSpec.scala:611-631`, "variants (sealed traits)") and the sum-type cases elsewhere only `roundTrip` through the same codec; no test reads derived bytes with another reader, such as the `DynamicValue` codec or `skipValue`.
+
+**Suggested fix.** Wrap the two parts in a fixarray of 2 (`[index, value]`), or write a one-entry map keyed by the case name like `Either`. Either is a wire-format change, so note it in the release notes. Add a test that decodes derived bytes with `Schema[DynamicValue]` and with `skipValue`, and checks that `hasRemaining` is `false` afterwards.
+
+### schema-messagepack: `MessagePackReader` reads past the input's end in `readChar`, `readFieldNameEquals` and `skipValue`
+
+Found 2026-11-05 while writing the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** Three reader methods use a length from the input without checking it against the reader's limit. `readChar` (behind `Schema[Char]` and `MessagePackCodec.charCodec`) reads the char's bytes past the limit: decoding a heap `ByteBuffer` whose limit cuts the string short returns the byte beyond the limit, while `readString` on the same buffer reports the truncation. On a truncated array, `readChar` and `readFieldNameEquals` (behind `Duration`, `MonthDay`, `Period`, `YearMonth` and `BigDecimal`) fail with a JDK `ArrayIndexOutOfBoundsException` message instead of `Unexpected end of input`. `skipValue` moves past the end of a truncated string, `bin` or fixed-width number (`float32` cut short, for example) without any error. On a heap `ByteBuffer`, `readFieldNameEquals` also compares the bytes past the limit and can return `true`.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false ReaderBounds.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack._
+import java.nio.ByteBuffer
+
+object ReaderBounds {
+  def hex(s: String): Array[Byte] = s.split(" ").map(Integer.parseInt(_, 16).toByte)
+
+  def main(args: Array[String]): Unit = {
+    // readChar reads past the buffer's limit: only the header a1 is inside the limit
+    val window = ByteBuffer.wrap(hex("a1 41"))
+    window.limit(1)
+    println(MessagePackCodec.charCodec.decode(window))
+    // Right(A)
+    val window2 = ByteBuffer.wrap(hex("a1 41"))
+    window2.limit(1)
+    println(MessagePackCodec.stringCodec.decode(window2))
+    // Left(zio.blocks.schema.SchemaError: String length 1 exceeds remaining bytes 0 at: .)
+
+    // readChar and readFieldNameEquals on truncated arrays: an index-out-of-bounds message
+    println(MessagePackCodec.charCodec.decode(hex("a1")))
+    // Left(zio.blocks.schema.SchemaError: Index 1 out of bounds for length 1 at: .)
+    println(MessagePackCodec.durationCodec.decode(hex("82 a7 73")))
+    // Left(zio.blocks.schema.SchemaError: Index 3 out of bounds for length 3 at: .)
+
+    // skipValue moves past the end without an error
+    val skipThenCheck = new MessagePackCodec[Boolean] {
+      def decodeValue(in: MessagePackReader): Boolean = { in.skipValue(); in.hasRemaining }
+      def encodeValue(x: Boolean, out: MessagePackWriter): Unit = ()
+    }
+    println(skipThenCheck.decode(hex("a5 41")))
+    // Right(false)
+    // the same for a cut-short fixed-width value: a float32 with 1 of its 4 bytes
+    println(skipThenCheck.decode(hex("ca 01")))
+    // Right(false)
+
+    // readFieldNameEquals compares the bytes past a heap buffer's limit
+    val nameIsId = new MessagePackCodec[Boolean] {
+      def decodeValue(in: MessagePackReader): Boolean = in.readFieldNameEquals("id".getBytes("UTF-8"))
+      def encodeValue(x: Boolean, out: MessagePackWriter): Unit = ()
+    }
+    val window3 = ByteBuffer.wrap(hex("a2 69 64"))
+    window3.limit(1)
+    println(nameIsId.decode(window3))
+    // Right(true)
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** The same errors as the other read methods: `Unexpected end of input`, or `String length 1 exceeds remaining bytes 0` as `readString` reports, and never a read past the limit.
+
+**Root cause.** In `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackReader.scala`: `readChar` (`:180-202`) indexes `buf(pos)`, `buf(pos + 1)` and `buf(pos + 2)` after `readStringHeader` without comparing with `limit` (`:183`, `:187-188`, `:194-196`). `readFieldNameEquals` (`:148-178`) compares `buf(pos + i)` up to the header's length without a limit check (`:162-169`) and catches only `MessagePackCodecError` (`:173-176`), so the `ArrayIndexOutOfBoundsException` escapes to `decode`. `skipValue` (`:267-306`) adds str and bin lengths to `pos` unchecked (`:271`, `:284-286`, `:297-299`), and the fixed-width cases `0xca`-`0xd3` add 1, 2, 4 or 8 unchecked (`:287-296`).
+
+**Impact.** Medium. A `ByteBuffer` that is a window onto a larger array (a slice of a network buffer, a frame inside a file) can decode a `Char` from the next frame's bytes; error messages leak JDK exception text; a custom codec that skips unknown fields silently runs past truncated input.
+
+**Test gap.** `MessagePackFormatSpec` "error handling" checks truncated strings, arrays, maps, floats and doubles (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackFormatSpec.scala:727-741`), but not `Char`, the map-shaped `java.time` types or `skipValue`; `roundTrip`'s heap buffer (`MessagePackTestUtils.scala:110`) always spans its whole array, and its direct buffer (`:112-113`), whose limit is below its capacity, is copied by `decode`, which respects the limit, so no test decodes a heap buffer with a short limit.
+
+**Suggested fix.** Check `len > limit - pos` before the reads in `readChar` and `readFieldNameEquals` (failing with `endOfInputError()` in `readChar`, returning `false` or failing in `readFieldNameEquals`), and in `skipValue` before each `pos +=`, fixed-width cases included. Add truncation tests for `Char`, `Duration` and `skipValue` (a string and a `float32`), and one decoding from a buffer whose limit is below its capacity.
+
+### schema-messagepack: `readChar` accepts malformed UTF-8, checking only the first byte
+
+Found 2026-11-05 by the fact-check review of the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** `MessagePackReader#readChar` (behind `Schema[Char]` and `MessagePackCodec.charCodec`) checks only that the first byte of a 2- or 3-byte string starts a sequence of that length. It never checks that the following bytes are continuation bytes (`10xxxxxx`), and it never rejects overlong encodings. Bytes that are not one UTF-8 char decode as a char, with `Right`, while `readString` reads the same bytes as two chars.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false CharContinuation.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack.{MessagePackCodec, MessagePackFormat}
+
+object CharContinuation {
+  def hex(s: String): Array[Byte] = s.split(" ").map(Integer.parseInt(_, 16).toByte)
+  def code(c: Char): String = "U+%04X".format(c.toInt)
+
+  def main(args: Array[String]): Unit = {
+    val char = Schema[Char].derive(MessagePackFormat)
+    // c3 41 is not UTF-8 (41 is not a continuation byte); the string codec reads it as two chars
+    println(MessagePackCodec.stringCodec.decode(hex("a2 c3 41")).map(_.map(code).mkString(" ")))
+    // Right(U+FFFD U+0041)
+    // the Char codec accepts it as one char
+    println(char.decode(hex("a2 c3 41")).map(code))
+    // Right(U+00C1)
+    println(char.decode(hex("a3 e2 41 41")).map(code))
+    // Right(U+2041)
+    // an overlong encoding of NUL is accepted too
+    println(char.decode(hex("a2 c0 80")).map(code))
+    // Right(U+0000)
+    // only a bad lead byte is rejected
+    println(char.decode(hex("a2 41 41")))
+    // Left(zio.blocks.schema.SchemaError: Invalid 2-byte UTF-8 sequence at: .)
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `Left(... Invalid 2-byte UTF-8 sequence ...)` (or `Invalid 3-byte ...`) for a continuation byte outside `0x80`-`0xbf` and for overlong forms (`c0`, `c1`, `e0 80`-`e0 9f`), as for a bad lead byte.
+
+**Root cause.** `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackReader.scala:180-202`: the 2-byte branch tests only `(b1 & 0xe0) == 0xc0` (`:189`), and the 3-byte branch tests only `(b1 & 0xf0) == 0xe0` (`:197`), before combining the bits of `b2` and `b3`.
+
+**Impact.** Low. Corrupt or foreign bytes decode silently as some other char, while a `String` field holding the same bytes gets replacement chars, so the two disagree.
+
+**Test gap.** `MessagePackFormatSpec` "Char" (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackFormatSpec.scala:372-374`) only round-trips chars through the module's own writer. No test in `schema-messagepack/src/test` mentions `readChar` or the `Invalid 2-byte` message.
+
+**Suggested fix.** Check `(b2 & 0xc0) == 0x80` (and `b3`), and reject `b1 < 0xc2` in the 2-byte branch and `b1 == 0xe0 && b2 < 0xa0` in the 3-byte branch. Fix the missing limit check (see "`MessagePackReader` reads past the input's end in `readChar`, `readFieldNameEquals` and `skipValue`") in the same change.
+
+### schema-messagepack: decoding a `Byte` from `uint8` above 127 wraps to a negative value
+
+Found 2026-11-05 while writing the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** `readByteValue` accepts the `uint8` format and casts it to `Byte`, so 200 (`cc c8`) decodes as `-56` with no error. The `Short`, `Int` and `Long` readers reject unsigned values out of their range (`Value 40000 exceeds Short range`). The module's own writer never writes `uint8` for a `Byte`, but other MessagePack writers use it for 128 to 255.
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false ByteWrap.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack.MessagePackFormat
+
+object ByteWrap {
+  def hex(s: String): Array[Byte] = s.split(" ").map(Integer.parseInt(_, 16).toByte)
+
+  def main(args: Array[String]): Unit = {
+    // uint8 200 (cc c8), as other MessagePack writers produce for 200
+    println(Schema[Byte].derive(MessagePackFormat).decode(hex("cc c8")))
+    // Right(-56)
+    // the wider codecs reject unsigned values out of their range
+    println(Schema[Short].derive(MessagePackFormat).decode(hex("cd 9c 40")))
+    // Left(zio.blocks.schema.SchemaError: Value 40000 exceeds Short range at: .)
+    println(Schema[Int].derive(MessagePackFormat).decode(hex("ce ff ff ff ff")))
+    // Left(zio.blocks.schema.SchemaError: Value 4294967295 exceeds Int range at: .)
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** `Left(... Value 200 exceeds Byte range ...)`, as the wider readers do.
+
+**Root cause.** `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackReader.scala:62`: `else if (b == UINT8) (readByte() & 0xff).toByte`, with no range check (compare `readShortValue` `:74-77` and `readIntValue` `:91-94`).
+
+**Impact.** Low. A `Byte` field fed by another producer silently changes sign for values 128 to 255.
+
+**Test gap.** `MessagePackFormatSpec` "Byte" (`schema-messagepack/src/test/scala/zio/blocks/schema/msgpack/MessagePackFormatSpec.scala:354-356`) only round-trips `Gen.byte` through the module's own writer, which never emits `uint8` for a `Byte`.
+
+**Suggested fix.** Check `v > Byte.MaxValue` and fail with `Value <v> exceeds Byte range`; add a decode test for `cc 7f` (127) and `cc 80` (128).
+
+### http-model-schema: `java.time`, `Currency` and `Unit` values never decode, and a derived codec with such a field throws on encode
+
+Not filed on GitHub yet.
+
+Found 2026-11-05 while writing the http-model-schema Scaladoc (`StringDecoder`, `QueryCodec`), on branch `msgpack-http-schema-scaladoc` at `aa8164217`; the http-model-schema sources are the same at tag `v0.0.56`. Verified against the published 0.0.56 on Scala 3.9.0 (`LocalDate`, `Instant`, `Unit`).
+
+**Summary.** zio-blocks `PrimitiveType` has 30 cases. The string decoders of http-model-schema handle 12 of them (`String`, `Boolean`, `Char`, the 8 numeric types, `UUID`). For the other 18 (`Unit`, the 16 `java.time` types such as `LocalDate` and `Instant`, and `java.util.Currency`), `query[T]`/`header[T]` compile and always return `Malformed(..., "Unsupported primitive type for string decoding")`, blaming the client's value. Worse, `Schema[A].derive(DefaultQueryFormat)` (and `DefaultHeaderFormat`) accept a record with such a field without complaint: `decode` then fails on every value with the same `Malformed` message, and `encode`/`encodeToQueryParams` throws `UnsupportedOperationException`. A delivery date or a `since` timestamp is a common query parameter.
+
+**Reproduction** (`OtherPrimitives.scala`, Scala 3.9.0, `zio-blocks-next-http-model-schema` 0.0.56, `scala-cli run --server=false OtherPrimitives.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.http._
+import zio.http.schema._
+
+final case class Delivery(orderId: Long, deliverBy: java.time.LocalDate)
+object Delivery { implicit val schema: Schema[Delivery] = Schema.derived }
+
+object OtherPrimitives {
+  def main(args: Array[String]): Unit = {
+    val params = QueryParams("deliverBy" -> "2026-11-05", "orderId" -> "7")
+    println(params.query[java.time.LocalDate]("deliverBy"))
+    val codec = Schema[Delivery].derive(DefaultQueryFormat) // derives without complaint
+    println(codec.decode(params))
+    println(scala.util.Try(codec.encodeToQueryParams(Delivery(7L, java.time.LocalDate.of(2026, 11, 5)))))
+  }
+}
+// Left(Malformed(deliverBy,2026-11-05,Unsupported primitive type for string decoding))
+// Left(zio.blocks.schema.SchemaError: Malformed query parameter 'deliverBy' value '2026-11-05': Unsupported primitive type for string decoding)
+// Failure(java.lang.UnsupportedOperationException: Unsupported primitive type: LocalDate(None))
+```
+
+**Expected.** `Right(2026-11-05)`, `Right(Delivery(7,2026-11-05))` and `Success(QueryParams((orderId,7), (deliverBy,2026-11-05)))`: the `java.time` types have a canonical ISO-8601 string form (`toString`/`parse`), as the JSON codec uses. At the least, derivation should fail with a clear message instead of a codec that throws on first use.
+
+**Root cause.** `StringDecoder.decodePrimitive` (`http-model-schema/shared/src/main/scala/zio/http/schema/StringDecoder.scala:34-49`) and `ParamCodecSupport.decodePrimitiveString` (`ParamCodecSupport.scala:211-226`) match 12 primitive types and fall to `case _ => Left("Unsupported primitive type for string decoding")`. `ParamCodecSupport.renderPrimitive` (`ParamCodecSupport.scala:233-246`) throws `UnsupportedOperationException` in its `case _`. `primitiveFieldCodec` (`ParamCodecSupport.scala:158-161`) accepts every `Reflect.Primitive`, so derivation never rejects the field. The two decoders are also duplicates of each other.
+
+**Impact.** A handler that reads a date or timestamp parameter answers every request with 400 and a message that blames the client; a client built on the derived codec crashes on its first request.
+
+**Test gap.** No spec in `http-model-schema/shared/src/test/scala/zio/http/schema/` uses a `java.time`, `Currency` or `Unit` value (`grep -n "LocalDate\|Instant\|Currency" *.scala` finds nothing); "round-trips remaining primitive branches" in `QueryCodecSpec` and `HeaderCodecSpec` covers only the 12 supported types.
+
+**Suggested fix.** Add the remaining cases to one shared decoder and renderer (parse with each type's `parse`/`of`, render with `toString`), and delete the duplicate in `StringDecoder`. If some type is left out on purpose, make `primitiveFieldCodec` return `None` for it so derivation fails with "Unsupported schema type for field 'deliverBy'", and give `query[T]` a distinct error rather than `Malformed`.
+
+### http-model-schema: a derived codec decodes only the first element of an `Option[List[...]]` field
+
+Not filed on GitHub yet.
+
+Found 2026-11-05 while writing the http-model-schema Scaladoc (`QueryCodec`, `ParamCodecSupport.OptionalValue`), on `aa8164217` (same at `v0.0.56`). Verified against the published 0.0.56 on Scala 3.9.0 and 2.13.18 (2.13 probe: `Some(List(1,2))` encoded as `o=1&o=2` decoded to `Some(List(1))`).
+
+**Summary.** A field of type `Option[List[A]]` (or `Option[Chunk[A]]`) derives, and `encode` writes one repeated parameter per element. `decode` passes only the first value to the inner sequence codec, so the value does not round-trip: every element after the first is dropped silently. The same holds for `HeaderCodec`.
+
+**Reproduction** (`OptionOfList.scala`, `scala-cli run --server=false OptionOfList.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.Schema
+import zio.http._
+import zio.http.schema._
+
+final case class OrderFilter(tags: Option[List[String]])
+object OrderFilter { implicit val schema: Schema[OrderFilter] = Schema.derived }
+
+object OptionOfList {
+  def main(args: Array[String]): Unit = {
+    val codec   = Schema[OrderFilter].derive(DefaultQueryFormat)
+    val encoded = codec.encodeToQueryParams(OrderFilter(Some(List("gift", "rush"))))
+    println(encoded)
+    println(codec.decode(encoded))
+  }
+}
+// QueryParams((tags,gift), (tags,rush))
+// Right(OrderFilter(Some(List(gift))))
+```
+
+**Expected.** `Right(OrderFilter(Some(List(gift, rush))))`.
+
+**Root cause.** `OptionalValue#decodeAny` (`http-model-schema/shared/src/main/scala/zio/http/schema/ParamCodecSupport.scala:72`) calls `inner.decodeAny(fieldName, Some(Chunk.single(values(0))), errorFactory)`, which is right for a primitive inner codec and wrong for a `SequenceValue`.
+
+**Impact.** Silent data loss for anyone who models "tags may be absent" as `Option[List[String]]` rather than `List[String]`.
+
+**Test gap.** `QueryCodecSpec` and `HeaderCodecSpec` test `Option[Int]`/`Option[String]` fields (`OptionalFields`, `QueryCodecSpec.scala:36`) and `List`/`Chunk` fields separately, never an `Option` of a sequence.
+
+**Suggested fix.** In `OptionalValue#decodeAny`, pass `Some(values)` through unchanged (the primitive codec already reads `values(0)`), and add a round-trip test for `Option[List[String]]` in both specs.
+
+### http-model-schema: an `instance` override on `QueryCodecDeriver`/`HeaderCodecDeriver` is ignored for record fields
+
+Not filed on GitHub yet.
+
+Found 2026-11-05 while writing the http-model-schema Scaladoc (`QueryCodecDeriver`), on `aa8164217` (same at `v0.0.56`). Verified against the published 0.0.56 on Scala 3.9.0.
+
+**Summary.** `Schema[A].deriving(QueryCodecDeriver).instance(TypeId.int, myCodec).derive` uses `myCodec` when `Int` is the whole schema, but a record whose field is an `Int` keeps the built-in rules: the override is neither used to encode nor to decode the field. `docs/reference/http-model/schema-codecs.md` ("Overriding a Single Type") says "The override applies wherever that type appears" (see NEW 5).
+
+**Reproduction** (`OverrideIgnored.scala`, `scala-cli run --server=false OverrideIgnored.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.{Schema, SchemaError}
+import zio.blocks.typeid.TypeId
+import zio.http.{QueryParams, QueryParamsBuilder}
+import zio.http.schema._
+
+final case class Page(number: Int)
+object Page { implicit val schema: Schema[Page] = Schema.derived }
+
+object OverrideIgnored {
+  val prefixedInt: QueryCodec[Int] = new QueryCodec[Int] {
+    def encode(value: Int, output: QueryParamsBuilder): Unit = output.add("value", s"p-$value")
+    def decode(input: QueryParams): Either[SchemaError, Int] =
+      input.getFirst("value") match {
+        case Some(s) if s.startsWith("p-") => Right(s.stripPrefix("p-").toInt)
+        case other                         => Left(SchemaError(s"expected p- prefix, got $other"))
+      }
+  }
+
+  def main(args: Array[String]): Unit = {
+    val top = Schema[Int].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedInt).derive
+    println(top.encodeToQueryParams(42))
+    val record = Schema[Page].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedInt).derive
+    println(record.encodeToQueryParams(Page(42)))
+    println(record.decode(QueryParams("number" -> "p-42")))
+  }
+}
+// QueryParams((value,p-42))
+// QueryParams((number,42))
+// Left(zio.blocks.schema.SchemaError: Malformed query parameter 'number' value 'p-42': Cannot parse 'p-42' as Int)
+```
+
+**Expected.** `QueryParams((number,p-42))` and `Right(Page(42))`: the override is used for the field, as `JsonCodecDeriver` does (the `DerivationBuilder#instance` Scaladoc example overrides a record field that way).
+
+**Root cause.** `QueryCodecDeriver#deriveRecord` forces the field instance and discards it (`http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodecDeriver.scala:65`), then builds the field codec from the field's `Reflect` with `ParamCodecSupport.buildFieldCodec` (`:68`), which knows only the built-in shapes. `HeaderCodecDeriver#deriveRecord` does the same (`HeaderCodecDeriver.scala:64`, `:67`). A field codec works on `Chunk[String]` while a `QueryCodec` works on a whole `QueryParams`, so the instance cannot be plugged in as is.
+
+**Impact.** The only documented customisation hook for these codecs does nothing for the common case (a request case class), and the reference page says it does.
+
+**Test gap.** "respects BindingInstance override for primitive codec" (`QueryCodecSpec.scala:140-160`, `HeaderCodecSpec.scala:108`) overrides `Int` only in a top-level `Schema[Int]`, never in a record.
+
+**Suggested fix.** In `deriveRecord`, when the field's binding is a `BindingInstance`, adapt the user codec to a `FieldCodec` (encode into a scratch builder and read its `value` entries; decode by building `QueryParams("value" -> ...)` from the field's raw values). Otherwise document that overrides apply to top-level schemas only, and fix the reference page.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -14353,6 +14827,8 @@ object OptionQuery {
 
 Suggested fix: support wrappers (the codec derivers already do, through `ParamCodecSupport.wrapperFieldCodec`) and map `Option[T]` to "missing is `None`". At least document the primitive-only limit on the reference page, and consider reporting it as a distinct error rather than `Malformed`.
 
+**Addition (2026-11-05, schema-messagepack/http-model-schema Scaladoc rollout).** "Only 12 of the 30 primitive types decode either: `java.time`, `Currency` and `Unit` give a different message, `Unsupported primitive type for string decoding` (see the new entry on `java.time` values). Scaladoc side: `QueryParamsSchemaOps`, `HeadersSchemaOps` and `StringDecoder` list the 12 types and name the rest as a known bug."
+
 ### http-model-schema: `queryOrElse` and `headerOrElse` also swallow malformed values, and no decoder applies `Validation`
 
 **Status.** Docs side fixed in #1879 (`reference/http-model/schema.md`); the library bug is open.
@@ -14360,6 +14836,8 @@ Suggested fix: support wrappers (the codec derivers already do, through `ParamCo
 Found 2026-10-21 while writing H-36. Verified against the published 0.0.56.
 
 `queryOrElse[Int]("limit", 20)` returns `20` for `?limit=abc`, not only for a missing `limit` (`QueryParamsSchemaOps.scala`, `query[T](key).getOrElse(default)`), so a client's typo is silently ignored. The reference page says so ("errors are silently ignored"), but the name suggests "or else, when missing". Separately, none of the decoders checks the `Validation` a `Schema` can carry: a `Schema[Int]` whose primitive type has `Validation.Numeric.Range(Some(1), Some(100))` decodes `?limit=500` to `Right(500)` (`StringDecoder.decodePrimitive` and `ParamCodecSupport.decodePrimitiveString` only parse). The H-36 guide shows a `Missing`-only fallback and range checks written after decoding. Suggested fix: document both on `docs/reference/http-model/schema.md`; consider a `queryOption[T]` that returns `Either[QueryParamError, Option[T]]`.
+
+**Addition (2026-11-05, schema-messagepack/http-model-schema Scaladoc rollout).** "Scaladoc side: every `queryOrElse`/`headerOrElse` comment says a malformed value is dropped and calls it a known bug, and the class comments say `Validation` is never checked. Re-verified 2026-11-05 on 3.9.0: `queryOrElse[Int]("status", 20)` for `status=open` returns `20`; `headerOrElse[Int]("x-n", 7)` for `x-n: z` returns `7`."
 
 ### telemetry: every call to `metric.counter(name)` registers a new instrument
 
@@ -18533,6 +19011,104 @@ println(token.flatMap(Jwt.decode(_, secret, Algorithm.HS256)))
 **Test gap.** No test builds a `Num` from non-numeric text.
 
 **Suggested fix.** Validate in `Jwt.sign` (cheapest: run the parser's number grammar on each `Num` while rendering) or make `Num.apply` checked.
+
+### schema-messagepack: `decode` ignores bytes after the value
+
+Found 2026-11-05 while writing the `schema-messagepack` Scaladoc (branch `msgpack-http-schema-scaladoc`, base `aa8164217`). The module's main sources at `aa8164217` are byte-identical to tag `v0.0.56`, so the lines below are at v0.0.56 (= `aa8164217`). Verified on Scala 2.13.18 (`zio-blocks-*` 0.0.56) and 3.9.0 (`zio-blocks-next-*` 0.0.56, `-experimental`) with identical output. Not filed on GitHub.
+
+**Summary.** `MessagePackCodec#decode` reads one value from the start of the input and returns it without checking that the input is used up. Garbage after a value, or two values glued together, decode as the first value with `Right`. The JSON codec rejects trailing input (`expected end of input`). (The same file also shows that a read-only heap buffer is copied, so `decode` moves its position, as the new Scaladoc now says.)
+
+**Reproduction** (Verified; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-messagepack` 0.0.56, run with `scala-cli run --server=false TrailingBytes.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-messagepack:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.msgpack.MessagePackFormat
+
+case class Reading(sensor: String, celsius: Int)
+object Reading { implicit val schema: Schema[Reading] = Schema.derived }
+
+object TrailingBytes {
+  def main(args: Array[String]): Unit = {
+    val codec = Schema[Reading].derive(MessagePackFormat)
+    val bytes = codec.encode(Reading("t1", 21))
+    println(codec.decode(bytes ++ Array[Byte](1, 2, 3)))
+    // Right(Reading(t1,21))
+    // two values glued together decode as the first one
+    println(codec.decode(bytes ++ codec.encode(Reading("t2", 22))))
+    // Right(Reading(t1,21))
+    // the JSON codec rejects trailing input
+    println(Schema[Reading].jsonCodec.decode("""{"sensor":"t1","celsius":21} 7"""))
+    // Left(zio.blocks.schema.SchemaError: expected end of input at: .)
+    // read-only heap buffer: copied, so its position moves (a writable heap buffer keeps it)
+    val ro = java.nio.ByteBuffer.wrap(bytes).asReadOnlyBuffer()
+    println(codec.decode(ro).toString + " position " + ro.position())
+    // Right(Reading(t1,21)) position 20
+  }
+}
+```
+
+The Scala 3 run uses the same file with the header changed to `//> using scala 3.9.0`, `//> using options -experimental` and the `zio-blocks-next-*` artifacts (same version), and prints exactly the same lines.
+
+**Expected.** Either `Left` for trailing bytes (as JSON does), or a documented decode that returns the number of bytes used so callers can frame messages.
+
+**Root cause.** `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala:90` (`ByteBuffer`) and `:130` (`Array[Byte]`) return `new Right(decodeValue(reader))` without checking `reader.hasRemaining`.
+
+**Impact.** Medium. Framing errors (a length prefix off by one, two messages in one buffer) go unnoticed; a corrupted tail is accepted.
+
+**Test gap.** No test in `schema-messagepack/src/test` decodes input with extra bytes.
+
+**Suggested fix.** Fail with `Unexpected trailing bytes` when `reader.hasRemaining` after `decodeValue`, or keep the lenient behaviour and add a `decodePrefix` that returns the bytes consumed. The Scaladoc now documents the current behaviour.
+
+### http-model-schema: `encodeToQueryParams`/`encodeToHeaders` called inside another codec's `encode` corrupts the outer output
+
+Not filed on GitHub yet.
+
+Found 2026-11-05 while writing the http-model-schema Scaladoc (`QueryCodec#encodeToQueryParams`), on `aa8164217` (same at `v0.0.56`). Verified against the published 0.0.56 on Scala 3.9.0 and 2.13.18 (also for `HeaderCodec#encodeToHeaders`). `docs/reference/http-model/schema-codecs.md` already warns about it ("The builder is a reused thread-local").
+
+**Summary.** Every `QueryCodec` on a thread shares one `QueryParamsBuilder` (`HeaderCodec`: one `HeadersBuilder`). A hand-written codec whose `encode` calls another codec's `encodeToQueryParams` resets that builder while the outer call is filling it: the outer result loses everything written before the nested call and contains the nested codec's entries.
+
+**Reproduction** (`NestedEncode.scala`, `scala-cli run --server=false NestedEncode.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
+
+import zio.blocks.schema.{Schema, SchemaError}
+import zio.http._
+import zio.http.schema._
+
+object NestedEncode {
+  val pageCodec: QueryCodec[Int] = Schema[Int].derive(DefaultQueryFormat)
+
+  // A hand-written codec that reuses another codec's convenience encoder.
+  val searchCodec: QueryCodec[Int] = new QueryCodec[Int] {
+    def encode(value: Int, output: QueryParamsBuilder): Unit = {
+      output.add("status", "open")
+      val page = pageCodec.encodeToQueryParams(value)
+      output.add("page", page.getFirst("value").get)
+    }
+    def decode(input: QueryParams): Either[SchemaError, Int] = Left(SchemaError("unused"))
+  }
+
+  def main(args: Array[String]): Unit =
+    println(searchCodec.encodeToQueryParams(2))
+}
+// QueryParams((value,2), (page,2))
+```
+
+**Expected.** `QueryParams((status,open), (page,2))`.
+
+**Root cause.** `QueryCodec#encodeToQueryParams` takes the shared builder from `QueryCodec.threadLocalBuilder` and calls `reset()` before `encode` (`http-model-schema/shared/src/main/scala/zio/http/schema/QueryCodec.scala:30-35`, `:39-42`); `HeaderCodec#encodeToHeaders` the same (`HeaderCodec.scala:30-35`, `:39-42`).
+
+**Impact.** Silent wrong output for composed hand-written codecs; the failure looks like the outer codec's bug.
+
+**Test gap.** No spec calls a convenience encoder from inside a custom `encode`.
+
+**Suggested fix.** Keep a depth counter (or an "in use" flag) next to the thread-local and allocate a fresh builder when it is already in use; or allocate per call, since `build()` already copies the arrays. The Scaladoc now warns about it.
 
 ## Test and CI
 
