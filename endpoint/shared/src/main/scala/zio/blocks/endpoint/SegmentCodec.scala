@@ -765,14 +765,10 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
 
   /**
    * Exact-window boolean check over `[from, end)`: does `codec` match exactly
-   * that slice? Leaves validate the whole window with the allocation-free index
-   * scanners (never a substring, never a stdlib parser, never thrown
-   * exceptions); `Combined` enumerates every candidate split point `mid` in
-   * `[from, end]` (bounded by the segment length - no backtracking explosion,
-   * since `~` already rejects the ambiguous `string ~ string` and numeric ~
-   * numeric shapes) and accepts when both sides match exactly. Agrees with
-   * [[decodeCombined]] by construction: the same windows that validate here are
-   * the windows `decodeCombined` decodes.
+   * that slice? Leaves check the window by index, without a substring, a stdlib
+   * parser or exceptions (a boolean leaf allocates an `Option`); `Combined`
+   * tries every split point `mid` in `[from, end]` and accepts when both sides
+   * match exactly. It accepts the same windows that [[decodeCombined]] decodes.
    */
   private def matchesWindow(codec: SegmentCodec[_], segment: String, from: Int, end: Int): Boolean =
     if (from < 0 || end > segment.length || from > end) false
