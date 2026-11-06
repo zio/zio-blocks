@@ -199,8 +199,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
    * Builds the `(body, status)` codec pair shared by every `out(schema, ...)`
    * overload. `status = None` pairs the body with [[HttpCodec.Ok]] (200), while
    * `Some(status)` pairs it with exactly that status. The pair is returned
-   * uncombined so each call site keeps its own `++` / `|` implicit resolution,
-   * identical to the previous inline expressions.
+   * uncombined so each call site keeps its own `++` / `|` implicit resolution.
    */
   private def bodyOut[O2](
     status: Option[Status],
@@ -249,8 +248,10 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   }
 
   /**
-   * Like `out(schema)`, with documentation for the body and status: a body
-   * described by `schema` with status 200 `Ok`.
+   * Like `out(schema)`, with documentation for the body: a body described by
+   * `schema` with status 200 `Ok`. The status is [[HttpCodec.Ok]] as it is, so
+   * the documentation is not attached to it, unlike the overloads that take a
+   * status: a known bug.
    */
   def out[O2, O3](schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
@@ -305,7 +306,8 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
 
   /**
    * Adds a success response: a body described by `schema` in the given media
-   * type, with status 200 `Ok` and documentation for both.
+   * type, with status 200 `Ok`. The documentation goes on the body only; the
+   * status is [[HttpCodec.Ok]] as it is (see `out(schema, doc)`).
    */
   def out[O2, O3](mediaType: MediaType, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
@@ -350,7 +352,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
    * `outError(status, ...)` / `orOutError(status, ...)` overload. Unlike
    * `bodyOut`, the status is always explicit — error bodies never default to
    * `Ok`. Returned uncombined so each call site keeps its own `++` / `|`
-   * implicit resolution, identical to the previous inline expressions.
+   * implicit resolution.
    */
   private def errorOut[E2](
     status: Status,

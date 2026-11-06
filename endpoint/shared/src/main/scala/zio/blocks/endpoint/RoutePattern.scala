@@ -56,7 +56,9 @@ final case class RoutePattern[A](
    * [[RouteTree]] stores: each `orElse` branch of the path gives its own
    * pattern, a method set built with `#|` gives one pattern per method, and
    * `Method.ANY` gives one per standard method (all nine). Duplicates are
-   * removed.
+   * removed. Throws `IllegalStateException` when an `orElse` branch is not a
+   * single literal, such as `PathCodec("api/v1")` or a literal passed through
+   * `transform`, although `decode` accepts such a path: a known bug.
    *
    * A pattern whose path is empty (the root, `/`) gives an empty list, so
    * [[RouteTree.add]] stores nothing for it: a known bug. A pattern with a
@@ -108,15 +110,16 @@ final case class RoutePattern[A](
 
   /**
    * Tests whether a request with method `actual` and path `path` matches, like
-   * `decode(actual, path).isRight` but without building the decoded value (see
-   * [[PathCodec#matches]]).
+   * `decode(actual, path).isRight` with the exceptions [[PathCodec#matches]]
+   * lists.
    */
   def matches(actual: Method, path: Path): Boolean =
     (method.matches(actual) || (method == Method.GET && actual == Method.HEAD)) &&
       PathCodecRuntime.matchesCodec(pathCodec, path.segments)
 
   /**
-   * Puts the literal-only path `prefix` in front of this pattern's path.
+   * Puts `prefix`, a path that captures no value, in front of this pattern's
+   * path.
    *
    * {{{
    * import zio.blocks.endpoint.RoutePattern._

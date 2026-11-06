@@ -54,11 +54,12 @@ object CodecKind {
  * [[CodecKind.Response]]) and `A` the value the parts decode to. A codec is
  * plain data; servers and clients interpret it.
  *
- * Each part is a case class that carries its [[zio.blocks.schema.Schema]] and
- * its documentation, examples and deprecation note. Combine parts with `++`
- * (both, values in a tuple) and `|` (either one, values in an `Either`). The
- * codecs for typed headers and the `Authorization` header use a `String` schema
- * that parses and renders the header value.
+ * Each query, header and body part is a case class that carries its
+ * [[zio.blocks.schema.Schema]] with its documentation, examples and deprecation
+ * note; a status part carries the status with the same metadata. Combine parts
+ * with `++` (both, values in a tuple) and `|` (either one, values in an
+ * `Either`). The codecs for typed headers and the `Authorization` header use a
+ * `String` schema that parses and renders the header value.
  *
  * {{{
  * import zio.blocks.schema.Schema
@@ -74,8 +75,10 @@ sealed trait HttpCodec[+K <: CodecKind, A] { self =>
 
   /**
    * Combines this codec with `that`: both sets of parts are present, and their
-   * values join with `Tuples`, so `Unit` drops out and other values form a flat
-   * tuple.
+   * values join with `Tuples`: `Unit` drops out, and adding values one at a
+   * time on the right builds a flat tuple. When `that` is itself a combination,
+   * Scala 3 flattens the result, but Scala 2 nests it: `a ++ (b
+   * ++ c)` gives `(A, (B, C))`.
    */
   def ++[B, C](that: HttpCodec[K @uncheckedVariance, B])(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C]

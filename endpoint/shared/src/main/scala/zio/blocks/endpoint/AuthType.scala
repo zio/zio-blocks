@@ -26,10 +26,10 @@ import zio.http.{Header, Status}
  * ([[unauthorizedStatus]]). Like the rest of an endpoint it is a description; a
  * server or client built on it does the checking.
  *
- * The built-in schemes are [[AuthType.None]], [[AuthType.Basic]],
- * [[AuthType.Bearer]] and [[AuthType.Digest]], which read the `authorization`
- * header, and [[AuthType.Custom]] for any request codec. Combine schemes with
- * `|`, and attach scopes with [[AuthType.Scoped]].
+ * The built-in schemes are [[AuthType.None]], which reads nothing,
+ * [[AuthType.Basic]], [[AuthType.Bearer]] and [[AuthType.Digest]], which read
+ * the `authorization` header, and [[AuthType.Custom]] for any request codec.
+ * Combine schemes with `|`, and attach scopes with [[AuthType.Scoped]].
  *
  * [[unauthorizedStatus]] is `404 Not Found` unless changed, so that a failed
  * login does not reveal whether a protected resource exists. Use
@@ -40,8 +40,8 @@ import zio.http.{Header, Status}
  *
  * val auth = AuthType.Bearer | AuthType.Basic
  *
- * auth.unauthorizedStatus                                              // 404
- * AuthType.Bearer.withUnauthorizedStatus(Status.Unauthorized).unauthorizedStatus // 401
+ * auth.unauthorizedStatus.code                                                        // 404
+ * AuthType.Bearer.withUnauthorizedStatus(Status.Unauthorized).unauthorizedStatus.code // 401
  * }}}
  *
  * @see
