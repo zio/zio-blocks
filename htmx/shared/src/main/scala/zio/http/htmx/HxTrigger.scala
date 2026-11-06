@@ -334,7 +334,8 @@ object HxTrigger {
   /**
    * Creates a trigger for any event name, such as a custom event that your
    * JavaScript or a response header fires. The name is trimmed and otherwise
-   * written into `hx-trigger` as given, so validate any value that comes from users.
+   * written into `hx-trigger` as given, so validate any value that comes from
+   * users.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `event` is blank
