@@ -808,9 +808,17 @@ Session `jwt-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0
 
 Session `maybe-combinators-context-scaladoc` (Opus), started 2026-11-05 on `main` `c2e4a39fd`. Phase 0: 25 / 251 (maybe 5/135, combinators 7/79, context 13/37); `--drift` lists 3 members in `Maybe.scala` (`class Present`, `def present`, `object Absent`); 2 existing `{{{` blocks (`ContextHas`); sources byte-identical to `v0.0.56`; packages fit `moduleImport`, so the build change is three list entries; no known entries for these modules apart from the combinators `Tuples` Scala 2 nesting bug filed by the async rollout. Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; one Opus writer for all three modules, then a fresh Opus fact-check review.
 
-## 13m. Scaladoc: schema-messagepack and http-model-schema (in progress)
+## 13m. Scaladoc: schema-messagepack and http-model-schema
 
-Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `aa8164217`. Phase 0: 11 / 189 (schema-messagepack 5/134, http-model-schema 6/55); `--drift` empty; no `{{{` blocks; packages `zio.blocks.schema.msgpack` and `zio.http.schema` need `packageOverrides` entries (from #1943); `moduleOf` already tells `http-model-schema` apart from `http-model`; 5 known entries (4 http-model-schema, 1 msgpack `DynamicSchema`). Milad's Phase 1 decisions: one PR for both modules; tier 1 = `MessagePackFormat`, `MessagePackCodec`, `QueryCodec`, `HeaderCodec`, the `Request`/`Response`/`Headers`/`QueryParams` schema extension methods, `StringDecoder`; the AGENTS.md diff approved. PR #1950 opened 2026-11-05 (main with #1949 merged in): 11 → 189 / 189 (schema-messagepack 134/134, http-model-schema 55/55), `--drift` empty, comments only; 4 of 13 inherited comments (31%) wrong or imprecise; Sonnet re-review APPROVE.
+Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `aa8164217`. Phase 0: 11 / 189 (schema-messagepack 5/134, http-model-schema 6/55); `--drift` empty; no `{{{` blocks; packages `zio.blocks.schema.msgpack` and `zio.http.schema` need `packageOverrides` entries (from #1943); `moduleOf` already tells `http-model-schema` apart from `http-model`; 5 known entries (4 http-model-schema, 1 msgpack `DynamicSchema`). Milad's Phase 1 decisions: one PR for both modules; tier 1 = `MessagePackFormat`, `MessagePackCodec`, `QueryCodec`, `HeaderCodec`, the `Request`/`Response`/`Headers`/`QueryParams` schema extension methods, `StringDecoder`; the AGENTS.md diff approved.
+
+| Module | Members before | After | Inherited comments wrong or imprecise | Examples (2.13.18/3.9.0/3.10.0) | Bug entries |
+|---|---|---|---|---|---|
+| schema-messagepack | 5/134 (3%) | 134/134 | 2 of 7 | 7 | 5 Library bugs, 1 Usability trap, 1 amendment, 1 docs error |
+| http-model-schema | 6/55 (10%) | 55/55 | 2 of 6 | 7 | 3 Library bugs, 1 Usability trap, 1 docs error, 4 amendments |
+| Total | 11/189 | 189/189 | 4 of 13 (31%) | 14 | |
+
+PR #1950 (one PR), CI green on `0dfbf8261`: 23 pass, 10 skipping. Tooling: `packageOverrides` entries `schema-messagepack` → `zio.blocks.schema.msgpack` and `http-model-schema` → `zio.http.schema`; both modules in `scaladocCheckedModules`; AGENTS.md Scaladoc bullet and two downstream rows (approved). Comments only. Gates: scaladoc-check 32 tests on 3 versions; 8 doc runs; `check`, `headerCheckAll`, `scalafmtAll`. Reviews (fresh Opus): 3 false + 15 imprecise claims + 1 style note; 18 of 19 applied; Sonnet re-review APPROVE. Every reproducer re-run by a reviewer. Time: about 2.5 h of working time over two reboots. Skill lessons: re-run scaladoc-check after merging main into the tooling lists; fsync the bug-entries file (a reboot truncated it once).
 
 ## 13. Scaladoc: next modules
 
