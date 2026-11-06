@@ -17,11 +17,24 @@
 package zio.blocks.telemetry
 
 /**
- * Stateless log formatter. Appends formatted output to a StringBuilder.
- * Formatters are singletons — no per-instance state, zero allocation. The
- * StringBuilder is owned and pooled by the emitter.
+ * Renders one log record as text, appended to a `StringBuilder`; `log.writer`
+ * pairs a formatter with a [[LogWriter]]. The built-in ones are
+ * [[TextLogFormatter]] and [[JsonLogFormatter]].
+ *
+ * Each call receives a new, empty `StringBuilder`, which the caller writes out
+ * afterwards. An output added with `log.writer` calls only `formatRecord`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/logging/log-formatter/ LogFormatter]]
  */
 trait LogFormatter {
+
+  /**
+   * Renders a log call from its raw values, without a [[LogRecord]]. Only the
+   * library's default console output calls it, always with
+   * [[TextLogFormatter]], so a custom formatter can mirror `formatRecord` for
+   * the scalar fields here.
+   */
   def format(
     sb: StringBuilder,
     timestampNanos: Long,
@@ -36,13 +49,21 @@ trait LogFormatter {
     throwable: Option[Throwable]
   ): Unit
 
-  /** Format from a LogRecord (used by FormattedLogRecordProcessor). */
+  /** Appends `record`, rendered, to `sb`; outputs added with `log.writer` call it. */
   def formatRecord(sb: StringBuilder, record: LogRecord): Unit
 }
 
 /**
- * Human-readable text format: "2026-03-31T17:30:00.123Z INFO
- * [MyClass.method:42] message {key=val}"
+ * Renders a record as one human-readable line: the UTC timestamp, the severity
+ * text padded to five characters, the source location, the message and the
+ * other attributes, as in
+ * `2026-11-06T18:43:36.815Z WARN  [Checkout.reserve:42] stock low {sku="sku-42", left=3}`.
+ * A record with an exception adds its stack trace on the following lines.
+ *
+ * The location is the part of `code.namespace` after the last dot, then
+ * `code.function` and `code.lineno`. A known bug: for a class in a package it
+ * prints the full name and two numbers instead, as in
+ * `[(shop.Checkout,5,13).reserve:42]`. Trace and span ids are not printed.
  */
 object TextLogFormatter extends LogFormatter {
 
@@ -343,8 +364,16 @@ object TextLogFormatter extends LogFormatter {
 }
 
 /**
- * JSON format compatible with OTLP log data model:
- * {"timeUnixNano":...,"severityNumber":...,"severityText":"INFO","body":{"stringValue":"message"},"attributes":[...]}
+ * Renders a record as one JSON object in the shape of the OTLP log data model,
+ * such as
+ * `{"timeUnixNano":"1793990790777118658","severityNumber":9,"severityText":"INFO","body":{"stringValue":"order placed"},"attributes":[...]}`.
+ *
+ * Every attribute is listed, the `code.*` source location included, followed
+ * by `traceId` and `spanId` when the record has them. An exception becomes an
+ * `exception.stacktrace` attribute. A known bug: when a record has attributes,
+ * a trace or span id and an exception, the line is not valid JSON, because the
+ * closing quote of the last id is dropped and the stack trace attribute follows
+ * it.
  */
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
