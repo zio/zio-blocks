@@ -19,13 +19,18 @@ package zio.blocks.data.migration
 import zio.blocks.sql.{DbCon, Dialect, Table}
 
 /**
- * Applies a TargetStrategy, providing the actual table name to write to and
- * handling shadow table lifecycle (create, write, swap).
+ * Carries out a [[TargetStrategy]] for a table: names the table to write to,
+ * creates the shadow table and swaps it in. [[SmallMigrator]] and
+ * [[LargeMigrator]] call it; `TargetStrategy.InPlace` makes each step a no-op.
  */
 object TargetStrategyApplier {
 
   /**
-   * Resolves the effective target table name based on strategy.
+   * Returns the table that converted rows go to: `table.name` for `InPlace`,
+   * `<table>_<suffix>` for `ShadowTable(suffix)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if the suffix is not a plain identifier
    */
   def resolveTableName[E](table: Table[E], strategy: TargetStrategy): String =
     strategy match {
@@ -34,8 +39,9 @@ object TargetStrategyApplier {
     }
 
   /**
-   * Prepares the target: for shadow tables, creates the shadow table. Returns
-   * the table name to write to.
+   * Prepares the target and returns the table to write to: `table.name` for
+   * `InPlace`, and for `ShadowTable` the shadow table that
+   * [[ShadowTable.create]] creates.
    */
   def prepare[E](table: Table[E], strategy: TargetStrategy)(using con: DbCon, dialect: Dialect): String =
     strategy match {
@@ -47,9 +53,9 @@ object TargetStrategyApplier {
     }
 
   /**
-   * Finalizes the target: for shadow tables, performs the atomic swap. For
-   * in-place, no-op. Returns (oldTableName, newTableName) for shadow, or
-   * (tableName, tableName) for in-place.
+   * Finishes the target: for `ShadowTable`, runs [[ShadowTable.swap]] and
+   * returns `(oldName, tableName)`; for `InPlace`, does nothing and returns
+   * `(tableName, tableName)`.
    */
   def finalizeTarget(tableName: String, strategy: TargetStrategy)(using con: DbCon): (String, String) =
     strategy match {
@@ -62,7 +68,9 @@ object TargetStrategyApplier {
   // ---- Pure preview helpers (no connection) ----
 
   /**
-   * Pure shadow-create DDL for the given dialect, if strategy is ShadowTable.
+   * Returns the statement that [[prepare]] runs, without running it: `None` for
+   * `InPlace`, and for `ShadowTable` the shadow table's `CREATE TABLE`, or on
+   * SQLite a `-- ...` comment.
    */
   def preparePreview[E](table: Table[E], strategy: TargetStrategy)(using dialect: Dialect): Option[String] =
     strategy match {
@@ -73,7 +81,10 @@ object TargetStrategyApplier {
         catch { case e: UnsupportedOperationException => Some(s"-- ${e.getMessage}") }
     }
 
-  /** Pure finalize (swap/rename) statements for the given strategy. */
+  /**
+   * Returns the statements that [[finalizeTarget]] runs, without running them:
+   * none for `InPlace`, the two renames for `ShadowTable`.
+   */
   def finalizePreview(tableName: String, strategy: TargetStrategy): List[String] =
     strategy match {
       case TargetStrategy.InPlace             => Nil

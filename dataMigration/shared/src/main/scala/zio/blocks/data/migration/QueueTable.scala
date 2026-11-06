@@ -20,25 +20,37 @@ import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Frag, SqlDialect, Transact
 import zio.blocks.sql.Frag.*
 
 /**
- * Helpers for migration queue tables used by migration workers, dialect-driven
- * to support both PostgreSQL and SQLite.
+ * The queue table of a migration: the keys of the source rows that still need
+ * converting. [[SmallMigrator]] and [[LargeMigrator]] claim keys from it in
+ * batches. Keys enter it through [[enqueue]], called by the application for the
+ * rows it writes or backfills, or through the capture triggers of
+ * [[installTriggers]].
  *
- * Queue tables store IDs of aggregates pending migration. Workers dequeue
- * batches via `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL; SQLite uses a
- * plain `LIMIT` with the write lock held via `IMMEDIATE` (SQLite connections
- * via `JdbcTransactor.fromUrl`/`sqlite` or any pooled/wrapped `DataSource` are
- * configured per-transaction with `busy_timeout=5000` and `IMMEDIATE` via
- * `isWrapperFor`/`unwrap`, so `transact` reserves the write lock and waits on
- * contention; `connect` is configured similarly but does not begin a
- * transaction or reserve the lock — only `transact` issues `BEGIN IMMEDIATE`;
- * see PR #1534 discussion_r3863454094).
+ * The table has three columns: `id TEXT NOT NULL PRIMARY KEY`, the key as text;
+ * `op`, `I`, `U` or `D` for the write that queued it; and `payload`, which the
+ * PostgreSQL delete trigger fills with the deleted row as JSON. A key is queued
+ * at most once. Keys are claimed in text order (`"10"` before `"9"`).
+ *
+ * On PostgreSQL, claims use `FOR UPDATE SKIP LOCKED`, so several workers can
+ * share a queue. On SQLite, `JdbcTransactor` starts each `transact` block with
+ * `BEGIN IMMEDIATE` and a 5-second busy timeout, so one worker claims at a
+ * time. Every table and column name is checked: ASCII letters, digits and
+ * underscores, not starting with a digit, or the method throws
+ * `IllegalArgumentException`.
+ *
+ * {{{
+ * import zio.blocks.sql.{zio => _, _}
+ *
+ * QueueTable.dequeueSQLTemplate("orders_q", 100)(using Dialect.Postgres)
+ * // SELECT id FROM orders_q ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/data-migration/ Data Migration]]
  */
 object QueueTable {
 
-  /**
-   * Fixed queue key column name, matching the documented `(id, op, payload)`
-   * schema.
-   */
+  /** The name of the queue table's key column, `id`. */
   final val QueueKeyColumn = "id"
 
   /**
@@ -65,16 +77,13 @@ object QueueTable {
   }
 
   /**
-   * Creates a queue table with columns (id, op, payload) for tracking dirty
-   * keys. Uses the given `dialect` to generate database-appropriate DDL.
+   * Creates the queue table `tableName` with `CREATE TABLE IF NOT EXISTS`, in
+   * its own transaction, so a second call does nothing. It installs no trigger;
+   * see [[installTriggers]].
    *
-   * Note: trigger installation is a separate step handled by the dialect's
-   * `createTriggerDDL`; this method only creates the queue table itself.
-   *
-   * @param tableName
-   *   Name of the queue table (validated as a bare SQL identifier)
-   * @param transactor
-   *   Transactor for executing DDL
+   * @throws java.lang.IllegalArgumentException
+   *   if `tableName` is not a plain identifier, the key codec has more than one
+   *   column, or `dialect` targets another database than the connection
    */
   def create[ID](tableName: String, transactor: Transactor)(using codec: DbCodec[ID], dialect: Dialect): Unit = {
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
@@ -87,22 +96,20 @@ object QueueTable {
   }
 
   /**
-   * Installs capture triggers on `sourceTable` so that every INSERT, UPDATE,
-   * and DELETE upserts the affected key into the queue table within the
-   * writer's own transaction. This is the automatic counterpart to manual
-   * `enqueue`: once installed, producers write normally and dirty keys are
-   * captured without application-code changes.
+   * Installs triggers on `sourceTable` that queue the key in `sourceIdColumn`
+   * of every inserted, updated or deleted row, in the writer's own transaction.
+   * An insert or update leaves a key that is already queued alone; a delete
+   * sets its `op` to `D`. The application then writes as usual.
    *
-   * The queue key column is the fixed `id` column (see `QueueKeyColumn`) — use
-   * the same codec for `create`/`enqueue`. `sourceIdColumn` names the primary
-   * key column on the source table and may differ from it.
+   * Calling it again does nothing new: SQLite uses `CREATE TRIGGER IF NOT
+   * EXISTS`, and PostgreSQL uses `CREATE OR REPLACE` (PostgreSQL 14 or later).
+   * The queue table must exist first, or every write to `sourceTable` fails. Do
+   * not install triggers on the table that the migrator writes to: its own
+   * writes would queue the converted keys again, without end.
    *
-   * Idempotent: safe to call again on restart (SQLite uses CREATE TRIGGER IF
-   * NOT EXISTS; PostgreSQL uses CREATE OR REPLACE TRIGGER, which requires PG
-   * 14+).
-   *
-   * Do NOT enable capture on the same physical table the migrator writes to:
-   * the worker's own writes would re-enqueue processed keys forever.
+   * @throws java.lang.IllegalArgumentException
+   *   if a name is not a plain identifier, the key codec has more than one
+   *   column, or `dialect` targets another database than the connection
    */
   def installTriggers[ID](queueTable: String, sourceTable: String, sourceIdColumn: String)(using
     tx: DbTx,
@@ -120,12 +127,13 @@ object QueueTable {
   }
 
   /**
-   * Enqueues IDs into the queue table.
+   * Queues `ids` in one `INSERT`, skipping keys that are already queued. Each
+   * key is written as `CAST(? AS TEXT)`, since the key column is text. An empty
+   * `ids` does nothing.
    *
-   * The queue table stores IDs in a TEXT column for portability across ID
-   * types. On PostgreSQL, numeric ID parameters are wrapped in
-   * `CAST(... AS TEXT)` so that they work against the TEXT column without an
-   * implicit-cast error.
+   * @throws java.lang.IllegalArgumentException
+   *   if `tableName` is not a plain identifier or the key codec has more than
+   *   one column
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return
@@ -145,18 +153,16 @@ object QueueTable {
   }
 
   /**
-   * Dequeues up to `batchSize` IDs. Uses the given `dialect` to generate
-   * database-appropriate locking — `FOR UPDATE SKIP LOCKED` on PostgreSQL,
-   * plain `LIMIT` on SQLite.
+   * Claims up to `batchSize` keys, in text order, deletes them from the queue
+   * table and returns them, in the caller's transaction: if the transaction
+   * rolls back, the keys stay queued. PostgreSQL skips rows that another
+   * transaction has locked; SQLite relies on `transact` holding the write lock
+   * (`BEGIN IMMEDIATE`), so use one consumer.
    *
-   * On SQLite the transaction must already hold the write lock before the
-   * SELECT; `JdbcTransactor` configures any SQLite `Connection` (including
-   * pooled/wrapped via `isWrapperFor`/`unwrap`) per-transaction with
-   * `busy_timeout=5000` and `IMMEDIATE` (also `fromUrl` properties and
-   * `sqlite(DataSource)` for concrete `SQLiteDataSource`), so `transact`
-   * reserves the write lock and waits on contention instead of failing the
-   * later `DELETE` with `SQLITE_BUSY`. Single-consumer only on SQLite. See PR
-   * #1534 discussion_r3863454094.
+   * @throws java.lang.IllegalArgumentException
+   *   if `batchSize` is `0` or less, `tableName` is not a plain identifier, the
+   *   key codec has more than one column, or `dialect` targets another database
+   *   than the connection
    */
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")
@@ -177,7 +183,8 @@ object QueueTable {
   }
 
   /**
-   * Returns count of pending IDs in the queue.
+   * Returns the number of keys in the queue table. It throws the driver's
+   * exception if the table does not exist.
    */
   def pending(tableName: String)(using con: DbCon): Long = {
     val validated = SqlId.validate("table", tableName)
@@ -187,14 +194,21 @@ object QueueTable {
 
   // ---- Pure preview helpers (no connection) ----
 
-  /** Pure queue-table DDL for the given dialect. */
+  /**
+   * Returns the queue table's `CREATE TABLE IF NOT EXISTS` statement, without
+   * running it.
+   */
   def queueTableDDL(tableName: String)(using dialect: Dialect): String = {
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     dialect.createQueueTableDDL(validated, colName)
   }
 
-  /** Pure trigger DDLs for the given dialect. */
+  /**
+   * Returns the statements that [[installTriggers]] runs, without running them:
+   * three `CREATE TRIGGER IF NOT EXISTS` on SQLite, a function and a trigger on
+   * PostgreSQL.
+   */
   def triggerDDLs(queueTable: String, sourceTable: String, sourceIdColumn: String)(using
     dialect: Dialect
   ): List[String] = {
@@ -205,14 +219,17 @@ object QueueTable {
     dialect.createTriggerDDL(q, s, srcCol, keyCol)
   }
 
-  /** Pure dequeue SELECT template for the given dialect. */
+  /**
+   * Returns the `SELECT` that [[dequeue]] runs to claim keys, without running
+   * it.
+   */
   def dequeueSQLTemplate(tableName: String, batchSize: Int)(using dialect: Dialect): String = {
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     dialect.dequeueSQL(validated, colName, batchSize)
   }
 
-  /** Pure queue-table `CREATE TABLE` fragment. */
+  /** Returns [[queueTableDDL]] as a `Frag`, to run with `.update`. */
   def ddl(tableName: String)(using dialect: Dialect): Frag =
     Frag.literal(queueTableDDL(tableName))
 }

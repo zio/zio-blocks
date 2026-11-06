@@ -20,17 +20,29 @@ import zio.blocks.sql.{DbCon, DbValue, Frag, Transactor}
 import zio.blocks.sql.Frag.*
 
 /**
- * Helpers for the optional `data_migrations` metadata table.
+ * Reads and writes the `data_migrations` table, an optional record of which
+ * version each aggregate (a row or entity, named by a type and an id) was
+ * migrated to and when. The migrators do not use it; call it yourself when you
+ * want an audit trail or to skip aggregates that are already done.
  *
- * Stores provenance for migrated aggregates when resume/re-processing or audit
- * trails are required. Not required for simple in-place migrations.
+ * {{{
+ * import zio.blocks.sql.{zio => _, _}
+ *
+ * def record(customerId: String)(using con: DbCon): Option[DataVersion] = {
+ *   MigrationMetadata.markDone("customer", customerId, DataVersion(1, 2, 0))
+ *   MigrationMetadata.getVersion("customer", customerId) // Some(DataVersion(1,2,0,None))
+ * }
+ * }}}
  */
 object MigrationMetadata {
 
   private val TableName = "data_migrations"
 
   /**
-   * Creates the data_migrations table if it does not exist.
+   * Creates the `data_migrations` table with `CREATE TABLE IF NOT EXISTS`, so a
+   * second call does nothing. Its columns are `aggregate_type`, `aggregate_id`,
+   * `data_version` (text such as `1.2.0`) and `migrated_at` (milliseconds since
+   * the epoch), with the first two as primary key.
    */
   def createTable(transactor: Transactor): Unit = {
     val ddl = Frag.literal(
@@ -46,7 +58,9 @@ object MigrationMetadata {
   }
 
   /**
-   * Marks an aggregate as successfully migrated to a given version.
+   * Records that the aggregate is at `version`, now, replacing an earlier
+   * record for it. The version is stored as `epoch.major.minor`, without its
+   * `timestampMillis`.
    */
   def markDone(aggregateType: String, aggregateId: String, version: DataVersion)(using con: DbCon): Unit = {
     val vstr = s"${version.epoch}.${version.major}.${version.minor}"
@@ -73,7 +87,9 @@ object MigrationMetadata {
   }
 
   /**
-   * Returns the current data version for an aggregate, if recorded.
+   * Returns the recorded version of the aggregate, with no `timestampMillis`,
+   * or `None` when there is no record or the stored text is not
+   * `epoch.major.minor`.
    */
   def getVersion(aggregateType: String, aggregateId: String)(using con: DbCon): Option[DataVersion] = {
     val parts = IndexedSeq(
@@ -85,9 +101,7 @@ object MigrationMetadata {
     Frag(parts, params).queryOne[String].toOption.flatMap(parseVersion)
   }
 
-  /**
-   * Returns count of migrated aggregates recorded in the metadata table.
-   */
+  /** Returns the number of aggregates of `aggregateType` that have a record. */
   def migratedCount(aggregateType: String)(using con: DbCon): Long = {
     val parts  = IndexedSeq(s"SELECT COUNT(*) FROM $TableName WHERE aggregate_type = ", "")
     val params = IndexedSeq(DbValue.DbString(aggregateType))
