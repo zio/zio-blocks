@@ -477,8 +477,11 @@ object MigrationBuilderMacros {
   /**
    * Expands `migrateField` with an explicit migration: appends a
    * `MigrationAction.MigrateField` at the selected path and adds
-   * `Changeset.MigrateField` and the nested field paths of `F1` and `F2` to the
-   * changeset type.
+   * `Changeset.MigrateField` of the field path, and a `Changeset.FieldName` for
+   * each direct field of `F1` and of `F2` under that path, to the changeset
+   * type. Unlike on Scala 3, fields nested deeper get no marker, so
+   * `MigrationComplete.derive` called with explicit type arguments reports them
+   * as missing (a known bug).
    */
   def migrateFieldExplicitImpl[
     A: c.WeakTypeTag,

@@ -291,7 +291,8 @@ object MigrationBuilderMacros {
   /**
    * Expands `migrateField` with an explicit migration: appends a
    * `MigrationAction.MigrateField` at the selected path and adds
-   * `Changeset.MigrateField` and the nested field paths of `F1` and `F2` to the
+   * `Changeset.MigrateField` of the field path, and a `Changeset.FieldName` for
+   * every field of `F1` and of `F2` at any depth under that path, to the
    * changeset type.
    */
   def migrateFieldExplicitImpl[A: Type, B: Type, F1: Type, F2: Type, CS: Type](
