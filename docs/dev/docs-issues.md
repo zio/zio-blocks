@@ -727,7 +727,7 @@ Suggested fix: remove `Choices`; describe `Concat` on both versions; correct the
 
 - `auth-type.md:134` "By default, `AuthType` returns `Status.NotFound` when the client does not meet the auth requirement": nothing in the module returns a status; `unauthorizedStatus` is a value for a server to use. Suggested: "`AuthType#unauthorizedStatus` is `Status.NotFound` by default; a server built on the endpoint should answer with it ...".
 - `http-codec.md:221` "surfacing a `SchemaError` if the scheme does not match": true; it could add that the message names the class of the parsed header (`... but found Bearer`, or `Unparsed` for an unknown scheme), see `HttpCodec.basicAuth` Scaladoc.
-- `route-tree.md:62` "HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered": the fallback also happens when a `HEAD` root exists but has no match for the path (`RouteTree.scala:57-59`); and the `RoutePattern#decode` side differs for method sets (entry J).
+- `route-tree.md:62` "HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered": the fallback also happens when a `HEAD` root exists but has no match for the path (`RouteTree.scala:57-59`); and the `RoutePattern#decode` side differs for method sets (the endpoint entry on `HEAD` and `GET #| POST`).
 
 ## Docs tooling and examples
 

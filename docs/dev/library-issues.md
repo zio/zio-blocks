@@ -20259,7 +20259,7 @@ object Repro {
 
 **Impact.** A file-extension or versioned route silently loses to a catch-all slug route in the same folder. The `RouteTree` Scaladoc now states the order and this consequence.
 
-**Test gap.** `endpoint/shared/src/test/scala-3/zio/blocks/endpoint/RouteTreeSpec.scala:218-226` (Scala 3 only) routes a `~` segment with no string sibling. (The reproducer writes the `~` segment inline after `/`, which compiles on Scala 3 only; on 2.13 store it in a `val` first, entry Q.)
+**Test gap.** `endpoint/shared/src/test/scala-3/zio/blocks/endpoint/RouteTreeSpec.scala:218-226` (Scala 3 only) routes a `~` segment with no string sibling. (The reproducer writes the `~` segment inline after `/`, which compiles on Scala 3 only; on 2.13 store it in a `val` first, the Scala 2.13 inline `~` trap.)
 
 **Suggested fix.** Rank `Combined` keys that contain a literal before `String`, or try `Combined` before `String`.
 
