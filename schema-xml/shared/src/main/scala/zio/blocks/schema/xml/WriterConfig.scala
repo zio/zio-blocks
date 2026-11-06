@@ -17,14 +17,33 @@
 package zio.blocks.schema.xml
 
 /**
- * Configuration for XML writing.
+ * Configuration for XML writing, used by [[XmlWriter]], `Xml#print` and the
+ * encoding methods of [[XmlCodec]].
+ *
+ * {{{
+ * val config = WriterConfig(indentStep = 4, includeDeclaration = true)
+ *
+ * Xml.Element("status", Xml.Element("code", Xml.Text("200"))).print(config)
+ * // <?xml version="1.0" encoding="UTF-8"?>
+ * // <status>
+ * //     <code>200</code>
+ * // </status>
+ * }}}
  *
  * @param indentStep
- *   Number of spaces per indentation level. 0 means no indentation.
+ *   Number of spaces per indentation level. 0 means no indentation and no line
+ *   breaks.
  * @param includeDeclaration
- *   Whether to include the XML declaration (<?xml version="1.0"?>).
+ *   Whether to start the output with the XML declaration
+ *   `<?xml version="1.0" encoding="..."?>`, which names `encoding`.
  * @param encoding
- *   Character encoding to specify in the XML declaration.
+ *   Character encoding named in the XML declaration, and the charset used to
+ *   turn the output into bytes (`XmlWriter.writeToBytes`, `XmlCodec#encode`).
+ *   An unsupported name makes the byte methods throw
+ *   `java.nio.charset.UnsupportedCharsetException`, and a malformed one
+ *   `java.nio.charset.IllegalCharsetNameException`. The decoding methods read
+ *   bytes as UTF-8 whatever this says, so with another encoding non-ASCII text
+ *   does not decode back correctly, and UTF-16 output does not decode at all.
  */
 final case class WriterConfig(
   indentStep: Int = 0,
@@ -32,6 +51,7 @@ final case class WriterConfig(
   encoding: String = "UTF-8"
 )
 
+/** Predefined writer configurations. */
 object WriterConfig {
 
   /** Default configuration with no indentation and no XML declaration. */
