@@ -806,7 +806,7 @@ Session `jwt-scaladoc` (Opus controller), started 2026-11-05 on `main` `3ac1121a
 
 | Item | Result |
 |---|---|
-| PR | #1947 (one PR). CI on `de55fd3ae`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt@v1.5.7`'s AMPEL verify step ("compiling policy: unable to parse a policy, group or policySet from data") on every open PR and on main, not in jwt. Main merged in three times (#1942–#1944, #1946, #1949), both sides kept, scaladoc-check re-run each time |
+| PR | #1947 (one PR), merged 2026-11-06 as `07f71de18`. CI on `de55fd3ae`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt@v1.5.7`'s AMPEL verify step ("compiling policy: unable to parse a policy, group or policySet from data") on every open PR and on main, not in jwt. Main merged in three times (#1942–#1944, #1946, #1949), both sides kept, scaladoc-check re-run each time |
 | Coverage | 62 / 146 → 146 / 146; `--drift` 0; comments-only: 10 files, 0 code changes |
 | Examples | 13 compiled blocks per Scala version (2.13.18, 3.9.0, 3.10.0; `jwt.jvm` in `scaladocCheckedModules`); the one old `...` block now compiles |
 | Writing | Task 1 (Opus, the only sbt runner): tooling, tier 1, fact-check of all inherited comments, bug entries. In parallel Task 2 (Sonnet, no sbt): the 20 gaps in `JwtValue`, `Base64Url` and both backends; its 5 suspected bugs triaged by Task 1 |
