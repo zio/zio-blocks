@@ -270,6 +270,17 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "zio.blocks.schema.avro"
       )
     },
+    test("moduleImport and objectName use packageOverrides for markdown, whose package is zio.blocks.docs") {
+      val docPath    = "markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala"
+      val interpPath = "markdown/shared/src/main/scala-2/zio/blocks/docs/MdInterpolator.scala"
+      assertTrue(
+        ScaladocSnippets.packageOverrides("markdown") == "zio.blocks.docs",
+        ScaladocSnippets.modulePackage(docPath) == "zio.blocks.docs",
+        ScaladocSnippets.moduleImport(docPath) == "zio.blocks.docs._",
+        ScaladocSnippets.objectName(docPath, 33) == "Snippet_markdown_shared_scala_Doc_L33",
+        ScaladocSnippets.objectName(interpPath, 7) == "Snippet_markdown_shared_scala_2_MdInterpolator_L7"
+      )
+    },
     test("render gives an http-model example the zio.http import") {
       val path    = "http-model/shared/src/main/scala/zio/http/URL.scala"
       val snippet = ScaladocSnippets.Snippet(path, 20, List("val a = 1"), None)
