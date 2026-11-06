@@ -150,7 +150,7 @@ object log extends LogVersionSpecific {
    * well as the outputs already registered.
    *
    * `log.install` drops it. After `log.removeAll`, nothing reaches it until
-   * `log.setMinSeverity` or `log.install` runs, a known bug.
+   * `log.setMinSeverity` runs, a known bug.
    */
   def addProcessor(processor: LogRecordProcessor): Unit = synchronized {
     val currentState = GlobalLogState.get()
