@@ -848,6 +848,10 @@ Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `a
 
 PR #1950 (one PR), CI green on `0dfbf8261`: 23 pass, 10 skipping. Tooling: `packageOverrides` entries `schema-messagepack` → `zio.blocks.schema.msgpack` and `http-model-schema` → `zio.http.schema`; both modules in `scaladocCheckedModules`; AGENTS.md Scaladoc bullet and two downstream rows (approved). Comments only. Gates: scaladoc-check 32 tests on 3 versions; 8 doc runs; `check`, `headerCheckAll`, `scalafmtAll`. Reviews (fresh Opus): 3 false + 15 imprecise claims + 1 style note; 18 of 19 applied; Sonnet re-review APPROVE. Every reproducer re-run by a reviewer. Time: about 2.5 h of working time over two reboots. Skill lessons: re-run scaladoc-check after merging main into the tooling lists; fsync the bug-entries file (a reboot truncated it once).
 
+## 13n. Scaladoc: endpoint module (in progress)
+
+Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit).
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
