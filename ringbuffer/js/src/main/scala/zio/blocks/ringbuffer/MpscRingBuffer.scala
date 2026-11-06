@@ -89,8 +89,9 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
    *
    * Call it from the consumer thread only; nothing checks this. Two threads
    * taking at once on the JVM can receive the same element twice, lose
-   * elements, and leave the buffer looking full for good, a known bug that
-   * `MuxStream#receive` and `MuxStream#takeOutbound` inherit.
+   * elements, and leave the buffer looking full for good. `MuxStream#receive`
+   * and `MuxStream#takeOutbound` take from this buffer, so the same happens
+   * there, a known bug.
    */
   def take(): A = {
     val cIdx = consumerIndex
