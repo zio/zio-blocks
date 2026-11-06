@@ -208,8 +208,8 @@ final case class SchemaExpr[A, B](
  * operators of [[Optic]] call these. A binary constructor converts the input
  * with the input schema of its left (or first) operand (`stringRegexMatch` uses
  * its `string` operand), so put a `literal` on the right: with a literal on the
- * left, the other side sees no input and the expression yields no results (see
- * `docs/dev/issues.md`).
+ * left, the other side sees no input and the expression yields no results (a
+ * known bug).
  */
 object SchemaExpr {
 
@@ -344,7 +344,7 @@ object SchemaExpr {
    * Returns a literal expression of the default value of `schema`, or `None`
    * when the schema has no default value. Its type says it takes any input, but
    * it converts its input with `schema`, so evaluating it on a value that is
-   * not an `A` throws a `ClassCastException` (see `docs/dev/issues.md`).
+   * not an `A` throws a `ClassCastException` (a known bug).
    */
   def schemaDefault[A](implicit schema: Schema[A]): Option[SchemaExpr[Any, A]] =
     schema.getDefaultValue.map { defaultValue =>
@@ -361,7 +361,7 @@ object SchemaExpr {
    * with `schema`. `S` is the input type of the expressions it is combined
    * with. Put it on the right of a binary constructor: its input schema
    * discards the input, so on the left it leaves the other side with no input
-   * and the expression yields no results (see `docs/dev/issues.md`).
+   * and the expression yields no results (a known bug).
    */
   def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
