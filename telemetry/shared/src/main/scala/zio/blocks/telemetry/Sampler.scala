@@ -33,8 +33,10 @@ object SamplingDecision {
   /**
    * Record the span with the sampled flag cleared. It reaches every processor
    * like a sampled span, and the in-memory buffer behind `trace.collectedSpans`
-   * keeps it; the cleared flag tells exporters and downstream services not to
-   * keep it.
+   * keeps it. Nothing in the module drops it: a processor that exports only
+   * sampled spans must check `spanData.spanContext.isSampled` itself. A
+   * propagator's `inject` writes the cleared flag, so downstream services see
+   * it.
    */
   case object RecordOnly extends SamplingDecision
 
