@@ -1147,16 +1147,19 @@ object DynamicSchemaExpr {
     case object BigDecimalTag extends NumericTypeTag {
 
       /**
-       * Returns `x + y` as a `BigDecimal` (`0.1 + 0.2` gives 0.3); a value that
-       * is not a `BigDecimal` gives
+       * Returns `x + y` as a `BigDecimal`, rounded with the `MathContext` of
+       * `x` (34 significant digits by default, so `0.1 + 0.2` gives 0.3 but
+       * `1e40 + 1e-40` gives 1.000000000000000000000000000000000E+40); a value
+       * that is not a `BigDecimal` gives
        * `Left("Expected BigDecimal values, got: " + x + " and " + y)`.
        */
       def add(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a + b)) }
 
       /**
-       * Returns `x - y` as a `BigDecimal`; a value that is not a `BigDecimal`
-       * gives `Left("Expected BigDecimal values, got: " + x + " and " + y)`.
+       * Returns `x - y` as a `BigDecimal`, rounded with the `MathContext` of
+       * `x`; a value that is not a `BigDecimal` gives
+       * `Left("Expected BigDecimal values, got: " + x + " and " + y)`.
        */
       def subtract(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a - b)) }
