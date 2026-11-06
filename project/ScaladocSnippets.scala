@@ -85,8 +85,10 @@ object ScaladocSnippets {
    * `zio.blocks.<module-dir>` with `-` read as `.`.
    */
   val packageOverrides: Map[String, String] = Map(
-    "http-model" -> "zio.http",
-    "markdown"   -> "zio.blocks.docs"
+    "http-model"         -> "zio.http",
+    "http-model-schema"  -> "zio.http.schema",
+    "markdown"           -> "zio.blocks.docs",
+    "schema-messagepack" -> "zio.blocks.schema.msgpack"
   )
 
   /**
