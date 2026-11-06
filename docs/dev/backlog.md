@@ -858,7 +858,7 @@ Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18
 
 ## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer (in progress)
 
-Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift in mux (scala-2/scala-3) and ringbuffer (jvm/js).
+Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only.
 
 ## 13. Scaladoc: next modules
 
