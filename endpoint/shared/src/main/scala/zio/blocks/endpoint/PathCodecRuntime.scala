@@ -20,11 +20,20 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.combinators.Tuples
 import zio.http.Path
 
+/**
+ * Interpreter behind `PathCodec#render`, `alternatives`, `decode`, `matches`
+ * and `format`.
+ */
 private[endpoint] object PathCodecRuntime {
 
   private type DecodeError = String
   private type AnyCombiner = Tuples.Tuples.WithOut[Any, Any, Any]
 
+  /**
+   * Renders `codec` as a route string, writing each capture name between
+   * `prefix` and `suffix` and a `Fallback` as `left | right`; an empty result
+   * is `/`.
+   */
   def render(codec: PathCodec[_], prefix: String, suffix: String): String = {
     def loop(current: PathCodec[_]): String =
       current match {
@@ -39,6 +48,11 @@ private[endpoint] object PathCodecRuntime {
     if (rendered.isEmpty) "/" else rendered
   }
 
+  /**
+   * Expands every `Fallback` into its alternatives, one codec per combination
+   * across a `Concat` (a cross product). An empty alternative is dropped, and a
+   * `Fallback` branch that is not a literal throws `IllegalStateException`.
+   */
   def expand(codec: PathCodec[_]): List[PathCodec[_]] =
     codec match {
       case fallback: PathCodec.Fallback =>
@@ -82,6 +96,12 @@ private[endpoint] object PathCodecRuntime {
       case other                                 => List(other)
     }
 
+  /**
+   * Returns every way `codec` can decode `segments` from `index`, as pairs of
+   * the decoded value and the index after the last segment used; empty when it
+   * cannot. A `Transform` whose `decode` returns `Left` gives no candidate, and
+   * a `Fallback` lists the left branch's candidates first.
+   */
   def decodeCodec(codec: PathCodec[_], segments: Chunk[String], index: Int): List[(Any, Int)] =
     codec match {
       case PathCodec.Segment(segment)              => decodeSegment(segment, segments, index)
@@ -103,6 +123,10 @@ private[endpoint] object PathCodecRuntime {
       case PathCodec.Fallback(left, right) => decodeCodec(left, segments, index) ++ decodeCodec(right, segments, index)
     }
 
+  /**
+   * The candidates for one segment codec; `Trailing` uses all remaining
+   * segments.
+   */
   private def decodeSegment(codec: SegmentCodec[_], segments: Chunk[String], index: Int): List[(Any, Int)] =
     codec match {
       case SegmentCodec.Empty                => List(((), index))
@@ -135,7 +159,7 @@ private[endpoint] object PathCodecRuntime {
           .flatMap { s =>
             // Whole-segment fast path: the layout gate is index-based (no
             // substring), and `java.util.UUID` construction takes the segment
-            // itself — no window copy is ever materialized here.
+            // itself, so no window copy is made here.
             if (!SegmentCodec.isUuidWindow(s, 0, s.length)) None
             else
               try Some(java.util.UUID.fromString(s))
@@ -159,18 +183,16 @@ private[endpoint] object PathCodecRuntime {
     }
 
   /**
-   * Allocation-free boolean fast path for whole-path matching: mirrors
-   * [[decodeCodec]] structurally but returns the end index (`-1` for no match)
-   * instead of building `(value, end)` candidate lists, so `matches` never
-   * allocates per segment or per combinator. `Fallback` keeps the longest
-   * branch end — every `expand`-valid alternative is a single literal, so
-   * overlapping branches agree and routing is unaffected. Path-level
-   * `Transform` is the one node that needs its decoded value, and falls back to
-   * [[decodeCodec]] (rare on the path level).
+   * Tells whether `codec` matches all of `segments`, the fast path behind
+   * `PathCodec#matches`. It follows [[decodeCodec]] but tracks only the end
+   * index (`-1` for no match) instead of building `(value, end)` candidate
+   * lists. A `Fallback` takes the longest branch end, and a path-level
+   * `Transform` needs its decoded value, so it calls [[decodeCodec]].
    */
   def matchesCodec(codec: PathCodec[_], segments: Chunk[String]): Boolean =
     matchEnd(codec, segments, 0) == segments.length
 
+  /** The end index of the best match of `codec` from `index`, or `-1`. */
   private def matchEnd(codec: PathCodec[_], segments: Chunk[String], index: Int): Int =
     codec match {
       case PathCodec.Segment(segment)       => matchSegmentEnd(segment, segments, index)
@@ -184,6 +206,7 @@ private[endpoint] object PathCodecRuntime {
         decodeCodec(transformed, segments, index).foldLeft(-1) { case (best, (_, end)) => math.max(best, end) }
     }
 
+  /** The end index of a one-segment match from `index`, or `-1`. */
   private def matchSegmentEnd(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     codec match {
       case SegmentCodec.Empty    => index
@@ -195,13 +218,9 @@ private[endpoint] object PathCodecRuntime {
     }
 
   /**
-   * Diagnostic pass computing how far `codec` gets into `segments` (number of
-   * segments consumed along the best partial match). Runs ONLY on the decode
-   * failure path to thread segment position into error messages, so its
-   * [[decodeCodec]] allocations never touch the hot path. A full
-   * `Either[SchemaError, A]` migration (composing positions à la
-   * `SchemaError.atField`) remains future work; this message-level context is
-   * the deliberate stopgap.
+   * Returns how many segments of `segments` the best partial match of `codec`
+   * reaches. `PathCodec#decode` calls it after a failed decode, to name the
+   * failing segment in the error message.
    */
   def furthestIndex(codec: PathCodec[_], segments: Chunk[String], index: Int): Int =
     codec match {
@@ -218,6 +237,7 @@ private[endpoint] object PathCodecRuntime {
         math.max(furthestIndex(left, segments, index), furthestIndex(right, segments, index))
     }
 
+  /** The furthest index one segment codec reaches from `index`. */
   private def furthestSegment(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     codec match {
       case SegmentCodec.Trailing => segments.length
@@ -227,6 +247,11 @@ private[endpoint] object PathCodecRuntime {
         else index
     }
 
+  /**
+   * Formats `value` as a path through `codec`. `Left` for an `Ignored` codec,
+   * which captures no value, and when a `Transform` encoder returns `Left`; a
+   * `Fallback` formats with its left branch.
+   */
   def formatCodec(codec: PathCodec[_], value: Any): Either[String, Path] =
     codec match {
       case PathCodec.Segment(segment)              => Right(segment.asInstanceOf[SegmentCodec[Any]].format(value))
