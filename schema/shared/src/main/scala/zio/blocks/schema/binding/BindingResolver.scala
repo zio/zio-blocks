@@ -423,8 +423,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       entries.get(keyForProper(typeId)).collect { case Entry.Wrapper(b) => b.asInstanceOf[Binding.Wrapper[A, _]] }
 
     /**
-     * Returns the dynamic binding bound for `DynamicValue`, or `None` when none
-     * is bound.
+     * Returns the dynamic binding bound for `DynamicValue`, or `None` when
+     * `DynamicValue` has no binding or its binding is of another kind.
      */
     def resolveDynamic(implicit typeId: TypeId[DynamicValue]): Option[Binding.Dynamic] =
       entries.get(keyForProper(typeId)).collect { case Entry.Dynamic(b) => b }
