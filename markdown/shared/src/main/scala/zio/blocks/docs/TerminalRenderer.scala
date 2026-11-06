@@ -26,17 +26,18 @@ import zio.blocks.chunk.Chunk
  * cyan, 5 blue, 6 magenta). Emphasis is italic, strong is bold, strikethrough
  * is struck through, and code spans and code blocks have a gray background.
  * Links are blue and underlined, followed by the address in parentheses (a link
- * title is not shown). Images become `[Image: alt] (url)`. Quotes get a `│ `
- * prefix, bullet items start with `• `, task items with `[x] ` or `[ ] `, and a
- * thematic break is a line of 40 `─` characters. Text, raw HTML and code are
- * written without escaping.
+ * title is not shown); an autolink is the blue, underlined address alone.
+ * Images become `[Image: alt] (url)`. Quotes get a `│ ` prefix, bullet items
+ * start with `• `, task items with `[x] ` or `[ ] `, and a thematic break is a
+ * line of 40 `─` characters. Text, raw HTML and code are written without
+ * escaping.
  *
  * @example
  *   {{{
  * val doc = Parser.parse("# Deploy\n\nRun `make deploy` for **staging**.").toOption.get
  *
  * val ansi = TerminalRenderer.render(doc)
- * val shown = ansi.replace("\u001b", "ESC")
+ * val shown = ansi.replace("\u001b", "ESC").replace("\n", "\\n")
  * // ESC[1mESC[31mDeployESC[0m\n\nRun ESC[48;5;236mmake deployESC[0m for ESC[1mstagingESC[0m.\n\n
  *   }}}
  *
@@ -70,8 +71,8 @@ object TerminalRenderer {
   /**
    * Render a Doc to an ANSI-colored terminal string.
    *
-   * Paragraphs, headings, code blocks and thematic breaks end with a blank
-   * line.
+   * Paragraphs, headings, code blocks, thematic breaks and HTML blocks end with
+   * a blank line; lists, block quotes and tables end with a single newline.
    *
    * @param doc
    *   The document to render
@@ -84,10 +85,11 @@ object TerminalRenderer {
   /**
    * Render a Block to its terminal representation.
    *
-   * A table is drawn with `│` between cells and a separator row of `─`; the
-   * separator has one segment per alignment and the alignment itself has no
-   * effect. A block quote drops its blank lines. A `ListItem` on its own
-   * renders as the empty string; it is only written inside a list.
+   * A table is drawn with `│` around and between cells and a separator row of
+   * `─` segments joined by `├`, `┼` and `┤`; the separator has one segment per
+   * alignment and the alignment itself has no effect. A block quote drops its
+   * blank lines. A `ListItem` on its own renders as the empty string; it is
+   * only written inside a list.
    *
    * @param block
    *   The block element to render

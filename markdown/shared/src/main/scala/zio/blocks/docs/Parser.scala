@@ -27,9 +27,11 @@ import zio.blocks.chunk.Chunk
  * understand kept as plain text.
  *
  * ==What it reads==
- *   - ATX headings, `#` to `######`. A closing run of `#` is dropped. A line
- *     that starts with `#` but has no space after the hashes becomes a level-1
- *     heading holding the whole line as text.
+ *   - ATX headings, `#` to `######`. A closing run of `#` is dropped, even
+ *     without a space before it (`# C#` reads as `C`), but not when spaces
+ *     follow it (`## x ### ` keeps `x ###`). A line that starts with one to six
+ *     `#` and has no space after them becomes a level-1 heading holding the
+ *     whole line as text.
  *   - Fenced code blocks opened with backticks or tildes. The info string is
  *     the rest of the opening line, trimmed.
  *   - Thematic breaks: three or more `-`, `*` or `_` of one kind, with optional
@@ -59,17 +61,19 @@ import zio.blocks.chunk.Chunk
  *     child.
  *   - Loose lists: a blank line ends a list, so the next item starts a new list
  *     (an ordered one starts at its own number). Lists are always tight.
- *   - YAML frontmatter. A text that starts with a `---` line and has another
- *     `---` line after it is rejected, whatever lies between them.
+ *   - YAML frontmatter. A text whose first line is exactly `---` and that has
+ *     another `---` line at least two lines further down is rejected, whatever
+ *     lies between them.
  *   - A `\|` inside a table cell: it still splits the cell.
  *
  * Some inputs read differently from what you may expect. An underscore or
  * asterisk inside a word starts emphasis (`snake_case_name` has emphasized
  * `case`), a bare address swallows the punctuation after it (`http://a.b.` is
  * one address), and `<b>hi</b> there` at the start of a line is one HTML block,
- * not a paragraph. An ordered-list marker of more than ten digits
- * (`12345678901.`) throws a `NumberFormatException` instead of returning a
- * `Left`, a known bug in 0.0.56.
+ * not a paragraph. An ordered-list marker above 2147483647 (`2147483648. a`)
+ * throws a `NumberFormatException` instead of returning a `Left`, a known bug
+ * in 0.0.56; in an `md` literal the same line makes the compilation fail with
+ * that exception.
  *
  * @example
  *   {{{
@@ -77,7 +81,7 @@ import zio.blocks.chunk.Chunk
  *
  * val doc = Parser.parse(markdown).toOption.get
  * val kinds = doc.blocks.map(_.productPrefix)
- * // Chunk(Heading, BulletList)
+ * // Chunk(Heading,BulletList)
  * val html = doc.toHtmlFragment
  * // <h1>Release 1.4</h1><ul><li><p>Faster startup</p></li><li><p>Fixed <code>--dry-run</code></p></li></ul>
  *   }}}

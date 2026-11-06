@@ -28,8 +28,11 @@ import zio.blocks.chunk.Chunk
  * ([[SoftBreak]], [[HardBreak]]). Every case exists twice: as a member of the
  * package (`Text`) and as a member of the [[Inline]] companion (`Inline.Text`).
  * [[Parser]] builds the package-level ones, and the renderers accept both. A
- * [[Doc]] that mixes the two families is not equal to one built from a single
- * family, because `Text("a")` and `Inline.Text("a")` are different classes.
+ * [[Doc]] compares normalized documents. Normalizing turns the `Inline.`
+ * emphasis, strong, strikethrough and link cases, and any text node merged with
+ * a neighbour, into the package-level ones, but keeps a lone `Inline.Text`,
+ * `Inline.Code` and the other `Inline.` cases without children. So a document
+ * holding `Inline.Code("a")` is not equal to one holding `Code("a")`.
  *
  * @example
  *   {{{
@@ -125,8 +128,8 @@ object Inline {
   final case class Image(alt: String, url: String, title: Option[String]) extends Inline
 
   /**
-   * Raw HTML inside a paragraph, such as `<br>`. The renderers write it out
-   * unchanged.
+   * Raw HTML inside a paragraph or heading, such as the `<br>` in `x <br> y`.
+   * The renderers write it out unchanged.
    *
    * @param content
    *   The HTML text, including the angle brackets
@@ -224,8 +227,8 @@ final case class Link(text: Chunk[Inline], url: String, title: Option[String]) e
 final case class Image(alt: String, url: String, title: Option[String]) extends Inline
 
 /**
- * Raw HTML inside a paragraph, such as `<br>`. The renderers write it out
- * unchanged.
+ * Raw HTML inside a paragraph or heading, such as the `<br>` in `x <br> y`. The
+ * renderers write it out unchanged.
  *
  * @param content
  *   The HTML text, including the angle brackets

@@ -57,8 +57,9 @@ import zio.blocks.chunk.Chunk
 sealed trait Block extends Product with Serializable
 
 /**
- * A paragraph: a run of inline content, ended by a blank line or by the start
- * of another block.
+ * A paragraph: a run of inline content. [[Parser]] ends it at a blank line or
+ * at a line that starts a heading, code fence, block quote, list, thematic
+ * break or HTML block; a table header line does not end it.
  *
  * @param content
  *   The inline elements within the paragraph

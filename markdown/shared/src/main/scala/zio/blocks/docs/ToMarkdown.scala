@@ -87,8 +87,8 @@ object ToMarkdown {
   implicit val longToMarkdown: ToMarkdown[Long] = (a: Long) => Text(a.toString)
 
   /**
-   * A `Double` becomes a text node holding `Double#toString` (`1.0E10` for ten
-   * billion).
+   * A `Double` becomes a text node holding `Double#toString`, which differs by
+   * platform: ten billion is `1.0E10` on the JVM and `10000000000` on Scala.js.
    */
   implicit val doubleToMarkdown: ToMarkdown[Double] = (a: Double) => Text(a.toString)
 

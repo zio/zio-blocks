@@ -66,9 +66,10 @@ object Renderer {
   /**
    * Render a Doc to a GitHub Flavored Markdown string.
    *
-   * Writes the blocks one after another with [[Renderer.renderBlock]]. Each
-   * block ends with a newline, and a paragraph ends with a blank line. No blank
-   * line is written after a heading, a list, a code block or a thematic break.
+   * Writes the blocks one after another with [[Renderer.renderBlock]]. A
+   * paragraph ends with a blank line, and so does each item of a loose list;
+   * headings, tight lists, code blocks, thematic breaks and tables end with a
+   * single newline.
    *
    * @param doc
    *   The document to render

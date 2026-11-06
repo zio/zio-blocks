@@ -50,7 +50,7 @@ object HeadingLevel {
    * Look up a heading level by its number.
    *
    * @param n
-   *   The heading level (must be 1-6)
+   *   The number to look up
    * @return
    *   `Some(level)` if `n` is 1 to 6, `None` otherwise
    */
