@@ -17,20 +17,27 @@
 package zio.blocks.smithy
 
 /**
- * Serializes a `SmithyModel` to valid Smithy IDL text.
+ * Serializes a `SmithyModel` to Smithy IDL text; `SmithyModel#prettyPrint`
+ * calls it.
  *
- * The printer produces output in canonical Smithy IDL order: version statement,
- * namespace, use statements, metadata, and shape definitions, each separated by
- * blank lines.
+ * The printer writes the version statement, namespace, use statements, metadata
+ * (sorted by key), shape definitions and apply statements, each group separated
+ * by blank lines. A `@documentation` trait with a string value becomes `///`
+ * comment lines, and every trait of an apply statement gets its own `apply`
+ * line. Trait ids in `smithy.api` are written without their namespace, and so
+ * are shape references in `smithy.api`, in the model's namespace or with an
+ * empty namespace.
  *
- * @example
- *   {{{
+ * {{{
  * val model = SmithyModel("2.0", "com.example", Nil, Map.empty, List(
  *   ShapeDefinition("MyString", StringShape("MyString"))
  * ))
  * val idl = model.prettyPrint
- * // "$$version: \"2.0\"\n\nnamespace com.example\n\nstring MyString\n"
- *   }}}
+ * // "\$version: \"2.0\"\n\nnamespace com.example\n\nstring MyString\n"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#serializing-models Serializing Models]]
  */
 private[smithy] object SmithyPrinter {
 
@@ -42,7 +49,7 @@ private[smithy] object SmithyPrinter {
    * @param model
    *   the SmithyModel to serialize
    * @return
-   *   a String containing valid Smithy IDL text
+   *   the Smithy IDL text
    */
   def print(model: SmithyModel): String = print(model, 4)
 
@@ -54,7 +61,7 @@ private[smithy] object SmithyPrinter {
    * @param indent
    *   the number of spaces to use for indentation within shapes
    * @return
-   *   a String containing valid Smithy IDL text
+   *   the Smithy IDL text
    */
   def print(model: SmithyModel, indent: Int): String = {
     val sb  = new StringBuilder

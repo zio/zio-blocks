@@ -29,9 +29,20 @@ package zio.blocks.smithy
  *   optional source content (e.g., the Smithy input that caused the error)
  */
 sealed trait SmithyError {
+
+  /** What went wrong, such as `Expected '{' but found 'w'`. */
   def message: String
+
+  /** The 1-based line where the error occurred. */
   def line: Int
+
+  /** The 1-based column where the error occurred. */
   def column: Int
+
+  /**
+   * Optional source text for context. `SmithyModel.parse` always leaves it
+   * empty.
+   */
   def source: Option[String]
 
   /**
@@ -50,6 +61,7 @@ sealed trait SmithyError {
   }
 }
 
+/** The kinds of [[SmithyError]]. */
 object SmithyError {
 
   /**
@@ -63,7 +75,8 @@ object SmithyError {
    * @param column
    *   column number where parsing failed
    * @param source
-   *   optional source code snippet for context
+   *   optional source code snippet for context; `SmithyModel.parse` leaves it
+   *   empty
    */
   final case class ParseError(
     message: String,
