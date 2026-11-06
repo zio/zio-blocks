@@ -19,9 +19,6 @@ package zio.http.datastar
 import scala.annotation.{implicitAmbiguous, implicitNotFound}
 import zio.blocks.html._
 
-@implicitNotFound(
-  "No ToDatastarExpr instance found for type ${A}. Use js\"...\" for Datastar expressions or typed Signal/SignalUpdate values."
-)
 /**
  * Turns a value into the text of a Datastar expression, for the `:=` methods of
  * the attribute builders. An instance exists for every type with a `ToJs`
@@ -44,6 +41,9 @@ import zio.blocks.html._
  * @see
  *   [[https://zioblocks.com/reference/datastar/attributes/ Datastar Attributes]]
  */
+@implicitNotFound(
+  "No ToDatastarExpr instance found for type ${A}. Use js\"...\" for Datastar expressions or typed Signal/SignalUpdate values."
+)
 trait ToDatastarExpr[-A] {
 
   /** Returns the expression text for `a`. */

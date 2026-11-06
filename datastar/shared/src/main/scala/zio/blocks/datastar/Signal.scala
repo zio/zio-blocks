@@ -27,11 +27,12 @@ import zio.blocks.schema.Schema
  * [[DatastarEvent.patchSignals]].
  *
  * A name is one or more segments separated by dots. Each segment starts with a
- * character that Java accepts at the start of an identifier (a letter, `_` or
- * `\$`) and continues with characters Java accepts inside one, and the name
- * must not contain `__`, which Datastar uses for modifiers. `Signal("...")`
- * checks a literal name at compile time and any other name at run time;
- * [[Signal.dynamic]] always checks at run time.
+ * character that Java accepts at the start of an identifier (such as a letter,
+ * `_` or `\$`; Java also accepts currency signs such as `€`, which JavaScript
+ * rejects, a known bug) and continues with characters Java accepts inside one,
+ * and the name must not contain `__`, which Datastar uses for modifiers.
+ * `Signal("...")` checks a literal name at compile time and any other name at
+ * run time; [[Signal.dynamic]] always checks at run time.
  *
  * {{{
  * val count = Signal[Int]("count")

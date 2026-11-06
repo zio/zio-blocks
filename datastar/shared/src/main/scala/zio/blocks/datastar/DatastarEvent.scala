@@ -128,9 +128,10 @@ object DatastarEvent {
     /**
      * Sets the CSS selector of the target element and adds a `selector` line.
      * Without a selector, Datastar matches each patched element to the page
-     * element with the same `id`. The selector is written as `s.render` returns
-     * it, so it must not contain a line break; use selectors from your own
-     * code.
+     * element with the same `id`; that works only in the `Outer` and `Replace`
+     * modes, and Datastar rejects a patch in any other mode that has no
+     * selector. The selector is written as `s.render` returns it, so it must
+     * not contain a line break; use selectors from your own code.
      */
     def selector(s: CssSelector): PatchElementsBuilder =
       new PatchElementsBuilder(elements, Maybe.present(s), mode, useViewTransition, namespace, eventId, retryMillis)
@@ -150,10 +151,10 @@ object DatastarEvent {
       new PatchElementsBuilder(elements, selector, mode, true, namespace, eventId, retryMillis)
 
     /**
-     * Adds a `namespace` line, `svg` or `mathml` in the Datastar protocol, for
-     * elements that belong to that XML namespace. The value is written as
-     * given, so it must not contain a line break; use values from your own
-     * code.
+     * Adds a `namespace` line, `svg` or `mathml` (Datastar's default is `html`,
+     * and it rejects other values), for elements that belong to that XML
+     * namespace. The value is written as given, so it must not contain a line
+     * break; use values from your own code.
      */
     def namespace(ns: String): PatchElementsBuilder =
       new PatchElementsBuilder(elements, selector, mode, useViewTransition, Maybe.present(ns), eventId, retryMillis)
@@ -295,10 +296,10 @@ object DatastarEvent {
 
   /**
    * Starts a `datastar-patch-signals` event whose `signals` value is `json`,
-   * written as given and not validated. Malformed JSON gives an event that
-   * Datastar discards. When `json` contains a line break, the lines after the
-   * first go out as bare `data:` lines that Datastar drops; this is a known
-   * bug, so pass single-line JSON.
+   * written as given and not validated, so validate any value that comes from
+   * users. When `json` contains a line break, the lines after the first go out
+   * as bare `data:` lines that Datastar drops; this is a known bug, so pass
+   * single-line JSON.
    */
   def patchSignalsRaw(json: String): PatchSignalsBuilder =
     new PatchSignalsBuilder(json, false, Maybe.absent, Maybe.absent)
