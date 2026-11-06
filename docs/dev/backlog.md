@@ -874,9 +874,21 @@ Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18
 
 Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only.
 
-## 13q. Scaladoc: projection, dataMigration, htmx and datastar (in progress)
+## 13q. Scaladoc: projection, dataMigration, htmx and datastar
 
 Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
+
+PR #1959 (one PR), opened 2026-11-06 with main `121cb1024` merged in (two conflicts, both sides kept). Gates after the merge: `scaladoc-check-scala3` on 3.9.0 and 3.10.0, `scaladoc-check/test` on 3.9.0 (35 tests), 7 `doc` builds on 3.9.0, `check`, `headerCheckAll`.
+
+| Module | Documented before → after | Inherited comments wrong or imprecise | Examples | Review (Important / Minor) | Bugs filed |
+|---|---|---|---|---|---|
+| projection | 167/256 → 256/256 | 44/167 (26%) | 11 compiled | 0 / 8 (review A, with dataMigration) | 5 library + 1 docs |
+| dataMigration | 50/61 → 61/61 | 18/55 (33%) | 8 compiled | (in review A) | 1 library |
+| htmx | 96/418 → 418/418 | 19/96 (20%) | 13 compiled | 0 / 5 (review B) | 4 library + 2 docs |
+| datastar | 77/252 → 251/252 (the script misses a doc above a multi-line `@implicitNotFound`) | 20/92 (22%) | 29 (15 compiled; 14 `// no-check` on Scala 3.10, a known bug) | 3 / 3 (review B) | 3 library + 1 usability trap + 3 docs, and the Scala 3.10 `ToDatastarExpr`/`NotString` bug |
+| Total | 390/987 → 986/987 | 101/410 (25%) | 61 | 3 / 16, all fixed; Sonnet re-review APPROVE | 21 entries |
+
+Time: about 3.3 h active from brief to PR (2 h of writers and reviews in parallel, about 25 min of sbt).
 
 ## 13r. Scaladoc: markdown module
 
