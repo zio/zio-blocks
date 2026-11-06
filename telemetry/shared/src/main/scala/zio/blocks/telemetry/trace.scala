@@ -35,9 +35,10 @@ import java.util.concurrent.atomic.AtomicReference
  * Application code calls `trace` directly; library code should take a
  * [[Tracer]] as a parameter instead.
  *
- * A known bug: after `trace.install` or `trace.removeAll()`,
- * `trace.collectedSpans` stays empty for the rest of the program, because no
- * call reconnects the in-memory buffer.
+ * A known bug: after `trace.install` or `trace.removeAll()`, the buffer behind
+ * `trace.collectedSpans` receives no new spans for the rest of the program,
+ * except from tracers taken with `trace.get` before, because no call reconnects
+ * it.
  *
  * {{{
  * trace.clearSpans()
@@ -139,8 +140,9 @@ object trace {
    * for every thread. The previous provider is not shut down, and tracers taken
    * from it keep using it.
    *
-   * A known bug: from then on, `trace.collectedSpans` stays empty for the rest
-   * of the program, because no call reconnects the in-memory buffer. Give the
+   * A known bug: from then on, the buffer behind `trace.collectedSpans`
+   * receives no new spans for the rest of the program, except from tracers
+   * taken with `trace.get` before, because no call reconnects it. Give the
    * provider a processor of its own to read its spans.
    *
    * {{{
@@ -174,8 +176,9 @@ object trace {
    * the next `trace.install`. The previous provider is not shut down, and
    * tracers taken from it keep recording.
    *
-   * A known bug: `trace.collectedSpans` stays empty afterwards for the rest of
-   * the program; no call brings the default in-memory buffer back.
+   * A known bug: the buffer behind `trace.collectedSpans` receives no new spans
+   * afterwards, except from tracers taken with `trace.get` before; no call
+   * brings the default in-memory buffer back.
    */
   def removeAll(): Unit = ref.set(TracerProvider.builder.setSampler(AlwaysOffSampler).build())
 
@@ -187,9 +190,9 @@ object trace {
    * added when it ends, so it comes after its children. Spans recorded through
    * another provider are not included.
    *
-   * A known bug: after `trace.install` or `trace.removeAll()`, the list stays
-   * empty for the rest of the program, except for spans of tracers taken from
-   * `trace.get` before.
+   * A known bug: after `trace.install` or `trace.removeAll()`, the buffer
+   * receives no new spans for the rest of the program, except from tracers
+   * taken with `trace.get` before.
    */
   def collectedSpans: List[SpanData] = spanStore.collectedSpans
 
