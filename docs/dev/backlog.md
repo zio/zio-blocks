@@ -882,6 +882,10 @@ Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07
 
 Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks: 6 in 5 files (`Parser`, `Doc`, `package` ×2, `ToMarkdown`, `Renderer`), all flattened into run-on lines by an earlier scalafmt pass, so none can compile; only `MdInterpolator` has scala-2/scala-3 copies; sources byte-identical to `v0.0.56`. Milad's Phase 1 decisions: one PR (tooling and all Scaladoc); tier 1 = `Doc`, `Block`, `Inline`, `Parser`, `HtmlRenderer`, `TerminalRenderer`, `ToMarkdown`, `Renderer`, the `md"..."` interpolator, each with an overview, one compiled example and `@see` to `docs/reference/docs.md`; AGENTS.md: markdown in the scaladoc-check list and a `markdown*` downstream row (dependents checked in build.sbt).
 
+## 13s. Scaladoc: telemetry and otel (in progress)
+
+Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage: telemetry 203/567, otel 17/33; otel's package is `zio.blocks.telemetry.otel` (needs a `packageOverrides` entry). telemetry needs JDK 21+ even to compile (its jar is class file 65 and its `log.*` macros run in the compiler), and CI runs telemetry/otel tests and docs only via `whenJdkAtLeast(25, ...)`, so the examples need a JDK-gated checker; options for Milad: a separate `scaladoc-check-jdk21` project (recommended), a JDK-dependent `scaladoc-check`, or `// no-check`.
+
 ## 13. Scaladoc: next modules
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
