@@ -27,6 +27,7 @@ import zio.blocks.maybe.Maybe
  * goes last.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * div(dataOnSignalPatch.debounce(200) := js"@get('/recalculate')").render

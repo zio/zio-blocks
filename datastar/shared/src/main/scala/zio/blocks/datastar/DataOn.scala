@@ -25,6 +25,7 @@ import zio.blocks.maybe.Maybe
  * event, and [[apply]] takes any other event name.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * val count = Signal[Int]("count")
@@ -119,6 +120,7 @@ final class PartialDataOn {
  * adds no suffix.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * input(dataOn.input.debounce(300).debounce(500) := js"@get('/search')").render

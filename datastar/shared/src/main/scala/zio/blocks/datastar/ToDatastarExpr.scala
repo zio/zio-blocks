@@ -32,6 +32,7 @@ import zio.blocks.html._
  * usually a mistake; write `js"..."` instead.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * val count = Signal[Int]("count")

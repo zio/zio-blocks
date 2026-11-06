@@ -26,6 +26,7 @@ import zio.blocks.maybe.Maybe
  * first and goes last, and a second `viewTransition` is ignored.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * div(dataInit.delay(500) := js"@get('/bootstrap')").render

@@ -29,6 +29,7 @@ import zio.blocks.html._
  * pass only names from your own code.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * span(new DatastarAttrKey("data-custom") := js"1").render // <span data-custom="1"></span>

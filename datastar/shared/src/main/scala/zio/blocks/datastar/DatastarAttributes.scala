@@ -36,6 +36,7 @@ import zio.blocks.maybe.Maybe
  * `zio.http.datastar.dataAttr`.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * val count = Signal[Int]("count")
@@ -56,6 +57,7 @@ trait DatastarAttributes {
    * it back into camel case by default; see [[DataSignalsBuilder]].
    *
    * {{{
+   * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
    * import zio.blocks.html._
    *
    * div(dataSignals(Signal[Int]("count")) := 0).render // <div data-signals:count="0"></div>
@@ -108,6 +110,7 @@ trait DatastarAttributes {
    * the assigned expression.
    *
    * {{{
+   * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
    * import zio.blocks.html._
    *
    * val count = Signal[Int]("count")
@@ -129,6 +132,7 @@ trait DatastarAttributes {
    * escaping, so pass only names from your own code.
    *
    * {{{
+   * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
    * import zio.blocks.html._
    *
    * li(dataClass("done") := Signal[Boolean]("finished")).render // <li data-class:done="\$finished"></li>
@@ -175,6 +179,7 @@ trait DatastarAttributes {
    * [[PartialDataOn]], add modifiers, and assign the expression with `:=`.
    *
    * {{{
+   * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
    * import zio.blocks.html._
    *
    * button(dataOn.click.once := js"@post('/subscribe')").render

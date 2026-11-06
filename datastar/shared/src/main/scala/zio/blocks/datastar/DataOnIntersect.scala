@@ -27,6 +27,7 @@ import zio.blocks.maybe.Maybe
  * replacing modifier goes last; a repeated flag such as `once` is kept once.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * div(dataOnIntersect.once.full := js"@get('/page/2')").render

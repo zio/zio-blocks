@@ -25,6 +25,7 @@ import zio.blocks.html._
  * another case, and `camel`, the default, adds none.
  *
  * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
  * import zio.blocks.html._
  *
  * div(dataSignals(Signal[Int]("pageSize")) := 20).render         // <div data-signals:page-size="20"></div>
