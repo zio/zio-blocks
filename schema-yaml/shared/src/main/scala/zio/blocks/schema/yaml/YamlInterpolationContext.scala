@@ -16,8 +16,13 @@
 
 package zio.blocks.schema.yaml
 
+/**
+ * Where a splice sits in a `yaml"..."` literal: a key, a value, or inside a
+ * quoted string.
+ */
 private[schema] sealed trait YamlInterpolationContext
 
+/** The three splice positions. */
 private[schema] object YamlInterpolationContext {
   case object Key      extends YamlInterpolationContext
   case object Value    extends YamlInterpolationContext
