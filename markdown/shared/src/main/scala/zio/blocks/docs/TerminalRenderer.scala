@@ -19,11 +19,29 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * Renderer for ANSI terminal output.
+ * Writes a [[Doc]], or any of its [[Block]] and [[Inline]] elements, as text
+ * with ANSI escape codes for a terminal.
  *
- * Converts markdown AST elements to colorful, formatted terminal output using
- * ANSI escape codes. The output is designed to be readable on both light and
- * dark terminal backgrounds.
+ * Headings are bold and colored by level (level 1 red, 2 yellow, 3 green, 4
+ * cyan, 5 blue, 6 magenta). Emphasis is italic, strong is bold, strikethrough
+ * is struck through, and code spans and code blocks have a gray background.
+ * Links are blue and underlined, followed by the address in parentheses (a link
+ * title is not shown). Images become `[Image: alt] (url)`. Quotes get a `│ `
+ * prefix, bullet items start with `• `, task items with `[x] ` or `[ ] `, and a
+ * thematic break is a line of 40 `─` characters. Text, raw HTML and code are
+ * written without escaping.
+ *
+ * @example
+ *   {{{
+ * val doc = Parser.parse("# Deploy\n\nRun `make deploy` for **staging**.").toOption.get
+ *
+ * val ansi = TerminalRenderer.render(doc)
+ * val shown = ansi.replace("\u001b", "ESC")
+ * // ESC[1mESC[31mDeployESC[0m\n\nRun ESC[48;5;236mmake deployESC[0m for ESC[1mstagingESC[0m.\n\n
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 object TerminalRenderer {
 
@@ -52,6 +70,9 @@ object TerminalRenderer {
   /**
    * Render a Doc to an ANSI-colored terminal string.
    *
+   * Paragraphs, headings, code blocks and thematic breaks end with a blank
+   * line.
+   *
    * @param doc
    *   The document to render
    * @return
@@ -62,6 +83,11 @@ object TerminalRenderer {
 
   /**
    * Render a Block to its terminal representation.
+   *
+   * A table is drawn with `│` between cells and a separator row of `─`; the
+   * separator has one segment per alignment and the alignment itself has no
+   * effect. A block quote drops its blank lines. A `ListItem` on its own
+   * renders as the empty string; it is only written inside a list.
    *
    * @param block
    *   The block element to render
@@ -196,13 +222,15 @@ object TerminalRenderer {
    * @param inlines
    *   The inline elements to render
    * @return
-   *   Concatenated terminal string
+   *   The rendered elements, one after another
    */
   def renderInlines(inlines: Chunk[Inline]): String =
     inlines.map(renderInline).mkString
 
   /**
    * Render a single inline element.
+   *
+   * A soft break becomes a space and a hard break becomes a newline.
    *
    * @param inline
    *   The inline element to render

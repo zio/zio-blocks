@@ -19,15 +19,46 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * A block-level markdown element.
+ * A block-level Markdown element: one of the top-level pieces a [[Doc]] is made
+ * of.
  *
- * Blocks are the top-level structural elements in a markdown document, such as
- * paragraphs, headings, code blocks, lists, and tables.
+ * The cases are [[Paragraph]], [[Heading]], [[CodeBlock]], [[ThematicBreak]],
+ * [[BlockQuote]], [[BulletList]], [[OrderedList]], [[ListItem]], [[HtmlBlock]]
+ * and [[Table]]. Blocks that hold other blocks ([[BlockQuote]], [[ListItem]])
+ * or inline content ([[Paragraph]], [[Heading]], table cells) nest the matching
+ * [[Inline]] and `Block` values.
+ *
+ * @example
+ *   {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * val release = Doc(
+ *   Chunk(
+ *     Heading(HeadingLevel.H2, Chunk(Text("Release 1.4"))),
+ *     BulletList(
+ *       Chunk(
+ *         ListItem(Chunk(Paragraph(Chunk(Text("Faster startup")))), None),
+ *         ListItem(Chunk(Paragraph(Chunk(Text("Fix the --dry-run flag")))), Some(true))
+ *       ),
+ *       tight = true
+ *     )
+ *   )
+ * )
+ *
+ * val markdown = release.toString
+ * // ## Release 1.4
+ * // - Faster startup
+ * // - [x] Fix the --dry-run flag
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 sealed trait Block extends Product with Serializable
 
 /**
- * A paragraph containing inline content.
+ * A paragraph: a run of inline content, ended by a blank line or by the start
+ * of another block.
  *
  * @param content
  *   The inline elements within the paragraph
@@ -35,30 +66,37 @@ sealed trait Block extends Product with Serializable
 final case class Paragraph(content: Chunk[Inline]) extends Block
 
 /**
- * An ATX-style heading (# to ######).
+ * An ATX heading: one to six `#` characters, a space and the heading text.
  *
  * @param level
- *   The heading level (H1 to H6)
+ *   The heading level, [[HeadingLevel.H1]] to [[HeadingLevel.H6]]
  * @param content
  *   The inline elements within the heading
  */
 final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
 
 /**
- * A fenced code block.
+ * A fenced code block, opened and closed by a fence of at least three backticks
+ * or tildes. [[Parser]] closes the block at a line that repeats the opening
+ * fence exactly, and [[Renderer]] always writes three backticks.
  *
  * @param info
- *   Optional language/info string (e.g., "scala", "json")
+ *   The text after the opening fence, such as `scala` or `json`, or `None` when
+ *   the fence has none
  * @param code
- *   The code content
+ *   The code between the fences, without the fence lines
  */
 final case class CodeBlock(info: Option[String], code: String) extends Block
 
-/** A thematic break (---, ***, or ___). */
+/**
+ * A thematic break (horizontal rule). [[Parser]] reads three or more `-`, `*`
+ * or `_` characters of one kind, with optional spaces between them, and
+ * [[Renderer]] writes `---`.
+ */
 case object ThematicBreak extends Block
 
 /**
- * A block quote (> prefix).
+ * A block quote: blocks written after a `>` prefix on each line.
  *
  * @param content
  *   The blocks within the quote
@@ -66,43 +104,54 @@ case object ThematicBreak extends Block
 final case class BlockQuote(content: Chunk[Block]) extends Block
 
 /**
- * An unordered list with bullet markers (-, *, or +).
+ * An unordered list. [[Parser]] accepts `-`, `*` and `+` as markers.
  *
  * @param items
  *   The list items
  * @param tight
- *   Whether the list is tight (no blank lines between items)
+ *   Whether the list is tight, with no blank lines between its items.
+ *   [[Parser]] always sets it to `true`, and [[Renderer]] is the only renderer
+ *   that reads it (it writes a blank line after each item of a loose list)
  */
 final case class BulletList(items: Chunk[ListItem], tight: Boolean) extends Block
 
 /**
- * An ordered list with numeric markers (1., 2., etc.).
+ * An ordered list: items numbered `1.`, `2.` and so on.
  *
  * @param start
- *   The starting number
+ *   The number of the first item. [[Renderer]] numbers the following items
+ *   `start + 1`, `start + 2` and so on, whatever numbers the source used
  * @param items
  *   The list items
  * @param tight
- *   Whether the list is tight (no blank lines between items)
+ *   Whether the list is tight, with no blank lines between its items.
+ *   [[Parser]] always sets it to `true`, and [[Renderer]] is the only renderer
+ *   that reads it
  */
 final case class OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) extends Block
 
 /**
- * A list item, which may be a task list item.
+ * An item of a [[BulletList]] or an [[OrderedList]], which can also be a task
+ * item.
+ *
+ * `ListItem` is a [[Block]], but it only has a rendering inside a list:
+ * [[Renderer]] and [[TerminalRenderer]] write nothing for a `ListItem` outside
+ * one, and [[HtmlRenderer]] writes an `li` element.
  *
  * @param content
- *   The blocks within the list item
+ *   The blocks within the item
  * @param checked
- *   For task lists: Some(true) for [x], Some(false) for [ ], None for regular
- *   items
+ *   For a task item, `Some(true)` for `[x]` and `Some(false)` for `[ ]`; `None`
+ *   for a plain item. [[Parser]] reads the task marker only in a bullet list
  */
 final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) extends Block
 
 /**
- * Raw HTML block content.
+ * A block of raw HTML. The renderers write it out unchanged, without escaping
+ * or sanitizing it.
  *
  * @param content
- *   The HTML content
+ *   The HTML text
  */
 final case class HtmlBlock(content: String) extends Block
 
@@ -112,7 +161,7 @@ final case class HtmlBlock(content: String) extends Block
  * @param header
  *   The header row
  * @param alignments
- *   Column alignments
+ *   One alignment per column
  * @param rows
  *   The data rows
  */

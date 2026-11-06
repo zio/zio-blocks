@@ -17,27 +17,41 @@
 package zio.blocks.docs
 
 /**
- * Type class for converting values to markdown inline elements.
+ * Converts a value of type `A` to an [[Inline]] element.
  *
- * Used by the `md` string interpolator to support interpolation of arbitrary
- * types. Implement this trait for custom types to enable markdown
- * interpolation.
+ * The `md` string interpolator needs an instance for the type of every value
+ * spliced into the text. The companion object has instances for `String`,
+ * `Int`, `Long`, `Double`, `Boolean`, [[Inline]] and [[Block]], and for `List`,
+ * `Chunk`, `Vector` and `Seq` of any type that has one. Other types, such as
+ * `Option` or `Float`, have none, so `md` rejects them at compile time until
+ * you define an instance. The type parameter is contravariant, so an
+ * `Inline`-typed instance also serves its subtypes such as `Text`.
  *
  * @tparam A
- *   The type to convert to markdown
+ *   The type to convert to an inline element
  *
  * @example
- *   {{{ case class Person(name: String, age: Int)
+ *   {{{
+ * import zio.blocks.chunk.Chunk
  *
- * implicit val personToMarkdown: ToMarkdown[Person] = (p: Person) =>
- * Strong(Chunk(Text(p.name)))
+ * final case class Port(number: Int)
  *
- * val person = Person("Alice", 30) val doc = md"# User: $$person" }}}
+ * implicit val portToMarkdown: ToMarkdown[Port] =
+ *   (port: Port) => Code(port.number.toString)
+ *
+ * val doc = md"Listening on \${Port(8080)}"
+ *
+ * val markdown = doc.toString
+ * // Listening on `8080`
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 trait ToMarkdown[-A] {
 
   /**
-   * Convert a value to a markdown inline element.
+   * Convert a value to an inline element.
    *
    * @param a
    *   The value to convert
@@ -47,6 +61,7 @@ trait ToMarkdown[-A] {
   def toMarkdown(a: A): Inline
 }
 
+/** Instances for the common types, and `apply` to summon one. */
 object ToMarkdown {
   import zio.blocks.chunk.Chunk
 
@@ -60,40 +75,62 @@ object ToMarkdown {
    */
   def apply[A](implicit ev: ToMarkdown[A]): ToMarkdown[A] = ev
 
-  /** Convert strings to plain text. */
+  /**
+   * A string becomes a plain text node. The text is later written out as
+   * Markdown and parsed again, so Markdown syntax inside the string takes
+   * effect in an `md` interpolation.
+   */
   implicit val stringToMarkdown: ToMarkdown[String] = (a: String) => Text(a)
 
-  /** Convert integers to plain text. */
+  /** An `Int` becomes a text node with its decimal digits. */
   implicit val intToMarkdown: ToMarkdown[Int] = (a: Int) => Text(a.toString)
 
-  /** Convert longs to plain text. */
+  /** A `Long` becomes a text node with its decimal digits. */
   implicit val longToMarkdown: ToMarkdown[Long] = (a: Long) => Text(a.toString)
 
-  /** Convert doubles to plain text. */
+  /**
+   * A `Double` becomes a text node holding `Double#toString` (`1.0E10` for ten
+   * billion).
+   */
   implicit val doubleToMarkdown: ToMarkdown[Double] = (a: Double) => Text(a.toString)
 
-  /** Convert booleans to plain text. */
+  /** A `Boolean` becomes the text node `true` or `false`. */
   implicit val booleanToMarkdown: ToMarkdown[Boolean] = (a: Boolean) => Text(a.toString)
 
-  /** Identity conversion for inline elements. */
+  /** An [[Inline]] converts to itself. */
   implicit val inlineToMarkdown: ToMarkdown[Inline] = (a: Inline) => a
 
-  /** Convert List[A] to comma-separated text when A has ToMarkdown. */
+  /**
+   * A `List` becomes one text node: each element is converted with its own
+   * instance, written out as Markdown, and the pieces are joined with `, `.
+   */
   implicit def listToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[List[A]] = (as: List[A]) =>
     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-  /** Convert Chunk[A] to comma-separated text when A has ToMarkdown. */
+  /**
+   * A `Chunk` becomes one text node: each element is converted with its own
+   * instance, written out as Markdown, and the pieces are joined with `, `.
+   */
   implicit def chunkToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Chunk[A]] = (as: Chunk[A]) =>
     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-  /** Convert Vector[A] to comma-separated text when A has ToMarkdown. */
+  /**
+   * A `Vector` becomes one text node: each element is converted with its own
+   * instance, written out as Markdown, and the pieces are joined with `, `.
+   */
   implicit def vectorToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Vector[A]] = (as: Vector[A]) =>
     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-  /** Convert Seq[A] to comma-separated text when A has ToMarkdown. */
+  /**
+   * A `Seq` becomes one text node: each element is converted with its own
+   * instance, written out as Markdown, and the pieces are joined with `, `.
+   */
   implicit def seqToMarkdown[A](implicit ev: ToMarkdown[A]): ToMarkdown[Seq[A]] = (as: Seq[A]) =>
     Text(as.map(a => Renderer.renderInline(ev.toMarkdown(a))).mkString(", "))
 
-  /** Convert Block to rendered markdown text. */
+  /**
+   * A [[Block]] becomes a text node holding the block rendered as Markdown by
+   * [[Renderer.render]], with surrounding whitespace trimmed.
+   */
   implicit val blockToMarkdown: ToMarkdown[Block] = (b: Block) => Text(Renderer.render(Doc(Chunk(b))).trim)
 }

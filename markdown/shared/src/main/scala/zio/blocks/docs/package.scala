@@ -17,55 +17,58 @@
 package zio.blocks
 
 /**
- * ZIO Blocks Markdown - A pure Scala GFM library.
+ * ZIO Blocks Markdown: parse, build and render GitHub Flavored Markdown.
  *
- * This package provides a complete implementation of GitHub Flavored Markdown
- * with a type-safe ADT, strict parser, renderer, and compile-time validated
- * string interpolator.
+ * The package has a document model ([[Doc]], [[Block]], [[Inline]]), a
+ * line-based [[Parser]], renderers for Markdown ([[Renderer]]), HTML
+ * ([[HtmlRenderer]]) and ANSI terminals ([[TerminalRenderer]]), and the `md`
+ * string interpolator. Import the package to get all of them, including `md`.
  *
  * ==Quick Start==
  * {{{
- *   import zio.blocks.docs._
+ * val doc = Parser.parse("# Release 1.4\n\nFixed *two* bugs.").toOption.get
  *
- *   // Parse markdown
- *   val doc = Parser.parse("# Hello *world*")
- *
- *   // Render to string
- *   val md = Renderer.render(doc.toOption.get)
- *
- *   // Use the interpolator
- *   val name = "World"
- *   val greeting = md"# Hello $$name"
+ * val markdown = Renderer.render(doc)
+ * // # Release 1.4
+ * // Fixed *two* bugs.
+ * //
+ * val html = doc.toHtmlFragment
+ * // <h1>Release 1.4</h1><p>Fixed <em>two</em> bugs.</p>
  * }}}
  *
  * ==String Interpolator==
- * The `md` interpolator validates markdown at compile time and supports
- * interpolation of any type with a [[ToMarkdown]] instance.
+ * The `md` interpolator checks the literal Markdown when the code compiles and
+ * splices in any value that has a [[ToMarkdown]] instance.
  *
  * {{{
- *   val title = "My Doc"
- *   val count = 42
- *   val doc = md"""
- *     # $$title
+ * val title = "Release 1.4"
+ * val count = 2
  *
- *     There are $$count items.
- *   """
+ * val doc = md"## \$title\nFixed \$count bugs."
+ *
+ * val markdown = doc.toString
+ * // ## Release 1.4
+ * // Fixed 2 bugs.
+ * //
  * }}}
  *
  * ==Core Types==
- *   - [[Doc]] - A complete markdown document
- *   - [[Block]] - Block-level elements (headings, paragraphs, lists, etc.)
- *   - [[Inline]] - Inline elements (text, emphasis, links, etc.)
- *   - [[Parser]] - Strict GFM parser
- *   - [[Renderer]] - GFM renderer
+ *   - [[Doc]]: a document, a sequence of blocks
+ *   - [[Block]]: block-level elements (headings, paragraphs, lists, tables,
+ *     ...)
+ *   - [[Inline]]: inline elements (text, emphasis, links, ...)
+ *   - [[Parser]]: reads Markdown text into a `Doc`
+ *   - [[Renderer]], [[HtmlRenderer]], [[TerminalRenderer]]: write a `Doc`
+ *   - [[ToMarkdown]]: converts a value for use in `md`
  *
  * ==GFM Support==
- * Supports all GitHub Flavored Markdown features including:
- *   - ATX headings, code blocks, thematic breaks
- *   - Block quotes, lists (ordered, unordered, task lists)
- *   - Tables with alignment
- *   - Inline formatting (emphasis, strong, strikethrough, code)
- *   - Links, images, autolinks
- *   - HTML blocks and inline HTML
+ * The model and the renderers cover ATX headings, fenced code blocks, thematic
+ * breaks, block quotes, bullet, ordered and task lists, tables with column
+ * alignment, emphasis, strong, strikethrough, code spans, links, images,
+ * autolinks, and HTML blocks and inline HTML. The parser reads a subset of GFM;
+ * see [[Parser]] for what it does not read.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 package object docs extends MdInterpolator

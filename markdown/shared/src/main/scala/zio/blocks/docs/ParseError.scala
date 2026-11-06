@@ -17,18 +17,34 @@
 package zio.blocks.docs
 
 /**
- * A parse error with position information.
+ * The error [[Parser.parse]] returns, with the position it found it at.
  *
- * Returned when the parser encounters invalid markdown syntax.
+ * [[Parser]] reports three problems: a document that starts with a `---` line
+ * and has another `---` line after it (`Frontmatter is not supported`), a
+ * heading with more than six `#` characters (`Invalid heading level: 7 (max is
+ * 6)`), and a code fence that is never closed (`Unclosed code fence`).
  *
  * @param message
- *   Human-readable error message
+ *   The human-readable message
  * @param line
- *   Line number where the error occurred (1-based)
+ *   The 1-based line number. For an unclosed code fence it is the number of
+ *   lines in the input, not the line of the opening fence
  * @param column
- *   Column number where the error occurred (1-based)
+ *   The 1-based column; [[Parser]] always reports 1
  * @param input
- *   The input line that caused the error
+ *   The text of the line the error is about: the opening fence of an unclosed
+ *   code block, the `---` line of a frontmatter, or the heading line
+ *
+ * @example
+ *   {{{
+ * val error = Parser.parse("```scala\nval x = 1").left.toOption.get
+ *
+ * val summary = (error.line, error.column, error.message)
+ * // (2,1,Unclosed code fence)
+ * val shown = error.toString
+ * // ParseError at line 2, column 1: Unclosed code fence
+ * //   ```scala
+ *   }}}
  */
 final case class ParseError(
   message: String,

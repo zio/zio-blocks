@@ -19,34 +19,79 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * Parser for GitHub Flavored Markdown.
+ * Reads GitHub Flavored Markdown text into a [[Doc]].
  *
- * Provides strict parsing of GFM documents, returning either a parsed [[Doc]]
- * or a [[ParseError]] with position information.
+ * [[Parser.parse]] is a small line-based parser, not a full CommonMark
+ * implementation. It returns a [[ParseError]] in only three cases (see
+ * [[ParseError]]); every other input gives a `Doc`, with anything it does not
+ * understand kept as plain text.
  *
- * ==Supported Features==
- *   - ATX headings (# to ######)
- *   - Fenced code blocks (``` or ~~~)
- *   - Thematic breaks (---, ***, ___)
- *   - Block quotes (> prefix)
- *   - Bullet and ordered lists
- *   - Task lists (- [ ] and - [x])
- *   - Tables with alignment
- *   - Inline formatting (emphasis, strong, strikethrough, code)
- *   - Links and images
- *   - Autolinks
- *   - HTML blocks and inline HTML
+ * ==What it reads==
+ *   - ATX headings, `#` to `######`. A closing run of `#` is dropped. A line
+ *     that starts with `#` but has no space after the hashes becomes a level-1
+ *     heading holding the whole line as text.
+ *   - Fenced code blocks opened with backticks or tildes. The info string is
+ *     the rest of the opening line, trimmed.
+ *   - Thematic breaks: three or more `-`, `*` or `_` of one kind, with optional
+ *     spaces between them.
+ *   - Block quotes, with other blocks (including nested quotes) inside. Every
+ *     line of a quote needs its own `>`.
+ *   - Bullet lists (`-`, `*`, `+`) and ordered lists (`1.`). An item continues
+ *     on the following lines while they are indented by at least two spaces.
+ *     Task items (`[ ]`, `[x]`, `[X]`) are read in bullet lists only.
+ *   - Tables: a header row with a `|`, then a delimiter row whose cells are
+ *     `---`, `:---`, `---:` or `:---:` (at least three dashes), then rows for
+ *     as long as lines contain a `|`.
+ *   - HTML blocks, and inline HTML. A line that starts with an HTML tag, or
+ *     with a `<` that has no `>` after it on the line, starts an HTML block,
+ *     and the whole line belongs to the block.
+ *   - Emphasis (`*a*`, `_a_`), strong (`**a**`, `__a__`), `***a***` as strong
+ *     emphasis, strikethrough (`~~a~~`), code spans, links and images with an
+ *     optional title in double quotes, `<url>` and `<email>` autolinks, bare
+ *     `http://` and `https://` addresses, and hard breaks (two trailing spaces
+ *     or a backslash).
  *
- * ==Not Supported==
- *   - YAML frontmatter (causes parse error)
- *   - Setext headings (use ATX style)
- *   - Indented code blocks (use fenced)
- *   - Link reference definitions
+ * ==What it does not read==
+ *   - Backslash escapes: `\*` is a backslash followed by emphasis markup.
+ *   - Setext headings, indented code blocks, link reference definitions and
+ *     lazy continuation lines in a quote.
+ *   - Nested lists: an indented `- b` under `- a` is a sibling item, not a
+ *     child.
+ *   - Loose lists: a blank line ends a list, so the next item starts a new list
+ *     (an ordered one starts at its own number). Lists are always tight.
+ *   - YAML frontmatter. A text that starts with a `---` line and has another
+ *     `---` line after it is rejected, whatever lies between them.
+ *   - A `\|` inside a table cell: it still splits the cell.
+ *
+ * Some inputs read differently from what you may expect. An underscore or
+ * asterisk inside a word starts emphasis (`snake_case_name` has emphasized
+ * `case`), a bare address swallows the punctuation after it (`http://a.b.` is
+ * one address), and `<b>hi</b> there` at the start of a line is one HTML block,
+ * not a paragraph. An ordered-list marker of more than ten digits
+ * (`12345678901.`) throws a `NumberFormatException` instead of returning a
+ * `Left`, a known bug in 0.0.56.
+ *
+ * @example
+ *   {{{
+ * val markdown = "# Release 1.4\n\n- Faster startup\n- Fixed `--dry-run`"
+ *
+ * val doc = Parser.parse(markdown).toOption.get
+ * val kinds = doc.blocks.map(_.productPrefix)
+ * // Chunk(Heading, BulletList)
+ * val html = doc.toHtmlFragment
+ * // <h1>Release 1.4</h1><ul><li><p>Faster startup</p></li><li><p>Fixed <code>--dry-run</code></p></li></ul>
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 object Parser {
 
   /**
    * Parses a markdown string into a Doc.
+   *
+   * The input is split on `\n`, so a `\r` left by Windows line endings stays at
+   * the end of the text of each line. The document's metadata is always empty.
    *
    * @param input
    *   The markdown string to parse
@@ -54,9 +99,15 @@ object Parser {
    *   Either a [[ParseError]] with position info, or the parsed [[Doc]]
    *
    * @example
-   *   {{{ Parser.parse("# Hello") match { case Right(doc) => println(s"Parsed
-   *   $${doc.blocks.size} blocks") case Left(err) => println(s"Error at line
-   *   $${err.line}: $${err.message}") } }}}
+   *   {{{
+   * val ok = Parser.parse("# Hello")
+   * val count = ok.map(_.blocks.size)
+   * // Right(1)
+   *
+   * val failed = Parser.parse("```\ncode")
+   * val message = failed.left.map(err => s"line \${err.line}: \${err.message}")
+   * // Left(line 2: Unclosed code fence)
+   *   }}}
    */
   def parse(input: String): Either[ParseError, Doc] = {
     val state = new ParserState(input)

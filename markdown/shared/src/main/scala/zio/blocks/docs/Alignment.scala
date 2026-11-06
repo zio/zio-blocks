@@ -16,20 +16,27 @@
 
 package zio.blocks.docs
 
-/** Table column alignment in GFM tables. */
+/**
+ * The alignment of a GFM table column, set by colons in the delimiter row:
+ * `:---` for [[Alignment.Left]], `---:` for [[Alignment.Right]], `:---:` for
+ * [[Alignment.Center]] and `---` for [[Alignment.None]]. [[HtmlRenderer]]
+ * writes a `text-align` style for the first three, and [[TerminalRenderer]]
+ * ignores alignment.
+ */
 sealed trait Alignment extends Product with Serializable
 
+/** The four column alignments. */
 object Alignment {
 
-  /** Left-aligned column (:---). */
+  /** A left-aligned column, written `:---`. */
   case object Left extends Alignment
 
-  /** Right-aligned column (---:). */
+  /** A right-aligned column, written `---:`. */
   case object Right extends Alignment
 
-  /** Center-aligned column (:---:). */
+  /** A centered column, written `:---:`. */
   case object Center extends Alignment
 
-  /** No explicit alignment (---). */
+  /** A column with no stated alignment, written `---`. */
   case object None extends Alignment
 }
