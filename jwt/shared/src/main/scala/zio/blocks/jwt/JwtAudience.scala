@@ -18,17 +18,44 @@ package zio.blocks.jwt
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * The `aud` claim of a token: the recipients it is meant for, as one string or
+ * several.
+ *
+ * RFC 7519 §4.1.3 allows both forms. [[JwtAudience.Single]] renders as a JSON
+ * string and [[JwtAudience.Multiple]] as a JSON array, and parsing keeps the
+ * form the token used, so a one-element array reads as `Multiple`. Both forms
+ * pass the `expectedAudience` check of [[JwtDecodeOptions]] when they equal or
+ * contain the expected value.
+ *
+ * {{{
+ * JwtClaims.render(JwtClaims(aud = Some(JwtAudience.multiple("notes-api", "billing-api"))))
+ * // {"aud":["notes-api","billing-api"]}
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/jwt/#audience JWT]]
+ */
 sealed trait JwtAudience extends Product with Serializable
 
+/** Builds the two forms of [[JwtAudience]]. */
 object JwtAudience {
 
+  /** One audience, rendered as a JSON string. */
   final case class Single(value: String) extends JwtAudience
 
+  /**
+   * Several audiences, rendered as a JSON array in the given order; it may be
+   * empty or have one element.
+   */
   final case class Multiple(values: Chunk[String]) extends JwtAudience
 
+  /** Returns `Single(value)`. */
   def single(value: String): JwtAudience = Single(value)
 
+  /** Returns `Multiple(values)`. */
   def multiple(values: Chunk[String]): JwtAudience = Multiple(values)
 
+  /** Returns a `Multiple` of `values`, in order. */
   def multiple(values: String*): JwtAudience = Multiple(Chunk.from(values))
 }
