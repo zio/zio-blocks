@@ -270,6 +270,19 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
           "zio.blocks.schema.avro"
       )
     },
+    test("moduleImport uses packageOverrides for dataMigration, htmx and datastar") {
+      val migration = "dataMigration/shared/src/main/scala/zio/blocks/data/migration/TinyMigrator.scala"
+      val htmx      = "htmx/shared/src/main/scala/zio/http/htmx/HxSwap.scala"
+      val datastar  = "datastar/shared/src/main/scala/zio/blocks/datastar/Signal.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(migration) == "zio.blocks.data.migration._",
+        ScaladocSnippets.moduleImport(htmx) == "zio.http.htmx._",
+        ScaladocSnippets.moduleImport(datastar) == "zio.http.datastar._",
+        ScaladocSnippets.objectName(migration, 7) == "Snippet_dataMigration_shared_scala_TinyMigrator_L7",
+        ScaladocSnippets.modulePackage("projection/shared/src/main/scala/zio/blocks/projection/Projection.scala") ==
+          "zio.blocks.projection"
+      )
+    },
     test("render gives an http-model example the zio.http import") {
       val path    = "http-model/shared/src/main/scala/zio/http/URL.scala"
       val snippet = ScaladocSnippets.Snippet(path, 20, List("val a = 1"), None)
