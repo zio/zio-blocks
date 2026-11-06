@@ -394,34 +394,74 @@ object BindingResolver extends BindingResolverPlatformSpecific {
     ): Registry =
       updated(keyForConstructor(typeId), new Entry.Map(binding.asInstanceOf[Binding.Map[M, Nothing, Nothing]]))
 
+    /**
+     * Returns the record binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind, such as a variant.
+     */
     def resolveRecord[A](implicit typeId: TypeId[A]): Option[Binding.Record[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Record(b) => b.asInstanceOf[Binding.Record[A]] }
 
+    /**
+     * Returns the variant binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolveVariant[A](implicit typeId: TypeId[A]): Option[Binding.Variant[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Variant(b) => b.asInstanceOf[Binding.Variant[A]] }
 
+    /**
+     * Returns the primitive binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolvePrimitive[A](implicit typeId: TypeId[A]): Option[Binding.Primitive[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Primitive(b) => b.asInstanceOf[Binding.Primitive[A]] }
 
+    /**
+     * Returns the wrapper binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolveWrapper[A](implicit typeId: TypeId[A]): Option[Binding.Wrapper[A, _]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Wrapper(b) => b.asInstanceOf[Binding.Wrapper[A, _]] }
 
+    /**
+     * Returns the dynamic binding bound for `DynamicValue`, or `None` when none
+     * is bound.
+     */
     def resolveDynamic(implicit typeId: TypeId[DynamicValue]): Option[Binding.Dynamic] =
       entries.get(keyForProper(typeId)).collect { case Entry.Dynamic(b) => b }
 
+    /**
+     * Returns the sequence binding bound for the type constructor of `X`
+     * (`List` for `List[Int]`), typed for `X`'s element type, or `None` when
+     * that constructor has no sequence binding.
+     */
     def resolveSeq[X](implicit typeId: TypeId[X], u: UnapplySeq[X]): Option[Binding.Seq[u.C, u.A]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq =>
         e.binding.asInstanceOf[Binding.Seq[u.C, u.A]]
       }
 
+    /**
+     * Returns the sequence binding bound for the type constructor of `typeId`
+     * (`List` for `List[Int]`), typed for the element type `A`, or `None` when
+     * that constructor has no sequence binding.
+     */
     def resolveSeqFor[C[_], A](typeId: TypeId[C[A]]): Option[Binding.Seq[C, A]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq => e.binding.asInstanceOf[Binding.Seq[C, A]] }
 
+    /**
+     * Returns the map binding bound for the type constructor of `X` (`Map` for
+     * `Map[String, Int]`), typed for `X`'s key and value types, or `None` when
+     * that constructor has no map binding.
+     */
     def resolveMap[X](implicit typeId: TypeId[X], u: UnapplyMap[X]): Option[Binding.Map[u.M, u.K, u.V]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Map =>
         e.binding.asInstanceOf[Binding.Map[u.M, u.K, u.V]]
       }
 
+    /**
+     * Returns the map binding bound for the type constructor of `typeId` (`Map`
+     * for `Map[String, Int]`), typed for `K` and `V`, or `None` when that
+     * constructor has no map binding.
+     */
     def resolveMapFor[M[_, _], K, V](typeId: TypeId[M[K, V]]): Option[Binding.Map[M, K, V]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Map =>
         e.binding.asInstanceOf[Binding.Map[M, K, V]]
