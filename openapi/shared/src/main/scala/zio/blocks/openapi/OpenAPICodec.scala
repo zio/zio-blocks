@@ -59,11 +59,13 @@ import zio.blocks.schema.json._
  *
  * The decoder keeps the keys that start with `x-` as extensions and ignores
  * other unknown keys; the encoder writes every extension entry as is and leaves
- * out empty collections, `None` fields and `false` flags. Descriptions are
- * written as Markdown, so each ends with a blank line (`"Pets.\n\n"`), and a
- * description written with `md"..."` is not `==` to itself after a round trip
- * (known bugs). The derived `Schema`s of the OpenAPI types give different JSON,
- * not an OpenAPI document; use this codec for documents.
+ * out empty collections, `None` fields and `false` flags. That includes an
+ * empty `scopes` map of an OAuth flow and an empty `content` map of a request
+ * body, which OpenAPI requires (a known bug). Descriptions are written as
+ * Markdown, so each ends with a blank line (`"Pets.\n\n"`), and a description
+ * written with `md"..."` is not `==` to itself after a round trip (known bugs).
+ * The derived `Schema`s of the OpenAPI types give different JSON, not an
+ * OpenAPI document; use this codec for documents.
  *
  * {{{
  * import zio.blocks.openapi.OpenAPICodec.openAPICodec
