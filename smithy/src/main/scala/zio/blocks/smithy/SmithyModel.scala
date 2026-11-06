@@ -131,12 +131,13 @@ object SmithyModel {
   /**
    * Parses a Smithy IDL string into a `SmithyModel`.
    *
-   * The input must start with a `\$version` statement and have a `namespace`
-   * statement. Shape references written without a namespace (`city: String`)
-   * get a [[ShapeId]] with an empty namespace. Trait names written without a
-   * namespace always get `smithy.api`, even when a `use` statement imports them
-   * from another namespace (a known bug). Several Smithy 2.0 constructs fail to
-   * parse (a known bug, see [[SmithyModel]]).
+   * The first statement must be `\$version` (only whitespace and comments may
+   * come before it), and a `namespace` statement is required. Shape references
+   * written without a namespace (`city: String`) get a [[ShapeId]] with an
+   * empty namespace. Trait names written without a namespace always get
+   * `smithy.api`, even when a `use` statement imports them from another
+   * namespace (a known bug). Several Smithy 2.0 constructs fail to parse (a
+   * known bug, see [[SmithyModel]]).
    *
    * @param input
    *   the complete Smithy IDL text to parse
