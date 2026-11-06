@@ -854,9 +854,21 @@ PR #1950 (one PR), merged 2026-11-06 as `20f4c3131`; CI green on `0dfbf8261`: 23
 
 Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit). PR #1957 opened 2026-11-06 (main with #1948 and #1955 merged in): 65 → 314 / 314, `--drift` empty, comments only; reviews 2 fresh Opus (7 Important + 18 Minor) and a Sonnet re-review (3 Minor), all applied; 16 bug entries plus 2 amendments filed.
 
-## 13o. Scaladoc: schema core, remaining members (in progress)
+## 13o. Scaladoc: schema core, remaining members
 
 Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 3232 / 3775; the 543 gaps are 521 implementations of documented parents, whose doc the doc tool already inherits (checked in `schemaJVM/doc` HTML on 3.9.0 and 2.13.18, e.g. `PrimitiveValue.Unit#primitiveType`, `Register.Boolean#set`), and 22 macro `*Impl` methods in `schema.migration`; no real gaps, confirming the waves' judgement (§11). By file: `PrimitiveValue` 118, `Reflect` 110, `DynamicSchemaExpr` 89, `PrimitiveType` 77, `SchemaExpr` 43, `Register` 30, `DynamicValue` 18, others small. Milad's Phase 1 decision: document all 543 in one PR (no tier-1 types, no new examples); per-case text only where an implementation adds something (order, `typeIndex`, `toJsonString` values), never a copy of the parent doc.
+
+| Item | Result |
+|---|---|
+| PR | #1956 (one PR), merged 2026-11-06 as `121cb1024` |
+| Coverage | 3232 / 3775 (85%) → 3775 / 3775: `schema` 1478 → 1948 / 1948, `binding` 429 → 471, `migration` 154 → 176, `json` 865 → 872, `codec` 19 → 21; comments only (18 files); `--drift` empty; no new examples |
+| Inheritance check | the doc tool shows the parent's text on 2.13.18 and 3.9.0 (generated HTML), so the new comments add only per-case facts |
+| Reviews | data model: 0 Important, 2 Minor, 167 probe checks; expressions and bindings: 2 Important, 6 Minor, all fixed or answered; scoped re-review APPROVE |
+| False existing comments fixed | `OpticCheck` message paths; `eval`/`convert` `Left` vs throw on NaN; `Float`/`DoubleToInt`/`Long` out of range; the Scala 2 `MigrationBuilder` completeness claim |
+| `docs/dev` mentions in Scaladoc | 13 replaced by "a known bug"; 8 other schema files still point to `docs/dev/issues.md` (Docs tooling entry) |
+| Bugs | 4 new entries and 2 amendments |
+| Gates | scaladoc-check on 2.13.18, 3.9.0 and 3.10.0 (33 tests each, after the main merge); doc JVM/JS on 3.9.0 and 2.13.18; `check`, `headerCheckAll`. The session's CI watcher died under memory pressure, so it did not see the final CI result before the merge |
+| Time | about 2 h 45 min active |
 
 ## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer (in progress)
 
