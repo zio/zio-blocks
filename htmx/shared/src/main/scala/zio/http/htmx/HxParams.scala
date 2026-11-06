@@ -90,7 +90,7 @@ object HxParams {
   def not(first: String, rest: String*): HxParams = Not(validateNames(first +: rest))
 
   /**
-   * Creates an [[Only]] value that sends just the named parameters. Each name
+   * Creates an [[Only]] value that sends only the named parameters. Each name
    * is trimmed.
    *
    * @throws java.lang.IllegalArgumentException
