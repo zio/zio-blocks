@@ -727,8 +727,9 @@ object ScalaEmitter {
   }
 
   /**
-   * Emits a companion object for a type. The result starts with a newline, so
-   * appending it after a type definition leaves a blank line between them.
+   * Emits a companion object for a type. The result starts with a newline; the
+   * type emitters write another newline before it, so their output has a blank
+   * line between the type and its companion.
    *
    * @param name
    *   The name of the companion object (same as the type it accompanies)

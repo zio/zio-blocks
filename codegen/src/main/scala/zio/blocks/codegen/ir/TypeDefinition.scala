@@ -52,8 +52,9 @@ sealed trait TypeDefinition {
 
   /**
    * Text that the emitter writes as a Scaladoc comment above the type. The text
-   * is not escaped: a comment opener or closer in it ends the comment early and
-   * breaks the generated file (a known bug).
+   * is not escaped: a comment closer in it ends the comment early, and a
+   * comment opener starts a nested comment that never closes; either breaks the
+   * generated file (a known bug).
    */
   def doc: Option[String]
 }

@@ -46,8 +46,10 @@ package zio.blocks.codegen.emit
  *   Number of spaces per indentation level (default: 2)
  * @param sortImports
  *   Whether `ScalaEmitter.emit` sorts a file's imports (default: true). They
- *   are sorted by their `path.name` text, in plain string order, so uppercase
- *   letters come before lowercase ones. Duplicates are removed either way.
+ *   are sorted by a text key in plain string order, so uppercase letters come
+ *   before lowercase ones: `path.name` for a single import, `path.*` for a
+ *   wildcard, `path.from` for a rename and the path plus the first name for a
+ *   group. Duplicates are removed either way.
  * @param scala3Syntax
  *   Whether to emit Scala 3 syntax (default: true): `*` and `as` in imports,
  *   `enum`, `opaque type`, `derives`, `using`, `given` and `extension`. When
