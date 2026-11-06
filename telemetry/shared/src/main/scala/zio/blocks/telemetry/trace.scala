@@ -84,7 +84,7 @@ object trace {
    *   59.97
    * }
    *
-   * total // 59.97
+   * total.toString // 59.97
    * trace.collectedSpans.map(_.status) // List(Ok)
    * }}}
    */
