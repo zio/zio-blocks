@@ -41,7 +41,7 @@ jobs:
     - name: Setup SBT
       uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8.1.1
     - name: Setup Node.js
       uses: actions/setup-node@v7
       with:
@@ -134,7 +134,7 @@ jobs:
         jvm: temurin:17
         apps: sbt
     - name: Cache scala dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8
     - name: Check if the workflows are up to date
       run: sbt ciCheckGithubWorkflow
     - name: Lint code
@@ -181,7 +181,7 @@ jobs:
         jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
         apps: sbt
     - name: Cache scala dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8
     - name: Run Scala 2 tests and compile Scala 2 docs
       if: ${{ startsWith(matrix.scala, '2.') }}
       run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
@@ -241,7 +241,7 @@ jobs:
         jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
         apps: sbt
     - name: Cache scala dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8
     - name: Run Scala JS tests and compile docs
       run: sbt ++${{ matrix.scala }} testJS docJS
   update-readme:
@@ -268,7 +268,7 @@ jobs:
     - name: Setup SBT
       uses: sbt/setup-sbt@v1.5.7
     - name: Cache Dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8.1.1
     - name: Generate Readme
       run: sbt --no-colors docs/generateReadme
     - name: Generate Token
@@ -344,7 +344,7 @@ jobs:
         jvm: temurin:25
         apps: sbt
     - name: Cache Dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8.1.1
     - name: Release
       uses: nick-fields/retry@v4
       with:
@@ -381,7 +381,7 @@ jobs:
     - name: Setup SBT
       uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
-      uses: coursier/cache-action@v9
+      uses: coursier/cache-action@v8.1.1
     - name: Setup NodeJs
       uses: actions/setup-node@v7
       with:
