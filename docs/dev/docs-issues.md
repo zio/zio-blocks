@@ -729,6 +729,125 @@ Suggested fix: remove `Choices`; describe `Concat` on both versions; correct the
 - `http-codec.md:221` "surfacing a `SchemaError` if the scheme does not match": true; it could add that the message names the class of the parsed header (`... but found Bearer`, or `Unparsed` for an unknown scheme), see `HttpCodec.basicAuth` Scaladoc.
 - `route-tree.md:62` "HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered": the fallback also happens when a `HEAD` root exists but has no match for the path (`RouteTree.scala:57-59`); and the `RoutePattern#decode` side differs for method sets (the endpoint entry on `HEAD` and `GET #| POST`).
 
+### `reference/projection/testing.md`: in-memory counters behave as in SQLite
+
+Found 2026-11-06 while writing the `projection` Scaladoc, at commit 07f71de18 (same at v0.0.56).
+
+**Summary.** `docs/reference/projection/testing.md`, section InMemoryProjectionStore (line 81 at 07f71de18): "A `FieldUpdate` is applied by decoding the stored row into a `DynamicValue`, changing the field, and encoding it back, so counters behave as they do in SQLite." They do not for row types with an `Option` field (entry 2: a missing row cannot be created, `Set` of the field fails, `Increment` of a `None` field does nothing), nor for unknown column names (SQLite dies, entry 1; the in-memory store ignores them), nor for a `Set` with a value of the wrong type (SQLite stores it and reads back `0` for an `Int` column; the in-memory store fails with `Expected Int`).
+
+**Reproducer.** Entry 2's `Repro.sc` for the `Option` cases.
+
+**Expected.** The page lists the differences, or says that the in-memory store matches SQLite only for rows without `Option` fields and with valid column names.
+
+**Suggested fix.** Replace "so counters behave as they do in SQLite" with a short list of the differences, until entries 1 and 2 are fixed.
+
+### `reference/htmx/attribute-values.md`: "Extending with Custom Types" claims a custom `ToHtmxValue` makes a type usable in the DSL; it can't be
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
+
+**Summary.** `docs/reference/htmx/attribute-values.md:280-331` says "Define your own `ToHtmxValue` instance to make custom domain types work in the HTMX DSL" and "If you get an error like 'No `ToHtmxValue` instance found for type X,' implement the type class". Each `HtmxAttrKey` is built with a fixed value type and its instance (`HtmxAttrKey.stringValue[A]`, private to the package); `:=` takes `A`, with no implicit. A custom instance can't make a type assignable to any key, and users can't build keys. The page's own example never uses the `Priority` instance (it interpolates `Priority.High.toString()` into a `Js`). The same false claims were in the Scaladoc of `HtmxAttributes` and `ToHtmxValue` (fixed on this branch).
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+enum Priority { case Low, High }
+object Priority {
+  given ToHtmxValue[Priority] = new ToHtmxValue[Priority] {
+    def toHtmxValue(p: Priority): String = p.toString.toLowerCase
+  }
+}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(ToHtmxValue[Priority].toHtmxValue(Priority.High))
+    println(button(hxConfirm := Priority.High)("Create").render)
+  }
+}
+// -- [E007] Type Mismatch Error: Repro.scala:17:41
+// 17 |    println(button(hxConfirm := Priority.High)("Create").render)
+//    |                                ^^^^^^^^^^^^^
+//    |                                Found:    (Priority.High : Priority)
+//    |                                Required: String
+// 1 error found
+```
+
+**Expected.** The page says what the instances are for (rendering the built-in value types; `ToHtmxValue[A].toHtmxValue(a)` by hand) and drops the extension section, or the library adds a public way to define keys.
+
+**Root cause.** Documentation. `htmx/shared/src/main/scala/zio/http/htmx/HtmxAttrKey.scala:30-43` (private constructor and factory, `:=` without an implicit).
+
+**Impact.** Readers write instances that do nothing and then hit a type mismatch the page tells them an instance would fix.
+
+**Suggested fix.** Replace the section with a short note on the closed key set; remove the "No `ToHtmxValue` instance found" advice. Also `index.md:47` ("Extensible type class `ToHtmxValue` lets custom domain values render themselves").
+
+### htmx reference: smaller errors in `hx-swap.md`, `hx-target.md`, `index.md` and `attribute-values.md`
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both. Checked against htmx 2.0.11 (`htmx.js`) and the published 0.0.56 module.
+
+**Summary and evidence.**
+- `hx-swap.md:136`: "`focusScroll(enabled)` ... Pass `true` to focus the swapped element, `false` to disable focus movement". htmx's `focus-scroll` controls whether the browser scrolls to a focused input after the swap (`preventScroll`, htmx.js:2018), not whether focus moves; and htmx 2 ignores the library's `focusScroll:` token altogether (see the library entry "`HxSwap#focusScroll` renders `focusScroll:`").
+- `hx-target.md:102` and `:127`: "`next(selector)` targets the next sibling matching the selector" (and the same for `previous`). htmx 2 scans the whole document in order from the element (`scanForwardQuery`/`scanBackwardsQuery`, htmx.js:1211-1232), so `next .row` can be a non-sibling. The bare forms are siblings (`nextElementSibling`).
+- `index.md:247`: "Attributes that accept selectors (hxTarget, hxSelect, hxDisabledElt, hxIndicator) accept `CssSelector`". `hxTarget` takes `HxTarget` (`HtmxAttributes.scala:50`); `hxTarget := CssSelector.id("x")` does not compile.
+- `attribute-values.md:122`: "Use `HxSwapOob(true)` or `HxSwapOob(false)` for boolean flags". `false` still swaps out of band (library entry "`HxSwapOob.False` renders ...").
+
+**Reproducer.** The rendered values and browser runs for `focusScroll` and `HxSwapOob(false)` are in the two library entries named above. For `index.md:247`, `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit =
+    println(div(hxTarget := CssSelector.id("x")).render)
+}
+// -- [E007] Type Mismatch Error: Repro.scala:9:42
+// 9 |    println(div(hxTarget := CssSelector.id("x")).render)
+//   |                            ^^^^^^^^^^^^^^^^^^^
+//   |                            Found:    zio.blocks.html.CssSelector.Id
+//   |                            Required: zio.http.htmx.HxTarget
+// 1 error found
+```
+
+**Root cause.** Documentation.
+
+**Suggested fix.** Reword each line as above.
+
+### datastar reference: `attributes.md` says `DatastarAttrKey`'s constructor is `private[datastar]`, but it is public
+
+Found 2026-11-06 while fact-checking `DatastarAttrKey` Scaladoc, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
+
+**Where.** `docs/reference/datastar/attributes.md:261`: "Since the constructor is `private[datastar]`, reach it through a helper that returns a bare key."
+
+**Fact.** `datastar/shared/src/main/scala/zio/blocks/datastar/DatastarAttrKey.scala:30` declares `final class DatastarAttrKey(val name: String)` with a public constructor; only the companion's `apply` (`:40`) is `private[datastar]`. `new DatastarAttrKey("data-custom") := js"1"` compiles against 0.0.56 and renders `<span data-custom="1"></span>` (run with scala-cli, Scala 3.9.0, `zio-blocks-next-datastar` 0.0.56). The page's own intro two lines up says "you can construct one for an attribute the module has no helper for yet", which contradicts the sentence.
+
+**Fix.** Replace the sentence with: "`new DatastarAttrKey(name)` makes a key for an attribute that has no helper; the name is written as given, so use names from your own code. The bare helpers `dataAttr`, `dataClass`, ... return keys too:".
+
+### datastar reference: `events.md` calls `threshold(pct)` a "visibility fraction", but Datastar reads a percentage
+
+Found 2026-11-06 while fact-checking `DataOnIntersect#threshold`, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
+
+**Where.** `docs/reference/datastar/events.md:162`: "| `threshold(pct)` | Require an explicit visibility fraction |".
+
+**Fact.** Datastar's attribute reference documents `__threshold` as a percentage ("`.25` – Triggers when 25% of the element is visible"); `threshold(0.25)` renders `__threshold.0.25`, `threshold(25)` renders `__threshold.25` (see the library entry "`DataOnIntersect#threshold` takes a fraction-looking `Double`").
+
+**Fix.** "| `threshold(pct)` | Require `pct` percent visibility, as a whole number such as `25` |".
+
+### datastar reference: `sse.md` describes `Outer` and `Inner` as replacing, but Datastar morphs
+
+Found 2026-11-06 while fact-checking `ElementPatchMode`, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
+
+**Where.** `docs/reference/datastar/sse.md`, `ElementPatchMode` table: "`Outer` | Replace the target element itself *(default)*", "`Inner` | Replace the target's children", "`Replace` | Replace using replacement semantics".
+
+**Fact.** Datastar's SSE reference: outer "Morphs the outer HTML of the elements. This is the default (and recommended) mode."; inner "Morphs the inner HTML of the elements."; replace "Replaces the outer HTML of the elements." The difference (morphing keeps element state such as focus and input values, replacing does not) is what a reader needs to choose between `Outer` and `Replace`, and the page's wording makes them sound the same.
+
+**Fix.** "`Outer` | Morph the target element into the new content *(default)*", "`Inner` | Morph the target's children", "`Replace` | Replace the target element without morphing".
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

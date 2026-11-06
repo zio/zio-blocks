@@ -15682,6 +15682,887 @@ println(Parser.parse("intro\n\n> ```\n> code").toString.replace("\n", "\\n"))
 
 **Suggested fix.** Propagate the item parse error, and add the quote's first line number to the inner error's `line`.
 
+### projection: `SQLiteProjectionStore.updateFields` dies on an unknown column, and the engine stops the projection
+
+Found 2026-11-06 while writing the `projection` Scaladoc (task 1 of the Scala-3 web modules rollout), at commit 07f71de18. The `projection` main sources at 07f71de18 differ from v0.0.56 only in comments, so the bug is the same at v0.0.56; line numbers are at 07f71de18. Reproducers run with `scala-cli run --server=false Repro.sc` in an empty folder, against the published 0.0.56 artifacts, Scala 3.9.0.
+
+**Summary.** `SQLiteProjectionStore.updateFields` checks the field names with `validateField`, which throws `IllegalArgumentException`, but it runs that check inside a `flatMap` callback, outside `ZIO.attempt`. The exception becomes a defect (`Die`), not a failure. The engine only catches failures (`catchAll`), so a handler that names a column that does not exist (a typo in `updateWithField("vists", ...)`, or a Scala name such as `userCount` instead of `user_count`) stops the source's live fiber for good, and makes `start` die when the event is met during catch-up.
+
+**Reproducer** (`Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-projection:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import zio.*
+import zio.blocks.chunk.Chunk
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+sealed trait ShopEvent
+object ShopEvent {
+  case class Visited(n: Int) extends ShopEvent
+  object Visited { implicit val schema: Schema[Visited] = Schema.derived }
+  case class Labeled(label: String) extends ShopEvent
+  object Labeled { implicit val schema: Schema[Labeled] = Schema.derived }
+  implicit val schema: Schema[ShopEvent] = Schema.derived
+}
+import ShopEvent.*
+
+case class Counter(@Modifier.id day: String, visits: Int, label: String)
+object Counter {
+  implicit val schema: Schema[Counter] = Schema.derived
+  implicit val ep: EntityPath[Counter] = EntityPath.derived
+}
+
+def run[A](z: ZIO[Scope, Throwable, A]): String =
+  Unsafe.unsafe(implicit u => Runtime.default.unsafe.run(ZIO.scoped(z)).toString.takeWhile(_ != '\n'))
+
+// 1. The store alone: an unknown column is a defect (Die), not a failure (Fail)
+println(run(for {
+  cache <- TransactorCache.make()
+  store <- SQLiteProjectionStore.make[Counter]("store.db", cache)
+  exit  <- store.updateFields("d1", Chunk(FieldUpdate.Set("vists", 1))).exit
+} yield exit))
+
+// 2. The engine's live fiber: a misspelt column on the first event stops the source
+val projection = Projection[Counter]("counters")
+  .from("shop").routeToSelf
+  .on[Visited].updateWithField("vists", (e, _) => e.n) // typo: the column is `visits`
+  .on[Labeled].updateWithField("label", (e, _) => e.label)
+
+println(run(for {
+  cache  <- TransactorCache.make()
+  tx     <- cache.get("events.db")
+  events <- SQLiteEventStore.make[ShopEvent](tx)
+  store  <- SQLiteProjectionStore.make[Counter]("counters.db", cache)
+  engine <- ProjectionEngine.makeWithStores(List(projection), Map("counters" -> store), Map("shop" -> events), cache)
+  _      <- engine.start
+  _      <- events.append("d1", Visited(1))
+  _      <- events.append("d1", Labeled("valid column"))
+  _      <- ZIO.sleep(1.second)
+  row    <- engine.query(projection, "d1")
+} yield row))
+
+// 3. The same events, now stored, make the next `start` die during catch-up
+println(run(for {
+  cache  <- TransactorCache.make()
+  tx     <- cache.get("events.db")
+  events <- SQLiteEventStore.make[ShopEvent](tx)
+  store  <- SQLiteProjectionStore.make[Counter]("counters2.db", cache)
+  engine <- ProjectionEngine.makeWithStores(List(projection), Map("counters" -> store), Map("shop" -> events), cache)
+  _      <- engine.start
+} yield "start returned"))
+
+// Output:
+// Success(Failure(Die(java.lang.IllegalArgumentException: unknown field 'vists' not in day,visits,label,Stack trace for thread "zio-fiber-480474559":
+// Success(None)
+// Failure(Die(java.lang.IllegalArgumentException: unknown field 'vists' not in day,visits,label,Stack trace for thread "zio-fiber-768003569":
+```
+
+The second line shows that the `Labeled` event, whose column is valid, was never applied: the live fiber died on the first event. The third line is `start` itself dying while it catches up on the stored events.
+
+**Expected.** `updateFields` fails with the `IllegalArgumentException` (a `Fail`), the engine logs `apply failed at seq 1` and skips the event, as it does for any other store error, and the `Labeled` event is applied (`Some(Counter(d1,0,valid column))`).
+
+**Root cause.** `projection/jvm/src/main/scala/zio/blocks/projection/SQLiteProjectionStore.scala:244-250` calls `validateField` (`:67-71`, `throw new IllegalArgumentException(...)` at `:69`) directly in the `cache.get(path).flatMap { tx => ... }` callback; ZIO turns a throw there into a defect. `ProjectionEngine.processBatch` (`projection/shared/src/main/scala/zio/blocks/projection/ProjectionEngine.scala:381` and `:386`) and `start` (`:489`) use `catchAll`, which does not see defects.
+
+**Impact.** One misspelt column name in one handler freezes a live projection on the JVM: later events of that source are never applied, and the engine logs no `apply failed` line. On restart the application dies in `start`. `TestEngine` uses `InMemoryProjectionStore`, which ignores unknown columns, so the same projection passes its tests.
+
+**Test gap.** `SQLiteEdgeSpec.scala:143` ("validateField negative with unknown column throws IllegalArgumentException") accepts either a defect or a failure (`cause.defects.exists(...) || cause.failures.nonEmpty`, `:157`), so it passes with the defect. No engine test uses a handler with an unknown column.
+
+**Suggested fix.** Wrap the validation in `ZIO.attempt(updates.foreach(...))` (or move it inside the `ZIO.attemptBlocking` block) so it fails the task; tighten the test to `cause.failures` only. Optionally check the column names of `updateWithField` handlers in `Projection.validate` or at `start`.
+
+### projection: `InMemoryProjectionStore.updateFields` fails on row types with an `Option` field
+
+Found 2026-11-06 while writing the `projection` Scaladoc (task 1 of the Scala-3 web modules rollout), at commit 07f71de18. The `projection` main sources at 07f71de18 differ from v0.0.56 only in comments, so the bug is the same at v0.0.56; line numbers are at 07f71de18. Reproducers run with `scala-cli run --server=false Repro.sc` in an empty folder, against the published 0.0.56 artifacts, Scala 3.9.0.
+
+**Summary.** `InMemoryProjectionStore` represents `None` and `Some(x)` as a bare `DynamicValue.Null` and the bare value of `x`, but the schema of an `Option` field expects a variant. So for any row type with an `Option` field: `updateFields` on a missing row fails (`Expected a variant at: .bestScore`), because the default row it builds cannot be decoded; `FieldUpdate.Set` of the `Option` field fails the same way; and `Increment` on a `None` field leaves it `None`. `SQLiteProjectionStore` does all three (the default row gets `Some(0)`, `Set` writes the value, `Increment` treats `NULL` as `0`).
+
+**Reproducer** (`Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-projection:0.0.56
+
+import zio.*
+import zio.blocks.chunk.Chunk
+import zio.blocks.projection.*
+import zio.blocks.projection.testing.InMemoryProjectionStore
+import zio.blocks.schema.{Modifier, Schema}
+
+case class Player(@Modifier.id playerId: String, games: Int, bestScore: Option[Int])
+object Player {
+  implicit val schema: Schema[Player] = Schema.derived
+  implicit val ep: EntityPath[Player] = EntityPath.derived
+}
+
+def run[A](z: Task[A]): String =
+  Unsafe.unsafe(implicit u => Runtime.default.unsafe.run(z.exit).toString.takeWhile(_ != '\n'))
+
+val store = Unsafe.unsafe(implicit u => Runtime.default.unsafe.run(InMemoryProjectionStore.make[Player]).getOrThrow())
+
+// 1. A missing row cannot be created
+println(run(store.updateFields("p1", Chunk(FieldUpdate.Increment("games", 1L)))))
+// 2. An existing row: setting the Option field fails
+println(run(store.insert(Player("p2", 0, None)) *> store.updateFields("p2", Chunk(FieldUpdate.Set("best_score", Some(90))))))
+// 3. Incrementing a None field changes nothing
+println(run(store.updateFields("p2", Chunk(FieldUpdate.Increment("best_score", 5L))) *> store.findById("p2")))
+
+// Output:
+// Success(Failure(Fail(java.lang.RuntimeException: Expected a variant at: .bestScore,Stack trace for thread "zio-fiber-988856636":
+// Success(Failure(Fail(java.lang.RuntimeException: Expected a variant at: .bestScore,Stack trace for thread "zio-fiber-1368673927":
+// Success(Success(Some(Player(p2,0,None))))
+```
+
+**Expected.** 1: a new row `Player(p1,1,None)`; 2: `bestScore` becomes `Some(90)`; 3: the same result as SQLite, `Some(5)`, or at least the same rule in both stores.
+
+**Root cause.** `projection/shared/src/main/scala/zio/blocks/projection/testing/InMemoryProjectionStore.scala:287-288` gives an `Option` field of the default row `DynamicValue.Null`; `anyToDynamicValue` (`:116-118`) maps `None` to `DynamicValue.Null` and unwraps `Some(x)`; `incDV` (`:176-190`) returns a non-primitive value unchanged (`:189`). The `Option` schema decodes only `Variant("Some"/"None", ...)`, so `schema.fromDynamicValue` fails.
+
+**Impact.** `TestEngine` uses this store, so a projection whose row has an `Option` field and uses `update`, `aggregate` or `updateWithField` cannot be tested in memory: every such event fails and is logged as `apply failed`, while the same projection works on SQLite. The `testing.md` reference page says counters "behave as they do in SQLite".
+
+**Test gap.** `InMemorySpec.scala:69-78` declares `OptionalEntity` with `Option` fields, but no test stores one; no test calls `updateFields` on a row type with an `Option` field.
+
+**Suggested fix.** Build `Option` values as variants (`DynamicValue.Variant("None", DynamicValue.Record(...))` / `Variant("Some", ...)`, whatever the schema's `Option` encoding is) in `defaultDynamicValueFor`, `anyToDynamicValue` and `incDV`/`Max`/`Min`, and add tests with `OptionalEntity`.
+
+### projection: the engine picks a handler without looking at the event's source
+
+Found 2026-11-06 while writing the `projection` Scaladoc (task 1 of the Scala-3 web modules rollout), at commit 07f71de18. The `projection` main sources at 07f71de18 differ from v0.0.56 only in comments, so the bug is the same at v0.0.56; line numbers are at 07f71de18. Reproducers run with `scala-cli run --server=false Repro.sc` in an empty folder, against the published 0.0.56 artifacts, Scala 3.9.0.
+
+**Summary.** `Projection#handle(event, ctx, source)` can restrict the handler search to one source, and its Scaladoc tells callers to pass the source when a projection has several. `ProjectionEngine` never does: `processBatch` calls `spec.handle(env.event, ctx)`. So when two sources of one projection have handlers for the same event class, the first source's handler runs for the events of both. The routing of the event (`resolveTargetStore`) does use the right source, so the mix-up is only in which handler runs.
+
+**Reproducer** (`Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-projection:0.0.56
+
+import zio.*
+import zio.blocks.projection.*
+import zio.blocks.projection.testing.TestEngine
+import zio.blocks.schema.{Modifier, Schema}
+
+// The same event type arrives from two feeds, and each feed should count separately
+case class Sale(amount: Long)
+object Sale { implicit val schema: Schema[Sale] = Schema.derived }
+
+case class Totals(@Modifier.id shopId: String, online: Long, inStore: Long)
+object Totals {
+  implicit val schema: Schema[Totals] = Schema.derived
+  implicit val ep: EntityPath[Totals] = EntityPath.derived
+}
+
+val totals = Projection[Totals]("totals")
+  .from("web").routeToSelf
+  .on[Sale].aggregate(FieldUpdate.Increment("online", 1L))
+  .from("till").routeToSelf
+  .on[Sale].aggregate(FieldUpdate.Increment("in_store", 1L))
+
+val program = ZIO.scoped {
+  for {
+    engine <- TestEngine.make(totals)
+    _      <- engine.append("shop-1", Sale(10), "till")
+    _      <- engine.append("shop-1", Sale(20), "till")
+    row    <- engine.query(totals, "shop-1").delay(20.millis).repeatUntil(_.exists(t => t.online + t.inStore == 2))
+  } yield row
+}
+
+println(Unsafe.unsafe(implicit u => Runtime.default.unsafe.run(program).getOrThrow()))
+println(totals.handle(Sale(1), ProjectionContext("shop-1", java.time.Instant.EPOCH, 1L), Some("till")))
+
+// Output:
+// Some(Totals(shop-1,2,0))
+// Some(Update(Chunk(Increment(in_store,1))))
+```
+
+**Expected.** `Some(Totals(shop-1,0,2))`: both sales came from the `till` source, as `handle(..., Some("till"))` on the second line shows.
+
+**Root cause.** `projection/shared/src/main/scala/zio/blocks/projection/ProjectionEngine.scala:359` calls `spec.handle(env.event, ctx)` without `Some(binding.sourceName)`, although `processBatch` has the binding; `Projection.handle` then searches all handlers in binding order (`projection/shared/src/main/scala/zio/blocks/projection/Projection.scala:314`). `SchemaEvolution.replayAll` and `TestProjectionEngine.processEvent` do the same, but there the source is not known.
+
+**Impact.** A projection that reads the same event type from several feeds (online and in-store sales, two regions) silently applies the wrong handler. With `TestEngine.append` without a source, an event goes to every source that has a handler for it, so it is applied twice.
+
+**Test gap.** `AggregateSpec.scala:338` ("two sources increment different counters ...") uses a different event class for each source, so the handler choice never matters. No test has two sources with handlers for one event class.
+
+**Suggested fix.** Pass `Some(binding.sourceName)` at `ProjectionEngine.scala:359`. A rebuild replays only one event store, so it cannot tell the sources apart either; see the multi-source watermark entry.
+
+### projection: after a restart, `query` does not find rows kept in cross-entity shards
+
+Found 2026-11-06 while writing the `projection` Scaladoc (task 1 of the Scala-3 web modules rollout), at commit 07f71de18. The `projection` main sources at 07f71de18 differ from v0.0.56 only in comments, so the bug is the same at v0.0.56; line numbers are at 07f71de18. Reproducers run with `scala-cli run --server=false Repro.sc` in an empty folder, against the published 0.0.56 artifacts, Scala 3.9.0.
+
+**Summary.** For a cross-entity projection (`routedBy`), the rows live in shard files, `<basePath>/<name>_shard_<key>.db`. `ProjectionEngine.query` searches only the shards held in the in-memory map `shardsRef`, which an engine fills when it routes an event to a shard. A new engine starts with an empty map, so after a restart every row in a shard is invisible to `query` until a new event is routed to that shard. The rows are still on disk.
+
+**Reproducer** (`Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-projection:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import zio.*
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class OrderPlaced(customer: String, total: Long)
+object OrderPlaced { implicit val schema: Schema[OrderPlaced] = Schema.derived }
+
+case class CustomerOrder(@Modifier.id orderId: String, customer: String, total: Long)
+object CustomerOrder {
+  implicit val schema: Schema[CustomerOrder] = Schema.derived
+  implicit val ep: EntityPath[CustomerOrder] = EntityPath.derived // folder `orders`
+}
+
+val byCustomer = Projection[CustomerOrder]("by_customer")
+  .from("orders").routedBy[OrderPlaced](_.customer)
+  .on[OrderPlaced].insert((e, ctx) => CustomerOrder(ctx.entityId, e.customer, e.total))
+
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get("orders"))
+
+def session(append: Boolean) = ZIO.scoped {
+  for {
+    cache  <- TransactorCache.make()
+    tx     <- cache.get("orders/events.db")
+    orders <- SQLiteEventStore.make[OrderPlaced](tx)
+    engine <- ProjectionEngine.makeWithStoresVarargs(cache, Map("orders" -> orders))(byCustomer)
+    _      <- engine.start
+    _      <- ZIO.when(append)(orders.append("order-1", OrderPlaced("ada", 80L)))
+    _      <- ZIO.sleep(500.millis)
+    row    <- engine.query(byCustomer, "order-1")
+    files  <- ZIO.attempt(new java.io.File("orders").list().sorted.mkString(", "))
+  } yield s"query = $row; files: $files"
+}
+
+Unsafe.unsafe { implicit u =>
+  println("first run: " + Runtime.default.unsafe.run(session(append = true)).getOrThrow())
+  println("restart:   " + Runtime.default.unsafe.run(session(append = false)).getOrThrow())
+}
+
+// Output:
+// first run: query = Some(CustomerOrder(order-1,ada,80)); files: by_customer.db, by_customer_shard_ada.db, events.db
+// restart:   query = None; files: by_customer.db, by_customer_shard_ada.db, events.db
+```
+
+**Expected.** The restart also returns `Some(CustomerOrder(order-1,ada,80))`: the shard file is there, and the watermark (in the primary store) says the event was applied.
+
+**Root cause.** `projection/shared/src/main/scala/zio/blocks/projection/ProjectionEngine.scala:566-567` reads only `shardsRef`; shards are added to it only in `getOrCreateShard` (`:263-290`), which runs when an event is routed. Nothing lists the existing `*_shard_*.db` files at `start`.
+
+**Impact.** Any application that restarts loses read access to its cross-entity read model until each shard gets a new event; `queryByName` never searches shards at all. The reference page describes the behaviour ("searches the shards this engine has opened") but not its effect after a restart.
+
+**Test gap.** The shard tests (`ProjectionEngineValidationSpec.scala:259` "query shard fallback cross-entity", `ProjectionEngineSpec.scala:554`) query in the same engine that routed the events; none restarts.
+
+**Suggested fix.** At `start` (or on a `query` miss), open the shard files that exist for the projection, for example by listing `<basePath>/<name>_shard_*.db`, or keep a shard index in the primary store's `_projection_meta`.
+
+### projection: a projection with several sources shares one watermark, so a restart skips events
+
+Found 2026-11-06 while writing the `projection` Scaladoc (task 1 of the Scala-3 web modules rollout), at commit 07f71de18. The `projection` main sources at 07f71de18 differ from v0.0.56 only in comments, so the bug is the same at v0.0.56; line numbers are at 07f71de18. Reproducers run with `scala-cli run --server=false Repro.sc` in an empty folder, against the published 0.0.56 artifacts, Scala 3.9.0.
+
+**Summary.** The engine saves one watermark per projection, in the primary store, and every source of the projection writes it after each event (`updateLastProcessedSeq(env.seq)`), although each event store numbers its events from 1. At `start`, each source catches up from that shared number. An event appended to one source while the application is stopped, with a sequence number at or below the number another source wrote last, is never applied. The `migration.md` reference page lists this under Limitations; it is not filed in `library-issues.md`.
+
+**Reproducer** (`Repro.sc`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-projection:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.2.1
+
+import zio.*
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class UserCreated(name: String)
+object UserCreated { implicit val schema: Schema[UserCreated] = Schema.derived }
+case class RepoCreated(name: String)
+object RepoCreated { implicit val schema: Schema[RepoCreated] = Schema.derived }
+
+case class DailyStats(@Modifier.id day: String, users: Long, repos: Long)
+object DailyStats {
+  implicit val schema: Schema[DailyStats] = Schema.derived
+  implicit val ep: EntityPath[DailyStats] = EntityPath.derived // folder `days`
+}
+
+val stats = Projection[DailyStats]("daily_stats")
+  .from("users").routeToSelf.on[UserCreated].aggregate(FieldUpdate.Increment("users", 1L))
+  .from("repos").routeToSelf.on[RepoCreated].aggregate(FieldUpdate.Increment("repos", 1L))
+
+java.nio.file.Files.createDirectories(java.nio.file.Paths.get("days"))
+
+def session(work: (SQLiteEventStore[UserCreated], SQLiteEventStore[RepoCreated]) => Task[Any], before: Boolean) =
+  ZIO.scoped {
+    for {
+      cache  <- TransactorCache.make()
+      users  <- cache.get("days/users.db").flatMap(SQLiteEventStore.make[UserCreated](_))
+      repos  <- cache.get("days/repos.db").flatMap(SQLiteEventStore.make[RepoCreated](_))
+      engine <- ProjectionEngine.makeWithStoresVarargs(cache, Map("users" -> users, "repos" -> repos))(stats)
+      _      <- work(users, repos).when(before)
+      _      <- engine.start
+      _      <- work(users, repos).unless(before)
+      _      <- ZIO.sleep(500.millis)
+      row    <- engine.query(stats, "2026-11-06")
+      seq    <- engine.getLastProcessedSeq(stats)
+    } yield s"row = $row, watermark = $seq"
+  }
+
+val day = "2026-11-06"
+Unsafe.unsafe { implicit u =>
+  // Run 1: one repo, then three users, all applied live. The watermark ends at the users' seq 3
+  println(Runtime.default.unsafe.run(session((u, r) =>
+    r.append(day, RepoCreated("zio")) *> ZIO.sleep(200.millis) *>
+      u.append(day, UserCreated("ada")) *> u.append(day, UserCreated("bo")) *> u.append(day, UserCreated("cy")), before = false)).getOrThrow())
+  // While the application is stopped, two more repos are appended (repos seq 2 and 3)
+  // Run 2: catch-up reads repos after the shared watermark 3, so both are skipped
+  println(Runtime.default.unsafe.run(session((u, r) =>
+    r.append(day, RepoCreated("blocks")) *> r.append(day, RepoCreated("http")), before = true)).getOrThrow())
+}
+
+// Output:
+// row = Some(DailyStats(2026-11-06,3,1)), watermark = 3
+// row = Some(DailyStats(2026-11-06,3,1)), watermark = 3
+```
+
+**Expected.** After the restart, `DailyStats(2026-11-06,3,3)`: the two repos appended while the application was stopped are applied.
+
+**Root cause.** `projection/shared/src/main/scala/zio/blocks/projection/ProjectionEngine.scala:379` saves `env.seq` of any source into the one primary-store watermark, and `:462-464` starts every source's catch-up from it. `SQLiteProjectionStore` keeps one `last_seq` per table in `_projection_meta`.
+
+**Impact.** Silent, permanent data loss in multi-source projections (the documented daily-stats pattern of users plus repos): a full rebuild does not fix it either, because a rebuild replays one event store only.
+
+**Test gap.** The two-source engine tests (`AggregateSpec.scala:338` "two sources increment different counters converge on same date row", `ProjectionEngineSpec.scala:312` "multi-source single spec with two bindings", one source with `UserCreated` and one with `UserRenamed`) run one engine on fresh stores and never restart, so the shared watermark is never read back.
+
+**Suggested fix.** Keep one watermark per (projection, source): a `_projection_meta` row keyed by `<table>:<source>`, and `getLastProcessedSeq`/`updateLastProcessedSeq` taking the source name; replay every source in a rebuild.
+
+### datastar: on Scala 3.10 (`zio-blocks-next-datastar`), `:=` on a Datastar attribute fails with "No ToDatastarExpr instance found" for every non-String value
+
+**Where found:** 2026-11-06, while compiling the datastar Scaladoc examples with `scaladoc-check-scala3` on 3.10.0, base `07f71de18` (`datastar/` is identical to `v0.0.56`). Verified as an outside user against the published `zio-blocks-next-datastar:0.0.56`; the same code compiles on 3.9.0 against `zio-blocks-datastar:0.0.56`.
+
+**Summary:** `ToDatastarExpr.fromToJs[A]` needs an implicit `NotString[A]`, and every `NotString` instance is `private[datastar]`. On Scala 3.9.0 the implicit search finds them from user code; on 3.10.0 it does not, so `:=` on `dataInit`, `dataOn`, `dataText` and the other attributes fails for `Js` (`js"..."`), `Signal[A]`, `Int` and `DatastarRef` values. The module's own tests compile on 3.10 because they sit inside package `zio.http.datastar`.
+
+**Reproducer (3.10.0), `P.scala`, run with `scala-cli run --server=false .`:**
+```scala
+//> using scala 3.10.0
+//> using option -experimental
+//> using dep dev.zio::zio-blocks-next-datastar:0.0.56
+import zio.blocks.html._
+import zio.http.datastar._
+object P { def main(a: Array[String]): Unit = println(div(dataInit.delay(500) := js"@get('/bootstrap')").render) }
+// -- [E172] Type Error: .../P.scala:6:103
+// 6 |object P { def main(a: Array[String]): Unit = println(div(dataInit.delay(500) := js"@get('/bootstrap')").render) }
+//   |                                                                                                       ^
+//   |No ToDatastarExpr instance found for type zio.blocks.html.Js. Use js"..." for Datastar expressions or typed Signal/SignalUpdate values..
+//   |I found:
+//   |
+//   |    zio.http.datastar.ToDatastarExpr.fromToJs[A](zio.blocks.html.ToJs.jsToJs,
+//   |      /* missing */summon[zio.http.datastar.NotString[A]])
+//   |
+//   |But no implicit values were found that match type zio.http.datastar.NotString[A].
+//   |
+//   |The following import might fix the problem:
+//   |
+//   |  import zio.http.datastar.NotString.notString
+//   |
+// 1 error found
+// Compilation failed
+```
+(Output from scala-cli 2026-11-06, with the scratch directory removed from the path.)
+
+The import the compiler suggests does not help: adding `import zio.http.datastar.NotString.notString` after `import zio.http.datastar._` in the same `P.scala` (run the same way) adds a second error and keeps the first:
+```scala
+// -- [E173] Reference Error: .../P.scala:6:25
+// 6 |import zio.http.datastar.NotString.notString
+//   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//   |object NotString cannot be accessed as a member of zio.http.datastar.type from package <empty>.
+//   |  private[datastar] object NotString can only be accessed from package zio.http.datastar in package zio.http.
+// -- [E172] Type Error: .../P.scala:7:103
+// ... (the same "No ToDatastarExpr instance found" error as above)
+// 2 errors found
+// Compilation failed
+```
+Contrast (3.9.0), same body with `//> using scala 3.9.0` and `//> using dep dev.zio::zio-blocks-datastar:0.0.56` (no `-experimental`):
+```scala
+// <div data-init__delay.500ms="@get(&#x27;/bootstrap&#x27;)"></div>
+```
+
+**Expected:** the same output on 3.10 as on 3.9.0.
+
+**Root cause:** `datastar/shared/src/main/scala/zio/blocks/datastar/ToDatastarExpr.scala:64` (`fromToJs` requires `NotString[A]`) and `:73-83` (`NotString`, `NotStringLowPriority` and the two `String` instances are `private[datastar]`). An implicit that user code can't access is not eligible on 3.10.
+
+**Impact:** on the Scala 3.10 line, user code can't pass `js"..."`, a `Signal`, an `Int` or a `DatastarRef` to a Datastar attribute. Fourteen Scaladoc examples in the module can't be compiled on 3.10 and carry `// no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)`.
+
+**Test gap:** the datastar tests live in `zio.http.datastar`, so the private instances are visible; no test compiles a call from another package on 3.10.
+
+**Suggested fix:** make `NotString` and its instances public, or replace the ambiguity trick with `scala.util.NotGiven[A =:= String]`. Add a test in another package (for example `zio.blocks.datastar.consumer`) that calls `:=` with a `Js` value, and run it on both Scala 3 versions.
+
+### htmx: `HxSwap#focusScroll` renders `focusScroll:`, which htmx 2 does not read, so the setting is ignored
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
+
+**Summary.** `HxSwap.InnerHTML.focusScroll(true)` renders `innerHTML focusScroll:true`. htmx 2 spells the modifier `focus-scroll:` (htmx.js:3857-3859), so it logs `Unknown modifier in hx-swap: focusScroll:true` and keeps its default focus scrolling. `HxSwap.parse` (and so `HxReswap.parse`) accepts only the library's spelling and rejects htmx's.
+
+**Setup.** Scala side: `scala-cli` 1.10.1, `--server=false`, JDK 21, against the published `dev.zio::zio-blocks-http-htmx:0.0.56` on Scala 3.9.0. Browser side: htmx 2.0.11 saved from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.js` as `htmx.js`, Playwright 1.63 driving Chromium, run with `node <script>.mjs htmx.js`. The script's first lines name this machine's Playwright and Chromium paths; change them to yours. The script serves the page from `page.route`, so no server is needed. htmx line numbers refer to that unminified `htmx.js`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(button(hxGet := "/frag", hxSwap := HxSwap.InnerHTML.focusScroll(true))("a").render)
+    println(HxSwap.parse("innerHTML focus-scroll:true"))
+  }
+}
+// <button hx-get="/frag" hx-swap="innerHTML focusScroll:true">a</button>
+// Left(Unsupported HTMX swap modifier: focus-scroll:true)
+```
+Browser check, `focus.mjs`:
+```js
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.HOME + '/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
+const htmxPath = process.argv[2];
+const browser = await chromium.launch({ executablePath: '/nix/var/nix/profiles/default/bin/chromium' });
+const page = await browser.newPage();
+page.on('console', m => console.log('console.' + m.type() + ': ' + m.text()));
+await page.route('http://app.test/**', async route => {
+  const url = route.request().url();
+  if (url.endsWith('/')) {
+    await route.fulfill({ contentType: 'text/html', body: `<html><head><script src="http://app.test/htmx.js"></script></head><body>
+      <button id="a" hx-get="/frag" hx-target="#out" hx-swap="innerHTML focusScroll:true">a</button>
+      <button id="b" hx-get="/frag" hx-target="#out" hx-swap="innerHTML focus-scroll:true">b</button>
+      <div id="out"></div></body></html>` });
+  } else if (url.endsWith('/htmx.js')) {
+    await route.fulfill({ contentType: 'application/javascript', path: htmxPath });
+  } else {
+    await route.fulfill({ contentType: 'text/html', body: '<p>ok</p>' });
+  }
+});
+await page.goto('http://app.test/');
+console.log('htmx version: ' + await page.evaluate(() => htmx.version));
+for (const id of ['a', 'b']) {
+  console.log('click #' + id);
+  await page.click('#' + id);
+  await page.waitForTimeout(300);
+  console.log('out: ' + await page.innerHTML('#out'));
+  await page.evaluate(() => { document.getElementById('out').innerHTML = '' });
+}
+await browser.close();
+// htmx version: 2.0.11
+// click #a
+// console.error: Unknown modifier in hx-swap: focusScroll:true
+// out: <p>ok</p>
+// click #b
+// out: <p>ok</p>
+```
+(`#b` uses htmx's spelling `focus-scroll:true` and logs nothing.)
+
+**Expected.** `focusScroll(true)` renders `focus-scroll:true`, and `HxSwap.parse` reads `focus-scroll:`.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HxSwap.scala:127` (`parts += ("focusScroll:" + ...)`) and `:166-167` (`token.startsWith("focusScroll:")`, `substring(12)`).
+
+**Impact.** Every `focusScroll(...)` call is a no-op in the browser plus a console error; a page that needs focus scrolling on (or off) does not get it.
+
+**Test gap.** `HtmxAttributesSpec.scala:59`, `:75-81` and `:94` assert the `focusScroll:` spelling, so they pin the wrong token; no test compares it with htmx's syntax. `HtmxHeadersSpec.scala:80` asserts the same spelling through `HxReswap.parse`.
+
+**Suggested fix.** Render `focus-scroll:` and parse `focus-scroll:` (keep accepting `focusScroll:` for compatibility if wanted); update the three assertions and `docs/reference/htmx/hx-swap.md` (see the docs entry).
+
+### htmx: `hxDisable := false` and `hxPreserve := false` still disable htmx and still preserve the element
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
+
+**Summary.** `hxDisable` and `hxPreserve` are `HtmxAttrKey[Boolean]`, so `false` renders `hx-disable="false"` and `hx-preserve="false"`. htmx 2 checks only that these attributes are present (`disableSelector: '[hx-disable], [data-hx-disable]'`, htmx.js:206 and 2443; `findAll(fragment, '[hx-preserve], [data-hx-preserve]')`, htmx.js:1529), so `false` disables htmx on the element and its children, and preserves the element across swaps, exactly like `true`.
+
+**Setup.** Scala side: `scala-cli` 1.10.1, `--server=false`, JDK 21, against the published `dev.zio::zio-blocks-http-htmx:0.0.56` on Scala 3.9.0. Browser side: htmx 2.0.11 saved from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.js` as `htmx.js`, Playwright 1.63 driving Chromium, run with `node <script>.mjs htmx.js`. The script's first lines name this machine's Playwright and Chromium paths; change them to yours. The script serves the page from `page.route`, so no server is needed. htmx line numbers refer to that unminified `htmx.js`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(div(hxDisable := false)(button(hxGet := "/frag")("a")).render)
+    println(span(id := "keep", hxPreserve := false)("old").render)
+  }
+}
+// <div hx-disable="false"><button hx-get="/frag">a</button></div>
+// <span id="keep" hx-preserve="false">old</span>
+```
+Browser check, `disable.mjs` (the two rendered elements, plus a control button `#b` without `hx-disable`):
+```js
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.HOME + '/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
+const htmxPath = process.argv[2];
+const browser = await chromium.launch({ executablePath: '/nix/var/nix/profiles/default/bin/chromium' });
+const page = await browser.newPage();
+let n = 0;
+page.on('console', m => console.log('console.' + m.type() + ': ' + m.text()));
+await page.route('http://app.test/**', async route => {
+  const url = route.request().url();
+  if (url.endsWith('/')) {
+    await route.fulfill({ contentType: 'text/html', body: `<html><head><script src="http://app.test/htmx.js"></script></head><body>
+      <div hx-disable="false"><button id="a" hx-get="/frag" hx-target="#out">a</button></div>
+      <div><button id="b" hx-get="/frag" hx-target="#out">b</button></div>
+      <div id="out"></div>
+      <button id="c" hx-get="/swap" hx-target="#box" hx-select="#box" hx-swap="outerHTML">c</button>
+      <div id="box"><span id="keep" hx-preserve="false">old</span></div>
+      </body></html>` });
+  } else if (url.endsWith('/htmx.js')) {
+    await route.fulfill({ contentType: 'application/javascript', path: htmxPath });
+  } else if (url.endsWith('/swap')) {
+    await route.fulfill({ contentType: 'text/html', body: '<div id="box"><span id="keep" hx-preserve="false">new</span></div>' });
+  } else {
+    n++;
+    await route.fulfill({ contentType: 'text/html', body: '<p>ok ' + n + '</p>' });
+  }
+});
+await page.goto('http://app.test/');
+for (const id of ['a', 'b', 'c']) {
+  await page.click('#' + id);
+  await page.waitForTimeout(300);
+  console.log('after #' + id + ': out=' + await page.innerHTML('#out') + ' box=' + await page.innerHTML('#box'));
+}
+await browser.close();
+// after #a: out= box=<span id="keep" hx-preserve="false">old</span>
+// after #b: out=<p>ok 1</p> box=<span id="keep" hx-preserve="false">old</span>
+// after #c: out=<p>ok 1</p> box=<span id="keep" hx-preserve="false">old</span>
+```
+`#a` sent no request (`out` stayed empty) although it has `hx-get`; `#b` did. After `#c`, the box still shows `old` although the response has `new`. Control: the same script with the response's `hx-preserve="false"` removed shows `box=<span id="keep">new</span>` after `#c`.
+
+**Expected.** `false` means "off": render nothing for `false` (or make the keys presence-only, e.g. `hxDisable` as a plain attribute without a value), so `hxDisable := false` leaves htmx on and `hxPreserve := false` lets the element be swapped.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HtmxAttributes.scala:59` and `:66` declare the keys as `Boolean`, and `ToHtmxValue.booleanValue` (`ToHtmxValue.scala:57-59`) renders `false` as the string `"false"`.
+
+**Impact.** Code that computes the flag (`hxDisable := isReadOnly`) disables htmx for the whole subtree whenever the flag is `false`, so buttons and forms silently stop sending requests; `hxPreserve := false` keeps stale content.
+
+**Test gap.** `HtmxAttributesSpec.scala:337` renders `hxPreserve := true` and `hxDisable := true` only, and asserts the string, not what htmx does with it.
+
+**Suggested fix.** Change both keys to a presence-only attribute (no value), or drop the attribute when the value is `false`; add a test that `false` renders no attribute.
+
+### htmx: `HxSwapOob.False` renders `hx-swap-oob="false"`, which htmx 2 still swaps out of band
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
+
+**Summary.** `HxSwapOob(false)` and `HxSwapOob.False` render `hx-swap-oob="false"`. htmx 2 has no `false` value: `oobSwap` (htmx.js:1461-1473) treats any value other than `true` and `style:selector` as a swap style, and `swapWithStyle` (default branch) falls back to `htmx.config.defaultSwapStyle` (`innerHTML`). The element is still swapped into the page element with the same `id`.
+
+**Setup.** Scala side: `scala-cli` 1.10.1, `--server=false`, JDK 21, against the published `dev.zio::zio-blocks-http-htmx:0.0.56` on Scala 3.9.0. Browser side: htmx 2.0.11 saved from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.js` as `htmx.js`, Playwright 1.63 driving Chromium, run with `node <script>.mjs htmx.js`. The script's first lines name this machine's Playwright and Chromium paths; change them to yours. The script serves the page from `page.route`, so no server is needed. htmx line numbers refer to that unminified `htmx.js`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(span(id := "badge", hxSwapOob := HxSwapOob(false))("9").render)
+    println(span(id := "badge", hxSwapOob := HxSwapOob.False)("9").render)
+  }
+}
+// <span id="badge" hx-swap-oob="false">9</span>
+// <span id="badge" hx-swap-oob="false">9</span>
+```
+Browser check, `oobfalse.mjs` (button `#a` gets a main fragment plus the first rendered element; `#b` is a control with `innerHTML:#badge`):
+```js
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.HOME + '/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
+const htmxPath = process.argv[2];
+const browser = await chromium.launch({ executablePath: '/nix/var/nix/profiles/default/bin/chromium' });
+const page = await browser.newPage();
+page.on('console', m => console.log('console.' + m.type() + ': ' + m.text()));
+await page.route('http://app.test/**', async route => {
+  const url = route.request().url();
+  if (url.endsWith('/')) {
+    await route.fulfill({ contentType: 'text/html', body: `<html><head><script src="http://app.test/htmx.js"></script></head><body>
+      <section><div id="badge">0</div><button id="a" hx-get="/closest" hx-target="#out">a</button></section>
+      <button id="b" hx-get="/css" hx-target="#out">b</button>
+      <div id="out"></div></body></html>` });
+  } else if (url.endsWith('/htmx.js')) {
+    await route.fulfill({ contentType: 'application/javascript', path: htmxPath });
+  } else if (url.endsWith('/closest')) {
+    await route.fulfill({ contentType: 'text/html', body: '<p>main a</p><span id="badge" hx-swap-oob="false">9</span>' });
+  } else {
+    await route.fulfill({ contentType: 'text/html', body: '<p>main b</p><span hx-swap-oob="innerHTML:#badge">2</span>' });
+  }
+});
+await page.goto('http://app.test/');
+await page.evaluate(() => document.body.addEventListener('htmx:oobErrorNoTarget', e => console.log('event htmx:oobErrorNoTarget target=' + e.detail.target)));
+for (const id of ['a', 'b']) {
+  await page.click('#' + id);
+  await page.waitForTimeout(300);
+  console.log('after #' + id + ': out=' + await page.innerHTML('#out') + ' badge=' + await page.innerHTML('#badge'));
+}
+await browser.close();
+// after #a: out=<p>main a</p> badge=9
+// after #b: out=<p>main b</p> badge=2
+```
+The badge changed from `0` to `9` after `#a`: the `false` element was swapped out of band.
+
+**Expected.** `HxSwapOob(false)` does not swap out of band (render no attribute), or the value does not exist.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HxAttributeValues.scala:113` (`val False: HxSwapOob = HxSwapOob("false")`) and `:115`.
+
+**Impact.** A response that computes the flag (`hxSwapOob := HxSwapOob(isUpdate)`) updates the page element anyway when the flag is `false`, and the element disappears from the main fragment.
+
+**Test gap.** `HtmxAttributesSpec.scala:312` asserts that `HxSwapOob(false)` renders `hx-swap-oob="false"`, pinning the value without checking htmx's meaning.
+
+**Suggested fix.** Remove `False` and `apply(Boolean)`, or make the `false` case render no attribute; fix `docs/reference/htmx/attribute-values.md:122` ("for boolean flags").
+
+### htmx: `HxSwapOob.using(swap, selector)` accepts relative `HxTarget`s (`closest`, ...) that htmx 2 can't resolve (sibling of the `HxLocation` relative-target entry)
+
+Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
+
+**Summary.** `HxSwapOob.using(swap, selector: HxTarget)` takes any `HxTarget`. htmx 2 resolves the selector of `hx-swap-oob` with `querySelectorAllExt(rootNode, selector, false)` where `rootNode` is the document (htmx.js:1462 and 1477), so `closest section` has no element to start from: htmx removes the element, fires `htmx:oobErrorNoTarget` and swaps nothing.
+
+**Setup.** Scala side: `scala-cli` 1.10.1, `--server=false`, JDK 21, against the published `dev.zio::zio-blocks-http-htmx:0.0.56` on Scala 3.9.0. Browser side: htmx 2.0.11 saved from `https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.js` as `htmx.js`, Playwright 1.63 driving Chromium, run with `node <script>.mjs htmx.js`. The script's first lines name this machine's Playwright and Chromium paths; change them to yours. The script serves the page from `page.route`, so no server is needed. htmx line numbers refer to that unminified `htmx.js`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
+
+import zio.blocks.html._
+import zio.http.htmx._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    println(span(hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML, HxTarget.closest("section")))("1").render)
+    println(span(hxSwapOob := HxSwapOob.using(HxSwap.InnerHTML, HxTarget.css("#badge")))("2").render)
+  }
+}
+// <span hx-swap-oob="innerHTML:closest section">1</span>
+// <span hx-swap-oob="innerHTML:#badge">2</span>
+```
+Browser check, `oob.mjs` (button `#a` gets a main fragment plus the first element, `#b` the second):
+```js
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.HOME + '/.npm/_npx/e41f203b7505f1fb/node_modules/playwright');
+const htmxPath = process.argv[2];
+const browser = await chromium.launch({ executablePath: '/nix/var/nix/profiles/default/bin/chromium' });
+const page = await browser.newPage();
+page.on('console', m => console.log('console.' + m.type() + ': ' + m.text()));
+await page.route('http://app.test/**', async route => {
+  const url = route.request().url();
+  if (url.endsWith('/')) {
+    await route.fulfill({ contentType: 'text/html', body: `<html><head><script src="http://app.test/htmx.js"></script></head><body>
+      <section><div id="badge">0</div><button id="a" hx-get="/closest" hx-target="#out">a</button></section>
+      <button id="b" hx-get="/css" hx-target="#out">b</button>
+      <div id="out"></div></body></html>` });
+  } else if (url.endsWith('/htmx.js')) {
+    await route.fulfill({ contentType: 'application/javascript', path: htmxPath });
+  } else if (url.endsWith('/closest')) {
+    await route.fulfill({ contentType: 'text/html', body: '<p>main a</p><span hx-swap-oob="innerHTML:closest section">1</span>' });
+  } else {
+    await route.fulfill({ contentType: 'text/html', body: '<p>main b</p><span hx-swap-oob="innerHTML:#badge">2</span>' });
+  }
+});
+await page.goto('http://app.test/');
+await page.evaluate(() => document.body.addEventListener('htmx:oobErrorNoTarget', e => console.log('event htmx:oobErrorNoTarget target=' + e.detail.target)));
+for (const id of ['a', 'b']) {
+  await page.click('#' + id);
+  await page.waitForTimeout(300);
+  console.log('after #' + id + ': out=' + await page.innerHTML('#out') + ' badge=' + await page.innerHTML('#badge'));
+}
+await browser.close();
+// console.error: htmx:oobErrorNoTarget, closest section
+// console.log: event htmx:oobErrorNoTarget target=closest section
+// after #a: out=<p>main a</p> badge=0
+// after #b: out=<p>main b</p> badge=2
+```
+
+**Expected.** Only targets htmx can resolve from the document (CSS selectors) are accepted, or the docs say so.
+
+**Root cause.** `htmx/shared/src/main/scala/zio/http/htmx/HxAttributeValues.scala:119-120` writes `selector.render` for any `HxTarget`.
+
+**Impact.** An out-of-band update written with a relative target silently does nothing (console error only).
+
+**Test gap.** `HtmxAttributesSpec.scala:307` uses only `HxTarget.css("#messages")`.
+
+**Suggested fix.** Take a `CssSelector` (as `HxRetarget` does), or reject non-`Css` targets; fix it together with the `HxLocation` entry.
+
+### data-migration: `SmallMigrator` accepts `batchSize <= 0`, and then `processBatch()` returns `0` forever, so the documented drain loop never ends
+
+Found 2026-11-06 while writing Scaladoc for `SmallMigrator` (Scala-3 web modules Scaladoc rollout), on branch `scala3-web-modules-scaladoc` at `07f71de18`. Same at v0.0.56 (the module's sources are identical).
+
+**Summary.** `SmallMigrator`'s constructor does not check `batchSize`. With `0` (or a negative value), `processBatch()` returns `0` at once without claiming a key, so the queue never shrinks. The loop that the reference page and the Scaladoc recommend, `while (pending > 0) migrator.processBatch()`, then spins forever. `LargeMigrator` rejects the same value (`run()` and `drain()` throw `IllegalArgumentException: requirement failed: batchSize must be positive`), so the two migrators disagree.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-data-migration:0.0.56
+//> using dep org.xerial:sqlite-jdbc:3.53.4.0
+
+import zio.blocks.schema.*
+import zio.blocks.schema.migration.Migration
+import zio.blocks.data.migration.*
+import zio.blocks.sql.*
+
+case class ItemV1(id: Long, name: String)
+case class ItemV2(id: Long, name: String, qty: Int)
+object ItemV1 { implicit val schema: Schema[ItemV1] = Schema.derived }
+object ItemV2 { implicit val schema: Schema[ItemV2] = Schema.derived }
+
+@main def repro(): Unit = {
+  val file = java.io.File.createTempFile("items", ".db")
+  given transactor: Transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:${file.getAbsolutePath}", SqlDialect.SQLite)
+  given Dialect = Dialect.SQLite
+  transactor.transact(Frag.literal("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL, qty INTEGER NOT NULL DEFAULT 0)").update)
+  transactor.transact(Frag.literal("INSERT INTO items (id, name) VALUES (1, 'bolt')").update)
+  QueueTable.create[Long]("items_q", transactor)
+  transactor.transact(QueueTable.enqueue("items_q", Seq(1L)))
+
+  val v1 = Repo.derived[ItemV1, Long]("items", "id", _.id)
+  val v2 = Repo.derived[ItemV2, Long]("items", "id", _.id)
+  val m  = Migration.newBuilder[ItemV1, ItemV2].addField(_.qty, SchemaExpr.literal(5)).build
+
+  val small = SmallMigrator[ItemV1, ItemV2, Long, Long](v1, v2, m, "items_q", 0, TargetStrategy.InPlace)
+  small.init()
+  // The documented drain loop, capped at 3 rounds here; uncapped it never ends
+  var rounds = 0
+  while (transactor.connect(QueueTable.pending("items_q")) > 0 && rounds < 3) {
+    println(s"processBatch() = ${small.processBatch()}, pending = ${transactor.connect(QueueTable.pending("items_q"))}")
+    rounds += 1
+  }
+  val large = LargeMigrator[ItemV1, ItemV2, Long, Long](v1, v2, m, "items_q", 0, TargetStrategy.InPlace)
+  try large.run() catch { case e: IllegalArgumentException => println(s"LargeMigrator#run: ${e.getMessage}") }
+}
+// processBatch() = 0, pending = 1
+// processBatch() = 0, pending = 1
+// processBatch() = 0, pending = 1
+// LargeMigrator#run: requirement failed: batchSize must be positive
+```
+
+**Expected.** The constructor (or at least `processBatch()`) rejects a non-positive `batchSize` with `IllegalArgumentException`, as `LargeMigrator` does.
+
+**Root cause.** `dataMigration/shared/src/main/scala/zio/blocks/data/migration/SmallMigrator.scala:108`: `if (batchSize <= 0) return 0`, after the `init`/`complete` guards (`:106-107`); the constructor (`:30-38`) checks nothing. `LargeMigrator` checks in `run()` (`LargeMigrator.scala:176`) and, through `QueueTable.dequeue` (`QueueTable.scala:162`), in `drain()`.
+
+**Impact.** A misconfigured batch size (for example read from configuration as `0`) hangs the backfill in a busy loop that hammers the database with `COUNT(*)` queries, with no error.
+
+**Test gap.** `SmallMigratorSpec` constructs migrators only with `batchSize = 10`; no test passes `0`. `LargeMigratorSpec` has "run() rejects non-positive batchSize" (asserts `Try(m.run()).isFailure`).
+
+**Suggested fix.** Add `require(batchSize > 0, "batchSize must be positive")` to both migrators' constructors, and drop the `return 0` branch.
+
+### datastar: `DataOnIntersect#threshold` takes a fraction-looking `Double`, but Datastar reads the value as a percentage, and `NaN` or infinity throws at render time
+
+Found 2026-11-06 while writing Scaladoc for `DataOnIntersect` and `IntersectModifier`, on branch `scala3-web-modules-scaladoc` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `threshold(pct: Double)` writes the number without trailing zeros: `threshold(25)` gives `__threshold.25`, `threshold(0.25)` gives `__threshold.0.25`. Datastar's attribute reference documents the value as a percentage ("`.25` – Triggers when 25% of the element is visible"), and its `onIntersect` plugin computes `clamp(Number(value), 0, 100) / 100`. So the fraction that the module's own tests and the reference page use (`threshold(0.5)`, "Require an explicit visibility fraction") does not ask for 50%, and a fractional value adds a second dot to the modifier, which Datastar's modifier syntax uses as a tag separator. Nothing checks the range (`threshold(250)` renders `__threshold.250`), and `NaN` or an infinite value is accepted by `threshold` and throws `NumberFormatException` later, from `:=`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-datastar:0.0.56
+
+import zio.blocks.html.*
+import zio.http.datastar.*
+
+@main def repro(): Unit = {
+  println(div(dataOnIntersect.threshold(25) := js"@get('/more')").render)
+  println(div(dataOnIntersect.threshold(0.25) := js"@get('/more')").render)
+  println(div(dataOnIntersect.threshold(250) := js"@get('/more')").render)
+  val nan = dataOnIntersect.threshold(Double.NaN) // accepted here
+  try println(div(nan := js"@get('/more')").render)
+  catch { case e: NumberFormatException => println(s"NumberFormatException: ${e.getMessage}") }
+}
+// <div data-on-intersect__threshold.25="@get(&#x27;/more&#x27;)"></div>
+// <div data-on-intersect__threshold.0.25="@get(&#x27;/more&#x27;)"></div>
+// <div data-on-intersect__threshold.250="@get(&#x27;/more&#x27;)"></div>
+// NumberFormatException: Character N is neither a decimal digit number, decimal point, nor "e" notation exponential mark.
+```
+
+**Expected.** A whole-number percentage API (`threshold(percent: Int)`, checked to 0-100), or a fraction API that converts to a percentage (`0.25` renders `__threshold.25`); either way, invalid values rejected when `threshold` is called. Not checked in a browser: what Datastar 1.0 does with `__threshold.0.25`.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/IntersectModifier.scala:59-61` renders `BigDecimal(pct).underlying().stripTrailingZeros().toPlainString` (`BigDecimal(NaN)` throws); `DataOnIntersect.scala:41` passes the value through unchecked.
+
+**Impact.** Readers who follow the reference page ("visibility fraction") or the tests get a modifier that does not mean what they asked for, with no error. A `NaN` from a computation fails far from its source.
+
+**Test gap.** `DatastarAttributesSpec` asserts the fraction rendering as correct: `threshold(0.5)` == `data-on-intersect__threshold.0.5` (line 334-336), also `threshold(0.75)` (lines 354-361); `DatastarInternalsSpec.scala:277` uses `threshold(0.25)`. No test covers `NaN`, infinity or out-of-range values, and no test checks the value against Datastar's percentage semantics.
+
+**Suggested fix.** Decide the unit. For percentages: take an `Int`, `require(0 <= percent && percent <= 100)`, render `__threshold.<percent>`, and update the tests and `docs/reference/datastar/events.md`.
+
+### datastar: `DataOn#throttleLeading` renders a `.leading` tag that Datastar does not define for throttle, and the trailing-edge options are missing
+
+Found 2026-11-06 while writing Scaladoc for `DataOn` and `EventModifier.Throttle`, on branch `scala3-web-modules-scaladoc` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `throttleLeading(ms)` renders `__throttle.<ms>ms.leading`. Datastar's attribute reference lists only `.noleading` ("Throttle without leading edge") and `.trailing` ("Throttle with trailing edge") for `__throttle`, so a throttle already runs on the leading edge, and `.leading` is not a documented option: `throttleLeading` reads as a different behaviour from `throttle` but asks for nothing more. The module also has no way to write `__throttle....noleading`, `__throttle....trailing` or `__debounce....notrailing`.
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-datastar:0.0.56
+
+import zio.blocks.html.*
+import zio.http.datastar.*
+
+@main def repro(): Unit = {
+  println(button(dataOn.click.throttle(500) := js"@post('/save')").render)
+  println(button(dataOn.click.throttleLeading(500) := js"@post('/save')").render)
+}
+// <button data-on:click__throttle.500ms="@post(&#x27;/save&#x27;)"></button>
+// <button data-on:click__throttle.500ms.leading="@post(&#x27;/save&#x27;)"></button>
+```
+
+**Expected.** Builder methods that match Datastar's documented tags: `throttleNoLeading`, `throttleTrailing` and `debounceNoTrailing` (or a small options type), and no `throttleLeading`, or one documented as equal to `throttle`. Not checked in a browser: how Datastar 1.0 treats the unknown `.leading` tag.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/EventModifier.scala:48-53` (`Throttle(millis, leading)` renders `.leading`) and `DataOn.scala:99` (`throttleLeading`).
+
+**Impact.** Callers who need a trailing-edge throttle or a debounce without trailing edge cannot express it, and `throttleLeading` suggests a behaviour change that the protocol does not define.
+
+**Test gap.** `DatastarAttributesSpec.scala:200-203` asserts the rendered string `data-on:click__throttle.200ms.leading`, not its meaning; no test compares the modifier set with Datastar's.
+
+**Suggested fix.** Align `EventModifier.Debounce`/`Throttle` with Datastar's tags (`leading`, `notrailing` for debounce; `noleading`, `trailing` for throttle) and deprecate `throttleLeading`.
+
+### datastar: signal names are checked with Java identifier rules, so names that are not JavaScript identifiers pass
+
+Found 2026-11-06 while writing Scaladoc for `Signal`, on branch `scala3-web-modules-scaladoc` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `Signal.isValidName` checks each segment with `Character.isJavaIdentifierStart`/`isJavaIdentifierPart`. Java accepts currency symbols (`€`, `£`) and "ignorable" control characters (`\u0000`-`\u0008`, `\u000e`-`\u001b`, `\u007f`-`\u009f`) in identifiers; JavaScript does not. Such a name compiles (`Signal[Int]("prix€")`) or passes `Signal.dynamic`, and then renders as `$prix€` in a Datastar expression, which the browser cannot parse. The error message says "Signal names must be dot-separated JavaScript identifiers".
+
+**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-datastar:0.0.56
+
+import zio.blocks.html.*
+import zio.http.datastar.*
+
+@main def repro(): Unit = {
+  val price = Signal[Int]("prix€")        // accepted at compile time
+  val nul   = Signal.dynamic[Int]("a\u0000b") // accepted at run time
+  println(span(dataText := price).render)
+  println(nul.ref.value.map(c => if (c < ' ') f"\\u${c.toInt}%04x" else c.toString).mkString)
+  println(Character.isJavaIdentifierPart('€'))
+}
+// <span data-text="$prix€"></span>
+// $a\u0000b
+// true
+```
+
+**Expected.** Both names are rejected, at compile time for the literal and with `IllegalArgumentException` for `dynamic`, as the error message's "JavaScript identifiers" promises.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/Signal.scala:81-91` (`isValidSegment` uses the Java predicates).
+
+**Impact.** Low: a typo or a non-ASCII name produces a page whose Datastar expression fails in the browser, with no server-side error.
+
+**Test gap.** `DatastarInternalsSpec.scala:34-42` checks `user.profile.count` (valid) and `""`, `foo__bar`, `foo..bar`, `1count`, `count-value` (invalid); no test covers a currency symbol or a control character.
+
+**Suggested fix.** Check segments against JavaScript's rules: `$`, `_` or a Unicode letter (`Character.isLetter` / `Character.isUnicodeIdentifierStart`) to start, plus digits and `Character.isUnicodeIdentifierPart` minus `Character.isIdentifierIgnorable` after.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -20719,6 +21600,51 @@ println(Renderer.renderInline(Code("a`b")))
 **Test gap.** `RoundTripSpec` round-trips only inputs without special characters in text.
 
 **Suggested fix.** Read `\` + punctuation as the literal character, and escape `*`, `_`, `` ` ``, `[`, `<`, `~` and `\` at the start of `Text` rendering; use a longer backtick fence for `Code` that contains a backtick.
+
+### datastar: no public way to get a `DatastarEvent` value: the constructors return builders that are not `DatastarEvent`s
+
+Found 2026-11-06 while writing Scaladoc for `DatastarEvent`, on branch `scala3-web-modules-scaladoc` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `DatastarEvent` is a public sealed trait with a `renderSSE` method, but its only subtypes (`PatchElements`, `PatchSignals`) are `private`, and every constructor (`patchElements`, `patchSignals`, `patchSignalsRaw`, `executeScript`, `removeElements`) returns a builder class (`PatchElementsBuilder`, `PatchSignalsBuilder`, `RemoveElementsBuilder`) that does not extend it and has no method returning one. So a user cannot type a value, a list or a stream as `DatastarEvent`; code that mixes event kinds has to keep `String`s from `renderSSE`, or the three builder types.
+
+**Reproducer.** `Repro.scala`, compiled with `scala-cli compile --server=false Repro.scala` (output below with the scratch directory removed from the paths and the `longer explanation` lines dropped):
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-datastar:0.0.56
+
+import zio.blocks.html.*
+import zio.http.datastar.*
+
+val count = Signal[Int]("count")
+
+// Each of these lines fails to compile: the constructors return builders,
+// and no public method turns a builder into a DatastarEvent.
+val events: List[DatastarEvent] = List(
+  DatastarEvent.patchSignals(count := 1),
+  DatastarEvent.patchElements(div(id := "box", "hi"))
+)
+// -- [E007] Type Mismatch Error: Repro.scala:13:28
+// 13 |  DatastarEvent.patchSignals(count := 1),
+// |  Found:    zio.http.datastar.DatastarEvent.PatchSignalsBuilder
+// |  Required: zio.http.datastar.DatastarEvent
+// -- [E007] Type Mismatch Error: Repro.scala:14:29
+// 14 |  DatastarEvent.patchElements(div(id := "box", "hi"))
+// |  Found:    zio.http.datastar.DatastarEvent.PatchElementsBuilder
+// |  Required: zio.http.datastar.DatastarEvent
+// 2 errors found
+```
+
+**Expected.** The builders extend `DatastarEvent` (they already have `renderSSE`), or have a `build: DatastarEvent` method, so `List[DatastarEvent]` and `Stream[DatastarEvent]` work.
+
+**Root cause.** `datastar/shared/src/main/scala/zio/blocks/datastar/DatastarEvent.scala:42-45` (the trait), `:49`/`:73` (private subtypes), `:91`, `:123`, `:174` (builders that do not extend it).
+
+**Impact.** The public type is unusable as a type; the reference page's "Streaming Several Events" section works around it with `String`s.
+
+**Test gap.** `DatastarEventSpec` calls `renderSSE` on builders only; no test declares a `DatastarEvent`-typed value.
+
+**Suggested fix.** Make the three builders `extends DatastarEvent` (their `renderSSE` already matches), keeping the private case classes as the implementation.
 
 ## Test and CI
 
