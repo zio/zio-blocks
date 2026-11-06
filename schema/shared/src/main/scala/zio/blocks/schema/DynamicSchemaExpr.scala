@@ -37,9 +37,13 @@ sealed trait DynamicSchemaExpr {
 
   /**
    * Evaluates this expression on `input`, returning its results or the first
-   * error. When the message of an error would include a NaN or infinite `Float`
-   * or `Double`, such as `Not` applied to `Double.NaN`, `eval` throws a
-   * `zio.blocks.schema.json.JsonCodecError` instead (a known bug).
+   * error. When an error message would render a `DynamicValue` that is or holds
+   * a NaN or infinite `Float` or `Double`, as the message for a value of the
+   * wrong type does (`Not` applied to `Double.NaN`, for example), `eval` throws
+   * a `zio.blocks.schema.json.JsonCodecError` instead (a known bug). A
+   * conversion message that prints the number itself, such as
+   * `Value NaN cannot be converted to Int without losing information`, comes
+   * back as a `Left`.
    */
   def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]]
 }
