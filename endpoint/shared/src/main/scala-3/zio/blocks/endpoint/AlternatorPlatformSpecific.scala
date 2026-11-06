@@ -18,9 +18,19 @@ package zio.blocks.endpoint
 
 import zio.blocks.combinators.Unions
 
+/**
+ * Version-specific members of the [[Alternator]] companion: none on Scala 2,
+ * the union-backed instances on Scala 3.
+ */
 private[endpoint] trait AlternatorPlatformSpecific {
   self: Alternator.type =>
 
+  /**
+   * Wraps `unions` as an [[Alternator]] whose `Out` is the union `L | R`;
+   * `combine` and `separate` call it. A `Unions` instance does not exist, so
+   * this does not compile, when `L` and `R` share a type or `R` is itself a
+   * union.
+   */
   def fromUnions[L, R, O](unions: Unions.Unions.WithOut[L, R, O]): WithOut[L, R, O] =
     new Alternator[L, R] {
       type Out = O
@@ -30,6 +40,11 @@ private[endpoint] trait AlternatorPlatformSpecific {
       def separate(out: O): Either[L, R] = unions.separate(out)
     }
 
+  /**
+   * Derives a union-backed [[Alternator]] when the expected `Out` is `L | R`;
+   * when `Out` is left open, the [[zio.blocks.combinators.Eithers]] instance is
+   * chosen instead.
+   */
   given fromUnionsGiven[L, R, O](using unions: Unions.Unions.WithOut[L, R, O]): WithOut[L, R, O] =
     fromUnions(unions)
 }
