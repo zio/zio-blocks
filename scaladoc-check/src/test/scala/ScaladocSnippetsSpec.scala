@@ -191,6 +191,13 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(typeIdPath, 12) == "Snippet_typeid_shared_scala_3_TypeId_L12"
       )
     },
+    test("moduleImport and objectName give an async example the async import") {
+      val asyncPath = "async/shared/src/main/scala/zio/blocks/async/Async.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(asyncPath) == "zio.blocks.async._",
+        ScaladocSnippets.objectName(asyncPath, 40) == "Snippet_async_shared_scala_Async_L40"
+      )
+    },
     test("moduleImport hides the sql.zio package from sql examples and keeps the default for sql-zio") {
       val fragPath = "sql/shared/src/main/scala/zio/blocks/sql/Frag.scala"
       val relPath  = "sql/shared/src/main/scala/zio/blocks/sql/query/Rel.scala"
@@ -201,6 +208,23 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(relPath, 3) == "Snippet_sql_shared_scala_query_Rel_L3",
         ScaladocSnippets.moduleImport(zioPath) == "zio.blocks.sql.zio._",
         ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
+      )
+    },
+    test("moduleImport and objectName give an html example the html import and drop the html package") {
+      val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
+      val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(domPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(domPath, 12) == "Snippet_html_shared_scala_Dom_L12",
+        ScaladocSnippets.moduleImport(elementsPath) == "zio.blocks.html._",
+        ScaladocSnippets.objectName(elementsPath, 30) == "Snippet_html_shared_scala_2_HtmlElements_L30"
+      )
+    },
+    test("moduleImport and objectName give a jwt example the jwt import and drop the jwt package") {
+      val jwtPath = "jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(jwtPath) == "zio.blocks.jwt._",
+        ScaladocSnippets.objectName(jwtPath, 12) == "Snippet_jwt_shared_scala_Jwt_L12"
       )
     },
     test("moduleImport follows the module directory") {
@@ -216,6 +240,21 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(
         ScaladocSnippets.moduleImport(avro) == "zio.blocks.schema.avro._",
         ScaladocSnippets.objectName(avro, 3) == "Snippet_schema_avro_scala_AvroFormat_L3"
+      )
+    },
+    test("moduleImport and objectName keep the version directory of a text-format module's syntax copies apart") {
+      val xml2  = "schema-xml/shared/src/main/scala-2.12-2.13/zio/blocks/schema/xml/syntax.scala"
+      val xml3  = "schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala"
+      val yaml2 = "schema-yaml/shared/src/main/scala-2/zio/blocks/schema/yaml/package.scala"
+      val toon  = "schema-toon/src/main/scala/zio/blocks/schema/toon/ToonCodec.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(xml2) == "zio.blocks.schema.xml._",
+        ScaladocSnippets.objectName(xml2, 7) == "Snippet_schema_xml_shared_scala_2_12_2_13_syntax_L7",
+        ScaladocSnippets.objectName(xml3, 7) == "Snippet_schema_xml_shared_scala_3_syntax_L7",
+        ScaladocSnippets.moduleImport(yaml2) == "zio.blocks.schema.yaml._",
+        ScaladocSnippets.objectName(yaml2, 5) == "Snippet_schema_yaml_shared_scala_2_package_L5",
+        ScaladocSnippets.moduleImport(toon) == "zio.blocks.schema.toon._",
+        ScaladocSnippets.objectName(toon, 40) == "Snippet_schema_toon_scala_ToonCodec_L40"
       )
     },
     test("moduleImport and objectName use packageOverrides for a module whose package is not its directory") {

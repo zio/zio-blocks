@@ -1420,7 +1420,17 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-json`.jvm,
     `config-yaml`.jvm,
     typeid.jvm,
-    `http-model`.jvm
+    `http-model`.jvm,
+    html.jvm,
+    async.jvm,
+    `schema-avro`,
+    `schema-bson`,
+    `schema-csv`.jvm,
+    `schema-thrift`,
+    jwt.jvm,
+    `schema-toon`.jvm,
+    `schema-xml`.jvm,
+    `schema-yaml`.jvm
   )
 
 lazy val `scaladoc-check` = project

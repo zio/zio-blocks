@@ -20,13 +20,36 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 
 /**
- * The completion capability handed to an [[Async.promise]] block: complete the
- * resulting [[Async]] by calling [[succeed]] (with a value) or [[fail]] (with a
- * cause), typically from an I/O callback.
+ * A pending [[Async]] that you complete yourself, once, typically from a
+ * callback: the bridge from a callback API to `Async`. `Async.promise` creates
+ * one and passes it to its body; you can also create one with `new Completer`
+ * and hand out `peek` as the `Async`.
  *
- * Thread-safe and '''one-shot''': the first call to `succeed` or `fail` wins;
- * all subsequent calls are silent no-ops, regardless of which thread they come
- * from.
+ * The first call to `succeed` or `fail` decides the outcome, from any thread;
+ * later calls do nothing, so a callback that fires twice cannot change the
+ * result. Completing it wakes every driver waiting on it.
+ *
+ * Cancelling a run that waits on a `Completer` stops the driver, but the
+ * `Completer` keeps the inherited no-op [[Pollable.cancel]], so the callback
+ * source behind it is not cancelled. This is a known bug; keep the source's own
+ * cancel handle and call it yourself.
+ *
+ * {{{
+ * def fetchQuote(symbol: String)(onQuote: BigDecimal => Unit, onError: Throwable => Unit): Unit =
+ *   if (symbol.isEmpty) onError(new IllegalArgumentException("empty symbol"))
+ *   else onQuote(BigDecimal(symbol.length) * 10)
+ *
+ * def quote(symbol: String): Async[BigDecimal] = {
+ *   val completer = new Completer[BigDecimal]
+ *   fetchQuote(symbol)(price => completer.succeed(price), error => completer.fail(error))
+ *   completer.peek
+ * }
+ *
+ * quote("ZIO").map(_ * 2).block // 60
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#completer Completer]]
  */
 final class Completer[A] extends Pollable[A] {
   import Completer.{NullValue, WaitingMarker}
@@ -34,7 +57,19 @@ final class Completer[A] extends Pollable[A] {
   // null = empty; WaitingMarker = waiting; anything else = the value (or Failure)
   private val state = new AtomicReference[AnyRef](null)
 
-  /** Complete successfully with `a`. Idempotent — the first completion wins. */
+  /**
+   * Completes with the value `a` (which may be `null`) unless this completer is
+   * already complete; a later call does nothing. A waiter whose wake-up throws
+   * does not stop the others from being woken, and the throw does not reach the
+   * caller.
+   *
+   * {{{
+   * val port = new Completer[Int]
+   * port.succeed(8080)
+   * port.succeed(9090) // ignored: the first completion wins
+   * port.peek.block // 8080
+   * }}}
+   */
   def succeed(a: A): Unit = {
     val any = a.asInstanceOf[Any]
     // A raw `null` value must be stored as the `NullValue` sentinel: storing
@@ -49,7 +84,14 @@ final class Completer[A] extends Pollable[A] {
   }
 
   /**
-   * Complete with the failure `cause`. Idempotent — the first completion wins.
+   * Completes with the failure `cause` unless this completer is already
+   * complete; a later call does nothing.
+   *
+   * {{{
+   * val lookup = new Completer[String]
+   * lookup.fail(new NoSuchElementException("user 7"))
+   * lookup.peek.either.block // Left(java.util.NoSuchElementException: user 7)
+   * }}}
    */
   def fail(cause: Throwable): Unit = settle(new Failure(cause))
 
@@ -79,6 +121,12 @@ final class Completer[A] extends Pollable[A] {
     // else: already settled — first writer wins, ignore subsequent attempts.
   }
 
+  /**
+   * Returns the outcome once this completer is complete. Until then it
+   * registers `onComplete`, to be run on completion, and returns this
+   * completer. Several drivers can each register their own `onComplete`; a
+   * repeat registration of the same `Runnable` is ignored.
+   */
   @tailrec
   def poll(onComplete: Runnable): Async[A] = {
     val s = state.get
@@ -98,10 +146,16 @@ final class Completer[A] extends Pollable[A] {
   }
 
   /**
-   * A snapshot of this completer as an [[Async]] that does '''not''' register a
-   * onComplete: if it has already been completed, the resulting `Async` is
-   * already completed with that value or failure; otherwise it is the
-   * still-pending computation backed by this completer.
+   * This completer as an [[Async]], without registering anything: the value or
+   * failure if it is already complete, otherwise this completer itself, pending
+   * until `succeed` or `fail` is called.
+   *
+   * {{{
+   * val userId = new Completer[Int]
+   * val label: Async[String] = userId.peek.map(id => "user " + id) // pending
+   * userId.succeed(7)
+   * label.block // user 7
+   * }}}
    */
   def peek: Async[A] = {
     val s = state.get

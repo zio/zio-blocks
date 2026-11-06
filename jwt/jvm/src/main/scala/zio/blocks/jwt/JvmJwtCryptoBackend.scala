@@ -22,11 +22,40 @@ import java.security.spec.{MGF1ParameterSpec, PKCS8EncodedKeySpec, PSSParameterS
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
+/**
+ * A [[JwtCryptoBackend]] built on the JDK's `java.security` and `javax.crypto`.
+ * It supports the HMAC, RSA, RSA-PSS, ECDSA and Ed25519 algorithms of
+ * [[Algorithm]]. Call `install()` once at startup so that [[Jwt]] uses it;
+ * until then the built-in backend handles HMAC algorithms.
+ */
 object JvmJwtCryptoBackend extends JwtCryptoBackend {
+
+  /**
+   * Makes this backend the one [[JwtCrypto]] uses, replacing the backend
+   * installed before.
+   */
   def install(): Unit = JwtCrypto.installBackend(this)
 
+  /**
+   * The 13 algorithms in `Algorithm.all`: `HS*`, `RS*`, `PS*`, `ES*` and
+   * `EdDSA`.
+   */
   val supportedAlgorithms: Set[Algorithm] = Algorithm.all.toSet
 
+  /**
+   * Signs `data` with `key` and returns the raw signature bytes. `HS*` take the
+   * secret bytes (at least 32, 48 or 64 for `HS256`, `HS384`, `HS512`). `RS*`
+   * and `PS*` take a PKCS#8 DER RSA private key of at least 2048 bits. `ES*`
+   * take a PKCS#8 DER EC private key on the curve of the algorithm, and return
+   * the signature as fixed-width `r || s` (64, 96 or 132 bytes). `EdDSA` takes
+   * a PKCS#8 DER Ed25519 private key.
+   *
+   * It returns `InvalidKey` for an `HS*` secret that is too short, an RSA key
+   * under 2048 bits, a P-256, P-384 or P-521 key used with the wrong `ES*`
+   * algorithm, an Ed448 key for `EdDSA`, a key of the wrong type, and a key it
+   * cannot decode. It returns `UnsupportedAlgorithm` when the JDK has no
+   * implementation of the algorithm.
+   */
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]] =
     withCrypto {
       alg match {
@@ -55,6 +84,15 @@ object JvmJwtCryptoBackend extends JwtCryptoBackend {
       }
     }
 
+  /**
+   * Checks `signature` over `data` against `key`. The key is a raw secret for
+   * `HS*` and an X.509 SubjectPublicKeyInfo DER public key for the other
+   * algorithms, with the same size and curve rules as `sign`.
+   *
+   * It returns `Right(false)` for a signature that does not match, and
+   * `InvalidSignature` for an `RS*`, `PS*`, `ES*` or `EdDSA` signature of the
+   * wrong length. Key problems give `InvalidKey`, as in `sign`.
+   */
   def verify(data: Array[Byte], signature: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Boolean] =
     withCrypto {
       alg match {

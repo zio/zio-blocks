@@ -16,8 +16,12 @@
 
 package zio.blocks.html
 
+/**
+ * Escaping helpers for HTML text, JavaScript and CSS strings, and URL checks.
+ */
 private[html] object Escape {
 
+  /** Escapes `&`, `<`, `>`, `"` and `'` as HTML entities. */
   def html(s: String): String = {
     val len = s.length
     if (len == 0) return s
@@ -40,6 +44,7 @@ private[html] object Escape {
     sb.toString
   }
 
+  /** Appends `s` to `sb`, escaped as `html` does. */
   def htmlTo(s: String, sb: java.lang.StringBuilder): Unit = {
     val len = s.length
     if (len == 0) return
@@ -57,6 +62,11 @@ private[html] object Escape {
     }
   }
 
+  /**
+   * Escapes `s` for a quoted JavaScript string: quotes, `\`, newline, carriage
+   * return and tab get backslash escapes; `<`, `>`, `&`, the line and paragraph
+   * separators and other control characters become Unicode escapes.
+   */
   def jsString(s: String): String = {
     val len = s.length
     if (len == 0) return s
@@ -76,6 +86,7 @@ private[html] object Escape {
     s
   }
 
+  /** Appends `s` to `sb`, escaped as `jsString` does. */
   def jsStringTo(s: String, sb: java.lang.StringBuilder): Unit = {
     val len = s.length
     if (len == 0) return
@@ -111,6 +122,10 @@ private[html] object Escape {
   private val dangerousUrlSchemes: Array[String] =
     Array("javascript:", "vbscript:", "data:text/html")
 
+  /**
+   * Prefixes `unsafe:` to a URL that starts with a `javascript:`, `vbscript:`
+   * or `data:text/html` scheme. A best-effort check, not a sanitizer.
+   */
   def sanitizeUrl(url: String): String = {
     val trimmed = url.trim.toLowerCase
     var i       = 0
@@ -121,6 +136,9 @@ private[html] object Escape {
     url
   }
 
+  /**
+   * Escapes `\`, quotes, `<`, `>`, `&` and control characters with CSS escapes.
+   */
   def cssString(s: String): String = {
     val len = s.length
     if (len == 0) return s

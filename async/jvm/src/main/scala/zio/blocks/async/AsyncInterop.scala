@@ -23,27 +23,32 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure => SFailure, Success => SSuccess}
 
 /**
- * JVM-only interop between [[Async]] and the standard async types: Scala's
- * [[scala.concurrent.Future]] and Java's [[CompletionStage]] /
- * [[CompletableFuture]].
+ * Converts between [[Async]] and the JVM's standard asynchronous types: Scala's
+ * [[scala.concurrent.Future]] and Java's [[CompletionStage]] and
+ * [[CompletableFuture]]. Use these conversions to adopt `Async` in one part of
+ * a program while the code around it keeps passing futures.
  *
- * Both directions preserve success and failure: a future that succeeds becomes
- * an [[Async]] that succeeds with the same value, and a future that fails
- * becomes one that fails with the same error (and vice versa). Scala.js offers
- * the analogous `Future` conversions plus `js.Promise` interop in place of
- * `CompletionStage` / `CompletableFuture`.
+ * Callers reach them through `Async.fromFuture` and `Async.fromCompletionStage`
+ * on the companion and the `toFuture` and `toCompletableFuture` extension
+ * methods, which forward here. Each direction keeps the value or the failure.
+ * Scala.js has the same `Future` conversions, with `js.Promise` in place of
+ * `CompletionStage` and `CompletableFuture`.
  *
- * Internal implementation: the public surface is [[Async.fromFuture]] /
- * [[Async.fromCompletionStage]] on the companion and the `fa.toFuture` /
- * `fa.toCompletableFuture` extension methods (see
- * `AsyncSyntaxPlatformSpecific`), which forward here.
+ * {{{
+ * import scala.concurrent.{ExecutionContext, Future}
+ *
+ * implicit val ec: ExecutionContext = ExecutionContext.global
+ * def loadPrice(sku: String): Future[Int] = Future.successful(120)
+ * val withTax: Future[Int] = Async.fromFuture(loadPrice("sku-1")).map(_ + 24).toFuture
+ * withTax.value // Some(Success(144))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
  */
 private[async] object AsyncInterop {
 
-  /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `future`. No `ExecutionContext` is required.
-   */
+  /** Implements `Async.fromFuture`. */
   def fromFuture[A](future: Future[A]): Async[A] = {
     val cur = future.value
     if (cur.isDefined) cur.get match {
@@ -59,10 +64,7 @@ private[async] object AsyncInterop {
       }
   }
 
-  /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `stage`.
-   */
+  /** Implements `Async.fromCompletionStage`. */
   def fromCompletionStage[A](stage: CompletionStage[A]): Async[A] = {
     val cf = stage.toCompletableFuture
     if (cf.isDone)
@@ -79,12 +81,7 @@ private[async] object AsyncInterop {
       }
   }
 
-  /**
-   * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
-   * same value or error. If `fa` is not yet complete, a non-blocking driver is
-   * started and its completion is observed on `ec`, so this call returns
-   * immediately without occupying an executor thread while `fa` is pending.
-   */
+  /** Implements the `toFuture` extension method. */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
@@ -97,12 +94,7 @@ private[async] object AsyncInterop {
       catch { case t: Throwable => failFuture(Failure.unwindCause(t)) }
   }
 
-  /**
-   * Convert `fa` into a [[CompletableFuture]] that completes with the same
-   * value or error, for consumers in Java-shaped APIs. Behaves like
-   * [[toFuture]]: a not-yet-complete `fa` is driven without blocking `ec`, and
-   * the returned future completes when `fa` does.
-   */
+  /** Implements the `toCompletableFuture` extension method. */
   def toCompletableFuture[A](fa: Async[A])(implicit ec: ExecutionContext): CompletableFuture[A] = {
     val any = fa.asInstanceOf[Any]
     val cf  = new CompletableFuture[A]()
@@ -119,13 +111,20 @@ private[async] object AsyncInterop {
       }
   }
 
-  /** `CompletableFuture` rejects `null` exceptional completions on the JVM. */
+  /**
+   * Completes `cf` exceptionally, with `Failure.NullCauseMarker` in place of a
+   * `null` cause, which `completeExceptionally` rejects.
+   */
   private def completeCfExceptionally[A](cf: CompletableFuture[A], t: Throwable): Unit = {
     val cause = Failure.unwindCause(t)
     if (cause eq null) cf.completeExceptionally(Failure.NullCauseMarker)
     else cf.completeExceptionally(cause)
   }
 
+  /**
+   * Starts `fa` on the async runner (the common `ForkJoinPool`) and reports its
+   * outcome to `succeed` or `fail` from a step that runs on `ec`.
+   */
   private def drive[A](
     fa: Async[A],
     succeed: A => Unit,
@@ -150,12 +149,15 @@ private[async] object AsyncInterop {
     wake.run()
   }
 
-  /** Scala `Future.failed` rejects a `null` exception on the JVM. */
+  /**
+   * A failed `Future`, with `Failure.NullCauseMarker` in place of a `null`
+   * cause, which `fromFuture` turns back into `null`.
+   */
   private def failFuture[A](cause: Throwable): Future[A] =
     if (cause eq null) Future.failed(Failure.NullCauseMarker)
     else Future.failed(cause)
 
-  /** `Promise.failure` likewise rejects a `null` exception. */
+  /** Fails `p`, with `Failure.NullCauseMarker` in place of a `null` cause. */
   private def failPromise[A](p: Promise[A], cause: Throwable): Unit = {
     if (cause eq null) p.failure(Failure.NullCauseMarker)
     else p.failure(cause)
@@ -163,10 +165,12 @@ private[async] object AsyncInterop {
   }
 
   /**
-   * `CompletableFuture` wraps the original cause in a
-   * [[java.util.concurrent.CompletionException]] when chaining. Unwrap one
-   * level so the failure exposed via [[Async.fail]] matches what the producer
-   * threw, rather than a generic completion-exception wrapper.
+   * Unwraps one level of [[java.util.concurrent.CompletionException]] or
+   * [[java.util.concurrent.ExecutionException]] that has a cause, so the
+   * `Async` fails with what the producer threw. A stage that fails with its own
+   * `ExecutionException` is unwrapped as well when it completes after the
+   * conversion, but not when it has already failed (`cf.get()` wraps it again),
+   * a known bug.
    */
   private def unwrapCompletionException(t: Throwable): Throwable = {
     val raw = t match {

@@ -16,4 +16,14 @@
 
 package zio.blocks
 
+/**
+ * The HTML module. `import zio.blocks.html._` brings in the DSL
+ * ([[HtmlElements]]: tags, attribute keys and helpers), the `html`, `css`, `js`
+ * and `selector` interpolators ([[TemplateInterpolators]]) and the conversion
+ * that lets elements take strings, nodes and attributes as modifiers
+ * ([[DomModifierConversions]]).
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/html/ HTML]]
+ */
 package object html extends HtmlElements with TemplateInterpolators with DomModifierConversions

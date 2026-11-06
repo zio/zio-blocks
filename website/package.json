@@ -18,7 +18,7 @@
     "write-heading-ids": "docusaurus write-heading-ids"
   },
   "dependencies": {
-    "@bytebrain.ai/bytebrain-ui": "0.0.12",
+    "@bytebrain.ai/bytebrain-ui": "0.0.13",
     "@docusaurus/core": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.1.1",

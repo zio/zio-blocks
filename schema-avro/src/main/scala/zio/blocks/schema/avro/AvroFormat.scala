@@ -18,4 +18,25 @@ package zio.blocks.schema.avro
 
 import zio.blocks.schema.codec.BinaryFormat
 
+/**
+ * The Avro binary format, with MIME type `application/avro`. Pass it to
+ * `Schema#derive` to get an [[AvroCodec]] for a type, which encodes values as
+ * Avro binary data and exposes the matching Avro schema. Its codecs come from
+ * [[AvroCodecDeriver]].
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class SensorReading(sensorId: String, celsius: Double)
+ * object SensorReading {
+ *   implicit val schema: Schema[SensorReading] = Schema.derived
+ * }
+ *
+ * val codec: AvroCodec[SensorReading] = SensorReading.schema.derive(AvroFormat)
+ * val mimeType                        = AvroFormat.mimeType // application/avro
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/avro/ Avro Codec Module]]
+ */
 object AvroFormat extends BinaryFormat("application/avro", AvroCodecDeriver)
