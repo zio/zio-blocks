@@ -748,6 +748,8 @@ Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, co
 
 ## 13h. Scaladoc: schema-toon, schema-xml, schema-yaml
 
+**Merged** 2026-11-06 as `04b56bc92` (#1948).
+
 Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 schema-text-formats Scaladoc). Session `schema-text-formats-scaladoc` (Opus controller; three Opus writers in parallel, one per module, for tier 1 and the existing-comment fact-check; Sonnet for tier 2/3 gaps; three fresh Opus reviewers, one per module; Sonnet scoped re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = toon `ToonFormat`, `ToonCodec`, `ToonCodecDeriver`, `ReaderConfig`, `WriterConfig`; xml `Xml`, `XmlCodec`, `XmlFormat`, `syntax`, `XmlSelection`, `XmlPatch`; yaml `Yaml`, `YamlCodec`, `YamlFormat`, `YamlOptions`, the `yaml"..."` interpolator; Scala.js = `JS/doc` gate plus Scala.js probes for number-format claims; AGENTS.md diff and style-guide sentence approved.
 
 | Item | Result |
