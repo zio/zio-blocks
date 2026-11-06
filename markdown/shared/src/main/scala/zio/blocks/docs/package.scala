@@ -44,12 +44,10 @@ package zio.blocks
  * val title = "Release 1.4"
  * val count = 2
  *
- * val doc = md"## \$title\nFixed \$count bugs."
+ * val doc = md"## \$title, fixed \$count bugs"
  *
  * val markdown = doc.toString
- * // ## Release 1.4
- * // Fixed 2 bugs.
- * //
+ * // ## Release 1.4, fixed 2 bugs
  * }}}
  *
  * ==Core Types==

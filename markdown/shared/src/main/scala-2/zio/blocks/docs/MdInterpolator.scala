@@ -48,19 +48,19 @@ trait MdInterpolator {
      * value that makes the text invalid throws an `IllegalArgumentException`
      * with the message `Invalid markdown: ...`. The literal text is not
      * de-indented: an indented `# Title` line in a triple-quoted literal is a
-     * paragraph, not a heading.
+     * paragraph, not a heading. Escape sequences are not processed either: `\n`
+     * in a literal stays a backslash followed by an `n`, so write several lines
+     * in a triple-quoted literal.
      *
      * @example
      *   {{{
      * val version = "1.4"
      * val fixes = List("login", "export")
      *
-     * val doc = md"""## Release \$version
-     * Fixed: \$fixes"""
+     * val doc = md"## Release \$version, fixed \$fixes"
      *
      * val markdown = doc.toString
-     * // ## Release 1.4
-     * // Fixed: login, export
+     * // ## Release 1.4, fixed login, export
      *   }}}
      *
      * @param args

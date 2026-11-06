@@ -32,8 +32,6 @@ package zio.blocks.docs
  *
  * @example
  *   {{{
- * import zio.blocks.chunk.Chunk
- *
  * final case class Port(number: Int)
  *
  * implicit val portToMarkdown: ToMarkdown[Port] =
