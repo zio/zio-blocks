@@ -28,8 +28,9 @@ import scala.util.control.NoStackTrace
  * ([[OpticCheck.Error]]: another case of a variant, a failing wrapper, a failed
  * conversion) or a warning ([[OpticCheck.Warning]]: an empty collection, an
  * index past the end, a missing key). Each problem carries the path of the
- * whole optic and the path up to the step where it was found, rendered in its
- * message with `DynamicOptic#toScalaString`:
+ * whole optic and the path up to the step where it was found. Every case except
+ * [[OpticCheck.DynamicConversionError]] renders both paths in its message with
+ * `DynamicOptic#toScalaString`:
  *
  * `During attempted access at .tags.at(0), encountered a sequence out of bounds at .tags.at(0): index is 0, but size is 0`
  *
@@ -97,7 +98,8 @@ object OpticCheck {
     def prefix: DynamicOptic
 
     /**
-     * A sentence that describes the problem and names both paths.
+     * A sentence that describes the problem. Every case except
+     * [[OpticCheck.DynamicConversionError]] names both paths in it.
      */
     def message: String
 
@@ -139,6 +141,13 @@ object OpticCheck {
     prefix: DynamicOptic,
     actualValue: Any
   ) extends Error {
+
+    /**
+     * Returns a sentence that names the full path, the prefix, `expectedCase`
+     * and `actualCase`, with both paths rendered by
+     * `DynamicOptic#toScalaString`, such as
+     * `During attempted access at .shape.when[Circle].r, encountered an unexpected case at .shape.when[Circle]: expected Circle, but got Square`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered an unexpected case at ${prefix.toScalaString}: expected $expectedCase, but got $actualCase"
   }
@@ -148,6 +157,12 @@ object OpticCheck {
    * `searchFor` also report it when they find nothing.
    */
   case class EmptySequence(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
+
+    /**
+     * Returns a sentence that names the full path and the prefix, with both
+     * paths rendered by `DynamicOptic#toScalaString`, such as
+     * `During attempted access at .tags.each, encountered an empty sequence at .tags.each`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered an empty sequence at ${prefix.toScalaString}"
   }
@@ -157,6 +172,12 @@ object OpticCheck {
    * `size` elements.
    */
   case class SequenceIndexOutOfBounds(full: DynamicOptic, prefix: DynamicOptic, index: Int, size: Int) extends Warning {
+
+    /**
+     * Returns a sentence that names the full path, the prefix, `index` and
+     * `size`, with both paths rendered by `DynamicOptic#toScalaString`, such as
+     * `During attempted access at .tags.at(0), encountered a sequence out of bounds at .tags.at(0): index is 0, but size is 0`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered a sequence out of bounds at ${prefix.toScalaString}: index is $index, but size is $size"
   }
@@ -166,6 +187,12 @@ object OpticCheck {
    * `key` is a `String` rendering of the key.
    */
   case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Warning {
+
+    /**
+     * Returns a sentence that names the full path and the prefix, without the
+     * key, with both paths rendered by `DynamicOptic#toScalaString`, such as
+     * `During attempted access at .scores.atKey("x"), encountered missing key at .scores.atKey("x")`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered missing key at ${prefix.toScalaString}"
   }
@@ -174,6 +201,12 @@ object OpticCheck {
    * A step over every key or value found an empty map.
    */
   case class EmptyMap(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
+
+    /**
+     * Returns a sentence that names the full path and the prefix, with both
+     * paths rendered by `DynamicOptic#toScalaString`, such as
+     * `During attempted access at .scores.eachValue, encountered an empty map at .scores.eachValue`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered an empty map at ${prefix.toScalaString}"
   }
@@ -184,6 +217,12 @@ object OpticCheck {
    * schema.
    */
   case class WrappingError(full: DynamicOptic, prefix: DynamicOptic, error: SchemaError) extends Error {
+
+    /**
+     * Returns `During attempted access at `, the full path,
+     * `, encountered an error at `, the prefix, `: ` and the message of
+     * `error`, with both paths rendered by `DynamicOptic#toScalaString`.
+     */
     def message: String =
       s"During attempted access at ${full.toScalaString}, encountered an error at ${prefix.toScalaString}: ${error.message}"
   }
@@ -194,8 +233,17 @@ object OpticCheck {
    * are both the root path.
    */
   case class DynamicConversionError(error: String) extends Error {
-    def full: DynamicOptic   = DynamicOptic.root
+
+    /** Returns the root path, `DynamicOptic.root`. */
+    def full: DynamicOptic = DynamicOptic.root
+
+    /** Returns the root path, `DynamicOptic.root`. */
     def prefix: DynamicOptic = DynamicOptic.root
-    def message: String      = s"Dynamic value conversion error: $error"
+
+    /**
+     * Returns `Dynamic value conversion error: ` followed by `error`; it names
+     * no path.
+     */
+    def message: String = s"Dynamic value conversion error: $error"
   }
 }
