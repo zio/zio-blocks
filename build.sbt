@@ -1427,7 +1427,12 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `schema-bson`,
     `schema-csv`.jvm,
     `schema-thrift`,
-    jwt.jvm
+    jwt.jvm,
+    openapi.jvm,
+    codegen,
+    smithy,
+    mux.jvm,
+    ringbuffer.jvm
   )
 
 lazy val `scaladoc-check` = project
