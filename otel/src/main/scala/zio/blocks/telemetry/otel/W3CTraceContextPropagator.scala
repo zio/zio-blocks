@@ -64,8 +64,8 @@ object W3CTraceContextPropagator extends Propagator {
    * `tracestate` header (trimmed, or empty when absent) as its trace state and
    * `isRemote` set to `true`. Surrounding whitespace is ignored. Returns `None`
    * when `traceparent` is absent, shorter than 55 characters, has its dashes
-   * elsewhere, has a version other than `00`, or has an all-zero or non-hex
-   * trace or span id.
+   * elsewhere, has a version other than `00`, has an all-zero or non-hex trace
+   * or span id, or has non-hex flags.
    *
    * The parser departs from the W3C specification both ways, a known bug. It
    * rejects every version other than `00`, where the specification says to read
