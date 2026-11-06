@@ -111,7 +111,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    */
   def traceEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.traceEveryImpl
 
@@ -121,7 +121,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    */
   def debugEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.debugEveryImpl
 
@@ -131,7 +131,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    */
   def infoEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.infoEveryImpl
 
@@ -141,7 +141,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    *
    * {{{
    * // scala-3-only
@@ -170,7 +170,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    */
   def errorEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.errorEveryImpl
 
@@ -180,7 +180,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * `every` is 0 or less.
    *
    * Call sites share 4096 counters, chosen by a hash of the file and line, so
-   * two sites can share a counter and log less often.
+   * two sites can share a counter and count each other's calls.
    */
   def fatalEvery(every: Int, message: String, enrichments: Any*): Unit = macro LogMacros.fatalEveryImpl
 
