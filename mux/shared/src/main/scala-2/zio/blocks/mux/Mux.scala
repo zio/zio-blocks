@@ -229,10 +229,10 @@ trait MuxStream[Id, In, Out] {
    * [[MuxError.StreamClosed]] after [[close]] or after both sides finished.
    *
    * After only the peer finished ([[signalRemoteClose]]), it returns `None`
-   * forever once the queue is empty, the same as "no message yet", a known bug;
-   * the stream offers no way to tell that the peer is done. On the JVM call it
-   * from one thread at a time: two threads at once lose and duplicate messages,
-   * a known bug.
+   * once the queue is empty, the same as "no message yet", until this side also
+   * finishes or the stream is closed, a known bug: `receive` cannot tell the
+   * application that the peer is done. On the JVM call it from one thread at a
+   * time: two threads at once lose and duplicate messages, a known bug.
    */
   def receive(): Either[MuxError, Option[Out]]
 
@@ -291,7 +291,9 @@ trait MuxStream[Id, In, Out] {
 
   /**
    * Returns `true` while exactly one side has finished sending. It does not say
-   * which side, and no other method does.
+   * which side; no query method does, and only the result of [[send]] or
+   * [[offerInbound]] (`StreamClosed` for the side that finished) tells them
+   * apart.
    */
   def isHalfClosed: Boolean
 
