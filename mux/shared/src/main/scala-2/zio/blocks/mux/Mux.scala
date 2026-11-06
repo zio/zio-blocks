@@ -112,10 +112,11 @@ trait Mux[Id, In, Out] {
    * [[MuxError.CapacityExceeded]] when `capacity` streams are registered,
    * checked in that order.
    *
-   * Closing a stream's old handle with `MuxStream#close` after its id was
-   * cancelled and opened again removes the new stream from the registry, a
-   * known bug: `get` then returns `None` for a live stream and `open` accepts
-   * the id a second time.
+   * Calling `MuxStream#close` on an old handle, after that stream was closed
+   * (by `close`, by both sides finishing, or by `Mux#cancel`) and its id was
+   * opened again, removes the new stream from the registry, a known bug: `get`
+   * then returns `None` for a live stream and `open` accepts the id a second
+   * time.
    */
   def open(id: Id): Either[MuxError, MuxStream[Id, In, Out]]
 
@@ -302,7 +303,8 @@ trait MuxStream[Id, In, Out] {
    * `receive` the reason of an earlier `Mux#cancel`).
    *
    * It removes whatever stream is registered under its id, a known bug: when
-   * this stream was cancelled and its id opened again, closing the old handle
+   * this stream was already closed (by `close`, by both sides finishing, or by
+   * `Mux#cancel`) and its id was opened again, closing the old handle
    * unregisters the new stream.
    */
   def close(): Unit
