@@ -850,9 +850,21 @@ Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `a
 
 PR #1950 (one PR), merged 2026-11-06 as `20f4c3131`; CI green on `0dfbf8261`: 23 pass, 10 skipping. Tooling: `packageOverrides` entries `schema-messagepack` → `zio.blocks.schema.msgpack` and `http-model-schema` → `zio.http.schema`; both modules in `scaladocCheckedModules`; AGENTS.md Scaladoc bullet and two downstream rows (approved). Comments only. Gates: scaladoc-check 32 tests on 3 versions; 8 doc runs; `check`, `headerCheckAll`, `scalafmtAll`. Reviews (fresh Opus): 3 false + 15 imprecise claims + 1 style note; 18 of 19 applied; Sonnet re-review APPROVE. Every reproducer re-run by a reviewer. Time: about 2.5 h of working time over two reboots. Skill lessons: re-run scaladoc-check after merging main into the tooling lists; fsync the bug-entries file (a reboot truncated it once).
 
-## 13n. Scaladoc: endpoint module (in progress)
+## 13n. Scaladoc: endpoint module
 
-Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit). PR #1957 opened 2026-11-06 (main with #1948 and #1955 merged in): 65 → 314 / 314, `--drift` empty, comments only; reviews 2 fresh Opus (7 Important + 18 Minor) and a Sonnet re-review (3 Minor), all applied; 16 bug entries plus 2 amendments filed.
+Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit).
+
+| Item | Result |
+|---|---|
+| PR | #1957 (one PR), merged 2026-11-06 as `9c04ebf63`; main with #1950 and #1956 merged in; the PR's CI was 14 pass / 9 pending (no failure) at the merge |
+| Coverage | 65 / 314 (20%) → 314 / 314; `--drift` 1 → 0; 19 files, comments only |
+| Examples | 36 compiled (2 `// scala-3-only`); one `scaladocCheckedModules` entry |
+| Existing comments | Task 1 (Opus) checked 83 claims: 55 true, 18 imprecise, 9 false, 1 stale (34% needed a fix); Task 2 (Sonnet) corrected 4 more (the Scala 2 `ErrorBuilder` drift, "never allocates", a roadmap sentence, "ever") |
+| Review | 2 Opus fact-checks in parallel (7 Important + 18 Minor) and a Sonnet re-review (3 Minor), all applied; Task 2's comments drew 3 Important-class findings |
+| Bugs | 8 Library bugs, 5 Usability traps, 3 Documentation errors, amendments to the `Unions.separate` and `Method.ANY` entries |
+| Time | about 2 h 40 min from brief to PR |
+
+Lessons: macro group examples (`endpoints { val x = ... }`) always give non-fatal "unused local definition" warnings in the snippet checker; split sbt gate chains and check `free -g` between rounds; endpoint `main` is not byte-identical to the release even where behaviour is, so cite lines at the base commit.
 
 ## 13o. Scaladoc: schema core, remaining members
 
