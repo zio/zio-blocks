@@ -57,8 +57,8 @@ import zio.blocks.schema.json._
  *   within this OAS document. This MUST be in the form of a URI.
  * @param servers
  *   An array of Server Objects, which provide connectivity information to a
- *   target server. The specification reads an empty array as a single server
- *   with the URL `/`; this library does not add that server.
+ *   target server. The specification reads a missing or empty array as a single
+ *   server with the URL `/`; this library does not add that server.
  * @param paths
  *   The available paths and operations for the API.
  * @param webhooks
@@ -691,7 +691,7 @@ object XML {
  *
  * @param jsonSchema
  *   The underlying JSON Schema 2020-12 schema represented as Json: an object,
- *   or `true` / `false`. A decoded schema keeps every key here except
+ *   `true` or `false`. A decoded schema keeps every key here except
  *   `discriminator`, `xml`, `externalDocs`, `example` and keys starting with
  *   `x-`, which go to the fields below.
  * @param discriminator
@@ -760,7 +760,8 @@ final case class SchemaObject(
   /**
    * Attempts to parse the underlying JSON Schema (`jsonSchema` only, not the
    * OpenAPI fields). Returns a `Left` when it is neither an object nor a
-   * boolean.
+   * boolean, or when a keyword that holds subschemas has the wrong shape
+   * (`"allOf": 1`); other malformed keywords are dropped.
    */
   def toJsonSchema: Either[zio.blocks.schema.SchemaError, zio.blocks.schema.json.JsonSchema] =
     zio.blocks.schema.json.JsonSchema.fromJson(jsonSchema)
@@ -1374,7 +1375,7 @@ object APIKeyLocation {
  */
 sealed trait SecurityScheme
 
-/** Holds the derived `Schema` of [[SecurityScheme]]. */
+/** Holds the five kinds of [[SecurityScheme]] and its derived `Schema`. */
 object SecurityScheme {
 
   /**

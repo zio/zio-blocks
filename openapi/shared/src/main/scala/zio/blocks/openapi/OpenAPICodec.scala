@@ -49,7 +49,8 @@ import zio.blocks.schema.json._
 
 /**
  * Reads and writes OpenAPI documents as JSON. [[openAPICodec]] is the codec for
- * a whole [[OpenAPI]] document; the codecs of the parts are internal.
+ * a whole [[OpenAPI]] document; `referenceOrCodec` builds the codec of a
+ * `ReferenceOr`, and the codecs of the other parts are internal.
  *
  * Use the `Json` methods: `encodeValue(api)` returns a `Json` whose `print` is
  * the document text, and `decode(json)` reads a parsed document. The text and

@@ -42,8 +42,8 @@ final case class Discriminator(
 object Discriminator {
 
   /**
-   * The `Schema` of [[Discriminator]], built by hand. It writes the
-   * `propertyName` and `mapping` fields, and omits an empty `mapping`.
+   * The `Schema` of [[Discriminator]], built by hand as a record of
+   * `propertyName` and `mapping`. Its JSON codec leaves out an empty `mapping`.
    */
   implicit val schema: Schema[Discriminator] = new Schema(
     reflect = new Reflect.Record[Binding, Discriminator](
