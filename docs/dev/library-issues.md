@@ -19699,6 +19699,8 @@ On 2026-11-05 the same step failed while fetching the attestation file (`ampel-v
 
 **Suggested fix.** Try `sbt/setup-sbt@v1.5.14` (released 2026-11-05) through the plugin's setting or a newer `zio-sbt-ci`, regenerate `ci.yml`, bump the two hand-written workflows, and check Build Docs on that PR. If v1.5.14 fails the same way, pin a version from before the AMPEL step, or turn the verification off if the action allows it, until upstream fixes the policy.
 
+**Status (2026-11-06).** Cause found: setup-sbt v1.5.14 is "Pin signature policy to older format" (sbt/setup-sbt#155); the AMPEL policy format changed upstream, so v1.5.13 and older can no longer read it. PR #1955 moves the jobs defined in `project/CiWorkflow.scala` and `site.yml` to v1.5.14. Still at v1.5.7 and likely to fail the same way when they run: the `update-readme` job in `ci.yml` and `regenerate-workflows.yml`, which the `zio-sbt-ci` plugin writes itself; they need a `zio-sbt-ci` release with the new pin (follow-up).
+
 ## Resolved
 
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
