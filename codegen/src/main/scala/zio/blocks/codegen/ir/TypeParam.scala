@@ -21,9 +21,16 @@ package zio.blocks.codegen.ir
  */
 sealed trait Variance
 
+/** The three variances of a type parameter. */
 object Variance {
-  case object Invariant     extends Variance
-  case object Covariant     extends Variance
+
+  /** No variance annotation: `A`. */
+  case object Invariant extends Variance
+
+  /** Covariant: `+A`. */
+  case object Covariant extends Variance
+
+  /** Contravariant: `-A`. */
   case object Contravariant extends Variance
 }
 
@@ -40,9 +47,16 @@ object Variance {
  * @param lowerBound
  *   An optional lower bound type (e.g., Some(TypeRef.Nothing) for `A >:
  *   Nothing`)
+ * @param typeParams
+ *   Type parameters of a higher-kinded parameter (defaults to empty list), as
+ *   in `F[_]` for `TypeParam("F", typeParams = List(TypeParam("_")))`
+ * @param contextBounds
+ *   Context bounds (defaults to empty list), emitted as `A: Ordering: Show`
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * // Simple invariant type param
  * val a = TypeParam("A")
  *

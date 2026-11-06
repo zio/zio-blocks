@@ -23,10 +23,13 @@ package zio.blocks.codegen.ir
  *   The name of the annotation (e.g., "deprecated", "required")
  * @param args
  *   List of annotation arguments as (name, value) pairs (defaults to empty
- *   list)
+ *   list). Each is emitted as `name = value`, with the value written as is, so
+ *   a string argument needs its quotes in the value.
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * // Annotation without arguments
  * val required = Annotation("required")
  *

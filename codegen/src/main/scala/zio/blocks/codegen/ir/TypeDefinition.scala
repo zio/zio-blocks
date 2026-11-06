@@ -17,31 +17,70 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a Scala type definition in the IR.
+ * A Scala type definition in the codegen IR: a case class, sealed trait, trait,
+ * abstract class, enum, object, opaque type, newtype or type alias. Put
+ * definitions in a [[ScalaFile]] (or nest them in an object with
+ * [[ObjectMember.NestedType]]) and turn them into source text with
+ * `zio.blocks.codegen.emit.ScalaEmitter`.
  *
- * All compound types (case classes, sealed traits, enums, objects, newtypes)
- * extend this trait, providing a uniform interface for code generation.
+ * {{{
+ * import zio.blocks.codegen.ir._
+ *
+ * val definitions: List[TypeDefinition] = List(
+ *   CaseClass("Invoice", List(Field("total", TypeRef.BigDecimal))),
+ *   OpaqueType("InvoiceId", TypeRef.String),
+ *   ObjectDef("Invoices")
+ * )
+ * definitions.map(_.name) // List(Invoice, InvoiceId, Invoices)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/type-definition/ TypeDefinition]]
  */
 sealed trait TypeDefinition {
 
   /**
-   * The name of the type.
+   * The name of the type. The emitter wraps it in backquotes when it is a Scala
+   * keyword or not a plain identifier.
    */
   def name: String
 
   /**
-   * Annotations applied to the type.
+   * Annotations applied to the type, each emitted on its own line above it.
    */
   def annotations: List[Annotation]
 
   /**
-   * Optional documentation for the type.
+   * Text that the emitter writes as a Scaladoc comment above the type. The text
+   * is not escaped: a comment opener or closer in it ends the comment early and
+   * breaks the generated file (a known bug).
    */
   def doc: Option[String]
 }
 
 /**
- * Represents a Scala case class in the IR.
+ * A Scala case class in the IR. The emitter writes each field on its own line,
+ * adds `extends` for `extendsTypes` (joined with `with`), and writes the
+ * companion object after the class.
+ *
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.{EmitterConfig, ScalaEmitter}
+ *
+ * val person = CaseClass(
+ *   "Person",
+ *   fields = List(
+ *     Field("name", TypeRef.String),
+ *     Field("age", TypeRef.Int)
+ *   ),
+ *   derives = List("Schema")
+ * )
+ * ScalaEmitter.emitCaseClass(person, EmitterConfig.default)
+ * // case class Person(
+ * //   name: String,
+ * //   age: Int,
+ * // ) derives Schema
+ * }}}
  *
  * @param name
  *   The name of the case class
@@ -52,25 +91,21 @@ sealed trait TypeDefinition {
  * @param extendsTypes
  *   Types that this case class extends (defaults to empty list)
  * @param derives
- *   Type class derivations (defaults to empty list)
+ *   Type classes for a `derives` clause (defaults to empty list). The emitter
+ *   writes the clause only when `EmitterConfig.scala3Syntax` is true and drops
+ *   it otherwise, because Scala 2 has no `derives`.
  * @param annotations
  *   Annotations on the case class (defaults to empty list)
  * @param companion
  *   Optional companion object (defaults to None)
  * @param doc
  *   Optional documentation (defaults to None)
- *
- * @example
- *   {{{
- * val person = CaseClass(
- *   "Person",
- *   fields = List(
- *     Field("name", TypeRef.String),
- *     Field("age", TypeRef.Int)
- *   ),
- *   derives = List("Schema")
- * )
- *   }}}
+ * @param isValueClass
+ *   Whether the class extends `AnyVal` (defaults to false). When true, the
+ *   emitter puts `AnyVal` first in the `extends` list unless `extendsTypes`
+ *   already names it.
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/case-class/ CaseClass]]
  */
 final case class CaseClass(
   name: String,
@@ -85,7 +120,35 @@ final case class CaseClass(
 ) extends TypeDefinition
 
 /**
- * Represents a Scala sealed trait in the IR.
+ * A Scala sealed trait and its cases in the IR. The emitter writes the trait,
+ * then a companion object that holds the cases followed by the members of
+ * `companion`. A case class case gets the trait added to its `extends` list
+ * unless it already extends a type with the trait's name. A case object case
+ * extends the trait applied to the trait's own type parameter names, so for a
+ * generic trait it refers to a type parameter it does not declare (`case object
+ * Err extends Result[A]`) and the output does not compile (a known bug).
+ *
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.{EmitterConfig, ScalaEmitter}
+ *
+ * val shape = SealedTrait(
+ *   "Shape",
+ *   cases = List(
+ *     SealedTraitCase.CaseClassCase(CaseClass("Circle", List(Field("radius", TypeRef.Double)))),
+ *     SealedTraitCase.CaseObjectCase("Unknown")
+ *   )
+ * )
+ * ScalaEmitter.emitSealedTrait(shape, EmitterConfig.default)
+ * // sealed trait Shape
+ * //
+ * // object Shape {
+ * //   case class Circle(
+ * //     radius: Double,
+ * //   ) extends Shape
+ * //   case object Unknown extends Shape
+ * // }
+ * }}}
  *
  * @param name
  *   The name of the sealed trait
@@ -95,23 +158,20 @@ final case class CaseClass(
  *   Types that this sealed trait extends (defaults to empty list)
  * @param cases
  *   The cases (subtypes) of the sealed trait (defaults to empty list)
+ * @param derives
+ *   Type classes for a `derives` clause (defaults to empty list). The emitter
+ *   never writes it, in either dialect (a known bug).
  * @param annotations
  *   Annotations on the sealed trait (defaults to empty list)
  * @param companion
- *   Optional companion object (defaults to None)
+ *   Optional companion object (defaults to None); its members follow the cases
  * @param doc
  *   Optional documentation (defaults to None)
- *
- * @example
- *   {{{
- * val shape = SealedTrait(
- *   "Shape",
- *   cases = List(
- *     SealedTraitCase.CaseClassCase(CaseClass("Circle", List(Field("radius", TypeRef.Double)))),
- *     SealedTraitCase.CaseObjectCase("Unknown")
- *   )
- * )
- *   }}}
+ * @param selfType
+ *   Optional self type (defaults to None), emitted as `{ self: T => }` after
+ *   the trait header
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/sealed-trait/ SealedTrait]]
  */
 final case class SealedTrait(
   name: String,
@@ -142,13 +202,18 @@ final case class SealedTrait(
  *   Optional companion object (defaults to None)
  * @param doc
  *   Optional documentation (defaults to None)
+ * @param selfType
+ *   Optional self type (defaults to None), emitted as the first line of the
+ *   body, `self: T =>`
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val hasId = Trait(
  *   "HasId",
  *   members = List(
- *     ObjectMember.DefMember(Method("id", TypeRef.Long))
+ *     ObjectMember.DefMember(Method("id", returnType = TypeRef.Long))
  *   )
  * )
  *   }}}
@@ -183,9 +248,14 @@ final case class Trait(
  *   Optional companion object (defaults to None)
  * @param doc
  *   Optional documentation (defaults to None)
+ * @param isSealed
+ *   Whether the class is meant to be `sealed` (defaults to false). The emitter
+ *   ignores it and always writes `abstract class` (a known bug).
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val entity = AbstractClass(
  *   "Entity",
  *   fields = List(Field("id", TypeRef.Long))
@@ -207,8 +277,9 @@ final case class AbstractClass(
 /**
  * Represents a Scala 3 opaque type alias in the IR.
  *
- * In Scala 3, emitted as `opaque type Name = UnderlyingType`. In Scala 2, falls
- * back to a plain type alias `type Name = UnderlyingType`.
+ * With `EmitterConfig.scala3Syntax` it is emitted as
+ * `opaque type Name = UnderlyingType`; otherwise as a plain type alias,
+ * `type Name = UnderlyingType`.
  *
  * @param name
  *   The name of the opaque type
@@ -225,6 +296,8 @@ final case class AbstractClass(
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val userId = OpaqueType("UserId", underlyingType = TypeRef.String)
  *   }}}
  */
@@ -242,6 +315,7 @@ final case class OpaqueType(
  */
 sealed trait SealedTraitCase
 
+/** The two kinds of [[SealedTrait]] case: a case class or a case object. */
 object SealedTraitCase {
 
   /**
@@ -262,21 +336,34 @@ object SealedTraitCase {
 }
 
 /**
- * Represents a Scala 3 enum in the IR.
+ * An enum in the IR. With `EmitterConfig.scala3Syntax` the emitter writes a
+ * Scala 3 `enum`; otherwise it writes a sealed trait whose companion holds a
+ * case object per simple case and a case class per parameterized case. The
+ * emitter drops `typeParams`, `derives` and `companion` in both dialects (a
+ * known bug).
  *
  * @param name
  *   The name of the enum
  * @param cases
  *   The enum cases
+ * @param typeParams
+ *   Type parameters (defaults to empty list); never emitted (a known bug)
  * @param extendsTypes
  *   Types that this enum extends (defaults to empty list)
+ * @param derives
+ *   Type classes for a `derives` clause (defaults to empty list); never emitted
+ *   (a known bug)
  * @param annotations
  *   Annotations on the enum (defaults to empty list)
+ * @param companion
+ *   Optional companion object (defaults to None); never emitted (a known bug)
  * @param doc
  *   Optional documentation (defaults to None)
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val color = Enum(
  *   "Color",
  *   cases = List(
@@ -299,10 +386,11 @@ final case class Enum(
 ) extends TypeDefinition
 
 /**
- * Represents a case within a Scala 3 enum.
+ * Represents a case within an [[Enum]].
  */
 sealed trait EnumCase
 
+/** The two kinds of [[Enum]] case: simple and parameterized. */
 object EnumCase {
 
   /**
@@ -314,12 +402,16 @@ object EnumCase {
   final case class SimpleCase(name: String) extends EnumCase
 
   /**
-   * A parameterized enum case with fields.
+   * A parameterized enum case with fields. In Scala 3 output the fields are
+   * written on one line, each with its annotations before it.
    *
    * @param name
    *   The name of the enum case
    * @param fields
    *   The fields of the parameterized case
+   * @param extendsTypes
+   *   Types the case extends (defaults to empty list). The emitter ignores them
+   *   in both dialects (a known bug).
    */
   final case class ParameterizedCase(name: String, fields: List[Field], extendsTypes: List[TypeRef] = Nil)
       extends EnumCase
@@ -343,6 +435,8 @@ object EnumCase {
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val utils = ObjectDef(
  *   "Utils",
  *   members = List(
@@ -361,10 +455,15 @@ final case class ObjectDef(
 ) extends TypeDefinition
 
 /**
- * Represents a member within an object definition.
+ * Represents a member within an object, trait, abstract class or companion
+ * object.
  */
 sealed trait ObjectMember
 
+/**
+ * The kinds of [[ObjectMember]]: vals, defs, type aliases, nested types and
+ * extension blocks.
+ */
 object ObjectMember {
 
   /**
@@ -375,14 +474,15 @@ object ObjectMember {
    * @param typeRef
    *   The type of the val
    * @param value
-   *   The value expression as a string
+   *   The value expression, as Scala source text written after `=`
    * @param isLazy
    *   Whether this is a lazy val (defaults to false)
    * @param isOverride
    *   Whether this val overrides a parent member (defaults to false)
    * @param isImplicit
-   *   Whether this val is implicit (Scala 2) or given (Scala 3) (defaults to
-   *   false)
+   *   Whether this val is implicit (defaults to false). `EmitterConfig.scala2`
+   *   writes `implicit val`. With `scala3Syntax` the emitter writes
+   *   `given val`, which Scala 3 rejects (a known bug).
    */
   final case class ValMember(
     name: String,
@@ -420,10 +520,12 @@ object ObjectMember {
   final case class NestedType(typeDef: TypeDefinition) extends ObjectMember
 
   /**
-   * An extension block for Scala 3 extension methods.
+   * A block of extension methods.
    *
-   * In Scala 3, emitted as `extension (param) { methods }`. In Scala 2, falls
-   * back to an implicit class wrapping the methods.
+   * With `EmitterConfig.scala3Syntax` it is emitted as `extension (param)`
+   * followed by the methods, in braces when there is more than one. Otherwise
+   * it is emitted as `implicit class <Type>Ops(val param) extends AnyVal`
+   * holding the methods.
    *
    * @param on
    *   The parameter to extend on
@@ -434,7 +536,8 @@ object ObjectMember {
 }
 
 /**
- * Represents a companion object in the IR.
+ * Represents a companion object in the IR. The emitter writes it as
+ * `object <TypeName>` after the type it belongs to.
  *
  * @param members
  *   The members of the companion object (defaults to empty list)
@@ -444,7 +547,10 @@ final case class CompanionObject(
 )
 
 /**
- * Represents a newtype wrapper in the IR.
+ * Represents a newtype wrapper in the IR. The emitter writes
+ * `object Name extends Newtype[Wrapped]` followed by `type Name = Name.Type`.
+ * This library does not provide `Newtype`, so the generated file needs one in
+ * scope, such as the one in ZIO Prelude.
  *
  * @param name
  *   The name of the newtype
@@ -457,6 +563,8 @@ final case class CompanionObject(
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val userId = Newtype("UserId", wrappedType = TypeRef.Long)
  *   }}}
  */
@@ -467,6 +575,22 @@ final case class Newtype(
   doc: Option[String] = None
 ) extends TypeDefinition
 
+/**
+ * A type alias definition in the IR, emitted as `type Name[A] = Target`. Inside
+ * an object, [[ObjectMember.TypeAlias]] is the shorter form without type
+ * parameters, annotations or documentation.
+ *
+ * @param name
+ *   The name of the alias
+ * @param typeParams
+ *   Type parameters of the alias (defaults to empty list)
+ * @param typeRef
+ *   The aliased type
+ * @param annotations
+ *   Annotations on the alias (defaults to empty list)
+ * @param doc
+ *   Optional documentation (defaults to None)
+ */
 final case class TypeAlias(
   name: String,
   typeParams: List[TypeParam] = Nil,

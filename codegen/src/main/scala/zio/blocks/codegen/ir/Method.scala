@@ -28,14 +28,16 @@ package zio.blocks.codegen.ir
  * @param returnType
  *   The return type of the method
  * @param body
- *   Optional method body as a string (defaults to None)
+ *   Optional method body, as Scala source text written after ` = ` (defaults to
+ *   None). Without a body the method is abstract.
  * @param annotations
  *   List of annotations on the method (defaults to empty list)
  * @param isOverride
  *   Whether this method overrides a parent method (defaults to false)
  * @param isImplicit
- *   Whether this method is implicit (Scala 2) or given (Scala 3) (defaults to
- *   false)
+ *   Whether this method is implicit (defaults to false). `EmitterConfig.scala2`
+ *   writes `implicit def`. With `scala3Syntax` the emitter writes `given def`,
+ *   which Scala 3 rejects (a known bug).
  * @param doc
  *   Optional documentation for the method (defaults to None)
  */
@@ -63,7 +65,8 @@ final case class Method(
  * @param isByName
  *   Whether this is a by-name parameter (=> T) (defaults to false)
  * @param isVarargs
- *   Whether this is a varargs parameter (T*) (defaults to false)
+ *   Whether this is a varargs parameter (T*) (defaults to false). When both
+ *   flags are set, `isByName` wins.
  */
 final case class MethodParam(
   name: String,

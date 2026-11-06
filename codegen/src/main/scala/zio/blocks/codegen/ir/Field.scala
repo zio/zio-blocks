@@ -17,29 +17,23 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a field/property in the IR, with type, default value, annotations,
- * and documentation.
+ * A field in the codegen IR: a constructor parameter of a [[CaseClass]] or
+ * [[AbstractClass]], or a parameter of a parameterized [[EnumCase]]. The
+ * emitter writes it as `name: Type = default`, with each annotation on its own
+ * line above it (on the same line inside a Scala 3 enum case), and wraps the
+ * name in backquotes when it is a keyword or not a plain identifier.
  *
- * @param name
- *   The name of the field
- * @param typeRef
- *   The type of the field
- * @param defaultValue
- *   Optional default value for the field as a string (defaults to None)
- * @param annotations
- *   List of annotations on the field (defaults to empty list)
- * @param doc
- *   Optional documentation/description of the field (defaults to None)
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.{EmitterConfig, ScalaEmitter}
  *
- * @example
- *   {{{
  * // Simple field
  * val nameField = Field("name", TypeRef.String)
  *
  * // Field with default value
  * val ageField = Field("age", TypeRef.Int, Some("0"))
  *
- * // Field with annotations and documentation
+ * // Field with annotations and documentation (the emitter drops the doc)
  * val emailField = Field(
  *   "email",
  *   TypeRef.String,
@@ -49,7 +43,27 @@ package zio.blocks.codegen.ir
  *
  * // Field with complex type
  * val itemsField = Field("items", TypeRef.list(TypeRef.String))
- *   }}}
+ *
+ * ScalaEmitter.emitField(emailField, EmitterConfig.default)
+ * // @required
+ * // email: String
+ * }}}
+ *
+ * @param name
+ *   The name of the field
+ * @param typeRef
+ *   The type of the field
+ * @param defaultValue
+ *   Optional default value, as Scala source text written after ` = ` (defaults
+ *   to None)
+ * @param annotations
+ *   List of annotations on the field (defaults to empty list)
+ * @param doc
+ *   Optional documentation of the field (defaults to None). The emitter never
+ *   writes it (a known bug).
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/field/ Field]]
  */
 final case class Field(
   name: String,

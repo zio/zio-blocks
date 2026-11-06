@@ -19,16 +19,65 @@ package zio.blocks.codegen.emit
 import zio.blocks.codegen.ir._
 
 /**
- * Emits Scala source code from the codegen IR.
+ * Emits Scala source code from the codegen IR. [[ScalaEmitter.emit]] turns a
+ * whole `ScalaFile` into the text of a `.scala` file; the other methods emit
+ * one piece (a type reference, an annotation, a field, an import, a type
+ * definition, a member) and are useful for tests or for assembling output by
+ * hand. An [[EmitterConfig]] chooses Scala 3 or Scala 2 syntax, indentation,
+ * import sorting and trailing commas.
  *
- * This object provides methods for emitting type references, annotations,
- * fields, imports, package declarations, and compound types (case classes,
- * sealed traits, enums, objects, newtypes) as well as full file emission.
+ * Names are wrapped in backquotes when they are Scala 2 or Scala 3 keywords or
+ * not plain identifiers. `macro`, a reserved word in Scala 2, is not in that
+ * list, so a field named `macro` breaks Scala 2 output (a known bug). The
+ * output is not checked by a compiler, and a few IR fields are accepted but
+ * never emitted (known bugs, listed on `Enum`, `SealedTrait`, `Field`,
+ * `AbstractClass` and `EnumCase.ParameterizedCase`).
+ *
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.{EmitterConfig, ScalaEmitter}
+ *
+ * val user = CaseClass(
+ *   "User",
+ *   fields = List(Field("id", TypeRef.Long), Field("email", TypeRef.String)),
+ *   derives = List("Schema")
+ * )
+ * val file = ScalaFile(
+ *   PackageDecl("com.example"),
+ *   imports = List(Import.WildcardImport("zio.blocks.schema")),
+ *   types = List(user)
+ * )
+ *
+ * ScalaEmitter.emit(file)
+ * // package com.example
+ * //
+ * // import zio.blocks.schema.*
+ * //
+ * // case class User(
+ * //   id: Long,
+ * //   email: String,
+ * // ) derives Schema
+ *
+ * ScalaEmitter.emit(file, EmitterConfig.scala2)
+ * // package com.example
+ * //
+ * // import zio.blocks.schema._
+ * //
+ * // case class User(
+ * //   id: Long,
+ * //   email: String
+ * // )
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/scala-emitter/ ScalaEmitter]]
  */
 object ScalaEmitter {
 
   /**
-   * Emits a Scala type reference as a string.
+   * Emits a Scala type reference as a string. A name that contains a `.` or one
+   * of `()[]=>` is written as is; any other name that is a keyword or not a
+   * plain identifier is wrapped in backquotes.
    *
    * @param typeRef
    *   The type reference to emit
@@ -97,7 +146,7 @@ object ScalaEmitter {
    * @param field
    *   The field to emit
    * @param config
-   *   The emitter configuration
+   *   The emitter configuration; not read
    * @return
    *   The field string, with each annotation on its own line above the field
    *   declaration
@@ -151,7 +200,8 @@ object ScalaEmitter {
    * @param pkg
    *   The package declaration to emit
    * @return
-   *   The Scala package declaration string (e.g., "package com.example")
+   *   The Scala package declaration string (e.g., "package com.example"), or an
+   *   empty string for an empty path
    */
   def emitPackageDecl(pkg: PackageDecl): String =
     if (pkg.path.isEmpty) "" else s"package ${pkg.path}"
@@ -164,7 +214,9 @@ object ScalaEmitter {
    * @param config
    *   The emitter configuration (controls whether sorting is applied)
    * @return
-   *   The organized list of imports
+   *   The organized list of imports. Sorting two or more imports throws
+   *   `NoSuchElementException` when one of them is a `GroupImport` with no
+   *   names (a known bug).
    */
   def organizeImports(imports: List[Import], config: EmitterConfig): List[Import] = {
     val deduped = imports.distinct
@@ -183,7 +235,9 @@ object ScalaEmitter {
     " " * (level * config.indentWidth)
 
   /**
-   * Emits a complete Scala source file as a string.
+   * Emits a complete Scala source file as a string: the package line, a blank
+   * line and the imports (organized by `organizeImports`), then each type
+   * definition after a blank line.
    *
    * @param file
    *   The ScalaFile IR node to emit
@@ -361,7 +415,9 @@ object ScalaEmitter {
 
   /**
    * Emits an enum definition. Uses Scala 3 enum syntax when config.scala3Syntax
-   * is true; otherwise emits as sealed trait + companion.
+   * is true; otherwise emits as sealed trait + companion. The enum's type
+   * parameters, `derives` and companion are dropped in both cases (a known
+   * bug).
    *
    * @param en
    *   The Enum IR node
@@ -474,7 +530,9 @@ object ScalaEmitter {
   }
 
   /**
-   * Emits a newtype definition (object extending Newtype[T] + type alias).
+   * Emits a newtype definition (object extending Newtype[T] + type alias). The
+   * generated code needs a `Newtype` class in scope; this library does not
+   * provide one.
    *
    * @param nt
    *   The Newtype IR node
@@ -664,7 +722,8 @@ object ScalaEmitter {
   }
 
   /**
-   * Emits a companion object for a type.
+   * Emits a companion object for a type. The result starts with a newline, so
+   * appending it after a type definition leaves a blank line between them.
    *
    * @param name
    *   The name of the companion object (same as the type it accompanies)
@@ -700,16 +759,16 @@ object ScalaEmitter {
   }
 
   /**
-   * Emits a method definition.
+   * Emits a type alias definition, `type Name[A] = Target`.
    *
-   * @param method
-   *   The Method IR node
+   * @param ta
+   *   The TypeAlias IR node
    * @param config
    *   The emitter configuration
    * @param indent
    *   The current indentation level (defaults to 0)
    * @return
-   *   The emitted Scala method code
+   *   The emitted Scala type alias code
    */
   def emitTypeAlias(ta: TypeAlias, config: EmitterConfig, indent: Int = 0): String = {
     val sb     = new StringBuilder
@@ -727,6 +786,20 @@ object ScalaEmitter {
     sb.toString
   }
 
+  /**
+   * Emits a method definition. A method without a body is emitted as an
+   * abstract `def`. An implicit method becomes `implicit def` in Scala 2 syntax
+   * and `given def`, which Scala 3 rejects, in Scala 3 syntax (a known bug).
+   *
+   * @param method
+   *   The Method IR node
+   * @param config
+   *   The emitter configuration
+   * @param indent
+   *   The current indentation level (defaults to 0)
+   * @return
+   *   The emitted Scala method code
+   */
   def emitMethod(method: Method, config: EmitterConfig, indent: Int = 0): String = {
     val sb     = new StringBuilder
     val prefix = ind(indent, config)
@@ -772,7 +845,8 @@ object ScalaEmitter {
   }
 
   /**
-   * Emits an object member (val, def, type alias, or nested type).
+   * Emits an object member (val, def, type alias, nested type or extension
+   * block), followed by a newline.
    *
    * @param member
    *   The ObjectMember IR node
