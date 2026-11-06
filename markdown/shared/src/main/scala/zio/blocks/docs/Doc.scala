@@ -108,9 +108,9 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
    * Compare two documents by their normalized form.
    *
    * Two documents are equal when their normalized blocks are equal and their
-   * metadata is equal. The package-level inline classes and the `Inline.`
-   * classes are different classes, so a document built from `Inline.Text("a")`
-   * is not equal to one built from `Text("a")`.
+   * metadata is equal. A lone `Inline.Text` is kept as it is, so a document
+   * built from `Inline.Text("a")` is not equal to one built from `Text("a")`;
+   * see [[Inline]] for which `Inline.` cases normalize.
    */
   override def equals(obj: Any): Boolean = obj match {
     case that: Doc =>
