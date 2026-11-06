@@ -34,7 +34,8 @@ enum ProjectionAction[+A] {
 
   /**
    * Adds `value` as a new row, with `ProjectionStore#insert`. A row with the
-   * same ID makes the action fail.
+   * same ID makes the action fail, except in a rebuild, which retries it as an
+   * upsert.
    */
   case Insert[A](value: A) extends ProjectionAction[A]
 

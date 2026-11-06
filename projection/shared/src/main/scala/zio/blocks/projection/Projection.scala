@@ -473,7 +473,8 @@ final class HandlerBuilder[E, A] private[projection] (
 
   /**
    * Inserts the row that `f` builds from the event and its context. A row with
-   * the same ID makes the insert fail, and the engine logs and skips the event.
+   * the same ID makes the insert fail, and the engine logs and skips the event;
+   * a rebuild replays it as an upsert instead, so there the last insert wins.
    */
   def insert(f: (E, ProjectionContext) => A): Projection[A] =
     add((e, ctx) => ProjectionAction.Insert(f(e, ctx)))
