@@ -27,10 +27,13 @@ import zio.blocks.sql.SqlNameMapper
  * They back the selector-based methods of [[FieldUpdate]] (`increment`,
  * `decrement`, `setValue`, `maxValue`, `minValue`) and the
  * `HandlerBuilder.update` macro, so that a misspelled field is a compile error
- * and not a runtime failure. The selector must be a lambda that reads a field,
- * such as `_.userCount`. Only the last field name of the selector is used, so
- * `_.stats.userCount` gives `userCount`. A selector that is not a lambda, or
- * that reads no field, such as `x => x`, is rejected with a compile error.
+ * and not a runtime failure. The selector must be a lambda whose body ends in a
+ * member access without a parameter list, such as `_.userCount`; the name of
+ * that last member is used, so `_.stats.userCount` gives `userCount` and
+ * `_.name.size` gives `size`. The macro does not check that the member is a
+ * field of `A`. A selector that is not a lambda, that ends in a call of a
+ * method with a parameter list, such as `_.name.length` on a `String`, or that
+ * reads no member, such as `x => x`, is rejected with a compile error.
  *
  * Field names are mapped to SQL `snake_case` column names with
  * `SqlNameMapper.SnakeCase`, for example `userCount` becomes `user_count`. The

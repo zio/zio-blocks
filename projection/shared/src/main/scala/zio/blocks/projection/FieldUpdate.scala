@@ -85,8 +85,9 @@ object FieldUpdate {
 
   /**
    * Replaces the value of the selected field. The field is chosen with a
-   * selector such as `_.userCount`, checked at compile time, and mapped to its
-   * `snake_case` column name.
+   * selector such as `_.userCount`, and the name of the last member it reads is
+   * mapped to its `snake_case` column name at compile time (see
+   * [[FieldSelectorMacros]] for what a selector may be).
    *
    * {{{
    * case class Stats(day: String, peak: Long)

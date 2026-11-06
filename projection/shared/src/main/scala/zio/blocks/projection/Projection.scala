@@ -520,8 +520,9 @@ final class HandlerBuilder[E, A] private[projection] (
 
   /**
    * Sets one field to the value that `f` computes from the event. The field is
-   * picked with a selector such as `_.email`, checked at compile time, and
-   * mapped to its `snake_case` column name.
+   * picked with a selector such as `_.email`, and the name of the last member
+   * it reads is mapped to its `snake_case` column name at compile time (see
+   * [[FieldSelectorMacros]] for what a selector may be).
    */
   inline def update(inline selector: A => Any)(f: (E, ProjectionContext) => Any): Projection[A] =
     ${ ProjectionMacros.updateImpl[A, E]('this, 'selector, 'f) }
@@ -558,8 +559,7 @@ final class FromBuilder[A] private[projection] (
 
   /**
    * Like `routedBy`, but the selector, such as `_.ownerId`, can return any
-   * type: its value is turned into the key with `toString`. Unlike
-   * `HandlerBuilder.update`, the selector is not checked to read a field.
+   * type: its value is turned into the key with `toString`.
    */
   inline def routedByField[E](inline selector: E => Any): Projection[A] =
     ${ ProjectionMacros.routedByFieldImpl[A, E]('this, 'selector) }
