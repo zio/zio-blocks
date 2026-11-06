@@ -800,9 +800,24 @@ Skill update: "Lessons from async" in the `scaladoc-rollout` skill's `references
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%.
 
-## 13k. Scaladoc: jwt module (in progress)
+## 13k. Scaladoc: jwt module
 
-Session `jwt-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 62 / 146 (42%); `--drift` empty; `CrossType.Full` (shared 9 files, `Jwt.scala` 1142 lines; jvm `JvmJwtCryptoBackend`, js `JsJwtCryptoBackend`), no scala-2/scala-3 split; jwt main sources unchanged since `v0.0.56`; one existing `{{{` block with `...` placeholders (to be made to compile); known entries `library-issues.md` 1429 and 1474. Milad's Phase 1 decisions: one PR (tooling plus all docs); tier 1 = `Jwt` (with `JwtSignOptions`, `JwtDecodeOptions`, `JwtLimits`), `JwtClaims`, `JwtHeader`, `Algorithm`, `JwtError`, `JwtAudience`.
+Session `jwt-scaladoc` (Opus controller), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 62 / 146 (42%); jwt's main sources are byte-identical to `v0.0.56`; shared sources (9 files, `Jwt.scala` holds 33 of 146 members) plus one backend each in `jvm/` and `js/`; no scala-2/scala-3 splits; cross versions equal `scaladoc-check`'s, so one list entry. Milad's Phase 1 decisions: one PR; tier 1 = `Jwt` (with `JwtSignOptions`, `JwtDecodeOptions`, `JwtLimits`), `JwtClaims`, `JwtHeader`, `Algorithm`, `JwtError`, `JwtAudience`.
+
+| Item | Result |
+|---|---|
+| PR | #1947 (one PR). CI on `de55fd3ae`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt@v1.5.7`'s AMPEL verify step ("compiling policy: unable to parse a policy, group or policySet from data") on every open PR and on main, not in jwt. Main merged in three times (#1942–#1944, #1946, #1949), both sides kept, scaladoc-check re-run each time |
+| Coverage | 62 / 146 → 146 / 146; `--drift` 0; comments-only: 10 files, 0 code changes |
+| Examples | 13 compiled blocks per Scala version (2.13.18, 3.9.0, 3.10.0; `jwt.jvm` in `scaladocCheckedModules`); the one old `...` block now compiles |
+| Writing | Task 1 (Opus, the only sbt runner): tooling, tier 1, fact-check of all inherited comments, bug entries. In parallel Task 2 (Sonnet, no sbt): the 20 gaps in `JwtValue`, `Base64Url` and both backends; its 5 suspected bugs triaged by Task 1 |
+| Existing comments | 25 of 83 (30%) false or imprecise (4 false, 21 imprecise); Task 2's 19 new comments: 1 false, 2 imprecise. False ones: audience mismatch as `InvalidToken` (it is `InvalidClaim("aud", ...)`), `JwtSignOptions.limits` "header JSON validation", "no values are dropped" (a repeated field keeps the last), a nonexistent `Num.toLong` |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A 5 Important + 8 Minor; B 3 Important + 11 Minor; all applied but one style-guide reorder (already resolved in a merge); each replacement re-probed (JVM, Scala.js 1.22). Sonnet scoped re-review (re-running every bug reproducer): 1 Important + 2 Minor, all applied |
+| Bugs | 10 entries plus amendments: `crit` ignored, a token accepted at the second its `exp` names, `maxDepth` object-vs-array off by one, the `alg` field holding a backend message, the Scala.js backend lacking key-type, size and curve checks, a Scala.js unreadable key reported as `InvalidToken`, `Num` accepting any text, the JSON parser accepting RFC-forbidden input, and 2 errors on `jwt.md` |
+| Time | about 5 h 45 min from brief to PR, including a login outage and a reboot; CI took about a day longer because of runner and setup failures |
+
+Skill lessons: probing the "who verifies what" boundary (`decode` vs `decodeWithoutVerification`, sign vs decode) found most Important findings.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, jwt 30%.
 
 ## 13l. Scaladoc: maybe, combinators and context (in progress)
 
