@@ -78,7 +78,12 @@ abstract class Constructor[+A] { self =>
  * parameters.
  */
 class ConstantConstructor[A](constant: A) extends Constructor[A] {
+
+  /** Returns 0, since `construct` reads no registers. */
   def usedRegisters: RegisterOffset = 0L
 
+  /**
+   * Returns `constant` without reading `in`, the same instance on every call.
+   */
   def construct(in: Registers, offset: RegisterOffset): A = constant
 }
