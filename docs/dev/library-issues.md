@@ -16563,6 +16563,75 @@ import zio.http.datastar.*
 
 **Suggested fix.** Check segments against JavaScript's rules: `$`, `_` or a Unicode letter (`Character.isLetter` / `Character.isUnicodeIdentifierStart`) to start, plus digits and `Character.isUnicodeIdentifierPart` minus `Character.isIdentifierIgnorable` after.
 
+### mediatype: the generator drops a file extension written as a multi-line array (`message/disposition-notification`)
+
+**Found:** 2026-11-06, while surveying `mediatype` for Scaladoc, at main `121cb1024`. Same at v0.0.56: `git diff v0.0.56 HEAD -- project/GenerateMediaTypes.scala mediatype/shared/src/main` is empty.
+
+**Summary.** `project/GenerateMediaTypes.scala` reads each type's `extensions` array with a regex whose `.` does not match a newline. If mime-db writes an array over several lines, the regex finds no match and the generator records no extensions. In mime-db commit `6abfe5f81` (the data the committed `MediaTypes.scala` was generated from), exactly one of 1,025 `extensions` arrays is multi-line: `message/disposition-notification`. The other 1,024 are single-line.
+
+**Reproducer.** `Repro.sc`, run with `scala-cli run --server=false Repro.sc` (needs network access to Maven Central and raw.githubusercontent.com):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-mediatype:0.0.56
+
+import zio.blocks.mediatype.{MediaType, MediaTypes}
+import scala.io.Source
+
+// 1. The published 0.0.56 artifact has no extension for message/disposition-notification.
+val mt = MediaTypes.message.`disposition-notification`
+println(s"fileExtensions = ${mt.fileExtensions}")
+
+// 2. mime-db (commit 6abfe5f81, the data the committed file was generated from) lists one.
+val url  = "https://raw.githubusercontent.com/jshttp/mime-db/6abfe5f81/db.json"
+val json = Source.fromURL(url).mkString
+val entry =
+  json.linesIterator.dropWhile(!_.contains("\"message/disposition-notification\"")).take(6).mkString("\n")
+println(entry)
+
+// 3. The generator's regex (project/GenerateMediaTypes.scala, parseJson) cannot see it:
+//    `.` does not match a newline, so a multi-line array never matches.
+val generatorRegex = """"extensions"\s*:\s*\[(.*?)\]""".r
+val withDotAll     = """(?s)"extensions"\s*:\s*\[(.*?)\]""".r
+val objJson        = entry.linesIterator.drop(1).mkString("\n")
+println(s"generator regex matches: ${generatorRegex.findFirstMatchIn(objJson).isDefined}")
+println(s"(?s) regex matches:      ${withDotAll.findFirstMatchIn(objJson).isDefined}")
+
+// 4. How many arrays are affected: count extension arrays whose `[` ends its line.
+println(s"multi-line extension arrays in db.json: ${json.linesIterator.count(_.trim.endsWith("\"extensions\": ["))}")
+println(s"single-line extension arrays in db.json: ${json.linesIterator.count(l => l.contains("\"extensions\": [") && !l.trim.endsWith("["))}")
+
+// 5. Consequence: the lookup by that extension finds nothing.
+println(MediaType.forFileExtension("disposition-notification"))
+```
+
+Real output:
+
+```
+// fileExtensions = List()
+//   "message/disposition-notification": {
+//     "source": "iana",
+//     "extensions": [
+//       "disposition-notification"
+//     ]
+//   },
+// generator regex matches: false
+// (?s) regex matches:      true
+// multi-line extension arrays in db.json: 1
+// single-line extension arrays in db.json: 1024
+// None
+```
+
+**Expected.** `MediaTypes.message.`disposition-notification`.fileExtensions == List("disposition-notification")`, and `MediaType.forFileExtension("disposition-notification")` returns that type, as mime-db lists it.
+
+**Root cause.** `project/GenerateMediaTypes.scala:122` (`parseJson`): `"""\"extensions\"\s*:\s*\[(.*?)\]""".r.findFirstMatchIn(objJson)`. Without the `(?s)` flag, `.` stops at a newline, so a multi-line array never matches and `extMatch` is `None`, which `toMediaTypeInfos` turns into `Nil` extensions. The same file's `compressible` check uses `contains`, so it is not affected.
+
+**Impact.** One media type has no extension, so the lookup by its extension returns `None`. Small today, but any later mime-db refresh can introduce more multi-line arrays (the formatter wraps long ones), and they would be dropped silently.
+
+**Test gap.** The generator has no tests, and `mediatype/shared/src/test` does not cover the generated data against mime-db.
+
+**Suggested fix.** Add `(?s)` to the regex (`"""(?s)\"extensions\"\s*:\s*\[(.*?)\]"""`). Fixing it changes the generated data (`MediaTypes.scala` gains `fileExtensions = List("disposition-notification")`), so do it in a PR together with a mime-db refresh. The generator also fetches `master` and nothing pins the data (master already has 6 types the committed file lacks); pinning the fetch to a commit makes runs reproducible.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
