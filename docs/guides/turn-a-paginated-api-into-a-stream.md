@@ -15,7 +15,7 @@ In this guide, we will turn a page-by-page HTTP API into a `Stream` that yields 
 
 We'll take an incremental approach. We start with a walk that produces pages, then flatten the pages into items, then add error handling, and finally replace the blocking walk with a non-blocking one. The examples use a fake API that serves pages from memory, so they run without a network.
 
-The [streaming migration guide](./streaming-library-migration.md) already shows a synchronous paged walk with `Stream.unfold`, using page numbers and stopping on an empty page. This guide covers the cases that walk leaves out: an opaque next-page cursor, stopping on the last page without an extra request, `unfoldAsync`, typed errors, and decoding each item.
+The [streaming migration guide](./streaming-library-migration.md) already shows a synchronous paged walk with `Stream.unfold`, using page numbers and stopping on an empty page. This guide covers the cases that walk leaves out: an opaque next-page cursor, stopping on the last page without an extra request, `Stream.unfoldAsync`, typed errors, and decoding each item.
 
 ## The Problem
 
@@ -67,7 +67,7 @@ This guide assumes you have read [Your First Streaming Pipeline](./your-first-st
 
 ## The Sample API
 
-The tracker's endpoint returns a page of issues and a `next` cursor. Each item is JSON text, as an HTTP body carries it. The last page has no `next`. The fake API below serves three pages from a map and records each cursor it was asked for, so we can count the requests.
+The tracker's endpoint returns a page of issues and a `next` cursor. Each item is JSON text, as an HTTP body carries it. The last page has no `next`. The fake API below serves three pages from a map and records each cursor it was asked for, so we can count the requests:
 
 ```scala mdoc:silent
 /** An issue as the tracker's JSON API returns it. */
@@ -201,9 +201,9 @@ The first request has no cursor, and each later one uses the `next` value of the
 
 ## Stopping on the Last Page
 
-The walk must stop when a page has no `next` cursor. `advance` handles that by moving to `Position.Done`, and the `unfold` step returns `None` for `Position.Done`, which ends the stream. The last page is emitted with state `Done`, so the walk ends without asking the API for a page that does not exist.
+The walk must stop when a page has no `next` cursor. `advance` handles that by moving to `Position.Done`, and the `Stream.unfold` step returns `None` for `Position.Done`, which ends the stream. The last page is emitted with state `Done`, so the walk ends without asking the API for a page that does not exist.
 
-The output above shows three requests for three pages. The last request is for `c3`, the cursor the second page returned, and nothing asks for a fourth page. If the state after the last page were `First` or a page number instead, the walk would make one extra request that comes back empty.
+The output above shows three requests for three pages. The last request is for `c3`, the cursor that the second page carries in `next`, and nothing asks for a fourth page. If the state after the last page were `First` or a page number instead, the walk would make one extra request that comes back empty.
 
 :::warning
 Do not treat an empty page as the end of the walk unless the API documents that. Many cursor APIs return a last page with items and no `next`, so an empty-page check requests one page too many and can hide a real empty result. Use the `next` value.
@@ -307,7 +307,7 @@ To skip bad items instead of failing, replace the `Stream.fail` in `decodeItems`
 
 ## Fetching Without Blocking with unfoldAsync
 
-The walk so far calls `fetchPage` directly, so the thread that runs the stream waits for each page. `Stream.unfoldAsync` takes the same walk with each step returning an `Async`, and the waiting happens on the `Async`, not on the caller's thread. Its signature is:
+The walk so far calls `FakeTrackerApi#fetchPage` directly, so the thread that runs the stream waits for each page. `Stream.unfoldAsync` takes the same walk with each step returning an `Async`, and the waiting happens on the `Async`, not on the caller's thread. Its signature is:
 
 ```scala
 def unfoldAsync[S, A](s: S)(f: S => Async[Option[(A, S)]]): Stream[Nothing, A]
@@ -326,7 +326,7 @@ def pagesAsync(api: FakeTrackerApi): Stream[Nothing, Either[PageFailed, RawPage]
 def issuesAsync(api: FakeTrackerApi): Stream[IssueError, Issue] = flatten(pagesAsync(api))
 ```
 
-Only the walk changed. `advance`, `cursorOf`, `decodeItems` and `flatten` are the same, so the typed errors, the last-page rule and the decoding work the same way. The fake's `fetchPageAsync` starts the request with `Async.start`, which runs it on another thread, so the walk does not hold the caller's thread while the page loads.
+Only the walk changed. `advance`, `cursorOf`, `decodeItems` and `flatten` are the same, so the typed errors, the last-page rule and the decoding work the same way. The fake's `FakeTrackerApi#fetchPageAsync` starts the request with `Async.start`, which runs it on another thread, so the walk does not hold the caller's thread while the page loads. Running the walk looks the same as before:
 
 ```scala mdoc
 def listTitlesAsync(): Unit = {
@@ -338,11 +338,11 @@ def listTitlesAsync(): Unit = {
 listTitlesAsync()
 ```
 
-The output matches the synchronous walk. Use `unfoldAsync` when each page request is itself asynchronous, for example an HTTP client that returns a future or a callback. Use `unfold` when the fetch is a plain function that returns its result. For how to wrap a callback-based client in an `Async`, see [Wrap Callback and Future APIs](./wrap-callback-and-future-apis.md).
+The output matches the synchronous walk. Use `Stream.unfoldAsync` when each page request is itself asynchronous, for example an HTTP client that returns a future or a callback. Use `Stream.unfold` when the fetch is a plain function that returns its result. For how to wrap a callback-based client in an `Async`, see [Wrap Callback and Future APIs](./wrap-callback-and-future-apis.md).
 
 ## Putting It Together
 
-The complete program puts the pieces in one file: the non-blocking walk, the typed errors and the decoding, run once on the three-page API and once on a tracker whose second page fails. It has the same sample API as the sections above, so the only difference from them is that the program runs both cases in order.
+The complete program puts the pieces in one file: the non-blocking walk, the typed errors and the decoding, run once on the three-page API and once on a tracker whose second page fails. It has the same sample API as the sections above, so the only difference from them is that the program runs both cases in order:
 
 ```scala mdoc:embed:zio-blocks-examples/paginated-api/src/main/scala/paginatedapi/CompleteExample.scala
 ```
@@ -363,6 +363,6 @@ All runnable code from this guide is in [`zio-blocks-examples/paginated-api/src/
 
 To read a real API, replace `FakeTrackerApi#fetchPage` with a call to your HTTP client and parse the response body into a `RawPage`. Keep the `Either` result, so a non-2xx status becomes a `PageFailed` and the walk stops with a typed error.
 
-If the API returns the next cursor in a response header instead of the body, read that header in `fetchPage` and fill `RawPage#next` from it. The walk does not change.
+If the API returns the next cursor in a response header instead of the body, read that header in `FakeTrackerApi#fetchPage` and fill `RawPage#next` from it. The walk does not change.
 
 For the full operator list on `Stream`, see the [Stream reference](../reference/streams/core/stream.md). For the rules of `Async`, including cancellation, see the [Async reference](../reference/async.md).
