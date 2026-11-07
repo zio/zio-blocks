@@ -42,18 +42,24 @@ In this guide, we let a `Schema` derive the JSON codec, and let the stream decid
 
 ## Prerequisites
 
-Add the streams module to your `build.sbt`. The schema module comes with it, so `Schema` and the JSON codec are available too:
+Add the streams and schema modules to your `build.sbt`. The streams module does not depend on the schema module, so we add both. The schema module provides `Schema` and the JSON codec:
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-schema"  % "@VERSION@",
+  "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
+)
 
 // Scala 3.9 and newer, which also needs -experimental
-libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
+libraryDependencies ++= Seq(
+  "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@",
+  "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
+)
 scalacOptions += "-experimental"
 ```
 
-[How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact name each Scala version uses. The terminals in this guide, such as `Stream#run`, `Stream#runCollect` and `Stream#runForeach`, run on the JVM. On Scala.js, use the `*Async` terminals instead, such as `Stream#runCollectAsync`.
+[How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact name each Scala version uses. On the JVM, the streams module needs JDK 21 or newer. The terminals in this guide, such as `Stream#run`, `Stream#runCollect` and `Stream#runForeach`, run on the JVM. On Scala.js, use the `*Async` terminals instead, such as `Stream#runCollectAsync`.
 
 This guide assumes you have run a stream before, as in [Your First Streaming Pipeline](./your-first-streaming-pipeline.md), and that you can derive a schema with `Schema.derived`, as in [Your First Schema](./your-first-schema.md).
 
@@ -171,7 +177,7 @@ decoded.run(
 }
 ```
 
-The skipped lines are logged while the stream runs, and the summary comes after. The `Right` from `Stream#run` holds the accumulator, so the code after `foreach` sees the kept readings and the count together.
+The skipped lines are logged while the stream runs, and the summary comes after. The `Right` from `Stream#run` holds the accumulator, so the code after `Either#foreach` sees the kept readings and the count together.
 
 ## Failing at the First Bad Line
 
