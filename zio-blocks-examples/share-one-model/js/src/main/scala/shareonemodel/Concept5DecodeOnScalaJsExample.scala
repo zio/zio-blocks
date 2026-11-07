@@ -4,7 +4,7 @@ package shareonemodel
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.scalajs.js
-import scala.scalajs.js.Thenable.thenable2future
+import scala.scalajs.js.Thenable.Implicits.thenable2future
 import zio.blocks.schema._
 
 /**
@@ -12,7 +12,7 @@ import zio.blocks.schema._
  *
  * Fetches the list from the server and prints it, or prints the decode error.
  */
-object Browser {
+object Concept5DecodeOnScalaJsExample {
   def main(args: Array[String]): Unit = {
     val response: Future[js.Dynamic] =
       js.Dynamic.global.fetch("http://localhost:8090/tasks").asInstanceOf[js.Promise[js.Dynamic]]

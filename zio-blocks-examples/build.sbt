@@ -103,7 +103,7 @@ lazy val jsonLines = (project in file("json-lines"))
 
 // Examples for "Share One Model Between a Scala.js Page and a JVM Server": one Schema-based model, cross-built for the
 // JVM (the server encodes it) and Scala.js (the client decodes it under Node). The server first, then the client:
-//   shareOneModelJVM/runMain shareonemodel.Server      (keep it running)
+//   shareOneModelJVM/runMain shareonemodel.Concept4ServeJsonExample   (keep it running)
 //   shareOneModelJS/run                                 (in another terminal)
 lazy val shareOneModel = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

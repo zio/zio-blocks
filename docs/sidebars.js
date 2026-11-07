@@ -532,6 +532,7 @@ const sidebars = {
         "guides/your-first-html-page",
         "guides/instrument-a-program-with-logs-traces-and-metrics",
         "guides/small-json-backend-from-blocks",
+        "guides/share-one-model-between-scala-js-and-the-jvm",
         "guides/nested-data-with-optics",
         "guides/one-type-many-formats",
         "guides/add-interactivity-with-htmx",

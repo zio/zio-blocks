@@ -1,4 +1,4 @@
-// Run from this folder:  sbt "shareOneModelJVM/runMain shareonemodel.Server"
+// Run from this folder:  sbt "shareOneModelJVM/runMain shareonemodel.Concept4ServeJsonExample"
 package shareonemodel
 
 import java.net.InetSocketAddress
@@ -12,7 +12,7 @@ import zio.blocks.schema._
  *
  * Serves `Sample.list` at `http://localhost:8090/tasks` until you press Ctrl+C.
  */
-object Server {
+object Concept4ServeJsonExample {
   def main(args: Array[String]): Unit = {
     val server = HttpServer.create(new InetSocketAddress("localhost", 8090), 0)
     server.createContext(
