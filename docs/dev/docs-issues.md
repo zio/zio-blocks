@@ -933,6 +933,85 @@ Found 2026-11-06 while fact-checking the telemetry Scaladoc against `docs/refere
 3. In `log-formatter.md:17`, replace "both safe to share across threads, with `TextLogFormatter` caching its timestamp prefix for the current second" with "both can be shared across threads; `TextLogFormatter` caches its timestamp prefix for the current second, and a known bug in 0.0.56 lets a line logged at a second boundary from another thread carry the wrong second".
 4. In `tracing/index.md:120`, replace "they stop seeing new spans" with "they stop seeing new spans, except from tracers taken with `trace.get` before the install".
 
+### ringbuffer reference: `spsc.mdx` says every `NaN` payload is canonicalized by `DoubleSpscRingBuffer`; only the two reserved bit patterns are
+
+Found 2026-11-06 while writing the `ringbuffer` Scaladoc, on `main` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `docs/reference/ringbuffer/spsc.mdx:280` says "Any `NaN` payload is canonicalized to `Double.NaN` on offer so it can never collide with the reserved markers", and the example comment at `:307` repeats it. The code rewrites only a value whose bits equal `EMPTY_BITS` or `DONE_BITS`; every other `NaN` payload is stored bit for bit. The old class Scaladoc also called the rewrite "unobservable" and said a NaN payload can't be round-tripped portably; `pollPacked` shows the rewrite, and `doubleToRawLongBits(longBitsToDouble(x))` round-trips these payloads on the JVM. The new Scaladoc states the real behaviour.
+
+**Reproduction** (`DoubleNaNPayloads.scala`, run with `scala-cli run --server=false DoubleNaNPayloads.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-ringbuffer:0.0.56
+
+import zio.blocks.ringbuffer._
+
+object DoubleNaNPayloads {
+  def main(args: Array[String]): Unit = {
+    val q = DoubleSpscRingBuffer(8)
+    val inputs = Seq(0x7ff8000000000123L, 0xfff8000000000003L, 0x7ff0000000000001L, DoubleSpscRingBuffer.EMPTY_BITS, DoubleSpscRingBuffer.DONE_BITS)
+    inputs.foreach(bits => q.offer(java.lang.Double.longBitsToDouble(bits)))
+    inputs.foreach(bits => println(f"offered 0x$bits%016x -> stored 0x${q.pollPacked()}%016x"))
+  }
+}
+// offered 0x7ff8000000000123 -> stored 0x7ff8000000000123
+// offered 0xfff8000000000003 -> stored 0xfff8000000000003
+// offered 0x7ff0000000000001 -> stored 0x7ff0000000000001
+// offered 0xfff8000000000001 -> stored 0x7ff8000000000000
+// offered 0xfff8000000000002 -> stored 0x7ff8000000000000
+```
+
+**Expected (page text).** "A value whose bits equal one of the two reserved patterns is stored as `Double.NaN` (`0x7ff8000000000000L`); every other value, every other `NaN` payload included, is stored bit for bit." The `:307` comment: `Double.NaN` is stored as is.
+
+**Root cause.** `ringbuffer/jvm/src/main/scala/zio/blocks/ringbuffer/DoubleSpscRingBuffer.scala:92-93` compares the raw bits with the two reserved patterns only.
+
+**Impact.** Readers who rely on NaN payloads (NaN-boxing, error codes in payloads) think the buffer destroys them and avoid it; readers who rely on canonicalization (comparing bits) get unexpected bits.
+
+**Test gap.** `PrimitiveSpscRingBufferSpec.scala:460-476` checks only `isNaN` after the round trip, never the bits.
+
+**Suggested fix.** Replace the sentence at `spsc.mdx:280` and the comment at `:307` with the expected text above.
+
+### mux reference: `MuxError.Cancelled` and `ProtocolError` are described as returned in cases the library never produces
+
+Found 2026-11-06 while writing the `mux` Scaladoc, on `main` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** `docs/reference/mux.mdx:81` lists `ProtocolError` for "invalid state transition", and `:405` repeats "invalid state transition". No state transition returns an error: `halfClose`, `signalRemoteClose` and `close` return `Unit` and ignore transitions that don't apply. `ProtocolError` comes only from `open` with a registered id (`Stream <id> already exists`) and from `send`/`offerInbound` with `null` (`null message`). `:81` says `Cancelled` means "stream was cancelled by peer" and `:401` says it is "Returned when a stream gets cancelled via `mux.cancel(id, reason)`": the library never creates `Cancelled`. `cancel` and `closeAll` hand back whatever `reason` the caller passes (`receive()` returns it); `Cancelled` is returned only when the caller passes one. The old Scaladoc said the same (and that `StreamClosed` means "closed or does not exist", though no method returns it for an unknown id); the new Scaladoc is correct.
+
+**Reproduction** (`probes/task-1/MuxProbe3.scala`, the `cancel` and `closeAll` sections; and a grep):
+
+```text
+$ git grep -n "MuxError.Cancelled\|Cancelled(" 07f71de18 -- 'mux/*/src/main/*.scala' | grep -v ':\s*\*'
+07f71de18:mux/shared/src/main/scala/zio/blocks/mux/MuxError.scala:50:  final case class Cancelled(id: Any, reason: String) extends MuxError
+```
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+import zio.blocks.mux._
+object CancelReason {
+  def main(args: Array[String]): Unit = {
+    val m = Mux[Int, String, String](4)
+    val s = m.open(1).asInstanceOf[MuxStream[Int, String, String]]
+    m.closeAll(MuxError.ProtocolError("shutdown"))
+    println(s.receive())
+  }
+}
+// ProtocolError(shutdown)
+```
+
+(The second block is `CancelReason.scala`, run with `scala-cli run --server=false CancelReason.scala`; the `closeAll` section of `MuxProbe3.scala` shows the same with a queued message: `a.receive x2 = List(Some(in-a), ProtocolError(shutdown))`.)
+
+**Expected (page text).** `:81`: "`Cancelled` (a reason you pass to `cancel`/`closeAll`; the library never creates it) ... `ProtocolError` (duplicate id, null message)". `:401`: "A reason for `mux.cancel(id, reason)` or `closeAll`; `receive()` returns the reason you passed, whatever its case." `:405`: drop "invalid state transition".
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:36-46` (`open`), `:110-142` (`send`, `offerInbound`): the only `ProtocolError` sites; `:173-176` (`cancelWith` stores the caller's reason).
+
+**Impact.** Readers match on `Cancelled` to detect cancellation and miss every cancel made with another reason; they look for `ProtocolError` from state calls that never fail.
+
+**Test gap.** None needed for the library; the page has no compiled example that matches on `Cancelled` from `receive`.
+
+**Suggested fix.** Apply the expected text.
+
 ## Docs tooling and examples
 
 Docs build, mdoc and example-project problems (moved here from the old "Test and CI" section).

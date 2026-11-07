@@ -17230,6 +17230,473 @@ The count changes from run to run; a second run printed `lines with a wrong time
 
 **Suggested fix.** Keep the second and the prefix in one immutable object held in a single `@volatile` field (for example `final class Cached(second: Long, prefix: String)`), read it once per call, and replace it with a new object when the second changes. Add a test that formats records from two different seconds on two threads and checks every line's timestamp.
 
+### mux: Closing an old stream handle unregisters a newer stream with the same id, and then `open` accepts the id twice
+
+Found 2026-11-06 while writing the `mux` Scaladoc, on `main` at `07f71de18`. Same at v0.0.56 (the sources are identical).
+
+**Summary.** `MuxStream#close()` removes *the id* from the `Mux` registry, not *this stream*, whatever state the stream is in. When a stream has left the registry (cancelled with `Mux#cancel`, closed with `close()`, or closed by both sides finishing) and its id was opened again, closing the old handle (typical cleanup code that closes every handle it holds) removes the new, live stream from the registry. `Mux#get(id)` then returns `None`, `activeCount` is too low, and `Mux#open(id)` succeeds again, so two live streams share one id. Nothing reports an error. JVM and Scala.js behave the same.
+
+**Reproduction** (`StaleCloseRemovesNewStream.scala`, run with `scala-cli run --server=false StaleCloseRemovesNewStream.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-mux:0.0.56
+
+import zio.blocks.mux._
+
+object StaleCloseRemovesNewStream {
+  type S = MuxStream[Int, String, String]
+
+  def open(m: Mux[Int, String, String], id: Int): S = m.open(id) match {
+    case e: MuxError => sys.error(e.toString)
+    case s           => s.asInstanceOf[S]
+  }
+
+  def run(how: String, leave: (Mux[Int, String, String], S) => Unit): Unit = {
+    val mux = Mux[Int, String, String](4)
+    val old = open(mux, 1)
+    leave(mux, old)          // stream 1 leaves the registry
+    val fresh = open(mux, 1) // the id is reused for a new stream
+    old.close()              // cleanup code closes its old handle
+    val after = s"get(1) = ${mux.get(1)}, activeCount = ${mux.activeCount}, fresh.isClosed = ${fresh.isClosed}"
+    val dup   = mux.open(1)
+    println(s"$how: $after, open(1) again = ${if (dup.isInstanceOf[MuxError]) dup.toString else "a second live stream"}")
+  }
+
+  def main(args: Array[String]): Unit = {
+    run("cancelled", (m, s) => m.cancel(1, MuxError.StreamClosed(1)))
+    run("closed with close()", (_, s) => s.close())
+    run("both sides finished", (_, s) => { s.halfClose(); s.signalRemoteClose() })
+  }
+}
+// cancelled: get(1) = None, activeCount = 0, fresh.isClosed = false, open(1) again = a second live stream
+// closed with close(): get(1) = None, activeCount = 0, fresh.isClosed = false, open(1) again = a second live stream
+// both sides finished: get(1) = None, activeCount = 0, fresh.isClosed = false, open(1) again = a second live stream
+```
+
+The cancel case behaves the same on Scala 2.13.18 (`probes/task-1/MuxProbe2.scala`) and on Scala.js (`probes/task-1/js/MuxProbe3Js.scala`); Scala.js `close()` has the same unconditional `removeStream`.
+
+**Expected.** Closing an already-closed (or already-unregistered) handle leaves the registry alone; only the stream object that is registered under the id may remove it.
+
+**Root cause.** `mux/jvm/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:171` (`close()` calls `closeClosedStream` unconditionally), `:178-182` (`closeClosedStream` calls `mux.removeStream(streamId)` even when the state was already `Closed`), and `:70-74` (`removeStream` does `streams.remove(id)`, removing whatever stream holds the id). The Scala 2 copy has the same lines; Scala.js: `mux/js/src/main/scala-3/zio/blocks/mux/PlatformMux.scala:142-145` and `:57-58`.
+
+**Impact.** A protocol that reuses stream ids (HTTP/2 does not, but many custom protocols and tests do) and whose cleanup closes every handle it holds, including streams that already finished normally, loses track of a live stream: its writer loop no longer finds it through `get`, its outbound messages are never sent, and the capacity check counts one stream too few. The duplicate `open` breaks the "ids are unique among active streams" invariant that `Mux` documents.
+
+**Test gap.** `mux/shared/src/test/scala-3/zio/blocks/mux/MuxSpec.scala` (and the scala-2 copy) never reopens a cancelled or closed id and then closes the old handle; the cancel tests (`:214-232`) check only the cancelled stream.
+
+**Suggested fix.** In `closeClosedStream`, return early when the state was already `Closed` (CAS the state instead of a plain write), and remove the entry only if it is this stream: `streams.remove(id, this)` on the JVM (`ConcurrentHashMap.remove(key, value)`), and `if (streams.get(id).contains(this)) streams.remove(id)` on Scala.js.
+
+### ringbuffer: `size` on the JVM ring buffers can return a negative number or a number far above `capacity` while other threads offer and take
+
+Found 2026-11-06 while writing the `ringbuffer` Scaladoc, on `main` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** Every JVM ring buffer computes `size` as `producerIndex - consumerIndex`, reading the consumer index first and the producer index second, with no retry. If the reading thread is delayed between the two reads, the producer and consumer move on, and the difference can exceed `capacity` by thousands (5,488 for a capacity-4 buffer below). In `SpscRingBuffer` and the primitive SPSC buffers the producer index is published with an opaque write after the element, so a third thread can also see the consumer ahead of the producer: `size` returns `-1`. `MpscRingBuffer` clamps at 0 but not at `capacity`. `isFull` and `isEmpty` read the same two indices, so they are just as unreliable. The Scaladoc and the reference pages said only "approximate".
+
+**Reproduction** (`SizeOutOfRange.scala`, run with `scala-cli run --server=false SizeOutOfRange.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-ringbuffer:0.0.56
+
+import zio.blocks.ringbuffer._
+
+object SizeOutOfRange {
+  def main(args: Array[String]): Unit = {
+    val q    = SpscRingBuffer[Integer](4)
+    val n    = 5000000
+    @volatile var done = false
+    val producer = new Thread(() => { var i = 0; while (i < n) { if (q.offer(Integer.valueOf(i))) i += 1 } })
+    val consumer = new Thread(() => { var i = 0; while (i < n) { if (q.take() != null) i += 1 } })
+    var min = Int.MaxValue; var max = Int.MinValue
+    val observer = new Thread(() => { while (!done) { val s = q.size; if (s < min) min = s; if (s > max) max = s } })
+    observer.start(); producer.start(); consumer.start()
+    producer.join(); consumer.join(); done = true; observer.join()
+    println(s"capacity = ${q.capacity}, size seen by a third thread: min = $min, max = $max")
+  }
+}
+// capacity = 4, size seen by a third thread: min = -1, max = 5488
+```
+
+The maximum varies from run to run (other runs: 5152, 37784; the reviewer saw 3874, 3144 and 14063); every run so far showed `-1` and a value above `capacity`.
+
+`probes/task-1/RbConcurrency.scala` shows the same for all four generic buffers (observed ranges at capacity 1: SPSC `[-1, 32146]`, MPSC `[0, 17461]`, SPMC `[0, 11322]`; MPMC at capacity 2 `[0, 11283]`), and `probes/task-1/RbExamples.scala` for `IntSpscRingBuffer` (`[-1, 7515]` at capacity 4).
+
+**Expected.** `0 <= size <= capacity` at all times, as in JCTools 3.3.0 and 4.0.5 (`org/jctools/queues/IndexedQueueSizeUtil.java`: `size` re-reads the consumer index until two reads agree, then returns 0 for a negative difference and `capacity` for a larger one; 4.0.5 does this in `sanitizedSize`). JCTools 2.1.2 has the re-read loop but no `[0, capacity]` clamp.
+
+**Root cause.** `ringbuffer/jvm/src/main/scala/zio/blocks/ringbuffer/SpscRingBuffer.scala:128-132` (two reads, no loop, no clamp; the producer index is written with `setOpaque` at `:97`, after the element), `MpscRingBuffer.scala:172-176` (clamps only at 0), `SpmcRingBuffer.scala:163-167`, `MpmcRingBuffer.scala:173-177`, and the `size` of `IntSpscRingBuffer.scala:147-151`, `LongSpscRingBuffer.scala:183-187`, `FloatSpscRingBuffer.scala:148-152`, `DoubleSpscRingBuffer.scala:158-162`.
+
+**Impact.** Monitoring and back-pressure code that reads `size` from a third thread (a metrics gauge, a "queue depth" log line, a load-shedding check `size > capacity * 0.9`) sees impossible values; code that sizes an array from `size` can get a `NegativeArraySizeException`.
+
+**Test gap.** The concurrency specs under `ringbuffer/jvm/src/test/scala/zio/blocks/ringbuffer/` (`ConcurrencySpec`, `MpscConcurrencySpec`, `SpmcConcurrencySpec`, `MpmcConcurrencySpec`, `StressSpec`) never read `size` while other threads run; they check it only when the threads have stopped.
+
+**Suggested fix.** Do what JCTools 3.3.0+ does: read the consumer index, the producer index, then the consumer index again until the two consumer reads agree, and clamp the result to `[0, capacity]`; base `isFull` and `isEmpty` on that value. The cost stays off the offer/take paths.
+
+### codegen: a case object of a generic `SealedTrait` extends the trait with a type parameter it does not declare
+
+Found 2026-11-06 while writing the codegen Scaladoc (`SealedTrait`), on branch `tools-modules-scaladoc` at `07f71de18`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ScalaEmitter.emitSealedTrait` makes every `SealedTraitCase.CaseObjectCase` extend the trait applied to the trait's own type parameter names. For a generic trait such as `sealed trait Result[+A]`, the case object comes out as `case object Err extends Result[A]`. An object cannot have type parameters, so `A` is not in scope and the generated file does not compile in either Scala version. There is no way in the IR to ask for `Result[Nothing]` instead. A case class case without its own type parameters has the same problem (`case class Ok(value: A) extends Result[A]`), but there the user can add `typeParams = List(TypeParam("A"))`.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`, then compile the generated file with `scala-cli compile --server=false --scala 2.13.18 generated/Result.scala` and `--scala 3.9.0`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-codegen:0.0.56
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val result = SealedTrait(
+      "Result",
+      typeParams = List(TypeParam("A", Variance.Covariant)),
+      cases = List(
+        SealedTraitCase.CaseClassCase(CaseClass("Ok", List(Field("value", TypeRef("A"))), typeParams = List(TypeParam("A")))),
+        SealedTraitCase.CaseObjectCase("Err")
+      )
+    )
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(result)), EmitterConfig.scala2)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "Result.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// sealed trait Result[+A]
+//
+// object Result {
+//   case class Ok[A](
+//     value: A
+//   ) extends Result[A]
+//   case object Err extends Result[A]
+// }
+//
+// scala-cli compile --scala 2.13.18 generated/Result.scala (absolute path prefix shortened):
+// generated/Result.scala:9: error: not found: type A
+//   case object Err extends Result[A]
+//                                  ^
+// 1 error
+// Compilation failed
+//
+// scala-cli compile --scala 3.9.0 generated/Result.scala (absolute path prefix shortened):
+// -- [E006] Not Found Error: generated/Result.scala:9:33
+// 9 |  case object Err extends Result[A]
+//   |                                 ^
+//   |                                 Not found: type A
+//   |
+//   | longer explanation available when compiling with `-explain`
+// 1 error found
+// Compilation failed
+```
+
+**Expected.** Output that compiles: `case object Err extends Result[Nothing]` for a covariant parameter (the usual encoding), or a way to give the case object its parent type explicitly, for example an `extendsTypes` field on `CaseObjectCase` that the emitter uses as is.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:345-352`: the `CaseObjectCase` branch of `emitSealedTrait` builds `ObjectDef(name, extendsTypes = List(TypeRef(st.name, typeParamsToTypeRefs(st.typeParams))), isCaseObject = true)`, and `typeParamsToTypeRefs` (`:74-75`) turns each type parameter into a bare name. The case class branch (`:341-344`) does the same for a case class that does not already extend the trait.
+
+**Impact.** Generators for common ADTs (`Result`, `Option`-like, `Either`-like, error hierarchies with a type parameter) cannot use `SealedTrait` with a case object; the failure shows up only when the generated code is compiled.
+
+**Test gap.** `ScalaEmitterSealedTraitSpec.scala:191-205` ("generic sealed trait cases get type params in extends", with an invariant `TypeParam("A")`) asserts `result.contains("case object Err extends Result[A]")` at line 204, pinning the uncompilable output as expected. No test compiles emitted code.
+
+**Suggested fix.** For a case object of a trait with type parameters, emit `Nothing` for each covariant parameter (and fail, or require an explicit parent, for invariant or contravariant ones), or add `extendsTypes: List[TypeRef]` to `CaseObjectCase` and use it when non-empty. Change the pinned assertion.
+
+### codegen: an `Import.GroupImport` with no names makes `ScalaEmitter.emit` throw, or emits `import path.{}`
+
+Found 2026-11-06 while writing the codegen Scaladoc (`Import`, `ScalaEmitter.organizeImports`), on branch `tools-modules-scaladoc` at `07f71de18`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `Import.GroupImport(path, Nil)` is accepted by the IR. When a file has it together with at least one other import and `EmitterConfig.sortImports` is true (the default), `ScalaEmitter.emit` throws `java.util.NoSuchElementException: head of empty list`. On its own it is emitted as `import zio.blocks.chunk.{}`, which is not valid Scala. A generator that builds the name list from data (for example, the types a model happens to use from a package) can produce an empty list.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-codegen:0.0.56
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import scala.util.Try
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val empty = Import.GroupImport("zio.blocks.chunk", Nil)
+    println(Try(ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), imports = List(empty, Import.WildcardImport("zio.blocks.schema"))))))
+    println(ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), imports = List(empty))))
+  }
+}
+// Failure(java.util.NoSuchElementException: head of empty list)
+// package com.example
+//
+// import zio.blocks.chunk.{}
+```
+
+**Expected.** An empty group import is dropped from the output (or rejected with a clear error when it is built).
+
+**Root cause.** `importSortKey` reads `names.head` for a group import (`codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:179`), called from `organizeImports` (`:171`). `emitImport` writes `s"import $path.{${names.mkString(", ")}}"` without checking for an empty list (`:144-145`).
+
+**Impact.** Low: a crash or uncompilable output only for an empty name list, but the exception does not say which import caused it.
+
+**Test gap.** `ScalaEmitterGroupImportSpec` always uses non-empty name lists; no test passes `Nil`.
+
+**Suggested fix.** In `organizeImports`, filter out `GroupImport(_, Nil)` before sorting (or use `names.headOption.getOrElse("")` in the sort key and skip empty groups in `emit`). Add a test with an empty group.
+
+### smithy: `ShapeId.parse` ignores a trailing `#`, so `"com.example#Order#"` parses as `com.example#Order`
+
+Found 2026-11-06 while writing the smithy Scaladoc (`ShapeId.parse`), on branch `tools-modules-scaladoc` at `07f71de18`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** `ShapeId.parse` rejects a second `#` in the middle (`"com.example#Order#Line"`), but accepts one at the end: `"com.example#Order#"` returns `Right(com.example#Order)`. Separately, `"com.example#"` is reported as "must have exactly one '#' separator" although it has exactly one; the dedicated "ShapeId name cannot be empty" branch is never reached for it.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-smithy` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-smithy:0.0.56
+import zio.blocks.smithy._
+
+object Repro {
+  def main(args: Array[String]): Unit =
+    List("com.example#Order#", "com.example#Order#Line", "com.example#", "com.example#Order").foreach { s =>
+      println(s"$s -> ${ShapeId.parse(s)}")
+    }
+}
+// com.example#Order# -> Right(com.example#Order)
+// com.example#Order#Line -> Left(ShapeId must have exactly one '#' separator, got: com.example#Order#Line)
+// com.example# -> Left(ShapeId must have exactly one '#' separator, got: com.example#)
+// com.example#Order -> Right(com.example#Order)
+```
+
+**Expected.** `"com.example#Order#"` is a `Left` (two separators), and `"com.example#"` is `Left(ShapeId name cannot be empty)`.
+
+**Root cause.** `smithy/src/main/scala/zio/blocks/smithy/ShapeId.scala:74-75`: `s.split('#')` drops trailing empty strings (`String#split` semantics), so `"a#b#"` splits into two parts and `"a#"` into one, and the `parts.length != 2` check sees the wrong count.
+
+**Impact.** Low. Malformed ids are accepted silently, and one error message is misleading.
+
+**Test gap.** `ShapeIdSpec.scala:41` checks only that `"com.example#"` is a `Left` (not its message); no test has a trailing `#` after a name.
+
+**Suggested fix.** Use `s.split("#", -1)` (keep trailing empties), then the existing checks give the right result and message. Add tests for `"a#b#"` and the `"a#"` message.
+
+### openapi: a schema held in a `ReferenceOr` loses every keyword next to `$ref` when decoded
+
+Found 2026-11-06 while writing the openapi Scaladoc (`ReferenceOr`, `OpenAPICodec.referenceOrCodec`), on branch `tools-modules-scaladoc` at `07f71de18`. The code is the same at tag `v0.0.56`. Verified by running on Scala 3.9.0 (below) and 2.13.18 (`zio-blocks-openapi` 0.0.56, same output).
+
+**Summary.** OpenAPI 3.1 schemas are JSON Schema 2020-12, where `$ref` may sit next to other keywords (`{"$ref": "...", "readOnly": true}`). `referenceOrCodec` decodes any JSON object that has a `$ref` key as `ReferenceOr.Ref(Reference(...))`, and `Reference` keeps only `$ref`, `summary` and `description`. Every other keyword is dropped without an error, and re-encoding the document writes the schema without it. This affects every schema held in a `ReferenceOr[SchemaObject]`: component schemas, and the `schema` of parameters, headers and media types. Schemas nested inside a `SchemaObject` (for example under `properties`) are kept as raw JSON and are not affected. The `description` that survives also gains the `\n\n` of the Markdown renderer (see the entry "openapi: every description in the exported JSON ends with `\n\n`").
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec.openAPICodec
+import zio.blocks.schema.json.Json
+
+@main def repro(): Unit = {
+  val spec =
+    """{"openapi": "3.1.0", "info": {"title": "Petstore", "version": "1.0.0"},
+      | "components": {"schemas": {
+      |   "Person": {"type": "object"},
+      |   "Owner": {"$ref": "#/components/schemas/Person", "description": "Who owns the pet.", "readOnly": true}}}}""".stripMargin
+  val api = Json.parse(spec).flatMap(openAPICodec.decode(_))
+  println(api.map(_.components.get.schemas.get("Owner").get))
+  println(api.map(openAPICodec.encodeValue(_).print))
+}
+// Right(Ref(Reference(#/components/schemas/Person,None,Some(Who owns the pet.
+//
+// ))))
+// Right({"openapi":"3.1.0","info":{"title":"Petstore","version":"1.0.0"},"components":{"schemas":{"Person":{"type":"object"},"Owner":{"$ref":"#/components/schemas/Person","description":"Who owns the pet.\n\n"}}}})
+```
+
+**Expected.** `"readOnly": true` survives the round trip. For schemas, a `$ref` object with sibling keywords is a schema, so it should decode as `ReferenceOr.Value(SchemaObject(...))` whose `jsonSchema` keeps `$ref` and the other keywords (or `Reference` should keep the extra keywords).
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:473-474`: `case jObj: Json.Object if getField(jObj, "$ref").isDefined => new ReferenceOr.Ref(referenceCodec.decodeValue(json))`, and `referenceCodec` (`:453-469`) reads only `$ref`, `summary` and `description` (`:457-459`). The rule is right for the non-schema objects (OpenAPI Reference Objects allow only `summary` and `description`), but not for Schema Objects.
+
+**Impact.** OpenAPI 3.1 specs can put keywords such as `readOnly`, `deprecated` or `default` next to `$ref` in a component or parameter schema; a tool that reads and rewrites a spec with this codec silently drops them.
+
+**Test gap.** The `$ref` tests (`ReferenceSpec.scala`, `OpenAPIJsonSerializationSpec.scala`) use `$ref` alone or with `summary`/`description`; none has another keyword next to it.
+
+**Suggested fix.** In the `ReferenceOr[SchemaObject]` codec, decode a `$ref` object as `Ref` only when its keys are a subset of `$ref`, `summary` and `description`; otherwise decode it as `Value` with `schemaObjectCodec`, so `jsonSchema` keeps `$ref` and its siblings. Add a round-trip test.
+
+### openapi: an empty `OAuthFlow.scopes` or `RequestBody.content` is left out of the JSON, so the document is invalid
+
+Found 2026-11-06 while writing the openapi Scaladoc (`OAuthFlow`, `RequestBody`, `OpenAPICodec`), on branch `tools-modules-scaladoc` at `07f71de18`. The code is the same at tag `v0.0.56`. Verified by running.
+
+**Summary.** The OpenAPI specification marks `scopes` of an OAuth Flow Object as REQUIRED ("The map MAY be empty") and `content` of a Request Body Object as REQUIRED. The encoder writes every map field through a helper that omits empty maps, so a flow without scopes (common for client-credentials flows) is written without `scopes`, and a request body with an empty `content` map is written as `{}`. A validator that follows the specification rejects both. The decoder accepts the missing keys, so a round trip through this codec does not notice.
+
+**Reproduction** (Scala 3.9.0, `zio-blocks-next-openapi` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
+
+```scala
+//> using scala 3.9.0
+//> using options -experimental
+//> using dep dev.zio::zio-blocks-next-openapi:0.0.56
+import zio.blocks.chunk.ChunkMap
+import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec.openAPICodec
+
+@main def repro(): Unit = {
+  val flows = OAuthFlows(clientCredentials = Some(OAuthFlow(tokenUrl = Some("https://auth.example.com/token"))))
+  val api = OpenAPI(
+    openapi = "3.1.0",
+    info = Info(title = "Petstore", version = "1.0.0"),
+    paths = Some(Paths(ChunkMap("/pets/ping" -> PathItem(post = Some(Operation(requestBody = Some(ReferenceOr.Value(RequestBody(ChunkMap.empty))))))))),
+    components = Some(Components(securitySchemes = ChunkMap("oauth" -> ReferenceOr.Value(SecurityScheme.OAuth2(flows)))))
+  )
+  println(openAPICodec.encodeValue(api).print)
+}
+// {"openapi":"3.1.0","info":{"title":"Petstore","version":"1.0.0"},"paths":{"/pets/ping":{"post":{"responses":{},"requestBody":{}}}},"components":{"securitySchemes":{"oauth":{"type":"oauth2","flows":{"clientCredentials":{"tokenUrl":"https://auth.example.com/token"}}}}}}
+```
+
+**Expected.** `"clientCredentials":{"tokenUrl":"https://auth.example.com/token","scopes":{}}` and `"requestBody":{"content":{}}`.
+
+**Root cause.** `openapi/shared/src/main/scala/zio/blocks/openapi/OpenAPICodec.scala:74-76`: `chunkMapField` returns `None` for an empty map, and the OAuth flow encoder (`:501`, `"scopes" -> chunkMapField(x.scopes)`) and the request body encoder (`:856`, `"content" -> chunkMapField(rb.content)`) use it for required fields.
+
+**Impact.** A document built with an OAuth2 client-credentials scheme without scopes is not a valid OpenAPI document; the exported spec has to be fixed by hand before other tools accept it.
+
+**Test gap.** `SecuritySpec.scala:184-190` ("can be constructed with empty scopes") only checks the Scala value; the serialization tests use non-empty `scopes` (`OpenAPIJsonSerializationSpec.scala:246`, `:663`, `:1110`). No test encodes a request body with an empty `content`.
+
+**Suggested fix.** Write `scopes` and `content` with a helper that always emits the object (`Some(new Json.Object(...))` even when empty). Add encoding tests for both.
+
+### codegen: Scala 3 enum case names are not escaped, so a case named after a keyword breaks the output
+
+Found 2026-11-06 while fact-checking the codegen Scaladoc (`ScalaEmitter` object), on branch `tools-modules-scaladoc` (review B); the emitter code at base `07f71de18` is byte-identical to tag `v0.0.56`. Reproducer re-run as written by the implementer on 2026-11-06 with the same output.
+
+**Summary.** `ScalaEmitter` wraps type, field, member and parameter names in backquotes when they are keywords, but the Scala 3 enum path writes case names raw. An enum generated from data (for example, the string values of an OpenAPI or Smithy enum such as `new`, `type`, `case`) produces `case new`, which Scala 3 rejects. The Scala 2 path (sealed trait + case objects) escapes the same names.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`, then `scala-cli compile --server=false --scala 3.9.0 generated/OrderStatus.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-codegen:0.0.56
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val status = Enum(
+      "OrderStatus",
+      List(EnumCase.SimpleCase("new"), EnumCase.SimpleCase("shipped"), EnumCase.ParameterizedCase("type", List(Field("code", TypeRef.Int))))
+    )
+    val file   = ScalaFile(PackageDecl("com.example"), types = List(status))
+    val scala3 = ScalaEmitter.emit(file, EmitterConfig.default)
+    println("--- EmitterConfig.default ---")
+    println(scala3)
+    println("--- EmitterConfig.scala2 ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.scala2))
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "OrderStatus.scala"), scala3.getBytes("UTF-8"))
+  }
+}
+// --- EmitterConfig.default ---
+// package com.example
+//
+// enum OrderStatus {
+//   case new
+//   case shipped
+//   case type(code: Int)
+// }
+//
+// --- EmitterConfig.scala2 ---
+// package com.example
+//
+// sealed trait OrderStatus
+//
+// object OrderStatus {
+//   case object `new` extends OrderStatus
+//   case object shipped extends OrderStatus
+//   case class `type`(
+//     code: Int
+//   ) extends OrderStatus
+// }
+//
+// scala-cli compile --scala 3.9.0 generated/OrderStatus.scala (absolute path prefix shortened):
+// -- [E040] Syntax Error: generated/OrderStatus.scala:4:7
+// 4 |  case new
+//   |       ^^^
+//   |       an identifier expected, but 'new' found
+//   |
+//   | longer explanation available when compiling with `-explain`
+// -- [E040] Syntax Error: generated/OrderStatus.scala:6:7
+// 6 |  case type(code: Int)
+//   |       ^^^^
+//   |       an identifier expected, but 'type' found
+//   |
+//   | longer explanation available when compiling with `-explain`
+// -- [E122] Syntax Error: generated/OrderStatus.scala:4:2
+// 4 |  case new
+//   |  ^
+//   |  <error> is imported twice on the same import line.
+// 3 errors found
+// Compilation failed
+```
+
+**Expected.** `` case `new` `` and `` case `type`(code: Int) ``, as the Scala 2 path already does.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:400`, `:404`, `:406` (lines at `v0.0.56` = `07f71de18`): `emitEnumScala3` appends `simples.mkString(", ")` and `n` without `escapeName` (`:897`). `emitEnumAsSealed` goes through `ObjectDef`/`CaseClass`, which escape.
+
+**Impact.** Generators that turn enum values from a spec into Scala 3 enum cases emit uncompilable code for keyword values; the failure appears only when the output is compiled.
+
+**Test gap.** `ScalaEmitterEscapingSpec.scala:250-267` ("emitEnum escapes keywords") only escapes the enum's own name (`Enum("type", cases = List(SimpleCase("A")))`); no test uses a keyword or non-identifier case name.
+
+**Suggested fix.** Map `escapeName` over the case names in `emitEnumScala3` (both the one-line form and the per-case form). Add tests for `SimpleCase("new")` and `ParameterizedCase("type", ...)`.
+
+### codegen: a Scala 2 `ExtensionBlock` on a type with type arguments emits an invalid class name
+
+Found 2026-11-06 while fact-checking the codegen Scaladoc (`ObjectMember.ExtensionBlock`), on branch `tools-modules-scaladoc` (review B); the emitter code at base `07f71de18` is byte-identical to tag `v0.0.56`. Reproducer re-run as written by the implementer on 2026-11-06 with the same output.
+
+**Summary.** With `EmitterConfig.scala2`, an `ObjectMember.ExtensionBlock` becomes `implicit class <Type>Ops(...)`, where `<Type>` is the emitted parameter type. For a type with type arguments (`List[BigDecimal]`) or a qualified name (`java.util.UUID`) the class name is not an identifier, so the generated file does not compile. The Scala 3 form (`extension (prices: List[BigDecimal])`) is fine.
+
+**Reproduction** (Scala 2.13.18, `zio-blocks-codegen` 0.0.56). `Repro.scala`, run with `scala-cli run --server=false Repro.scala`, then `scala-cli compile --server=false --scala 2.13.18 generated/PriceSyntax.scala`:
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-codegen:0.0.56
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+import java.nio.file.{Files, Paths}
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val syntax = ObjectDef(
+      "PriceSyntax",
+      members = List(
+        ObjectMember.ExtensionBlock(
+          MethodParam("prices", TypeRef.list(TypeRef.BigDecimal)),
+          List(Method("total", returnType = TypeRef.BigDecimal, body = Some("prices.sum")))
+        )
+      )
+    )
+    val source = ScalaEmitter.emit(ScalaFile(PackageDecl("com.example"), types = List(syntax)), EmitterConfig.scala2)
+    println(source)
+    Files.createDirectories(Paths.get("generated"))
+    Files.write(Paths.get("generated", "PriceSyntax.scala"), source.getBytes("UTF-8"))
+  }
+}
+// package com.example
+//
+// object PriceSyntax {
+//   implicit class List[BigDecimal]Ops(val prices: List[BigDecimal]) extends AnyVal {
+//     def total: BigDecimal = prices.sum
+//   }
+// }
+//
+// scala-cli compile --scala 2.13.18 generated/PriceSyntax.scala (absolute path prefix shortened):
+// generated/PriceSyntax.scala:4: error: ';' expected but identifier found.
+//   implicit class List[BigDecimal]Ops(val prices: List[BigDecimal]) extends AnyVal {
+//                                  ^
+// 1 error
+// Compilation failed
+```
+
+**Expected.** A valid class name, such as `ListBigDecimalOps` (type name and arguments with non-identifier characters removed) or one derived from the parameter name, or a way to give the class name in the IR.
+
+**Root cause.** `codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:820-822` (lines at `v0.0.56` = `07f71de18`): `val typeName = emitTypeRef(on.typeRef); val className = s"${typeName}Ops"`.
+
+**Impact.** Low: Scala 2 generators that add extension methods to collection or qualified types emit uncompilable code.
+
+**Test gap.** `ScalaEmitterObjectSpec.scala:403` ("extension block emits implicit class in Scala 2") uses `TypeRef.String`; the other extension tests use `String` and `Int`.
+
+**Suggested fix.** Build the class name from the type's simple name plus its arguments' simple names with non-identifier characters dropped (or add an optional `className` to `ExtensionBlock`), then `escapeName` it. Add a test with `TypeRef.list(...)`.
+
 ## Usability traps
 
 These behave as designed but surprise users. Each should at least be documented where users meet it.
@@ -19727,7 +20194,7 @@ object MainClash {
 
 **Suggested fix.** Say in `docs/reference/html.md` to import `scala.concurrent.duration.DurationInt` (not `._`) next to the DSL, and that `zio.blocks.html.main(...)` (or an alias) is needed inside an object with `def main`.
 
-### codegen: `SealedTrait.derives`, `Enum.derives` and `Field.doc` are accepted but never emitted
+### codegen: `SealedTrait.derives`, `Enum.derives`, `Field.doc`, `AbstractClass.isSealed` and `EnumCase.ParameterizedCase.extendsTypes` are accepted but never emitted
 
 Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-from-smithy.md` (backlog T-13), on `main` at `b6c0c30e4`. The code is the same at tag `v0.0.56`. Verified by running.
 
@@ -19787,6 +20254,62 @@ object Repro {
 **Test gap.** `ScalaEmitterTypeRefSpec.scala:92-97` ("with doc is ignored in field emission") pins the dropped doc as intended behaviour. No test sets `derives` on a `SealedTrait` or an `Enum`.
 
 **Suggested fix.** Render `derives` on `SealedTrait` and `Enum` under `scala3Syntax`, the same way `emitCaseClass` does. Render `Field.doc` as a `/** ... */` line above the parameter (valid in Scala 2 and 3, through the escaping helper from the doc-escaping entry). If any of this is deliberate, say so in the field's Scaladoc and in `docs/reference/codegen/{sealed-trait,field}.md`.
+
+**Addition (2026-11-06, tools modules Scaladoc rollout).** **Two more fields (found 2026-11-06, codegen Scaladoc rollout, base `07f71de18` = `v0.0.56`, verified by running).** `AbstractClass(isSealed = true)` is emitted as a plain `abstract class`, and `EnumCase.ParameterizedCase(..., extendsTypes = ...)` loses its parents in both dialects. Reproducer (`Repro.scala`, `scala-cli run --server=false Repro.scala`):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-codegen:0.0.56
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+object Repro {
+  def main(args: Array[String]): Unit = {
+    val entity = AbstractClass("Entity", fields = List(Field("id", TypeRef.Long)), isSealed = true)
+    val shape = Enum(
+      "Shape",
+      List(
+        EnumCase.ParameterizedCase("Circle", List(Field("radius", TypeRef.Double)), extendsTypes = List(TypeRef("Round"))),
+        EnumCase.SimpleCase("Dot")
+      )
+    )
+    val file = ScalaFile(PackageDecl("com.example"), types = List(entity, shape))
+    println("--- EmitterConfig.default ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.default))
+    println("--- EmitterConfig.scala2 ---")
+    println(ScalaEmitter.emit(file, EmitterConfig.scala2))
+  }
+}
+// --- EmitterConfig.default ---
+// package com.example
+//
+// abstract class Entity(
+//   id: Long,
+// )
+//
+// enum Shape {
+//   case Circle(radius: Double)
+//   case Dot
+// }
+//
+// --- EmitterConfig.scala2 ---
+// package com.example
+//
+// abstract class Entity(
+//   id: Long
+// )
+//
+// sealed trait Shape
+//
+// object Shape {
+//   case class Circle(
+//     radius: Double
+//   ) extends Shape
+//   case object Dot extends Shape
+// }
+```
+
+Expected: `sealed abstract class Entity(...)`, `case Circle(radius: Double) extends Round` in Scala 3 and `case class Circle(...) extends Shape with Round` in Scala 2. Root cause: `emitAbstractClass` writes `"abstract class "` unconditionally (`codegen/src/main/scala/zio/blocks/codegen/emit/ScalaEmitter.scala:584`) and never reads `isSealed` (declared at `codegen/src/main/scala/zio/blocks/codegen/ir/TypeDefinition.scala:204`); both enum paths match `EnumCase.ParameterizedCase(n, fields, _)` and drop the third field (`ScalaEmitter.scala:405`, `:420`; declared at `TypeDefinition.scala:324`). Test gap: `ScalaEmitterAbstractClassSpec.scala:107` is named "sealed abstract class (isSealed flag not yet emitted)", so the gap is known in the tests but not documented; no enum test sets a case's `extendsTypes` (the `extendsTypes` in `ScalaEmitterEnumSpec.scala:88`, `:147`, `:210` are on the enum). Suggested fix: prefix `sealed ` when `ac.isSealed`; append `extends` + the case's `extendsTypes` in `emitEnumScala3` and pass them to the `CaseClass` built in `emitEnumAsSealed`.
 
 ### Avro `decode` accepts input with trailing bytes and returns the first record
 
@@ -22532,6 +23055,54 @@ object CallbackFailure {
 **Test gap.** The callback tests (`MetricSpec.scala:279-328`, `telemetry/jvm/src/test/scala/zio/blocks/telemetry/BranchCoverageSpec.scala:362-364`) use callbacks that always succeed; none throws.
 
 **Suggested fix.** Wrap each instrument's `collect()` in `MeterRegistry.collectAll` (or the callback call in each observable instrument) in a `try`/`catch NonFatal` that skips that instrument and reports the error (as `BatchProcessor` does, on standard error), and add a test with one failing callback among healthy instruments.
+
+### ringbuffer: `SpmcRingBuffer` on the JVM keeps every taken element reachable until the producer reuses its slot
+
+Found 2026-11-06 while writing the `ringbuffer` Scaladoc, on `main` at `07f71de18`. Same at v0.0.56.
+
+**Summary.** By design, JVM `SpmcRingBuffer#take` never clears the slot it read (the producer overwrites it on the next lap). So the buffer keeps a strong reference to each of the last `capacity` taken elements, and the garbage collector can't reclaim them until the producer has offered `capacity` more elements. With large messages and a large capacity, or a producer that goes quiet, this pins memory. The other buffers (and SPMC on Scala.js) clear the slot on `take`. The class Scaladoc described the design ("consumers do not clear array slots") without the memory consequence; the new Scaladoc states it.
+
+**Reproduction** (`SpmcRetainsTaken.scala`, run with `scala-cli run --server=false SpmcRetainsTaken.scala`):
+
+```scala
+//> using scala 3.9.0
+//> using dep dev.zio::zio-blocks-ringbuffer:0.0.56
+
+import zio.blocks.ringbuffer._
+import java.lang.ref.WeakReference
+
+object SpmcRetainsTaken {
+  def collectable(offer: AnyRef => Boolean, take: () => AnyRef): Boolean = {
+    var payload: AnyRef = new Array[Byte](64 << 20) // a 64 MiB message
+    val ref             = new WeakReference(payload)
+    offer(payload)
+    take()
+    payload = null
+    var i = 0
+    while (i < 10 && ref.get() != null) { System.gc(); Thread.sleep(50); i += 1 }
+    ref.get() == null
+  }
+
+  def main(args: Array[String]): Unit = {
+    val spmc = SpmcRingBuffer[AnyRef](1024)
+    val mpmc = MpmcRingBuffer[AnyRef](1024)
+    println(s"SpmcRingBuffer: taken element collectable = ${collectable(spmc.offer, () => spmc.take())}")
+    println(s"MpmcRingBuffer: taken element collectable = ${collectable(mpmc.offer, () => mpmc.take())}")
+  }
+}
+// SpmcRingBuffer: taken element collectable = false
+// MpmcRingBuffer: taken element collectable = true
+```
+
+**Expected.** Either the reference page and Scaladoc say plainly that up to `capacity` taken elements stay reachable (the Scaladoc now does), or the slot is cleared once it is safe, as JCTools `SpmcArrayQueue` does: the consumer that wins the consumer-index CAS stores `null` into the slot, and the producer waits for that `null` before reusing it, which gives up wait-freedom on the producer side (JCTools 4.0.5 `org/jctools/queues/SpmcArrayQueue.java:263-275` for the consumer, `:216-228` for the producer's spin; 2.1.2 is the same).
+
+**Root cause.** `ringbuffer/jvm/src/main/scala/zio/blocks/ringbuffer/SpmcRingBuffer.scala:130-155`: `take()` reads the element and CASes `consumerIndex`, but never writes the slot; the design note at `:55-61`.
+
+**Impact.** Memory held by up to `capacity` already-processed messages per buffer; with 64 MiB messages and capacity 1024 that is unbounded in practice. Leak hunts point at the buffer, not at the consumer.
+
+**Test gap.** No ringbuffer test checks that a taken element becomes unreachable (no `WeakReference` test in `ringbuffer/*/src/test`).
+
+**Suggested fix.** Document it on `docs/reference/ringbuffer/spmc.mdx` (which describes "stale" slots but not the retention); optionally switch to the JCTools SPMC design, where the consumer that wins the index CAS clears the slot and the producer waits for it.
 
 ## Test and CI
 
