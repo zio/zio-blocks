@@ -73,6 +73,8 @@ On the server side, a value becomes JSON through the `toJsonString` extension me
 val list = TaskList("Ada", List(Task(1, "Write the tutorial", done = true), Task(2, "Share one model", done = false)))
 ```
 
+Next, we encode the list and print the result:
+
 ```scala mdoc
 println(list.toJsonString)
 ```
@@ -102,7 +104,7 @@ The code above:
 
 - `js.Dynamic.global.fetch` calls the `fetch` function that Node and browsers provide. We reach it through `scala.scalajs.js`, so no extra library is needed.
 - `r.text()` returns the response body as a string, and the `Thenable` import turns the JavaScript promises into Scala `Future`s.
-- `json.fromJson[TaskList]` decodes the text with the shared schema and returns an `Either`, the same call the page used in [Your First Schema](./your-first-schema.md).
+- `json.fromJson[TaskList]` decodes the text with the shared schema and returns an `Either`, the same call that [Your First Schema](./your-first-schema.md) introduces.
 - The `Right` branch prints the owner and each task, with `x` for finished tasks.
 
 When you run the client against the server, it prints the same list that the server encoded:
@@ -120,6 +122,8 @@ The client shows what happens when the JSON does not match the shared model. Sup
 ```scala mdoc:silent
 val missingDone = """{"owner":"Ada","tasks":[{"id":1,"title":"Write the tutorial"}]}""".fromJson[TaskList]
 ```
+
+Next, we match on the result and print its message:
 
 ```scala mdoc
 missingDone match {
