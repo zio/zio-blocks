@@ -59,25 +59,13 @@ Changing the second fence to `scala mdoc:silent:reset` makes the run pass.
 
 **Workaround.** Start any fix block that redefines a name with `mdoc:silent:reset`, not `compile-only`. Always read the rendered `// error:` lines of every `mdoc:fail` block.
 
-### `schema-examples` has no scalafmt setup
-
-Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
-
 ### Example projects' tests never run in CI
 
 Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`project/CiWorkflow.scala:360`, generated into `.github/workflows/ci.yml`) runs `sbt compile` in each `*-examples/` build, so `src/test` sources are never compiled or run. `sql-examples` is the first examples build with tests (H-47's `BookshopSpec`, 4 tests, passing locally against 0.0.56). Switching the step to `sbt test` (and regenerating `ci.yml`) would cover them. This is a CI change for the maintainer to decide; H-47's attempt to make it was blocked by a permission check, so it was left alone.
 
-### Three example builds are not registered in the root build
-
-Found 2026-10-20 while recording H-37. `config-examples` (T-05), `sql-examples` (T-07) and `html-examples` (T-09) are standalone builds with their own `build.sbt` but no `lazy val ... = RootProject(file("..."))` line or root `aggregate(...)` entry in `build.sbt`, unlike the other standalone `*-examples/` builds. (`projection-examples` is deliberately a root subproject, `lazy val \`projection-examples\` = project` at `build.sbt:560`, with no `build.sbt` of its own, so it is not affected.) CI's examples loop still compiles them (it looks for a `build.sbt`), so the gap shows up in the root aggregate and IDE import. AGENTS.md (updated on the `jwt` branch, H-37) now says a new examples build needs both. Add the three missing entries.
-
 ### Docs build memory with many sbt servers
 
 Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each ran an sbt server (about 4 GB free). Shut down idle servers in finished worktrees with `sbt --client shutdown`.
-
-### `schema-examples` and `streams-examples` have no scalafmt setup
-
-Found 2026-10-20 while writing H-03. The standalone `schema-examples/` build has no scalafmt plugin or config, so `sbt scalafmtAll` in the root build does not format it. Sessions format example files by hand or with `cs launch scalafmt -- --config .scalafmt.conf`. The same gap exists in `streams-examples` (seen while writing M-04). Add the plugin (or a `.scalafmt.conf` symlink) to the example builds, or document the command in AGENTS.md.
 
 ### A subagent killed every sbt server on the machine
 
@@ -103,21 +91,7 @@ Found 2026-10-23 while writing T-10 (`docs/guides/add-interactivity-with-htmx.md
 
 **Update (2026-10-29, H-57).** The comparison no longer holds: on `main` `9d8bb9d70`, `http-model-examples/build.sbt:23` also reads `minor >= 10`, the same rule as htmx. On Scala 3.9.0 both resolve the plain `zio-blocks-*_3:0.0.56` artifacts, which compile and run (the H-57 examples do), so nothing is broken today. The real gap is the docs-wide install-rule pass planned for the next release (see backlog, "Install-rule pass after the next release").
 
-### streams-examples does not compile on Scala 2.13: `NioBinaryTelemetryWalkthrough.scala` uses `import zio.blocks.streams.*`
-
-**Status (2026-10-29).** Fixed in #1897 (merged 2026-10-29). The scope was 18 files with `import x.*`, plus 12 Scala 3-only files that `build.sbt` now skips on Scala 2.x: 11 call zio-sbt-source 0.8.6 `ExprEval.show`, whose macro expands on 2.13 to the `private[sbt]` `SourceReader.commentsAbove` ("cannot be accessed"); `MixedFeedAuditWalkthrough` uses union types. The files stay in place because docs embed them by path.
-
-Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.md`), on `main` at `7f551627c`.
-
-**Summary.** The AGENTS.md recipe for checking an example on Scala 2.13 (`sbt "++2.13.18!" compile` inside the examples build) fails for `streams-examples`. `streams-examples/src/main/scala/nio/NioBinaryTelemetryWalkthrough.scala` has the Scala 3-only `import zio.blocks.streams.*`, which 2.13 reads as "object * is not a member of package zio.blocks.streams", and every use after it fails too (`Stream.fromChunk`, `NioSinks`, `NioStreams`, `NioWriters`, `NioReaders`).
-
-**Reproduction.** `cd streams-examples && sbt "++2.13.18!; compile"`.
-
-**Expected.** The build compiles on 2.13, or Scala 3-only files are excluded on 2.13.
-
-**Impact.** No example package in `streams-examples` can be checked on 2.13 without hiding that file first (H-26 used a local, uncommitted `Compile / unmanagedSources / excludeFilter` to compile its own package, which passed). CI doesn't compile the examples on 2.13, so nothing catches it. Only this file was confirmed; others may fail too.
-
-**Suggested fix.** Change `.*` to `._` in that file (or add a Scala 3-only source filter), then compile the whole build on 2.13 once.
+**Update (2026-11-07, docs-tooling-fixes).** The two builds differ again, the other way round: on `main` `21001d014`, `zio-blocks-htmx-examples/build.sbt:23` reads `minor >= 9` and `http-model-examples/build.sbt:23` reads `minor >= 10`. Align them in the install-rule pass.
 
 ### docs build: `docs/mdoc` ran out of heap and still reported success, leaving `website/docs` incomplete
 
@@ -144,22 +118,14 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 
 Suggested fix: in `_doc_before`, walk back over a balanced multi-line annotation (a line starting with `@name(` up to its closing `)`); in `scan`, record the enclosing type names and key drift by `(enclosing path, kind name, index)`, falling back to the current key when the paths differ only by a version-specific wrapper. Add both cases to `test_scaladoc_coverage.py`.
 
-### jwt Scaladoc: the `Jwt` object example ends in a bare expression, so `scaladoc-check` warns "pure expression does nothing"
+### `scaladoc-check`: about 130 unused-import warnings from the snippet wrapper's module import in other modules
 
-Found 2026-11-06 by the maybe/combinators/context session while running `scaladoc-check` on `main` `07f71de18` (after #1947). The `Jwt` object's "Minimal usage" block (`jwt/shared/src/main/scala/zio/blocks/jwt/Jwt.scala`, the `{{{` block above `object Jwt`) ends with `decoded.sub // Some(user-42)`. In the generated snippet (`Snippet_jwt_shared_scala_Jwt_L335`) that line is a statement whose value is unused, so every Scala version warns ("A pure expression does nothing in statement position; you may be omitting necessary parentheses", twice on 2.13). The check still passes, but the warning shows up in every module's gate log. Suggested fix: `println(decoded.sub) // Some(user-42)`, or bind it (`val subject = decoded.sub // Some(user-42)`), matching how the other modules end their examples.
-
-### schema-xml Scaladoc: the `syntax` examples give 18 unused-import warnings in `scaladoc-check`
-
-Found 2026-11-06 by the maybe/combinators/context session while running `scaladoc-check` on `main` after #1948 (`04b56bc92`). The examples in `schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala` and its `scala-2.12-2.13` copy (snippets `Snippet_schema_xml_shared_scala_3_syntax_L31`, `_L53`, `_L64`, `_L92`, `_L107`, `_L122` and the matching `scala_2_12_2_13_syntax` ones) each import something they don't use, giving 18 unused-import warnings across the three Scala versions. The check still passes, but the warnings appear in every module's gate log and hide new ones. Suggested fix: drop the unused imports in those examples (the wrapper already imports `zio.blocks.schema.xml._`), keeping the two copies identical.
-
-**Addition (2026-11-07, scaladoc-cleanup).** The suggested fix is wrong: the unused import is the snippet wrapper's own `import zio.blocks.schema.xml._` (`project/ScaladocSnippets.scala`), not one in the examples. The examples need `import zio.blocks.schema.xml.syntax._`, which makes the wrapper's import unused. Changing the examples to a bare `import syntax._` would hurt copy-paste. Fix in the tooling instead: have the wrapper suppress unused-import warnings for its own import (for example `@nowarn("msg=Unused import")` or a scoped `-Wconf`), then re-run `scaladoc-check` on 3.9.0, 3.10.0 and 2.13.18. Left open after #1966, which is comments only.
-
-### schema Scaladoc: eight files still point readers to `docs/dev/issues.md`
-
-Found 2026-11-06 by the schema core Scaladoc session on `main` `07f71de18`. The Scaladoc of `CompanionOptics`, `DerivedOptics`, `IntoVersionSpecific`, `PathInterpolator`, `SelectorMacros`, `MigrationCompanionVersionSpecific`, `DynamicSchema` and `Into` says "see docs/dev/issues.md". That file is now only an index (the entries live in `docs/dev/library-issues.md` and `docs-issues.md`), the website excludes `docs/dev/`, and the style guide forbids `docs/dev/` references in Scaladoc, so the pointer leads nowhere for API readers. Suggested fix: replace each with plain text ("a known bug in 0.0.56") or a GitHub issue link, keeping version copies identical (a comment-only follow-up PR).
+Found 2026-11-07 by the docs-tooling-fixes session (#1969, merge `97744f3c0`). #1969 stopped the wrapper's `import <module package>._` only for examples that import the module's `syntax` object (the 18 schema-xml warnings). About 130 other examples, in `codegen`, `streams`, `schema` (json, comptime, codec) and others, still get an unused-import warning on the wrapper line, because the wrapper's import is needed by some examples of a module and unused in others. The check passes, but the warnings fill every module's gate log and hide new ones. Suggested fix: decide per example whether the module import is used (for example, add it only when compiling without it fails, or let an example opt out with a marker comment such as `// no-module-import`), then re-run `scaladoc-check` on 3.9.0, 3.10.0 and 2.13.18 and the Scala-3-only checker.
 
 ## Resolved
 
+- Docs tooling entries closed on 2026-11-07: the schema-xml `syntax` examples' 18 unused-import warnings in `scaladoc-check` and the three example builds missing from the root build (`config-examples`, `sql-examples`, `html-examples`) fixed in #1969 (merge `97744f3c0`); `streams-examples` not compiling on Scala 2.13 fixed in #1897 (`be371b36f`); the two "no scalafmt setup" entries for `schema-examples` and `streams-examples` closed by Milad's decision to keep the documented `scala-cli fmt --scalafmt-conf` workflow (AGENTS.md "Example Projects"), with no plugin added.
+- Scaladoc cleanup in #1966 (merge `3b7f32159`, 2026-11-07), comments only: every `docs/dev/issues.md` pointer removed from the schema Scaladoc (83 mentions in 35 files, not eight; replaced with plain text such as "a known bug in 0.0.56"), and the jwt `Jwt` example's bare `decoded.sub` now prints it, so `scaladoc-check` no longer warns. The third cleanup, the schema-xml unused-import warnings, comes from the snippet wrapper and stays open under Docs tooling.
 - Schema-format reference-page errors fixed in #1965 (merge `14e38e012`, 2026-11-07), each re-checked against the codecs, the reviewed Scaladoc and 0.0.56 probes: `xml.md` (the `@xmlAttribute`/`@xmlNamespace` examples, now named as a known bug; `XmlSelection`/`XmlPatch` paths one level too high; smaller errors); `toon.md` (config scope, primitive count, reader/writer, plus three known-bug notes); `yaml.md` (error paths render indexes as `.at(0)`); `avro.md` (no configurable sum-type encoding); `thrift.md` (primitive count, invented features, missing fields); `bson.md` (timestamps, absent values, error reporting); `csv.md` (`CsvError` is never thrown); `messagepack.md` (ext support, variant layout, primitive count, error-path format). 10 entries. While verifying the `xml.md` RSS example it found a new library bug, filed under Library bugs (an `xml.attribute` field in a `List` element does not decode back).
 - Reference-page errors in eleven modules fixed in #1967 (merge `e4827f867`, 2026-11-07), each re-checked against the code, the reviewed Scaladoc and 0.0.56 probes: config `config-source.md` (why `SysPropSource` is empty on Scala.js); sql `db-codec.md` (`derivedOpaque`/`dbCodecFromAs`), `db-value.md` (`DbArray`, `DbNull`), `repo.md` (`insertReturning` with a placeholder ID), `table.md` (`Table#columns`), `transactor.md`/`sql-logger.md`/`transactor-zio.md` (three statements); async "Direct Style", "Depth Limits on Waiting Values" and "Completer"; `jwt.md` (values dropped during parsing, the tested curve-check cases); `combinators.md` (nine items); `maybe.md` (five items); `projection/testing.md`; telemetry `common/index.md`, `metrics/metric-data.md` and `metrics/index.md`, `otel/index.md` and `custom-exporter.md`, `logging/` and `tracing/index.md`; ringbuffer `spsc.mdx` (`NaN`); mux `mux.mdx` (`MuxError`). 20 entries.
 - Web reference-page errors fixed in #1964 (merge `21bcc6ee7`, 2026-11-07), each re-checked against the code and the reviewed Scaladoc: http-model `model.md`, `headers.md` and `server-sent-event.md` (eleven statements); http-model `schema-codecs.md` and `schema.md` (overrides on record fields, non-standard UUIDs); `html.md` (the `id="user-$age"` example, the throwing "Template Composition" example, `Dom#filter`, multi-valued attributes/override/`accept`, the JavaScript escape descriptions, smaller errors); htmx `attribute-values.md` "Extending with Custom Types" and smaller errors in `hx-swap.md`, `hx-target.md`, `index.md`; datastar `attributes.md` (`DatastarAttrKey` constructor), `events.md` (`threshold` percentage), `sse.md` (`Outer`/`Inner` morph); endpoint `endpoint.md` (first `out`/`outError`), `bulk-creation.md` (auto-names, Scala/artifact rule), `auth-type.md` and `http-codec.md`. 16 entries.
