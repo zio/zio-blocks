@@ -666,6 +666,7 @@ const sidebars = {
             "guides/protect-pages-with-basic-auth-or-a-session-cookie",
             "guides/write-and-export-openapi",
             "guides/generate-scala-types-from-openapi",
+            "guides/generate-service-traits-from-smithy-or-openapi",
           ]
         },
         {
