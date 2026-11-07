@@ -282,7 +282,7 @@ import zio.http.Method
 
 val m = Method.GET
 m.name       // "GET"
-m.ordinal    // ordinal position for sorting
+m.ordinal    // 0 to 8 for the standard methods, -1 for Method.ANY and Method.Methods
 m.toString   // "GET"
 ```
 
@@ -290,10 +290,13 @@ m.toString   // "GET"
 
 ## Status
 
-`Status` is an opaque type alias for `Int`, providing zero-allocation HTTP status codes with predefined constants for all standard codes (1xx–5xx).
+`Status` wraps an `Int` HTTP status code with no allocation, and provides predefined constants for the common codes (1xx–5xx). A few codes have no constant, such as 208, 226, 423, 424, 506, 508 and 510; `Status(code).text` is `Unknown` for them.
+
+On Scala 3, `Status` is an opaque type alias for `Int`. On Scala 2.13, it is a value class, and `Status#toString` gives `Status(200)` instead of `200`:
 
 ```scala
-opaque type Status = Int  // Scala 3
+opaque type Status = Int                              // Scala 3
+final case class Status(code: Int) extends AnyVal     // Scala 2.13
 ```
 
 ### Predefined Status Codes
@@ -502,7 +505,7 @@ Parse URL strings into `URL` objects:
 import zio.http.URL
 
 URL.parse("https://example.com/api/users?id=123&role=admin")
-// Returns: Either[ParseError, URL]
+// Returns: Either[String, URL]
 
 URL.parse("https://api.example.com:8080/v1/users?page=1#results")
 // Parses: scheme, host, port (explicit), path, query params, fragment
@@ -564,7 +567,7 @@ Create paths from segments or parse from strings:
 import zio.http.Path
 
 val path1 = Path.apply("/api/v1/users")    // Parse from decoded path string
-val path2 = Path.fromEncoded("%2Fapi%2Fv1%2Fusers") // Parse from percent-encoded string
+val path2 = Path.fromEncoded("/api/v1/caf%C3%A9") // Split at "/", then decode each segment
 val root = Path.root                       // Empty path "/"
 ```
 
@@ -587,7 +590,7 @@ val encoded = path.encode                 // "/api/v1/users" (encoded string)
 
 ## QueryParams
 
-`QueryParams` is an immutable, case-insensitive multi-map for URL query parameters, optimized for performance:
+`QueryParams` is an immutable multi-map for URL query parameters, optimized for performance. Keys are compared exactly, so `QueryParams("Page" -> "1").get("page")` is `None`:
 
 ```scala
 final class QueryParams private[http] (...)
@@ -1346,14 +1349,16 @@ Imagine you're building a high-traffic microservice that receives thousands of H
 
 Here's the problem: Your handler only *actually needs* three of those headers:
 
-```scala
-def handleRequest(request: Request): Response = {
-  val authToken = request.headers.get("authorization")
-  val contentType = request.headers.get("content-type")
-  val requestId = request.headers.get("x-request-id")
-  
+```scala mdoc:compile-only
+import zio.http._
+
+def describe(request: Request): String = {
+  val authToken   = request.headers.get(Header.Authorization)
+  val contentType = request.headers.get(Header.ContentType)
+  val requestId   = request.headers.rawGet("x-request-id")
+
   // The other 17+ headers? Never touched.
-  processRequest(authToken, contentType, requestId)
+  s"$authToken $contentType $requestId"
 }
 ```
 
@@ -1361,24 +1366,25 @@ If the `Headers` class eagerly parsed all 20+ headers the moment the request arr
 
 **http-model's solution: Parse headers only when you ask for them.**
 
-Internally, `Headers` stores header names and values as raw strings. When you call `headers.get("authorization")` for the *first time*, it parses that specific header value into a typed structure (extracting charset, splitting directives, validating format, etc.), then *caches* the result. The second time you ask for the same header, it returns the cached parsed value instantly — no re-parsing.
+Internally, `Headers` stores header names and values as raw strings. When you call `Headers#get(Header.Authorization)` for the *first time*, it parses that specific header value into a typed structure (extracting charset, splitting directives, validating format, etc.), then *caches* the result. The second time you ask for the same header, it returns the cached parsed value instantly — no re-parsing.
 
-```scala
+```scala mdoc:compile-only
+import zio.http._
+
 val headers = Headers(
-  "content-type" -> "application/json; charset=utf-8",
+  "content-type"  -> "application/json; charset=utf-8",
   "authorization" -> "Bearer abc123xyz",
-  "cache-control" -> "no-cache, max-age=3600",
+  "cache-control" -> "no-cache, max-age=3600"
   // ... 17 more headers
 )
 
-// First access: parses "content-type" string
-val ct1 = headers.get("content-type")
-// Internally parsed and cached as: ContentType(mediaType=ApplicationJson, charset=UTF8)
+// First access: parses the "content-type" string and caches the parsed Header.ContentType
+val ct1 = headers.get(Header.ContentType)
 
-// Second access: returns cached parsed result (no parsing!)
-val ct2 = headers.get("content-type")  // Instant — already cached
+// Second access: returns the cached parsed result (no parsing)
+val ct2 = headers.get(Header.ContentType)
 
-// Other headers never accessed? Never parsed. ✓
+// Other headers never accessed? Never parsed.
 ```
 
 This design shines in three ways:
