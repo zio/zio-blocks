@@ -421,14 +421,32 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
     test("moduleNames reads the members of a package object at any indentation") {
       val pkg = "streams/shared/src/main/scala/zio/blocks/streams/package.scala"
       assertTrue(
-        ScaladocSnippets.moduleNames(Seq(pkg -> source("package object streams {", "  def helper = 1", "}"))) ==
-          Set("helper")
+        ScaladocSnippets.moduleNames(
+          Seq(pkg -> source("package zio.blocks", "package object streams {", "  def helper = 1", "}"))
+        ) == Set("helper")
+      )
+    },
+    test("moduleNames reads a file by its package clause, not its directory") {
+      val signal = "datastar/shared/src/main/scala/zio/blocks/datastar/Signal.scala"
+      val extra  = "datastar/shared/src/main/scala/zio/blocks/datastar/Extra.scala"
+      assertTrue(
+        ScaladocSnippets.moduleNames(
+          Seq(signal -> source("package zio.http.datastar", "final class Signal"), extra -> "package zio.http")
+        ) == Set("Signal")
+      )
+    },
+    test("moduleNames reads a package object whose package is nested in two clauses") {
+      val pkg = "datastar/shared/src/main/scala/zio/blocks/datastar/package.scala"
+      assertTrue(
+        ScaladocSnippets.moduleNames(
+          Seq(pkg -> source("package zio.http", "package object datastar extends Attrs {", "  def dataSignals = 1"))
+        ) == Set("dataSignals")
       )
     },
     test("moduleNames reads a member of an implicit class, which an interpolator example uses") {
       val docPath = "markdown/shared/src/main/scala/zio/blocks/docs/package.scala"
       val content = source(
-        "package zio.blocks",
+        "package zio.blocks.docs",
         "",
         "implicit class Interp(sc: StringContext) {",
         "  def md(args: Any*): Doc = ???",
@@ -466,7 +484,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         " */"
       )
       val files = ScaladocSnippets
-        .generate(Seq(streams -> "object Stream", demo -> demoContent), 3)
+        .generate(Seq(streams -> "package zio.blocks.streams\n\nobject Stream", demo -> demoContent), 3)
         .toMap
       assertTrue(
         files("Snippet_streams_shared_scala_Demo_L2.scala").contains("import zio.blocks.streams._"),

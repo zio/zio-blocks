@@ -176,13 +176,15 @@ object ScaladocSnippets {
   /**
    * The names that the files of one module, for one Scala version, contribute
    * to the module package. The files are read from `sources`, which are all
-   * the files of one module for one Scala version. For each file of the package
-   * itself, every declaration (`class`, `trait`, `object`, `type`, `enum`,
-   * `def`, `val`, `var`, not `private`) counts, at any indentation: that covers
-   * top-level declarations, members of a `package object`, and members of an
-   * `implicit class` (`md` in `md"..."`). Indented names over-include, which
-   * only keeps the import. For each file of a sub-package, its directory name
-   * counts (`io` for `zio/blocks/streams/io/...`).
+   * the files of one module for one Scala version. A file's package is read
+   * from its `package` clauses, not its directory, because some modules keep
+   * files of `zio.http.datastar` under `zio/blocks/datastar/`. For each file of
+   * the package itself, every declaration (`class`, `trait`, `object`, `type`,
+   * `enum`, `def`, `val`, `var`, not `private`) counts, at any indentation: that
+   * covers top-level declarations, members of a `package object`, and members
+   * of an `implicit class` (`md` in `md"..."`). Indented names over-include,
+   * which only keeps the import. For each file of a sub-package, its first
+   * name below the package counts (`io` for `package zio.blocks.streams.io`).
    *
    * Givens and anonymous implicit instances are not names. An example that
    * needs one only through the wrapper's import fails to compile, so it then
@@ -190,16 +192,23 @@ object ScaladocSnippets {
    */
   def moduleNames(sources: Seq[(String, String)]): Set[String] =
     sources.flatMap { case (path, content) =>
-      val segments = path.split('/').toList
-      val pkg      = modulePackage(path).split('.').toList
-      val at       = segments.indexOfSlice(pkg)
-      val below    = if (at < 0) Nil else segments.drop(at + pkg.length)
-      below match {
-        case Nil      => Nil
-        case List(_)  => content.split("\n", -1).toList.flatMap(line => declaredName(line.trim))
-        case sub :: _ => List(sub)
-      }
+      val lines = content.split("\n", -1).toList.map(_.trim)
+      val full  = lines.flatMap(packageClause).foldLeft("")((acc, c) => if (acc.isEmpty) c else acc + "." + c)
+      val pkg   = modulePackage(path)
+      if (full == pkg) lines.flatMap(declaredName)
+      else if (full.startsWith(pkg + ".")) List(full.drop(pkg.length + 1).takeWhile(_ != '.'))
+      else Nil
     }.toSet
+
+  // The name a `package` or `package object` clause adds to the package, or Nil for other lines. In Scala 2 a
+  // file may nest clauses (`package zio.http` then `package datastar`), so `moduleNames` joins them.
+  private def packageClause(trimmed: String): List[String] = {
+    val name =
+      if (trimmed.startsWith("package object ")) Some(trimmed.stripPrefix("package object "))
+      else if (trimmed.startsWith("package ")) Some(trimmed.stripPrefix("package "))
+      else None
+    name.map(_.trim.takeWhile(c => !c.isWhitespace && c != '{')).filter(_.nonEmpty).toList
+  }
 
   /**
    * Whether the wrapper of `snippet` needs its module import: the example
