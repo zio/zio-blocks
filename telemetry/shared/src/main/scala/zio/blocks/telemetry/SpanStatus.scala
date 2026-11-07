@@ -17,33 +17,30 @@
 package zio.blocks.telemetry
 
 /**
- * Represents the completion status of a span.
+ * The outcome of a span, as the OpenTelemetry specification defines it. Every
+ * span starts as `Unset`; set `Ok` or `Error` with `Span#setStatus` before it
+ * ends. Nothing sets it for you, not even when the block of `trace.span`
+ * throws.
  *
- * Follows OpenTelemetry span status specification.
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/tracing/span-status/ SpanStatus]]
  */
 sealed trait SpanStatus
 
+/** The three statuses. */
 object SpanStatus {
 
-  /**
-   * Unset status - the default status, meaning the span status was not set.
-   *
-   * The span status can be updated by the instrumentation.
-   */
+  /** No status was set: the default of every span. */
   case object Unset extends SpanStatus
 
-  /**
-   * Ok status - the span completed successfully.
-   *
-   * The operation associated with the span completed without unhandled errors.
-   */
+  /** The operation succeeded. */
   case object Ok extends SpanStatus
 
   /**
-   * Error status - the span ended due to an error.
+   * The operation failed.
    *
    * @param description
-   *   human-readable error message describing what went wrong
+   *   what went wrong, such as `gateway timeout`
    */
   final case class Error(description: String) extends SpanStatus
 }

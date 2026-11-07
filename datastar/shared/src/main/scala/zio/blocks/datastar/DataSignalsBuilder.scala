@@ -19,28 +19,39 @@ package zio.http.datastar
 import zio.blocks.html._
 
 /**
- * Builds `data-signals:<name>` attributes for a named signal key.
+ * A `data-signals:<name>` attribute that declares one signal, made by
+ * `dataSignals(signal)`. The name is written in kebab case, and Datastar turns
+ * it into camel case by default; the case methods add a `__case.*` suffix for
+ * another case, and `camel`, the default, adds none.
  *
- * The base key uses the kebab-cased `signalName`. Case modifier methods append
- * a `__case.*` suffix when a non-default casing is requested. Values assigned
- * with `:=` must be valid Datastar expressions and become the attribute value
- * rendered for that keyed signal.
+ * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
+ * import zio.blocks.html._
+ *
+ * div(dataSignals(Signal[Int]("pageSize")) := 20).render         // <div data-signals:page-size="20"></div>
+ * div(dataSignals(Signal[Int]("pageSize")).snake := 20).render   // <div data-signals:page-size__case.snake="20"></div>
+ * }}}
  */
 final class DataSignalsBuilder(
   private[datastar] val signalName: String,
   private[datastar] val caseModifier: CaseModifier
 ) {
 
+  /** Adds `__case.kebab`: the signal's name stays in kebab case. */
   def kebab: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Kebab)
 
+  /** Selects camel case, the default, which adds no suffix. */
   def camel: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Camel)
 
+  /** Adds `__case.snake`: Datastar turns the name into snake case. */
   def snake: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Snake)
 
+  /** Adds `__case.pascal`: Datastar turns the name into Pascal case. */
   def pascal: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Pascal)
 
   /**
-   * Renders a `data-signals:<name>` attribute using the configured case mode.
+   * Returns `data-signals:<name><case>="<expression>"`, whose expression is the
+   * signal's initial value.
    */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val suffix   = caseModifier.suffix(CaseModifier.Camel)

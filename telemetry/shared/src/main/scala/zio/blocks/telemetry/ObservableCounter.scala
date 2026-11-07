@@ -16,6 +16,18 @@
 
 package zio.blocks.telemetry
 
+/**
+ * Reports a total that you read rather than add to, such as the bytes a
+ * connection pool has sent: its callback runs on each collection and reports
+ * the current value of each attribute set through an [[ObservableCallback]].
+ * Create and register one with `CounterBuilder#buildWithCallback`. The value is
+ * rounded to a whole number with `Math.round`, so `1.5` becomes `2`, and a
+ * negative value is kept: nothing checks that the total only grows. `name`,
+ * `description` and `unit` return what it was created with.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/meter/ Meter]]
+ */
 final class ObservableCounter private[telemetry] (
   val name: String,
   val description: String,
@@ -23,6 +35,12 @@ final class ObservableCounter private[telemetry] (
   private val callback: ObservableCallback => Unit
 ) {
 
+  /**
+   * Runs the callback once, on the calling thread, and returns a
+   * [[MetricData.SumData]] with one point per value it reported, with the
+   * current time and a start time of `0`. An exception from the callback
+   * propagates.
+   */
   def collect(): MetricData = {
     val measurements = new java.util.ArrayList[SumDataPoint]()
     val now          = EpochClock.epochNanos()
@@ -37,7 +55,14 @@ final class ObservableCounter private[telemetry] (
   }
 }
 
+/** Creates ObservableCounters that no meter registers. */
 object ObservableCounter {
+
+  /**
+   * Creates one that no meter registers, so `MetricReader#collectAllMetrics`
+   * never runs its callback; use `CounterBuilder#buildWithCallback` for a
+   * registered one.
+   */
   def apply(name: String, description: String, unit: String)(
     callback: ObservableCallback => Unit
   ): ObservableCounter =

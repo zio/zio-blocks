@@ -19,15 +19,57 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * Renderer for GitHub Flavored Markdown.
+ * Writes a [[Doc]], or any of its [[Block]] and [[Inline]] elements, as GitHub
+ * Flavored Markdown text.
  *
- * Converts markdown AST elements back to GFM-compliant markdown strings. The
- * rendered output can be re-parsed to produce an equivalent AST.
+ * The output is meant to be read by [[Parser]], but the round trip does not
+ * always give back an equal document. [[Renderer]] writes text, code spans,
+ * URLs and titles as they are, without escaping Markdown syntax, so a `Text`
+ * node that contains `*` or a `Code` node that contains a backtick comes back
+ * as something else. It also writes the alignment row of a centered table
+ * column with two dashes (`:--:`), which [[Parser]] does not accept as a
+ * delimiter row (it needs at least three dashes per column), so such a table is
+ * read back as a paragraph.
+ *
+ * @example
+ *   {{{
+ * import zio.blocks.chunk.Chunk
+ *
+ * val doc = Doc(
+ *   Chunk(
+ *     Heading(HeadingLevel.H1, Chunk(Text("Release notes"))),
+ *     Paragraph(Chunk(Text("Fixed "), Strong(Chunk(Text("two"))), Text(" bugs."))),
+ *     OrderedList(
+ *       3,
+ *       Chunk(
+ *         ListItem(Chunk(Paragraph(Chunk(Text("Upgrade")))), None),
+ *         ListItem(Chunk(Paragraph(Chunk(Text("Restart")))), None)
+ *       ),
+ *       tight = true
+ *     )
+ *   )
+ * )
+ *
+ * val markdown = Renderer.render(doc)
+ * // # Release notes
+ * // Fixed **two** bugs.
+ * //
+ * // 3. Upgrade
+ * // 4. Restart
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 object Renderer {
 
   /**
    * Render a Doc to a GitHub Flavored Markdown string.
+   *
+   * Writes the blocks one after another with [[Renderer.renderBlock]]. A
+   * paragraph ends with a blank line, and so does each item of a loose list;
+   * headings, tight lists, code blocks, thematic breaks and tables end with a
+   * single newline.
    *
    * @param doc
    *   The document to render
@@ -35,14 +77,25 @@ object Renderer {
    *   GFM markdown string
    *
    * @example
-   *   {{{ val doc = Doc(Chunk( Heading(HeadingLevel.H1, Chunk(Text("Hello")))
-   *   )) val markdown = Renderer.render(doc) // markdown == "# Hello\n" }}}
+   *   {{{
+   * import zio.blocks.chunk.Chunk
+   *
+   * val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
+   * val markdown = Renderer.render(doc)
+   * // "# Hello\n"
+   *   }}}
    */
   def render(doc: Doc): String =
     doc.blocks.map(renderBlock).mkString
 
   /**
    * Render a Block to its GFM representation.
+   *
+   * A code block is written with a fence of three backticks, a thematic break
+   * as `---`, a block quote with a `> ` prefix on each line (`>` on a blank
+   * line), a bullet list with `- ` markers and an ordered list numbered from
+   * its `start`. A `ListItem` on its own renders as the empty string; it is
+   * only written inside a list.
    *
    * @param block
    *   The block element to render
@@ -191,13 +244,18 @@ object Renderer {
    * @param inlines
    *   The inline elements to render
    * @return
-   *   Concatenated GFM markdown string
+   *   The rendered elements, one after another
    */
   def renderInlines(inlines: Chunk[Inline]): String =
     inlines.map(renderInline).mkString
 
   /**
    * Render a single inline element.
+   *
+   * Text, URLs and titles are written as they are, and a title is always
+   * wrapped in double quotes. A soft break is a newline, a hard break is two
+   * spaces and a newline, and an autolink is written as `<url>` whether or not
+   * it is an email address.
    *
    * @param inline
    *   The inline element to render

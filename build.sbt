@@ -164,13 +164,13 @@ lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
-    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; scaladoc-check-scala3/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
-    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -332,6 +332,7 @@ lazy val root = project
     scalaNextTests.js,
     `scaladoc-check`,
     `scaladoc-check-scala3`,
+    `scaladoc-check-jdk21`,
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
@@ -1403,9 +1404,9 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // example gets the import of its module's package (`ScaladocSnippets.moduleImport`), which is
 // `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`)
 // unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`,
-// `http-model-schema` is `zio.http.schema`, `schema-messagepack` is `zio.blocks.schema.msgpack`).
-// `datastar`, `htmx`, `markdown`, `otel` and `dataMigration` break the rule too and need a
-// `packageOverrides` entry first. Not
+// `http-model-schema` is `zio.http.schema`, `schema-messagepack` is `zio.blocks.schema.msgpack`,
+// `markdown` is `zio.blocks.docs`, `otel` is `zio.blocks.telemetry.otel`; `datastar`, `htmx` and
+// `dataMigration` have entries too). A module whose package breaks the rule needs an entry first. Not
 // published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
@@ -1425,6 +1426,7 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `http-model-schema`.jvm,
     `schema-messagepack`.jvm,
     html.jvm,
+    markdown.jvm,
     async.jvm,
     `schema-avro`,
     `schema-bson`,
@@ -1434,7 +1436,10 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `schema-toon`.jvm,
     `schema-xml`.jvm,
     `schema-yaml`.jvm,
-    endpoint.jvm
+    endpoint.jvm,
+    maybe.jvm,
+    combinators.jvm,
+    context.jvm
   )
 
 lazy val `scaladoc-check` = project
@@ -1462,7 +1467,11 @@ lazy val `scaladoc-check` = project
 lazy val scaladocCheckedScala3Modules: Seq[Project] =
   Seq(
     sql.jvm,
-    `sql-zio`
+    `sql-zio`,
+    projection.jvm,
+    dataMigration.jvm,
+    htmx.jvm,
+    datastar.jvm
   )
 
 lazy val `scaladoc-check-scala3` = project
@@ -1470,6 +1479,25 @@ lazy val `scaladoc-check-scala3` = project
   .settings(stdSettings("zio-blocks-scaladoc-check-scala3", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .dependsOn(scaladocCheckedScala3Modules.map(p => p: ClasspathDep[ProjectReference]): _*)
   .settings(scaladocCheckSettings(scaladocCheckedScala3Modules))
+
+// Compiles the Scaladoc examples of the modules that need JDK 21 or newer, listed in
+// `scaladocCheckedJdk21Modules`, the way `scaladoc-check` does for the others (same settings, same
+// package rule). The `telemetry` jar is class file 65 and its `log.*` macros run inside the
+// compiler, so even compiling code that uses it needs JDK 21+; `scaladoc-check` also runs on JDK 17,
+// so these modules cannot join it. Run it only on JDK 21+: `testJVMScala2Command` and
+// `testJVMScala3Command` add it through `whenJdkAtLeast(25, ...)`, as for telemetry's own tests.
+// The extractor's unit tests run in `scaladoc-check`. Not published.
+lazy val scaladocCheckedJdk21Modules: Seq[Project] =
+  Seq(
+    telemetry.jvm,
+    otel
+  )
+
+lazy val `scaladoc-check-jdk21` = project
+  .in(file("scaladoc-check-jdk21"))
+  .settings(stdSettings("zio-blocks-scaladoc-check-jdk21"))
+  .dependsOn(scaladocCheckedJdk21Modules.map(p => p: ClasspathDep[ProjectReference]): _*)
+  .settings(scaladocCheckSettings(scaladocCheckedJdk21Modules))
 
 // Settings shared by the example checkers. `modules` are the projects whose Scaladoc examples the
 // checker compiles; the checker must also `dependsOn` them.

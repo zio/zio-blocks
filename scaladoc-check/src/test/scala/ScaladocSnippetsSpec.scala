@@ -210,6 +210,14 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
       )
     },
+    test("moduleImport gives otel its own package and telemetry the default one") {
+      val exporterPath = "otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonTraceExporter.scala"
+      val spanPath     = "telemetry/shared/src/main/scala/zio/blocks/telemetry/Span.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(exporterPath) == "zio.blocks.telemetry.otel._",
+        ScaladocSnippets.moduleImport(spanPath) == "zio.blocks.telemetry._"
+      )
+    },
     test("moduleImport and objectName give an html example the html import and drop the html package") {
       val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
       val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
@@ -268,6 +276,30 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(statusPath, 5) == "Snippet_http_model_shared_scala_2_Status_L5",
         ScaladocSnippets.modulePackage("schema-avro/src/main/scala/zio/blocks/schema/avro/AvroFormat.scala") ==
           "zio.blocks.schema.avro"
+      )
+    },
+    test("moduleImport and objectName use packageOverrides for markdown, whose package is zio.blocks.docs") {
+      val docPath    = "markdown/shared/src/main/scala/zio/blocks/docs/Doc.scala"
+      val interpPath = "markdown/shared/src/main/scala-2/zio/blocks/docs/MdInterpolator.scala"
+      assertTrue(
+        ScaladocSnippets.packageOverrides("markdown") == "zio.blocks.docs",
+        ScaladocSnippets.modulePackage(docPath) == "zio.blocks.docs",
+        ScaladocSnippets.moduleImport(docPath) == "zio.blocks.docs._",
+        ScaladocSnippets.objectName(docPath, 33) == "Snippet_markdown_shared_scala_Doc_L33",
+        ScaladocSnippets.objectName(interpPath, 7) == "Snippet_markdown_shared_scala_2_MdInterpolator_L7"
+      )
+    },
+    test("moduleImport uses packageOverrides for dataMigration, htmx and datastar") {
+      val migration = "dataMigration/shared/src/main/scala/zio/blocks/data/migration/TinyMigrator.scala"
+      val htmx      = "htmx/shared/src/main/scala/zio/http/htmx/HxSwap.scala"
+      val datastar  = "datastar/shared/src/main/scala/zio/blocks/datastar/Signal.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(migration) == "zio.blocks.data.migration._",
+        ScaladocSnippets.moduleImport(htmx) == "zio.http.htmx._",
+        ScaladocSnippets.moduleImport(datastar) == "zio.http.datastar._",
+        ScaladocSnippets.objectName(migration, 7) == "Snippet_dataMigration_shared_scala_TinyMigrator_L7",
+        ScaladocSnippets.modulePackage("projection/shared/src/main/scala/zio/blocks/projection/Projection.scala") ==
+          "zio.blocks.projection"
       )
     },
     test("moduleImport and objectName tell http-model-schema and schema-messagepack apart from their neighbours") {

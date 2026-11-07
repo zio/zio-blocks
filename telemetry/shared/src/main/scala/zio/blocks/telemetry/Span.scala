@@ -20,53 +20,188 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * A mutable, thread-safe span representing a unit of work in a trace.
+ * A unit of work in a trace: a name, a [[SpanKind]], attributes, timed events
+ * and a [[SpanStatus]], with a [[SpanContext]] that identifies it. `trace.span`
+ * and `Tracer#span` hand a live span to a block and end it when the block
+ * finishes; the provider's processors then receive its [[SpanData]].
  *
- * Spans are created via `SpanBuilder` and track attributes, events, and status
- * throughout their lifetime. Once `end()` is called, the span stops recording
- * and all mutating methods become no-ops.
+ * Once a span ends, `setAttribute`, `addEvent` and `setStatus` do nothing. When
+ * the sampler drops a span, the block receives [[Span.NoOp]], which accepts the
+ * same calls and records nothing, so the code needs no checks.
+ *
+ * {{{
+ * trace.clearSpans()
+ *
+ * trace.span("charge-card", SpanKind.Client) { span =>
+ *   span.setAttribute("payment.provider", "stripe")
+ *   span.setAttribute("payment.amount_cents", 4999L)
+ *   span.addEvent("authorized")
+ *   span.setStatus(SpanStatus.Ok)
+ * }
+ *
+ * val charged = trace.collectedSpans.head
+ * charged.attributes.get(AttributeKey.long("payment.amount_cents")) // Some(4999)
+ * charged.events.map(_.name) // List(authorized)
+ * charged.status.toString // Ok
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/tracing/span/ Span]]
  */
 trait Span {
+
+  /**
+   * Returns the ids of this span and its trace, which a propagator sends to
+   * other services.
+   */
   def spanContext: SpanContext
+
+  /** Returns the name the span was opened with. */
   def name: String
+
+  /** Returns the kind the span was opened with. */
   def kind: SpanKind
+
+  /**
+   * Sets the attribute `key` to `value`, replacing an earlier value with the
+   * same name. Takes every key type, including the sequence keys such as
+   * `AttributeKey.stringSeq`. Does nothing after the span ends.
+   */
   def setAttribute[A](key: AttributeKey[A], value: A): Unit
+
+  /**
+   * Sets the string attribute `key`, replacing an earlier value with the same
+   * name. Does nothing after the span ends.
+   */
   def setAttribute(key: String, value: String): Unit
+
+  /**
+   * Sets the `Long` attribute `key`, replacing an earlier value with the same
+   * name. Does nothing after the span ends.
+   */
   def setAttribute(key: String, value: Long): Unit
+
+  /**
+   * Sets the `Double` attribute `key`, replacing an earlier value with the same
+   * name. Does nothing after the span ends.
+   */
   def setAttribute(key: String, value: Double): Unit
+
+  /**
+   * Sets the `Boolean` attribute `key`, replacing an earlier value with the
+   * same name. Does nothing after the span ends.
+   */
   def setAttribute(key: String, value: Boolean): Unit
+
+  /**
+   * Records an event named `name`, with no attributes, at the current time.
+   * Does nothing after the span ends.
+   */
   def addEvent(name: String): Unit
+
+  /**
+   * Records an event named `name` with `attributes` at the current time. Does
+   * nothing after the span ends.
+   */
   def addEvent(name: String, attributes: Attributes): Unit
+
+  /**
+   * Records an event named `name` with `attributes` at `timestamp`, in epoch
+   * nanoseconds. Does nothing after the span ends.
+   */
   def addEvent(name: String, timestamp: Long, attributes: Attributes): Unit
+
+  /**
+   * Sets the outcome of the span, replacing an earlier status. Does nothing
+   * after the span ends. Nothing sets a status for you: a span whose block
+   * throws keeps `Unset` unless the block sets `SpanStatus.Error`.
+   */
   def setStatus(status: SpanStatus): Unit
+
+  /**
+   * Ends the span at the current time; only the first call to either `end`
+   * counts. `trace.span` and `Tracer#span` end the span when the block
+   * finishes. Ending it earlier inside the block stops the recording, and the
+   * processors still receive it when the block finishes.
+   */
   def end(): Unit
+
+  /**
+   * Ends the span at `endTimeNanos`, in epoch nanoseconds; only the first call
+   * to either `end` counts.
+   */
   def end(endTimeNanos: Long): Unit
+
+  /**
+   * Returns `true` until the span ends, and always `false` for [[Span.NoOp]].
+   * Check it to skip work that only builds attributes or events.
+   */
   def isRecording: Boolean
+
+  /**
+   * Returns an immutable snapshot of the span as it is now; its `endTimeNanos`
+   * is `0` until the span ends.
+   */
   def toSpanData: SpanData
 }
 
+/** Holds [[Span.NoOp]]. */
 object Span {
 
   /**
-   * A no-op span that performs zero allocations. All methods are no-ops.
+   * The span that the block receives when the sampler drops a span. Every
+   * method does nothing and allocates nothing.
+   *
+   * Its own context is [[SpanContext.invalid]], even though
+   * `Tracer#currentSpan` inside the block returns a valid context with the
+   * sampled flag cleared, which keeps child spans in the trace.
    */
   object NoOp extends Span {
-    val spanContext: SpanContext = SpanContext.invalid
-    val name: String             = ""
-    val kind: SpanKind           = SpanKind.Internal
 
-    def setAttribute[A](key: AttributeKey[A], value: A): Unit                 = ()
-    def setAttribute(key: String, value: String): Unit                        = ()
-    def setAttribute(key: String, value: Long): Unit                          = ()
-    def setAttribute(key: String, value: Double): Unit                        = ()
-    def setAttribute(key: String, value: Boolean): Unit                       = ()
-    def addEvent(name: String): Unit                                          = ()
-    def addEvent(name: String, attributes: Attributes): Unit                  = ()
+    /** Returns [[SpanContext.invalid]]. */
+    val spanContext: SpanContext = SpanContext.invalid
+
+    /** Returns the empty string. */
+    val name: String = ""
+
+    /** Returns `SpanKind.Internal`. */
+    val kind: SpanKind = SpanKind.Internal
+
+    /** Does nothing. */
+    def setAttribute[A](key: AttributeKey[A], value: A): Unit = ()
+
+    /** Does nothing. */
+    def setAttribute(key: String, value: String): Unit = ()
+
+    /** Does nothing. */
+    def setAttribute(key: String, value: Long): Unit = ()
+
+    /** Does nothing. */
+    def setAttribute(key: String, value: Double): Unit = ()
+
+    /** Does nothing. */
+    def setAttribute(key: String, value: Boolean): Unit = ()
+
+    /** Does nothing. */
+    def addEvent(name: String): Unit = ()
+
+    /** Does nothing. */
+    def addEvent(name: String, attributes: Attributes): Unit = ()
+
+    /** Does nothing. */
     def addEvent(name: String, timestamp: Long, attributes: Attributes): Unit = ()
-    def setStatus(status: SpanStatus): Unit                                   = ()
-    def end(): Unit                                                           = ()
-    def end(endTimeNanos: Long): Unit                                         = ()
-    val isRecording: Boolean                                                  = false
+
+    /** Does nothing. */
+    def setStatus(status: SpanStatus): Unit = ()
+
+    /** Does nothing. */
+    def end(): Unit = ()
+
+    /** Does nothing. */
+    def end(endTimeNanos: Long): Unit = ()
+
+    /** Returns `false`. */
+    val isRecording: Boolean = false
 
     private val emptySpanData: SpanData = SpanData(
       name = "",
@@ -83,10 +218,18 @@ object Span {
       instrumentationScope = InstrumentationScope("noop")
     )
 
+    /**
+     * Returns the same empty snapshot on every call: invalid contexts, times of
+     * `0`, no attributes, `Resource.empty` and the scope `noop`.
+     */
     def toSpanData: SpanData = emptySpanData
   }
 }
 
+/**
+ * The span that `SpanBuilder#startSpan` and `Tracer#span` create: it keeps its
+ * attributes and events in copy-on-write lists and ends once.
+ */
 private[telemetry] final class RecordingSpan(
   val spanContext: SpanContext,
   val name: String,

@@ -20,10 +20,23 @@ import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
 private[combinators] sealed trait LowerPriorityConcat {
+
+  /**
+   * On Scala 2, the fallback instance for types with no single meaningful
+   * common supertype: `Out` is `Either[L, R]`, and the instance is not
+   * identity-like. Its macro fails for related types, so that `derive` applies
+   * to them.
+   */
   implicit def disjoint[L, R]: Concat.WithOut[L, R, Either[L, R]] = macro ConcatMacros.disjointImpl[L, R]
 }
 
 private[combinators] trait ConcatCompanionPlatform extends LowerPriorityConcat {
+
+  /**
+   * Derives the instance for `L` and `R`. On Scala 3, `Out` is `L | R` and the
+   * instance is identity-like. On Scala 2, a macro picks the supertype that
+   * `Concat` describes, or fails so that the `Either[L, R]` fallback applies.
+   */
   implicit def derive[L, R]: Concat[L, R] = macro ConcatMacros.concatImpl[L, R]
 }
 
@@ -115,7 +128,7 @@ private[combinators] object ConcatMacros {
    *
    * Scala 2's `lub` often returns refinements such as `Animal with Product with
    * Serializable` for two case classes sharing a sealed parent. This helper
-   * strips out "noise" parents (see [[NoiseSymbolFullNames]]) and:
+   * strips out "noise" parents (see `NoiseSymbolFullNames`) and:
    *
    *   - returns `Some(t)` when exactly one meaningful parent remains;
    *   - returns `None` when zero or multiple meaningful parents remain, leaving

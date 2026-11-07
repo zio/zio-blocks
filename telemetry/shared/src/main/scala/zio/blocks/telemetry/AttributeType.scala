@@ -17,18 +17,35 @@
 package zio.blocks.telemetry
 
 /**
- * Discriminator for AttributeKey type safety. Determines the expected value
- * type for an attribute.
+ * Names the value type of an [[AttributeKey]] at run time: one case per type an
+ * attribute can hold.
  */
 sealed trait AttributeType
 
+/** The eight attribute value types. */
 object AttributeType {
-  case object StringType     extends AttributeType
-  case object BooleanType    extends AttributeType
-  case object LongType       extends AttributeType
-  case object DoubleType     extends AttributeType
-  case object StringSeqType  extends AttributeType
-  case object LongSeqType    extends AttributeType
-  case object DoubleSeqType  extends AttributeType
+
+  /** `String` values. */
+  case object StringType extends AttributeType
+
+  /** `Boolean` values. */
+  case object BooleanType extends AttributeType
+
+  /** `Long` values. */
+  case object LongType extends AttributeType
+
+  /** `Double` values. */
+  case object DoubleType extends AttributeType
+
+  /** `Seq[String]` values. */
+  case object StringSeqType extends AttributeType
+
+  /** `Seq[Long]` values. */
+  case object LongSeqType extends AttributeType
+
+  /** `Seq[Double]` values. */
+  case object DoubleSeqType extends AttributeType
+
+  /** `Seq[Boolean]` values. */
   case object BooleanSeqType extends AttributeType
 }

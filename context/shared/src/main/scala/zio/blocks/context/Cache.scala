@@ -18,8 +18,21 @@ package zio.blocks.context
 
 import zio.blocks.typeid.TypeId
 
+/**
+ * The per-context lookup cache: a `ConcurrentHashMap` on the JVM, a
+ * `mutable.HashMap` on Scala.js.
+ */
 private[context] trait Cache {
+
+  /** Returns the cached value for `key`, or `null`. */
   def get(key: TypeId.Erased): Any
+
+  /** Stores `value` for `key`, replacing any cached value. */
   def put(key: TypeId.Erased, value: Any): Unit
+
+  /**
+   * Stores `value` for `key` unless a value is already cached; returns the
+   * value already cached, or `null` if there was none.
+   */
   def putIfAbsent(key: TypeId.Erased, value: Any): Any
 }

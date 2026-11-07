@@ -16,6 +16,16 @@
 
 package zio.blocks.telemetry
 
+/**
+ * Reports a value that you read at collection time, such as the size of a
+ * cache: its callback runs on each collection and reports the current value of
+ * each attribute set through an [[ObservableCallback]]. Create and register one
+ * with `GaugeBuilder#buildWithCallback`. `name`, `description` and `unit`
+ * return what it was created with.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/meter/ Meter]]
+ */
 final class ObservableGauge private[telemetry] (
   val name: String,
   val description: String,
@@ -23,6 +33,11 @@ final class ObservableGauge private[telemetry] (
   private val callback: ObservableCallback => Unit
 ) {
 
+  /**
+   * Runs the callback once, on the calling thread, and returns a
+   * [[MetricData.GaugeData]] with one point per value it reported, with the
+   * current time. An exception from the callback propagates.
+   */
   def collect(): MetricData = {
     val measurements = new java.util.ArrayList[GaugeDataPoint]()
     val now          = EpochClock.epochNanos()
@@ -37,7 +52,14 @@ final class ObservableGauge private[telemetry] (
   }
 }
 
+/** Creates ObservableGauges that no meter registers. */
 object ObservableGauge {
+
+  /**
+   * Creates one that no meter registers, so `MetricReader#collectAllMetrics`
+   * never runs its callback; use `GaugeBuilder#buildWithCallback` for a
+   * registered one.
+   */
   def apply(name: String, description: String, unit: String)(
     callback: ObservableCallback => Unit
   ): ObservableGauge =

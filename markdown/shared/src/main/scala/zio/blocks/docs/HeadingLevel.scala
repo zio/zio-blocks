@@ -17,15 +17,15 @@
 package zio.blocks.docs
 
 /**
- * Heading level for ATX-style headings.
- *
- * GFM supports six levels of headings, from H1 (# ) to H6 (###### ).
+ * The level of an ATX heading, from [[HeadingLevel.H1]] (`# `) to
+ * [[HeadingLevel.H6]] (`###### `).
  *
  * @param value
- *   The numeric heading level (1-6)
+ *   The numeric heading level, 1 to 6
  */
 sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
 
+/** The six heading levels and the conversions from a number. */
 object HeadingLevel {
 
   /** Heading level 1 (# ). */
@@ -47,12 +47,12 @@ object HeadingLevel {
   case object H6 extends HeadingLevel(6)
 
   /**
-   * Safely construct a heading level from an integer.
+   * Look up a heading level by its number.
    *
    * @param n
-   *   The heading level (must be 1-6)
+   *   The number to look up
    * @return
-   *   Some(level) if n is 1-6, None otherwise
+   *   `Some(level)` if `n` is 1 to 6, `None` otherwise
    */
   def fromInt(n: Int): Option[HeadingLevel] = n match {
     case 1 => Some(H1)
@@ -65,14 +65,14 @@ object HeadingLevel {
   }
 
   /**
-   * Construct a heading level from an integer, throwing on invalid input.
+   * Look up a heading level by its number, throwing when there is none.
    *
    * @param n
    *   The heading level (must be 1-6)
    * @return
    *   The heading level
    * @throws java.lang.IllegalArgumentException
-   *   if n is not 1-6
+   *   if `n` is not 1 to 6, with the message `Invalid heading level: n`
    */
   def unsafeFromInt(n: Int): HeadingLevel =
     fromInt(n).getOrElse(throw new IllegalArgumentException(s"Invalid heading level: $n"))

@@ -16,8 +16,32 @@
 
 package zio.blocks.docs
 
+/**
+ * Run-time support for the `md` interpolator. The macro expands every `md"..."`
+ * into a call to [[MdInterpolatorRuntime.parseAndBuild]]; code does not
+ * normally call it directly.
+ */
 object MdInterpolatorRuntime {
 
+  /**
+   * Splice already converted values into the literal parts of a string context
+   * and parse the result.
+   *
+   * Each element of `args` is written out with [[Renderer.renderInline]] and
+   * placed after the part with the same position. A string context has one more
+   * part than it has values; when `args` has fewer elements than gaps, the
+   * remaining gaps are left empty.
+   *
+   * @param sc
+   *   The string context whose parts are the literal text
+   * @param args
+   *   The values to splice in, already converted to inline elements
+   * @return
+   *   The parsed document
+   * @throws java.lang.IllegalArgumentException
+   *   if the combined text does not parse, with the message
+   *   `Invalid markdown: ` followed by the [[ParseError]] message
+   */
   def parseAndBuild(sc: StringContext, args: Seq[Inline]): Doc = {
     val combined = buildMarkdownString(sc.parts, args)
     Parser.parse(combined) match {

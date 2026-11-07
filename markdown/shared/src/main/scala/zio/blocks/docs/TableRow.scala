@@ -19,9 +19,7 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * A row in a GFM table.
- *
- * Each cell contains a chunk of inline elements.
+ * A row of a GFM [[Table]], used for the header and for each data row.
  *
  * @param cells
  *   The cells in the row, where each cell is a chunk of inline elements

@@ -66,7 +66,8 @@ final case class TagInfo(
 
   /**
    * Runs the migration on an old event's value, so that it can then be decoded
-   * with the current schema. Fails if the migration cannot be applied.
+   * with the current schema. Returns a `Left` if the migration cannot be
+   * applied.
    */
   def migrateValue(dv: DynamicValue): Either[zio.blocks.schema.SchemaError, DynamicValue] =
     migration(dv)
@@ -74,7 +75,7 @@ final case class TagInfo(
   /**
    * Widens a set of tags to be read so that a rename does not hide events. Each
    * requested tag is joined by the old tags that were renamed to it, and by the
-   * current tag it was renamed to. An empty request means all tags.
+   * current tag it was renamed to. An empty request gives `allTags`.
    *
    * For example, with `UserCreated` renamed to `UserRegistered`, asking for
    * `UserRegistered` gives both names.
@@ -127,17 +128,33 @@ trait TagResolver[E] {
  * exactly as written in the migration.
  *
  * {{{
+ * import zio.blocks.schema.Schema
+ * import zio.blocks.schema.migration.Migration
+ *
+ * sealed trait UserEvent
+ * object UserEvent {
+ *   case class UserRegistered(userId: String) extends UserEvent // was UserCreated
+ *   case class UserDeleted(userId: String)    extends UserEvent
+ *   implicit val schema: Schema[UserEvent] = Schema.derived[UserEvent]
+ * }
+ *
  * val migration: Migration[UserEvent, UserEvent] =
- *   Migration.newBuilder[UserEvent, UserEvent]
+ *   Migration
+ *     .newBuilder[UserEvent, UserEvent]
  *     .renameCase("UserCreated", "UserRegistered")
  *     .build
  *
  * val info = TagResolver.resolve[UserEvent](migration)
- * // info.aliases == Map("UserCreated" -> "UserRegistered")
+ * info.aliases // Map(UserCreated -> UserRegistered)
+ * info.allTags // Set(UserRegistered, UserDeleted, UserCreated)
+ * info.expandRequested(Set("UserRegistered")) // Set(UserRegistered, UserCreated)
  * }}}
  *
  * The event stores call these functions when they are created, so applications
  * normally only pass a migration and do not call them directly.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/migration/ Migration]]
  */
 object TagResolver {
 
@@ -172,7 +189,7 @@ object TagResolver {
 
   /**
    * Builds a [[TagInfo]], using a `Migration[E, E]` if one is in implicit scope
-   * and none otherwise. This form also works in Scala 2.
+   * and none otherwise, through a default argument of `null`.
    */
   def resolveImplicit[E: Schema](implicit migration: Migration[E, E] = null): TagInfo =
     resolveOpt[E](Option(migration))
@@ -192,9 +209,9 @@ object TagResolver {
     resolve[E](migration).aliases
 
   /**
-   * Builds a [[TagInfo]], using a `Migration[E, E]` if a given instance is
-   * available and none otherwise. It is Scala 3 only, and resolves the instance
-   * at the call site.
+   * Builds a [[TagInfo]], using a `Migration[E, E]` if a given or implicit
+   * instance is available and none otherwise. It is an inline method, so the
+   * instance is looked up at the call site.
    */
   inline def resolveAuto[E](using schema: Schema[E]): TagInfo =
     summonFrom {

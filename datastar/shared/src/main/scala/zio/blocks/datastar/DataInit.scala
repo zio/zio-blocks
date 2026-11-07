@@ -20,20 +20,30 @@ import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 
 /**
- * Builder for the `data-init` Datastar attribute.
+ * A `data-init` attribute, whose expression runs when Datastar initializes the
+ * element, for example on page load. Made by `dataInit`. [[delay]] and
+ * [[viewTransition]] add suffixes in call order; a second `delay` replaces the
+ * first and goes last, and a second `viewTransition` is ignored.
  *
- * Modifiers such as [[delay]] and [[viewTransition]] are encoded into the final
- * attribute name and normalized so repeated modifiers collapse to the last
- * effective value. Use `:=` to assign the Datastar expression that should run
- * during initialization.
+ * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
+ * import zio.blocks.html._
+ *
+ * div(dataInit.delay(500) := js"@get('/bootstrap')").render
+ * // <div data-init__delay.500ms="@get(&#x27;/bootstrap&#x27;)"></div>
+ * }}}
  */
 final class DataInit(private[datastar] val modifier: Maybe[InitModifier]) {
 
+  /**
+   * Adds `__delay.<millis>ms`: the expression runs `millis` milliseconds late.
+   */
   def delay(millis: Long): DataInit = withModifier(InitModifier.Delay(millis))
 
+  /** Adds `__viewTransition`: the expression runs inside a view transition. */
   def viewTransition: DataInit = withModifier(InitModifier.ViewTransition)
 
-  /** Assigns the Datastar expression rendered for this `data-init` builder. */
+  /** Returns `data-init<modifiers>="<expression>"`. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-init" + modifierStr

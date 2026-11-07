@@ -19,15 +19,29 @@ package zio.blocks.telemetry
 import Attributes._
 
 /**
- * An immutable collection of typed key-value attribute pairs.
+ * An immutable set of key-value attributes, the details carried by a span, a
+ * log record, a metric point or a [[Resource]]: an `http.route`, an `orderId`,
+ * a status code.
  *
- * Backed by parallel arrays with dual-slot storage: primitive values (Long,
- * Double, Boolean) are stored unboxed in a `Long` array, while String values
- * use a separate `String` array. A `Byte` type discriminator array selects the
- * slot. Seq values use a separate `AnyRef` array for rare cases.
+ * A value is a `String`, `Long`, `Double` or `Boolean`, or a `Seq` of one of
+ * them. Build a set with `Attributes.builder` or `Attributes.of`, and read a
+ * value back with a typed [[AttributeKey]]. `Long`, `Double` and `Boolean`
+ * values are stored unboxed, so building a set on a hot path does not box them.
  *
- * This design eliminates `AttributeValue` boxing for the common primitive
- * cases, reducing GC pressure on hot paths.
+ * {{{
+ * val attrs = Attributes.builder
+ *   .put(AttributeKey.string("http.route"), "/orders")
+ *   .put("http.status_code", 503L)
+ *   .put("cache.hit", false)
+ *   .build
+ *
+ * attrs.get(AttributeKey.long("http.status_code")) // Some(503)
+ * attrs.get(AttributeKey.string("db.system")) // None
+ * attrs.size // 3
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/common/attributes/ Attributes]]
  */
 final class Attributes private (
   private[telemetry] val keys: Array[String],
@@ -54,24 +68,28 @@ final class Attributes private (
   }
 
   /**
-   * Number of attributes in this collection.
+   * Returns the number of entries; a key that `++` added twice counts twice.
    */
   def size: Int = len
 
-  /**
-   * True if this collection contains no attributes.
-   */
+  /** Returns `true` when the set has no entries. */
   def isEmpty: Boolean = len == 0
 
   /**
-   * Retrieves a typed attribute by key, returning None if not found.
+   * Returns the value stored under `key.name`, or `None` when there is none.
+   * When `++` left a key twice, the later value wins.
    *
-   * @tparam A
-   *   The expected type of the value
-   * @param key
-   *   The typed key to look up
-   * @return
-   *   Some(value) if found, None otherwise
+   * Only the name is compared, not the key's value type, so a key of the wrong
+   * type returns the stored value cast to `A`, and the program fails with a
+   * `ClassCastException` where it uses it, a known bug.
+   *
+   * {{{
+   * val route = AttributeKey.string("http.route")
+   * val attrs = Attributes.of(route, "/orders")
+   *
+   * attrs.get(route) // Some(/orders)
+   * attrs.get(AttributeKey.string("db.system")) // None
+   * }}}
    */
   def get[A](key: AttributeKey[A]): Option[A] = {
     var i = len - 1
@@ -96,7 +114,23 @@ final class Attributes private (
   }
 
   /**
-   * Invokes a visitor for each attribute without boxing primitives.
+   * Calls the `visitor` method that matches each entry's value type, in
+   * insertion order, passing `Long`, `Double` and `Boolean` values unboxed. An
+   * entry whose `Seq` method the visitor does not override is skipped.
+   *
+   * {{{
+   * val attrs = Attributes.builder.put("http.route", "/orders").put("http.status_code", 503L).build
+   * val rendered = new StringBuilder
+   *
+   * attrs.accept(new AttributeVisitor {
+   *   def visitString(key: String, value: String): Unit   = rendered.append(key).append('=').append(value).append(' ')
+   *   def visitLong(key: String, value: Long): Unit       = rendered.append(key).append('=').append(value).append(' ')
+   *   def visitDouble(key: String, value: Double): Unit   = rendered.append(key).append('=').append(value).append(' ')
+   *   def visitBoolean(key: String, value: Boolean): Unit = rendered.append(key).append('=').append(value).append(' ')
+   * })
+   *
+   * rendered.toString.trim // http.route=/orders http.status_code=503
+   * }}}
    */
   def accept(visitor: AttributeVisitor): Unit = {
     var i = 0
@@ -118,8 +152,8 @@ final class Attributes private (
   }
 
   /**
-   * Invokes a function for each attribute. Creates `AttributeValue` wrappers
-   * lazily, so callers that need unboxed access should prefer `accept`.
+   * Calls `f` with each key and its value wrapped in an [[AttributeValue]], in
+   * insertion order. It allocates one wrapper per entry; `accept` does not.
    */
   def foreach(f: (String, AttributeValue) => Unit): Unit = {
     var i = 0
@@ -149,8 +183,19 @@ final class Attributes private (
   }
 
   /**
-   * Merges this Attributes with another, with values from `other` taking
-   * precedence on conflicts.
+   * Returns the entries of this set followed by those of `other`.
+   *
+   * It appends rather than merges: a key in both sets stays twice. `get` and
+   * `toMap` then return the value from `other`, but `size` counts the key twice
+   * and `foreach`, `accept` and the exporters see both entries.
+   *
+   * {{{
+   * val env = AttributeKey.string("deployment.environment")
+   * val merged = Attributes.of(env, "staging") ++ Attributes.of(env, "production")
+   *
+   * merged.get(env) // Some(production)
+   * merged.size // 2
+   * }}}
    */
   def ++(other: Attributes): Attributes =
     if (other.isEmpty) {
@@ -181,8 +226,8 @@ final class Attributes private (
     }
 
   /**
-   * Converts this Attributes to a Map with string keys and AttributeValue
-   * values.
+   * Returns the entries as a map from key to [[AttributeValue]]; for a key
+   * present twice, the later value wins.
    */
   def toMap: Map[String, AttributeValue] = {
     var map = Map.empty[String, AttributeValue]
@@ -219,6 +264,7 @@ final class Attributes private (
     })
 }
 
+/** Creates [[Attributes]] and holds the standard service keys. */
 object Attributes {
 
   // Type discriminator constants — inlined as literal Byte values for
@@ -232,9 +278,7 @@ object Attributes {
   private[telemetry] final val T_DOUBLE_SEQ: Byte  = 6
   private[telemetry] final val T_BOOLEAN_SEQ: Byte = 7
 
-  /**
-   * An empty Attributes collection.
-   */
+  /** The set with no entries. */
   val empty: Attributes = new Attributes(
     Array.empty,
     Array.empty,
@@ -244,33 +288,29 @@ object Attributes {
     0
   )
 
-  /**
-   * Creates an Attributes collection with a single typed attribute.
-   */
+  /** Returns a set with one entry; use `builder` for more. */
   def of[A](key: AttributeKey[A], value: A): Attributes = {
     val b = new AttributesBuilder()
     b.put(key, value)
     b.build
   }
 
-  /**
-   * Returns a mutable builder for constructing Attributes incrementally.
-   */
+  /** Returns a new, empty, mutable [[Attributes.AttributesBuilder]]. */
   def builder: AttributesBuilder =
     new AttributesBuilder()
 
-  /**
-   * Predefined attribute key for service name.
-   */
+  /** The key `service.name`, which names the service in a [[Resource]]. */
   val ServiceName: AttributeKey[String] = AttributeKey.string("service.name")
 
   /**
-   * Predefined attribute key for service version.
+   * The key `service.version`, the version of the service in a [[Resource]].
    */
   val ServiceVersion: AttributeKey[String] = AttributeKey.string("service.version")
 
   /**
-   * Mutable builder for Attributes.
+   * A mutable builder of [[Attributes]]. Each `put` changes the builder and
+   * returns it; putting a key again replaces its value and keeps its position.
+   * Not safe to share between threads.
    */
   class AttributesBuilder private[Attributes] () {
     private var _keys: Array[String]    = new Array[String](8)
@@ -285,9 +325,7 @@ object Attributes {
         _seqs = new Array[AnyRef](_keys.length)
       }
 
-    /**
-     * Adds or updates a typed attribute.
-     */
+    /** Adds `value` under `key`, or replaces the value already there. */
     def put[A](key: AttributeKey[A], value: A): AttributesBuilder = {
       key.`type` match {
         case AttributeType.StringType     => put(key.name, value.asInstanceOf[String])
@@ -303,7 +341,7 @@ object Attributes {
     }
 
     /**
-     * Adds or updates a string attribute.
+     * Adds a `String` value under `key`, or replaces the value already there.
      */
     def put(key: String, value: String): AttributesBuilder = {
       val i = findOrAdd(key)
@@ -314,9 +352,7 @@ object Attributes {
       this
     }
 
-    /**
-     * Adds or updates a long attribute.
-     */
+    /** Adds a `Long` value under `key`, or replaces the value already there. */
     def put(key: String, value: Long): AttributesBuilder = {
       val i = findOrAdd(key)
       _types(i) = T_LONG
@@ -327,7 +363,7 @@ object Attributes {
     }
 
     /**
-     * Adds or updates a double attribute.
+     * Adds a `Double` value under `key`, or replaces the value already there.
      */
     def put(key: String, value: Double): AttributesBuilder = {
       val i = findOrAdd(key)
@@ -339,7 +375,7 @@ object Attributes {
     }
 
     /**
-     * Adds or updates a boolean attribute.
+     * Adds a `Boolean` value under `key`, or replaces the value already there.
      */
     def put(key: String, value: Boolean): AttributesBuilder = {
       val i = findOrAdd(key)
@@ -359,9 +395,6 @@ object Attributes {
       _seqs(i) = seq
     }
 
-    /**
-     * Resets the builder to empty, allowing reuse without allocation.
-     */
     private[telemetry] def builderKeys: Array[String]    = _keys
     private[telemetry] def builderTypes: Array[Byte]     = _types
     private[telemetry] def builderLongs: Array[Long]     = _longs
@@ -375,6 +408,7 @@ object Attributes {
     private[telemetry] def builderSeqs: Array[AnyRef] = _seqs
     private[telemetry] def builderLen: Int            = _len
 
+    /** Removes every entry, so the builder can be reused without allocating. */
     def clear(): Unit = {
       var i = 0
       while (i < _len) {
@@ -387,7 +421,7 @@ object Attributes {
     }
 
     /**
-     * Builds and returns the immutable Attributes.
+     * Returns the entries put so far as [[Attributes]]; the builder keeps them.
      */
     def build: Attributes =
       if (_len == 0) Attributes.empty
@@ -403,9 +437,8 @@ object Attributes {
       }
 
     /**
-     * Builds Attributes by handing off internal arrays (zero copy). After
-     * calling this, the builder's arrays are reset to fresh allocations. Use
-     * this when the builder is obtained from a pool and will be reused.
+     * Returns the entries put so far as [[Attributes]] without copying them,
+     * and leaves the builder empty with new arrays.
      */
     def buildAndReset(): Attributes =
       if (_len == 0) Attributes.empty

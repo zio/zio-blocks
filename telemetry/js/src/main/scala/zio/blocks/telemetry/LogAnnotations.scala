@@ -16,6 +16,10 @@
 
 package zio.blocks.telemetry
 
+/**
+ * Holds the pairs of the enclosing `log.annotated` blocks, which every `log.*`
+ * call adds to its record.
+ */
 private[telemetry] object LogAnnotations {
   private var everUsed: Boolean            = false
   private var current: Map[String, String] = Map.empty

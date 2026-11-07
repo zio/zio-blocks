@@ -19,11 +19,9 @@ package zio.blocks.telemetry
 import scala.util.control.NonFatal
 
 /**
- * Composes a LogFormatter and LogWriter into a LogEmitter. Allocates a new
- * StringBuilder per call (~32 bytes, tiny vs I/O cost).
- *
- * Usage: new FormattedLogEmitter(TextLogFormatter, StdoutWriter) new
- * FormattedLogEmitter(JsonLogFormatter, NoopWriter)
+ * Formats raw log values with a [[LogFormatter]] and writes the text with a
+ * [[LogWriter]], without building a [[LogRecord]]; a logger whose only
+ * processor is a [[ConsoleLogRecordProcessor]] uses it.
  */
 private[telemetry] final class FormattedLogEmitter(
   formatter: LogFormatter,

@@ -19,35 +19,43 @@ package zio.blocks.telemetry
 import scala.language.implicitConversions
 
 /**
- * Log message body — either a simple string or a structured template.
- * Structured templates defer string construction until formatting.
+ * The message of a [[LogRecord]]: a ready string ([[LogMessage.Simple]]) or a
+ * template whose string is built on first use ([[LogMessage.Templated]]).
  */
 sealed trait LogMessage {
 
-  /**
-   * Get the formatted string representation. Lazy for Templated.
-   */
+  /** Returns the message text. */
   def value: String
 }
 
+/** Creates [[LogMessage]]s. */
 object LogMessage {
 
-  /**
-   * Simple string message — already formatted.
-   */
+  /** A message that is already a string. */
   final case class Simple(text: String) extends LogMessage {
+
+    /** Returns `text`. */
     def value: String             = text
     override def toString: String = text
   }
 
   /**
-   * Structured template — parts and args stored separately. String is
-   * constructed lazily on first access to `value`. Formatters can access
-   * parts/args directly for structured output.
+   * A message kept as text `parts` and the `args` between them, joined into a
+   * string on the first call to `value` and cached. The built-in formatters
+   * read only `value`.
+   *
+   * It equals another `Templated` or a [[LogMessage.Simple]] with the same
+   * text. A known bug: `Simple#equals` does not return `true` in the other
+   * direction.
    */
   final class Templated(val parts: Array[String], val args: Array[Any]) extends LogMessage {
     @volatile private var cached: String = null
 
+    /**
+     * Returns `parts(0) + args(0) + parts(1) + ...`, built on the first call;
+     * parts without a matching arg are appended as they are, and extra args are
+     * ignored.
+     */
     def value: String = {
       var v = cached
       if (v == null) {
@@ -75,18 +83,28 @@ object LogMessage {
     override def hashCode(): Int = value.hashCode
   }
 
+  /**
+   * Converts a string to a [[LogMessage.Simple]] where a `LogMessage` is
+   * expected.
+   */
   implicit def fromString(s: String): LogMessage = Simple(s)
 
+  /** Returns a [[LogMessage.Simple]] with the text `s`. */
   def apply(s: String): LogMessage = Simple(s)
 }
 
 /**
- * Represents an immutable log record with trace correlation support.
+ * One log entry: the message, its severity, when it happened, its attributes
+ * and the span it was logged in. A [[LogRecordProcessor]] receives it and a
+ * [[LogFormatter]] renders it; `log.*` calls and [[Logger]]s build it for you.
  *
- * A LogRecord contains a log message, its severity level, timing information,
- * and optional trace context for distributed tracing correlation. Trace fields
- * use primitive sentinel values (0 = absent) instead of Option wrappers for
- * zero allocation on the logging hot path.
+ * The trace fields are plain numbers, with 0 meaning "no span": check
+ * `hasTraceId` and `hasSpanId`. Records from `log.*` calls carry their source
+ * location as the `code.filepath`, `code.namespace`, `code.function` and
+ * `code.lineno` attributes.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/logging/log-record/ LogRecord]]
  *
  * @param timestampNanos
  *   The time when the event occurred, in nanoseconds since Unix epoch
@@ -132,37 +150,40 @@ final case class LogRecord(
   throwable: Option[Throwable] = None
 ) {
 
-  /**
-   * Whether this log record has a trace ID set.
-   */
+  /** Returns `true` when either half of the trace id is not 0. */
   def hasTraceId: Boolean = traceIdHi != 0L || traceIdLo != 0L
 
-  /**
-   * Whether this log record has a span ID set.
-   */
+  /** Returns `true` when the span id is not 0. */
   def hasSpanId: Boolean = spanId != 0L
 }
 
+/** Creates [[LogRecordBuilder]]s. */
 object LogRecord {
 
-  /**
-   * Creates a new LogRecordBuilder for constructing LogRecord instances.
-   */
+  /** Returns a builder with the defaults that [[LogRecordBuilder]] lists. */
   def builder: LogRecordBuilder = LogRecordBuilder()
 }
 
 /**
- * Immutable builder for constructing LogRecord instances with fluent API.
+ * Builds a [[LogRecord]] step by step; each setter returns a new builder.
  *
- * The builder provides sensible defaults for all fields:
- *   - timestamps default to current system time in nanoseconds
- *   - severity defaults to Info
- *   - severityText defaults to "INFO"
- *   - body defaults to empty string
- *   - attributes defaults to empty Attributes
- *   - trace fields default to 0 (absent)
- *   - resource defaults to Resource.empty
- *   - instrumentationScope defaults to InstrumentationScope with name "unknown"
+ * The defaults: both timestamps are the time of `build`, the severity is
+ * `Severity.Info`, the body is empty, there are no attributes and no trace ids,
+ * the resource is `Resource.empty` and the instrumentation scope is named
+ * `"unknown"`. The severity text always comes from the severity, and the record
+ * has no exception.
+ *
+ * {{{
+ * val record = LogRecord.builder
+ *   .setSeverity(Severity.Warn)
+ *   .setBody("disk almost full")
+ *   .setAttribute(AttributeKey.long("disk.free_mb"), 512L)
+ *   .build
+ *
+ * record.severity.text // WARN
+ * record.attributes.get(AttributeKey.long("disk.free_mb")) // Some(512)
+ * record.hasTraceId // false
+ * }}}
  */
 final case class LogRecordBuilder(
   timestampNanos: Option[Long] = None,
@@ -209,7 +230,8 @@ final case class LogRecordBuilder(
     copy(body = msg)
 
   /**
-   * Adds an attribute to the log record.
+   * Adds an attribute. A key that is already there stays, and the new value
+   * wins on lookup, as with `Attributes#++`.
    */
   def setAttribute[A](key: AttributeKey[A], value: A): LogRecordBuilder =
     copy(attributes = attributes ++ Attributes.of(key, value))
@@ -244,11 +266,7 @@ final case class LogRecordBuilder(
   def setInstrumentationScope(scope: InstrumentationScope): LogRecordBuilder =
     copy(instrumentationScope = scope)
 
-  /**
-   * Builds the final LogRecord.
-   *
-   * Uses current system time for any timestamps not explicitly set.
-   */
+  /** Builds the record, using the current time for any timestamp not set. */
   def build: LogRecord = {
     val now = EpochClock.epochNanos()
     LogRecord(

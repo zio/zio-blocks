@@ -17,23 +17,15 @@
 package zio.blocks.telemetry
 
 /**
- * Zero-allocation epoch nanosecond clock.
- *
- * Combines System.currentTimeMillis() (epoch anchor) with System.nanoTime()
- * (nanosecond precision offset) to produce Unix epoch nanoseconds without
- * allocating any objects.
- *
- * The monotonic clock is calibrated once at class load. Drift between monotonic
- * and wall clock (~1ms/hour) is negligible for logging/tracing.
+ * Unix epoch time in nanoseconds: the wall-clock time read once when the object
+ * loads, plus the `System.nanoTime` elapsed since. It does not follow later
+ * changes to the system clock.
  */
 private[telemetry] object EpochClock {
   private val epochMillisBase: Long = System.currentTimeMillis()
   private val nanoTimeBase: Long    = System.nanoTime()
 
-  /**
-   * Returns current Unix epoch time in nanoseconds. Zero allocation. ~11ns per
-   * call.
-   */
+  /** Returns the current Unix epoch time in nanoseconds. */
   def epochNanos(): Long = {
     val delta = System.nanoTime() - nanoTimeBase
     (epochMillisBase * 1000000L) + delta
