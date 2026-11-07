@@ -23342,6 +23342,10 @@ On 2026-11-05 the same step failed while fetching the attestation file (`ampel-v
 
 **Status (2026-11-06).** Cause found: setup-sbt v1.5.14 is "Pin signature policy to older format" (sbt/setup-sbt#155); the AMPEL policy format changed upstream, so v1.5.13 and older can no longer read it. PR #1955 moves the jobs defined in `project/CiWorkflow.scala` and `site.yml` to v1.5.14. Still at v1.5.7 and likely to fail the same way when they run: the `update-readme` job in `ci.yml` and `regenerate-workflows.yml`, which the `zio-sbt-ci` plugin writes itself; they need a `zio-sbt-ci` release with the new pin (follow-up).
 
+### Flaky streams test: `unfoldAsync - cancellation closes and rejects a late callback state commit`
+
+Seen 2026-11-06 on #1945 (a `docs/dev`-only PR, so not caused by its change), run 42275276244, job `testJVM (17, JVM, 3.9.x)`: 12,762 tests passed and this one failed (`- unfoldAsync - cancellation closes and rejects a late callback state commit`). Rerun with `gh run rerun <id> --failed`. Not investigated; like the other `unfoldAsync` and `AsyncInteropSpec` flakes, it races a cancellation against a late callback, so the assertion may depend on thread timing. Suggested fix: make the test wait on a latch for the callback before asserting, or force the ordering.
+
 ## Resolved
 
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).

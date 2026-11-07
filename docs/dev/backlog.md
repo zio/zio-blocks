@@ -882,9 +882,19 @@ Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18
 | Gates | scaladoc-check on 2.13.18, 3.9.0 and 3.10.0 (33 tests each, after the main merge); doc JVM/JS on 3.9.0 and 2.13.18; `check`, `headerCheckAll`. The session's CI watcher died under memory pressure, so it did not see the final CI result before the merge |
 | Time | about 2 h 45 min active |
 
-## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer (in progress)
+## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer
 
-Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only. PR #1960 opened 2026-11-06 (main with #1948, #1950, #1955 and #1956 merged in): 296 → 469 / 469, comments only; gates after the merge: scaladoc-check (34 tests) on three versions, 16 `doc` builds, `check`, `headerCheckAll`.
+Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only.
+
+| Item | Result |
+|---|---|
+| PR | #1960 (one PR); CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
+| Coverage | openapi 43/130 → 130/130; codegen 73/107 → 107/107; smithy 55/64 → 64/64; mux 43/46 → 46/46; ringbuffer 82/122 → 122/122; total 296/469 (63%) → 469/469; `--drift` mux 5 and ringbuffer 30 → empty |
+| Examples | 44 compiled on 2.13.18, 3.9.0 and 3.10.0 (27 old ones in codegen and smithy, none compiled before, plus 17 new) |
+| Existing comments | openapi/codegen/smithy 43 of 177 wrong or imprecise (24%; 7 false); mux/ringbuffer 28 of 98 (29%; 8 false) |
+| Review | 2 fresh Opus fact-checks (mux+ringbuffer 2 Important + 6 Minor; openapi+codegen+smithy 2 Important + 10 Minor), a fix round each, 2 scoped Sonnet re-reviews APPROVE; 1 finding not applied (a JS `Thread` example) |
+| Bugs | 13: mux 1, ringbuffer 2 (1 trap), 2 docs errors, codegen 4, smithy 1, openapi 2, and an amendment to the codegen "accepted but never emitted" entry |
+| Machine | 3 sbt rounds plus 1 post-merge round, each capped at 6 GB |
 
 ## 13q. Scaladoc: projection, dataMigration, htmx and datastar
 
@@ -918,9 +928,22 @@ Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. 
 
 Lessons: single-line `{{{ x }}}` blocks get flattened by scalafmt; `md"..."` parts are raw, so `"\n"` in a single-line literal stays two characters; check every bug entry's test-gap sentence against the spec assertions, not the test names.
 
-## 13s. Scaladoc: telemetry and otel (in progress)
+## 13s. Scaladoc: telemetry and otel
 
 Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage: telemetry 203/567, otel 17/33; otel's package is `zio.blocks.telemetry.otel` (needs a `packageOverrides` entry). telemetry needs JDK 21+ even to compile (its jar is class file 65 and its `log.*` macros run in the compiler), and CI runs telemetry/otel tests and docs only via `whenJdkAtLeast(25, ...)`, so the examples need a JDK-gated checker; options for Milad: a separate `scaladoc-check-jdk21` project (recommended), a JDK-dependent `scaladoc-check`, or `// no-check`. Phase 0: `--drift` 1 (`ContextStorage`, jvm vs js; one shared text will state the difference). Milad's Phase 1 decisions: (a) a new project `scaladoc-check-jdk21` sharing `scaladocCheckSettings`, listing `telemetry.jvm` and `otel`, run via `whenJdkAtLeast(25, ...)` in the testJVM aliases like telemetry's tests (`scaladoc-check` and the JDK 17 jobs untouched); one PR; tier 1 = `log`, `trace`, `metric`, `Span`, `Tracer`, `Meter`, `Counter`, `Histogram`, `Resource`, `Attributes`, `Severity`, `LogWriter`, and otel `OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, `OtlpJsonMetricExporter`, `ExporterConfig`, `W3CTraceContextPropagator`, `B3Propagator`, `BatchProcessor`; AGENTS.md: one sentence in the Scaladoc bullet naming `scaladoc-check-jdk21`, its JDK 21+ requirement and the check command.
+
+| Item | Result |
+|---|---|
+| PR | #1961 (one PR); CI green, including testJVM on JDK 17 and 25, no reruns |
+| Coverage | telemetry 203/567 (35%) → 567/567; otel 17/33 → 33/33; total 220/600 → 600/600; `--drift` empty |
+| Tooling | new checker `scaladoc-check-jdk21` (run only via `whenJdkAtLeast(25, ...)`, like telemetry's tests; `scaladoc-check` and the JDK 17 jobs untouched); otel `packageOverrides` entry with a unit test |
+| Examples | most `log.*` examples are `// scala-3-only` (the known 2.13 `log.*` bug); the OTLP exporters and `BatchProcessor` are `private[otel]`, so tier 3 |
+| Existing comments | about 252 checked: 14 wrong, 2 stale, 69 imprecise (about 34%) |
+| Review | fresh fact-check: 5 Important + 12 Minor, all Important and factual Minor fixed; scoped re-review APPROVE |
+| Bugs | 21: 11 Library bugs, 5 Usability traps, 4 Documentation errors, and an addition to the `fromHex` entry |
+| Gates | `scaladoc-check` (35) and `scaladoc-check-jdk21` on 3.9.0, 3.10.0 and 2.13.18; `check`, `headerCheckAll`; `telemetryJVM/test` 222 and `otel/test` 199 pass |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%, endpoint 34%, projection/dataMigration/htmx/datastar 25%, openapi/codegen/smithy/mux/ringbuffer 24–29%, telemetry/otel 34%.
 
 ## 13t. Scaladoc: mediatype (skipped)
 
