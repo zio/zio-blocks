@@ -381,7 +381,7 @@ Encode the feed with the default namespace:
 val xml = codec.encodeToString(feed)
 ```
 
-Decoding does not check or resolve namespaces, and a namespaced element does not round-trip through `XmlReader` (a known bug in 0.0.56).
+Decoding does not check or resolve namespaces: `XmlReader` keeps the prefix in `XmlName#prefix`, leaves `XmlName#namespace` empty and keeps `xmlns` declarations as ordinary attributes, so a namespaced element read back has no `namespace` (a known bug in 0.0.56).
 
 ## XmlSelection
 
@@ -754,7 +754,7 @@ result match {
   case Right(person) => println(s"Decoded: $person")
   case Left(error) =>
     println(s"Error: ${error.getMessage}")
-    // Malformed XML reports (line: L, column: C); a decoding error reports a path such as `at: .age`
+    // Malformed XML reports (line: L, column: C); a bad value reports a path such as `at: .qty`; a missing field reports `Missing required field: age`
 }
 ```
 
