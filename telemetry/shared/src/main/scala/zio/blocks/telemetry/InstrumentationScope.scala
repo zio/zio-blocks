@@ -17,11 +17,13 @@
 package zio.blocks.telemetry
 
 /**
- * Identifies the library/component that produced telemetry.
+ * Names the library or component that produced a span, log record or metric, so
+ * a backend can tell your telemetry from a dependency's. `LoggerProvider#get`,
+ * `TracerProvider#get` and `MeterProvider#get` build one from the name and
+ * version they receive.
  *
- * An InstrumentationScope represents a logical grouping of telemetry signals
- * from a specific library or instrumentation. It typically includes the library
- * name and optional version information.
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/common/instrumentation-scope/ InstrumentationScope]]
  */
 final case class InstrumentationScope(
   name: String,

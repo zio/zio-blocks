@@ -16,6 +16,11 @@
 
 package zio.blocks.telemetry
 
+/**
+ * Where a log call is in the source: its file, enclosing class, method and
+ * line. `log.*` calls record the same values as the `code.filepath`,
+ * `code.namespace`, `code.function` and `code.lineno` attributes.
+ */
 final case class SourceLocation(
   filePath: String,
   namespace: String,

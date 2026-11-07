@@ -20,30 +20,70 @@ import zio.blocks.telemetry._
 import zio.blocks.typeid.IsNominalType
 
 /**
- * Bridges the otel module's ContextStorage with zio-blocks Context[R].
+ * A snapshot of the active span's context, as a value that can travel in a
+ * `zio.blocks.context.Context`. Code that passes its dependencies through
+ * `Context[R]` instead of reading a `ContextStorage` carries the trace this
+ * way: take a snapshot with `OtelContext.current` where the span is active, add
+ * it to the context, and read it with `get[OtelContext]` further down.
  *
- * OtelContext captures the current span context from a ContextStorage, enabling
- * type-safe context threading via `Context[R & OtelContext]`.
+ * {{{
+ * import zio.blocks.telemetry._
+ * import zio.blocks.context.Context
+ *
+ * val storage = ContextStorage.create[Option[SpanContext]](None)
+ * val tracer  = TracerProvider.builder.setContextStorage(storage).build().get("checkout")
+ *
+ * val (spanId, carried) = tracer.span("place-order") { span =>
+ *   (span.spanContext.spanId, Context(OtelContext.current(storage)))
+ * }
+ * carried.get[OtelContext].spanContext.map(_.spanId == spanId) // Some(true)
+ * OtelContext.current(storage) // OtelContext(None)
+ * }}}
  *
  * @param spanContext
- *   the active span context, if any
+ *   the context of the span that was active, or `None` when none was
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/otel/ OTLP Export]]
  */
 final case class OtelContext(spanContext: Option[SpanContext])
 
+/**
+ * Holds `current` and `withSpan`, and the `IsNominalType` instance that lets an
+ * `OtelContext` be a `Context` key.
+ */
 object OtelContext {
 
+  /** Lets an `OtelContext` be stored in, and read from, a `Context`. */
   implicit val isNominalType: IsNominalType[OtelContext] =
     IsNominalType.derived[OtelContext]
 
   /**
-   * Snapshots the current span context from the given storage.
+   * Returns a snapshot of the span context in `storage`. To see the spans a
+   * tracer opens, give the same storage to
+   * `TracerProviderBuilder#setContextStorage`.
    */
   def current(storage: ContextStorage[Option[SpanContext]]): OtelContext =
     OtelContext(storage.get())
 
   /**
-   * Executes `f` with the given span's context set as current in storage.
-   * Restores the previous context afterward (even if `f` throws).
+   * Runs `f` with `span`'s context as the value of `storage`, and restores the
+   * previous value afterwards, also when `f` throws. It sets only `storage`: a
+   * tracer that uses another storage does not see `span` as its current span.
+   *
+   * {{{
+   * import zio.blocks.telemetry._
+   *
+   * val storage = ContextStorage.create[Option[SpanContext]](None)
+   * val tracer  = trace.get("checkout")
+   *
+   * val inside = tracer.span("charge-card") { span =>
+   *   OtelContext.withSpan(span, storage) {
+   *     OtelContext.current(storage).spanContext.exists(_.spanId == span.spanContext.spanId)
+   *   }
+   * }
+   * // inside is true
+   * storage.get() // None
+   * }}}
    */
   def withSpan[A](span: Span, storage: ContextStorage[Option[SpanContext]])(f: => A): A =
     storage.scoped(Some(span.spanContext))(f)

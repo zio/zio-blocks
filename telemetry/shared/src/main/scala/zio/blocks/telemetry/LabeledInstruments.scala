@@ -17,8 +17,27 @@
 package zio.blocks.telemetry
 
 /**
- * A counter with pre-declared label names. Label values are validated at
- * runtime to match the expected arity.
+ * A [[Counter]] whose label names are fixed, so each call passes only the
+ * values, in the same order: `add(1L, "GET", "200")`. Get one from
+ * `Meter#labeledCounter`, which registers the counter.
+ *
+ * Only the number of values is checked, when recording: values in the wrong
+ * order record a wrong series without an error. It is not faster than the pair
+ * form of `Counter#add`; for a hot path, use `bind` once and keep the
+ * [[BoundCounter]].
+ *
+ * {{{
+ * val requests = MeterProvider.builder.build().get("com.example.api").labeledCounter("http.requests", "method", "status")
+ *
+ * requests.add(1L, "GET", "200")
+ * requests.add(1L, "GET", "200")
+ *
+ * val totals = requests.collect() match {
+ *   case MetricData.SumData(points) => points.map(_.value)
+ *   case _                          => Nil
+ * }
+ * totals.headOption // Some(2)
+ * }}}
  *
  * @param counter
  *   the underlying counter instrument
@@ -30,6 +49,16 @@ final class LabeledCounter private[telemetry] (
   val labelNames: Array[String]
 ) {
 
+  /**
+   * Adds `value` to the series whose attributes pair each label name with the
+   * value in the same position; a negative `value` is ignored. Values are
+   * converted as `Counter#add` converts the values of its pairs.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def add(value: Long, labelValues: Any*): Unit = {
     require(
       labelValues.length == labelNames.length,
@@ -39,6 +68,15 @@ final class LabeledCounter private[telemetry] (
     counter.add(value, attributes)
   }
 
+  /**
+   * Returns a [[BoundCounter]] for the series of `labelValues`, matched to the
+   * label names by position.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def bind(labelValues: Any*): BoundCounter = {
     require(
       labelValues.length == labelNames.length,
@@ -48,12 +86,16 @@ final class LabeledCounter private[telemetry] (
     counter.bind(attributes)
   }
 
+  /** Returns the data of the wrapped counter, as `Counter#collect` does. */
   def collect(): MetricData = counter.collect()
 }
 
 /**
- * A histogram with pre-declared label names. Label values are validated at
- * runtime to match the expected arity.
+ * A [[Histogram]] whose label names are fixed, so each call passes only the
+ * values, in the same order. Get one from `Meter#labeledHistogram`, which
+ * registers the histogram with the default boundaries. Only the number of
+ * values is checked: values in the wrong order record a wrong series without an
+ * error.
  *
  * @param histogram
  *   the underlying histogram instrument
@@ -65,6 +107,16 @@ final class LabeledHistogram private[telemetry] (
   val labelNames: Array[String]
 ) {
 
+  /**
+   * Adds `value` to the series whose attributes pair each label name with the
+   * value in the same position. Values are converted as `Counter#add` converts
+   * the values of its pairs.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def record(value: Double, labelValues: Any*): Unit = {
     require(
       labelValues.length == labelNames.length,
@@ -74,6 +126,15 @@ final class LabeledHistogram private[telemetry] (
     histogram.record(value, attributes)
   }
 
+  /**
+   * Returns a [[BoundHistogram]] for the series of `labelValues`, matched to
+   * the label names by position.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def bind(labelValues: Any*): BoundHistogram = {
     require(
       labelValues.length == labelNames.length,
@@ -83,12 +144,15 @@ final class LabeledHistogram private[telemetry] (
     histogram.bind(attributes)
   }
 
+  /** Returns the data of the wrapped histogram, as `Histogram#collect` does. */
   def collect(): MetricData = histogram.collect()
 }
 
 /**
- * A gauge with pre-declared label names. Label values are validated at runtime
- * to match the expected arity.
+ * A [[Gauge]] whose label names are fixed, so each call passes only the values,
+ * in the same order. Get one from `Meter#labeledGauge`, which registers the
+ * gauge. Only the number of values is checked: values in the wrong order record
+ * a wrong series without an error.
  *
  * @param gauge
  *   the underlying gauge instrument
@@ -100,6 +164,16 @@ final class LabeledGauge private[telemetry] (
   val labelNames: Array[String]
 ) {
 
+  /**
+   * Replaces the value of the series whose attributes pair each label name with
+   * the value in the same position. Values are converted as `Counter#add`
+   * converts the values of its pairs.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def record(value: Double, labelValues: Any*): Unit = {
     require(
       labelValues.length == labelNames.length,
@@ -109,6 +183,15 @@ final class LabeledGauge private[telemetry] (
     gauge.record(value, attributes)
   }
 
+  /**
+   * Returns a [[BoundGauge]] for the series of `labelValues`, matched to the
+   * label names by position.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   when the number of values differs from the number of label names, with
+   *   the message `requirement failed: Expected 2 label values, got 1` for two
+   *   names and one value
+   */
   def bind(labelValues: Any*): BoundGauge = {
     require(
       labelValues.length == labelNames.length,
@@ -118,6 +201,7 @@ final class LabeledGauge private[telemetry] (
     gauge.bind(attributes)
   }
 
+  /** Returns the data of the wrapped gauge, as `Gauge#collect` does. */
   def collect(): MetricData = gauge.collect()
 }
 

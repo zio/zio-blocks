@@ -17,10 +17,41 @@
 package zio.blocks.telemetry
 
 /**
- * Creates spans within a single instrumentation scope.
+ * Opens the spans of one instrumentation scope: each span carries the tracer's
+ * `instrumentationScope` (a name and an optional version) and `resource`, so a
+ * backend can tell which component did the work. Get one from
+ * [[TracerProvider#get]], or from `trace.get` in application code; library code
+ * should take a `Tracer` as a parameter rather than use the global `trace`.
  *
- * A tracer consults the configured sampler, manages parent context propagation,
- * and notifies registered span processors as spans start and end.
+ * `span` asks the provider's [[Sampler]] whether to record, makes the new span
+ * a child of the current one, runs the block, and passes the span to the
+ * provider's [[SpanProcessor]]s when it starts and ends. The current span lives
+ * in the provider's `ContextStorage`. Unless a provider is given its own, every
+ * provider and the global `log` share one, so spans from different tracers
+ * nest, and log records carry the ids of the current span.
+ *
+ * {{{
+ * import scala.collection.mutable.ListBuffer
+ *
+ * val finished = ListBuffer.empty[SpanData]
+ * val inMemory = new SpanProcessor {
+ *   def onStart(span: Span): Unit = ()
+ *   def onEnd(spanData: SpanData): Unit = finished += spanData
+ *   def shutdown(): Unit = ()
+ *   def forceFlush(): Unit = ()
+ * }
+ * val tracer = TracerProvider.builder.addSpanProcessor(inMemory).build().get("com.example.orders", "1.4.0")
+ *
+ * tracer.span("process-order", SpanKind.Server) { _ =>
+ *   tracer.span("persist-order", SpanKind.Client)(_.setAttribute("db.system", "postgresql"))
+ * }
+ *
+ * finished.map(_.name) // ListBuffer(persist-order, process-order)
+ * finished.head.instrumentationScope.version // Some(1.4.0)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/tracing/tracer/ Tracer]]
  */
 final class Tracer private[telemetry] (
   val instrumentationScope: InstrumentationScope,
@@ -31,32 +62,55 @@ final class Tracer private[telemetry] (
 ) {
 
   /**
-   * Returns a builder for creating manually managed spans.
+   * Returns a [[SpanBuilder]] for a span named `name`, preset with this
+   * tracer's resource and scope, for a span you start and end yourself.
+   *
+   * The span it starts skips the sampler and the processors, so it is never
+   * exported and `trace.collectedSpans` does not include it. It does not read
+   * the current span either: it starts a new trace unless
+   * `SpanBuilder#setParent` gives it a parent.
    */
   def spanBuilder(name: String): SpanBuilder =
     SpanBuilder(name).setResource(resource).setInstrumentationScope(instrumentationScope)
 
   /**
-   * Returns the currently active span context, if one is bound.
+   * Returns the context of the innermost span open on this thread in this
+   * tracer's storage, or `None` outside every span. Inside a span that the
+   * sampler dropped, it returns that span's context, with the sampled flag
+   * cleared.
    */
   def currentSpan: Option[SpanContext] =
     contextStorage.get()
 
   /**
-   * Creates an internal span around the supplied block.
+   * Opens a span named `name` of kind `Internal` and runs `f` with it; see the
+   * three-parameter `span` for the details.
    */
   def span[A](name: String)(f: Span => A): A =
     span(name, SpanKind.Internal, Attributes.empty)(f)
 
   /**
-   * Creates a span of the specified kind around the supplied block.
+   * Opens a span named `name` of kind `kind` and runs `f` with it; see the
+   * three-parameter `span` for the details.
    */
   def span[A](name: String, kind: SpanKind)(f: Span => A): A =
     span(name, kind, Attributes.empty)(f)
 
   /**
-   * Creates a span of the specified kind and attributes around the supplied
-   * block.
+   * Opens a span named `name` of kind `kind` that starts with `attributes`,
+   * runs `f` with it as the current span, and returns the result of `f`.
+   *
+   * The new span is a child of the current span, in its trace, or starts a new
+   * trace when there is none. The sampler sees `name`, `kind` and `attributes`,
+   * but not the attributes `f` sets later. When it drops the span, `f` receives
+   * [[Span.NoOp]] and no processor hears of it. Otherwise every processor's
+   * `onStart` runs before `f`; when `f` returns or throws, the span ends and
+   * every processor's `onEnd` receives its [[SpanData]], on the calling thread.
+   * An exception from `f` then propagates, and the span's status stays `Unset`
+   * unless `f` set one.
+   *
+   * Attributes that the sampler returns are added to the span before
+   * `attributes`, which win on a name clash.
    */
   def span[A](name: String, kind: SpanKind, attributes: Attributes)(f: Span => A): A = {
     val parentCtx              = contextStorage.get()
