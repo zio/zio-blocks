@@ -95,7 +95,7 @@ val claims = JwtClaims(
 )
 ```
 
-Objects and arrays nest arbitrarily and are preserved exactly; no values are dropped during parsing. Do not put registered claim names (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`) in `extra`; use the dedicated fields.
+Objects and arrays nest up to `JwtLimits.maxDepth` (default 32) and keep their values, except that a repeated field name keeps its last value. Do not put registered claim names (`iss`, `sub`, `aud`, `exp`, `nbf`, `iat`, `jti`) in `extra`; use the dedicated fields.
 
 ### Audience
 
@@ -113,7 +113,7 @@ When `expectedAudience` is set in `JwtDecodeOptions`, `aud` must be present and 
 
 ### Limits and Options
 
-Resource limits are conservative and checked before allocation:
+`JwtLimits` bounds the token, each segment, the JSON text, the nesting depth, the fields per object and the elements per array; the following example sets each limit and passes them to decoding and signing:
 
 ```scala mdoc:compile-only
 import zio.blocks.jwt._
@@ -165,7 +165,7 @@ Jwt.sign(claims, key, Algorithm.HS256, hdr)
 | ES512     | ✓   | ✓            | —         | P-521 (`secp521r1`, 66-byte components, checked on JVM only) |
 | EdDSA     | ✓   | —            | —         | Ed25519 |
 
-HMAC keys shorter than the minimum length for their algorithm are rejected with `InvalidKey` (not `UnsupportedAlgorithm` or `InvalidToken`) on every backend. On the JVM, RSA keys under 2048 bits and EC keys on the wrong curve (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`; the Node.js backend does not check RSA key size or EC curves.
+HMAC keys shorter than the minimum length for their algorithm are rejected with `InvalidKey` (not `UnsupportedAlgorithm` or `InvalidToken`) on every backend. On the JVM, RSA keys under 2048 bits and a P-256, P-384 or P-521 key used with the wrong `ES*` algorithm (e.g. `ES256` with `secp384r1`) are also rejected with `InvalidKey`; the Node.js backend does not check RSA key size or EC curves.
 
 Query what a backend supports at runtime:
 
@@ -205,7 +205,7 @@ All errors are represented as `JwtError` subtypes (no stack traces). Limits and 
 | `MissingClaim`       | Required claim absent (`alg`, `iss` when `issuer` is set, `aud` when `expectedAudience` is set) |
 | `InvalidClaim`       | A claim has the wrong type (`iss`/`sub` not a string, `exp` not a number, `aud` array with non-strings), or `iss`/`aud` does not match `issuer`/`expectedAudience` |
 | `AlgorithmMismatch`  | On `decode`, the token's `alg` header differs from the `alg` argument; on `sign`, `header.alg` differs from the `alg` argument |
-| `InvalidKey`         | Key bytes are malformed, in the wrong format, or too weak (short HMAC secret; on JVM, RSA under 2048 bits or wrong EC curve) |
+| `InvalidKey`         | Key bytes are malformed, in the wrong format, or too weak (short HMAC secret; on JVM, RSA under 2048 bits or a P-256/P-384/P-521 key with the wrong `ES*` algorithm) |
 | `TokenTooLarge`      | Compact token > `maxTokenChars` |
 | `SegmentTooLarge`    | A segment > `maxSegmentChars` |
 | `JsonTooLarge`       | Decoded JSON > `maxJsonChars` |

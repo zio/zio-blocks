@@ -181,7 +181,7 @@ The Element Access category exposes `columns`, which returns the SQL column name
 
 #### `columns` — Column names in codec order
 
-`Table#columns` returns an `IndexedSeq[String]` of the SQL column names for this table, in the same order as the underlying `DbCodec[A]`. The names are drawn from the validated `columnsMeta` and have already been checked to be legal SQL identifiers at construction time. Access is O(1) since the sequence is built once during construction.
+`Table#columns` returns an `IndexedSeq[String]` of the SQL column names for this table, in the order of `columnsMeta`. The names come from `columnsMeta`, not from the `DbCodec[A]`, so they can differ from the codec's columns for nested and collection fields, and they have already been checked to be legal SQL identifiers at construction time. Each call maps the validated metadata to names, so the cost grows with the number of columns.
 
 ```scala
 final case class Table[A](...) {

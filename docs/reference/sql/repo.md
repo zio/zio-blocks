@@ -430,7 +430,7 @@ val rowsAffected: Int = repo.insert(User(1, "Alice", "alice@example.com"))
 
 #### `insertReturning` — Insert and Return the Inserted Entity
 
-`Repo#insertReturning` inserts the entity, retrieves the generated primary key via JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `Repo#find` with that key. If the driver returns no generated key, it falls back to `Repo#find` with `Repo#getId(entity)`.
+`Repo#insertReturning` inserts the entity with its own ID, retrieves the first column of the driver's generated keys through JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `Repo#find` with that key. If the driver returns no generated key, or no row has that key as its ID, it falls back to `Repo#find` with `Repo#getId(entity)`.
 
 ```scala
 class Repo[E, ID] {
@@ -438,7 +438,7 @@ class Repo[E, ID] {
 }
 ```
 
-This method is most useful when the database assigns the primary key — for example, via an auto-increment or sequence column — and the caller needs to read the assigned value back:
+The insert always writes every column, the ID included, so the database never assigns the key: `insertReturning` is `Repo#insert` followed by a read of the stored row, and the entity must carry the ID it should have. Passing a placeholder such as `0` stores `0`, and a second placeholder insert violates the primary key:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -450,12 +450,12 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
-// Pass a placeholder ID; the returned entity carries the database-assigned key.
-val inserted: User = repo.insertReturning(User(0, "Bob", "bob@example.com"))
+// The entity carries its own ID; the returned entity is the row read back from the table.
+val inserted: User = repo.insertReturning(User(1, "Bob", "bob@example.com"))
 ```
 
 :::caution
-`insertReturning` throws `NoSuchElementException` if the inserted row cannot be found after the insert. This can occur when the JDBC driver returns a key whose type does not match what `idCodec` expects. Verify that `idCodec` matches the database column type before relying on auto-generated keys.
+In 0.0.56 the key is read from the first generated-key column, which is not always the ID column (on SQLite it is the `rowid`), so `insertReturning` can return another row, or fail on PostgreSQL; this is a known bug in 0.0.56. `insertReturning` also throws `NoSuchElementException` if the inserted row cannot be found after the insert.
 :::
 
 #### `insertBatch` — Batch-Insert Multiple Entities
