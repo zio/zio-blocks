@@ -1,6 +1,6 @@
 //> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-smithy:0.0.56
-//> using dep dev.zio::zio-blocks-codegen:0.0.56
+//> using dep dev.zio::zio-blocks-next-smithy:0.0.56
+//> using dep dev.zio::zio-blocks-next-codegen:0.0.56
 //> using options -experimental
 //> using file ServiceMapping.scala
 // Run from this folder:  scala-cli run Step3ErrorTypeExample.scala
@@ -29,7 +29,11 @@ object Step3ErrorTypeExample {
       case Right(parsed) => parsed
       case Left(error)   => throw new IllegalArgumentException(error.formatMessage)
     }
-    val file = ScalaFile(PackageDecl(model.namespace), types = ServiceMapping.errorTypes(model))
+    val file = ScalaFile(
+      PackageDecl(model.namespace),
+      imports = List(Import.WildcardImport("zio.blocks.schema")),
+      types = ServiceMapping.errorTypes(model)
+    )
     println(ScalaEmitter.emit(file, EmitterConfig.default))
   }
 }

@@ -72,19 +72,16 @@ object ServiceMapping {
 
   def dataTypes(model: SmithyModel): List[TypeDefinition] = {
     val errors = errorNames(model)
-    val errorType = TypeRef(errorTypeName(service(model)))
-    model.shapes.collect {
-      case ShapeDefinition(name, _) if errors.contains(name)      => None
-      case ShapeDefinition(name, shape: StructureShape)           =>
-        Some(caseClassFor(model, name, shape, Nil))
-      case ShapeDefinition(name, shape: EnumShape)                => Some(enumFor(name, shape))
-      case _                                                      => None
-    }.flatten
+    model.shapes.flatMap {
+      case ShapeDefinition(name, _) if errors.contains(name) => None
+      case ShapeDefinition(name, shape: StructureShape)      => Some(caseClassFor(model, name, shape, Nil))
+      case ShapeDefinition(name, shape: EnumShape)           => Some(enumFor(name, shape))
+      case _                                                 => None
+    }
   }
 
   def errorTypes(model: SmithyModel): List[TypeDefinition] = {
-    val svc       = service(model)
-    val errorType = errorTypeName(svc)
+    val errorType  = errorTypeName(service(model))
     val sealedType = SealedTrait(errorType, doc = Some("Every error an operation of the service can return."))
     val cases = errorNames(model).map { name =>
       model.findShape(name).map(_.shape) match {
@@ -124,6 +121,6 @@ object ServiceMapping {
     ScalaFile(
       PackageDecl(model.namespace),
       imports = List(Import.WildcardImport("zio.blocks.schema")),
-      types = dataTypes(model) ++ errorTypes(model) :+ serviceTrait(model)
+      types = (dataTypes(model) ++ errorTypes(model)) :+ serviceTrait(model)
     )
 }

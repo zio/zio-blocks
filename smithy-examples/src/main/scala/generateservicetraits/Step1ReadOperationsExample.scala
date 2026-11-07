@@ -1,6 +1,6 @@
 //> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-smithy:0.0.56
-//> using dep dev.zio::zio-blocks-codegen:0.0.56
+//> using dep dev.zio::zio-blocks-next-smithy:0.0.56
+//> using dep dev.zio::zio-blocks-next-codegen:0.0.56
 //> using options -experimental
 //> using file ServiceMapping.scala
 // Run from this folder:  scala-cli run Step1ReadOperationsExample.scala
