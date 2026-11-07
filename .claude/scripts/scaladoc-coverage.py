@@ -216,15 +216,49 @@ def coverage(root):
 _PAIRS = ((r"/scala-2/", "/scala-3/", "{scala-2,scala-3}"), (r"^jvm/", "js/", "{jvm,js}"))
 
 
-def _keyed(decls):
-    """Key each declaration by (name, occurrence index) so overloads are compared pairwise."""
+def _full_path(owner):
+    return owner
+
+
+def _innermost(owner):
+    return owner[-1:]
+
+
+def _keyed(decls, scope):
+    """Key each declaration by (scope, kind and name, occurrence index), so overloads pair up pairwise.
+
+    `scope` picks the part of the enclosing path that must match: the whole path, or the innermost type only.
+    """
     seen = {}
     keyed = {}
     for d in decls:
-        k = seen.get(d.name, 0)
-        seen[d.name] = k + 1
-        keyed[(d.name, k)] = d.doc
+        group = (scope(d.owner), d.name)
+        k = seen.get(group, 0)
+        seen[group] = k + 1
+        keyed[(group, k)] = d
     return keyed
+
+
+def _differing(decls_a, decls_b):
+    """Returns (owner, name, index) of each declaration whose Scaladoc differs between two copies of a file.
+
+    Declarations pair up by their full enclosing path first. Those left over pair up by innermost enclosing
+    type, so a version-specific wrapper (`object MaybeValue { final class Present }` against a top-level
+    `final class Present`) does not hide them. Members of different types never pair.
+    """
+    report = []
+    for scope in (_full_path, _innermost):
+        a = _keyed(decls_a, scope)
+        b = _keyed(decls_b, scope)
+        matched = a.keys() & b.keys()
+        for key in sorted(matched):
+            if a[key].doc != b[key].doc:
+                report.append((a[key].owner, a[key].name, key[1]))
+        done_a = {id(a[key]) for key in matched}
+        done_b = {id(b[key]) for key in matched}
+        decls_a = [d for d in decls_a if id(d) not in done_a]
+        decls_b = [d for d in decls_b if id(d) not in done_b]
+    return sorted(report)
 
 
 def drift(root):
@@ -238,13 +272,12 @@ def drift(root):
             if other not in files:
                 continue
             with open(files[rel], encoding="utf-8") as a, open(files[other], encoding="utf-8") as b:
-                docs_a = _keyed(scan(a.read()))
-                docs_b = _keyed(scan(b.read()))
+                decls_a = scan(a.read())
+                decls_b = scan(b.read())
             shown = re.sub(left, "/" + label + "/" if left.startswith("/") else label + "/", rel, count=1)
-            for key in sorted(docs_a.keys() & docs_b.keys()):
-                if docs_a[key] != docs_b[key]:
-                    name, k = key
-                    report.append(f"{shown}: {name}" + (f" #{k + 1}" if k else ""))
+            for owner, name, k in _differing(decls_a, decls_b):
+                prefix = "".join(f"{t}." for t in owner)
+                report.append(f"{shown}: {prefix}{name}" + (f" #{k + 1}" if k else ""))
     return report
 
 

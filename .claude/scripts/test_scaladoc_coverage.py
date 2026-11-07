@@ -263,6 +263,49 @@ class DriftTest(unittest.TestCase):
                 ["shared/src/main/{scala-2,scala-3}/zio/blocks/schema/Y.scala: def f #2"],
             )
 
+    def _write_maybe(self, root, scala2, scala3):
+        for version, text in (("scala-2", scala2), ("scala-3", scala3)):
+            d = pathlib.Path(root, "shared/src/main", version, "zio/blocks/maybe")
+            d.mkdir(parents=True)
+            (d / "Maybe.scala").write_text(text)
+
+    def test_drift_pairs_members_of_the_same_enclosing_type_only(self):
+        # Scala 3 has a second `apply` in `Present`, which Scala 2 lacks: it must not pair with `Maybe.apply`.
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+                "object Present {\n  /** Uno. */\n  def apply = 1\n}\n"
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+            )
+            self.assertEqual(sc.drift(root), [])
+
+    def test_drift_reports_a_difference_between_members_of_the_same_type(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+                "object Present {\n  /** Uno. */\n  def apply = 1\n}\n"
+                "object Maybe {\n  /** Other. */\n  def apply = 1\n}\n",
+            )
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/maybe/Maybe.scala: Maybe.def apply"],
+            )
+
+    def test_drift_pairs_leftovers_by_innermost_type_across_a_version_wrapper(self):
+        # Scala 2 nests `Present` in `MaybeValue`; Scala 3 declares it at the top level.
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object MaybeValue {\n  final class Present {\n    /** One. */\n    def get = 1\n  }\n}\n",
+                "final class Present {\n  /** Uno. */\n  def get = 1\n}\n",
+            )
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/maybe/Maybe.scala: MaybeValue.Present.def get"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
