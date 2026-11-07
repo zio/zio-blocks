@@ -563,14 +563,14 @@ ToDom[Iterable[String]].toDom(List("a", "b")).render
 
 #### ToText
 
-`ToText[A]` converts a value to a plain `String` rather than a DOM node, and is what attribute values and text interpolation use. Instances cover `String`, `Int`, `Long`, `Double`, `Float`, `Boolean`, `Char`, `Byte`, `Short`, `BigInt`, and `BigDecimal`:
+`ToText[A]` converts a value to a plain `String` rather than a DOM node. Instances cover `String`, `Int`, `Long`, `Double`, `Float`, `Boolean`, `Char`, `Byte`, `Short`, `BigInt`, and `BigDecimal`:
 
 ```scala mdoc
 ToText[Int].toText(42)
 ToText[BigDecimal].toText(BigDecimal("1.50"))
 ```
 
-There is deliberately no `ToText[Dom]`: rendering an element to text is `Dom#render`, whereas `ToText` is for values that are already scalar. Providing your own instance is how a domain type becomes usable as an attribute value.
+There is deliberately no `ToText[Dom]`: rendering an element to text is `Dom#render`, whereas `ToText` is for values that are already scalar.
 
 ### Dom.Element.Void
 
@@ -725,7 +725,7 @@ def menu(items: (Dom.Attribute | Dom.Element.Li)*): Dom.Element =
   </TabItem>
 </Tabs>
 
-Taking `Iterable[Dom.Element.Li]` avoids the difference entirely, since every constrained factory also has a collection overload that is spelled the same on both versions.
+Taking `Iterable[Dom.Element.Li]` avoids the difference entirely, since `ul`, `ol`, `tr`, `table`, `optgroup` and `select` each have a collection overload that is spelled the same on both versions (`script` and `style` have none).
 
 ### Concrete Element Classes
 
