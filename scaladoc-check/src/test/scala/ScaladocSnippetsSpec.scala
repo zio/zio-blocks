@@ -390,7 +390,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
     },
     test("render drops the module import when the example binds the name it uses itself") {
-      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val streamsPath                                       = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       def needs(names: Set[String], code: String*): Boolean =
         ScaladocSnippets.needsModuleImport(ScaladocSnippets.Snippet(streamsPath, 4, code.toList, None), names)
       assertTrue(
@@ -468,8 +468,8 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(!ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
     },
     test("generate keeps the module import only for the examples that use a module name") {
-      val streams = "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala"
-      val demo    = "streams/shared/src/main/scala/zio/blocks/streams/Demo.scala"
+      val streams     = "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala"
+      val demo        = "streams/shared/src/main/scala/zio/blocks/streams/Demo.scala"
       val demoContent = source(
         "/**",
         " * {{{",

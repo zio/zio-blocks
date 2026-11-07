@@ -140,10 +140,11 @@ object ScaladocSnippets {
    * Whether `snippet` already imports everything it gets from its module
    * package, so the wrapper's module import would be unused: a line starting
    * `import <package>._`, or `import <package>.syntax` (`_` or `{`), as the
-   * schema-xml `syntax` examples do with `import zio.blocks.schema.xml.syntax._`
-   * (the `syntax` objects hold extension methods, which no name check can
-   * find). Other sub-package imports (such as `zio.blocks.schema.patch.X`) do
-   * not count: they bring in only part of the package.
+   * schema-xml `syntax` examples do with
+   * `import zio.blocks.schema.xml.syntax._` (the `syntax` objects hold
+   * extension methods, which no name check can find). Other sub-package imports
+   * (such as `zio.blocks.schema.patch.X`) do not count: they bring in only part
+   * of the package.
    *
    * Such an example does not need the wrapper's module import. Keeping it would
    * be an unused import, which scalac warns about in every copy of the example
@@ -175,16 +176,17 @@ object ScaladocSnippets {
 
   /**
    * The names that the files of one module, for one Scala version, contribute
-   * to the module package. The files are read from `sources`, which are all
-   * the files of one module for one Scala version. A file's package is read
-   * from its `package` clauses, not its directory, because some modules keep
-   * files of `zio.http.datastar` under `zio/blocks/datastar/`. For each file of
-   * the package itself, every declaration (`class`, `trait`, `object`, `type`,
-   * `enum`, `def`, `val`, `var`, not `private`) counts, at any indentation: that
-   * covers top-level declarations, members of a `package object`, and members
-   * of an `implicit class` (`md` in `md"..."`). Indented names over-include,
-   * which only keeps the import. For each file of a sub-package, its first
-   * name below the package counts (`io` for `package zio.blocks.streams.io`).
+   * to the module package. The files are read from `sources`, which are all the
+   * files of one module for one Scala version. A file's package is read from
+   * its `package` clauses, not its directory, because some modules keep files
+   * of `zio.http.datastar` under `zio/blocks/datastar/`. For each file of the
+   * package itself, every declaration (`class`, `trait`, `object`, `type`,
+   * `enum`, `def`, `val`, `var`, not `private`) counts, at any indentation:
+   * that covers top-level declarations, members of a `package object`, and
+   * members of an `implicit class` (`md` in `md"..."`). Indented names
+   * over-include, which only keeps the import. For each file of a sub-package,
+   * its first name below the package counts (`io` for
+   * `package zio.blocks.streams.io`).
    *
    * Givens and anonymous implicit instances are not names. An example that
    * needs one only through the wrapper's import fails to compile, so it then
@@ -211,12 +213,12 @@ object ScaladocSnippets {
   }
 
   /**
-   * Whether the wrapper of `snippet` needs its module import: the example
-   * uses one of the module's names (`moduleNames`) that it does not bind
-   * itself, by an import or a declaration of its own (those shadow the
-   * wrapper's import, so the wrapper's import is then unused). An example that
-   * uses none of them, or imports its module package with `importsModule`,
-   * gets no module import, so scalac has no unused import to warn about.
+   * Whether the wrapper of `snippet` needs its module import: the example uses
+   * one of the module's names (`moduleNames`) that it does not bind itself, by
+   * an import or a declaration of its own (those shadow the wrapper's import,
+   * so the wrapper's import is then unused). An example that uses none of them,
+   * or imports its module package with `importsModule`, gets no module import,
+   * so scalac has no unused import to warn about.
    *
    * The check errs towards keeping the import: a name it cannot tell apart
    * keeps the import, which is then used or at worst warns as before. The one
@@ -225,7 +227,7 @@ object ScaladocSnippets {
    * fails to compile loudly, so the example then needs its own import.
    */
   def needsModuleImport(snippet: Snippet, moduleNames: Set[String]): Boolean = {
-    val used  = snippet.code.flatMap(line => mentionedIdentifier.findAllIn(line).toList).toSet
+    val used     = snippet.code.flatMap(line => mentionedIdentifier.findAllIn(line).toList).toSet
     val imported = snippet.code
       .filter(_.trim.startsWith("import "))
       .flatMap(line => importedIdentifier.findAllIn(line).toList)
