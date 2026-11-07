@@ -21,7 +21,10 @@ sealed trait IssueError
 final case class PageFailed(cursor: Option[String], reason: String) extends IssueError
 final case class ItemFailed(item: String, reason: String)           extends IssueError
 
-/** Where the walk goes next: to the first page, to the page after a cursor, or nowhere. */
+/**
+ * Where the walk goes next: to the first page, to the page after a cursor, or
+ * nowhere.
+ */
 sealed trait Position
 object Position {
   case object First                      extends Position
@@ -40,7 +43,7 @@ final class FakeTrackerApi(pages: Map[Option[String], Either[String, RawPage]]) 
   def requests: List[Option[String]] = log.synchronized(log.toList)
 
   def fetchPage(cursor: Option[String]): Either[PageFailed, RawPage] = {
-    log.synchronized { log += cursor }
+    log.synchronized(log += cursor)
     pages.get(cursor) match {
       case Some(Right(page))  => Right(page)
       case Some(Left(reason)) => Left(PageFailed(cursor, reason))

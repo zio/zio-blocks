@@ -10,9 +10,11 @@
 package paginatedapi
 
 /**
- * Paginated API into a stream: walking pages with unfold, stopping on the last page
+ * Paginated API into a stream: walking pages with unfold, stopping on the last
+ * page
  *
- * Walks three pages with Stream.unfold and prints how many pages came back and which cursors were requested.
+ * Walks three pages with Stream.unfold and prints how many pages came back and
+ * which cursors were requested.
  */
 object Step1WalkPagesExample {
   def main(args: Array[String]): Unit = {

@@ -6,7 +6,10 @@ import zio.blocks.streams._
 
 object Pipeline {
 
-  /** Turns one page response into the next walk step: a failure ends the walk, and a page without `next` is the last. */
+  /**
+   * Turns one page response into the next walk step: a failure ends the walk,
+   * and a page without `next` is the last.
+   */
   def advance(result: Either[PageFailed, RawPage]): (Either[PageFailed, RawPage], Position) =
     result match {
       case Left(failure) => (Left(failure), Position.Done)
@@ -33,7 +36,10 @@ object Pipeline {
       case position      => api.fetchPageAsync(cursorOf(position)).map(result => Some(advance(result)))
     }
 
-  /** Decodes each item of a page with the `Issue` schema; a bad item fails the stream. */
+  /**
+   * Decodes each item of a page with the `Issue` schema; a bad item fails the
+   * stream.
+   */
   def decodeItems(page: RawPage): Stream[IssueError, Issue] =
     Stream.fromIterable(page.items).flatMap { raw =>
       raw.fromJson[Issue] match {

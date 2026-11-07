@@ -12,7 +12,8 @@ package paginatedapi
 /**
  * How to Turn a Paginated API into a Stream: the complete program
  *
- * Reads the issues with the non-blocking walk and prints the titles, then reads a tracker whose second page fails.
+ * Reads the issues with the non-blocking walk and prints the titles, then reads
+ * a tracker whose second page fails.
  */
 object CompleteExample {
   def main(args: Array[String]): Unit = {

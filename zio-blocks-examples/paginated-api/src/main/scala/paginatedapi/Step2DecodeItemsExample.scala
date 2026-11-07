@@ -12,7 +12,8 @@ package paginatedapi
 /**
  * Paginated API into a stream: flattening pages and decoding items
  *
- * Flattens the pages into issues, decodes each item with the Issue schema, and prints the titles.
+ * Flattens the pages into issues, decodes each item with the Issue schema, and
+ * prints the titles.
  */
 object Step2DecodeItemsExample {
   def main(args: Array[String]): Unit = {

@@ -12,14 +12,15 @@ package paginatedapi
 /**
  * Paginated API into a stream: handling errors, restarting a run
  *
- * Shows a failed page request, a malformed item and a second run of the same stream.
+ * Shows a failed page request, a malformed item and a second run of the same
+ * stream.
  */
 object Step3ErrorsExample {
   def main(args: Array[String]): Unit = {
     val flaky = new FakeTrackerApi(
       Map(
-        None           -> Right(RawPage(List(FakeTrackerApi.item(1, "Login fails on Safari", "open")), Some("c2"))),
-        Some("c2")     -> Left("503 Service Unavailable")
+        None       -> Right(RawPage(List(FakeTrackerApi.item(1, "Login fails on Safari", "open")), Some("c2"))),
+        Some("c2") -> Left("503 Service Unavailable")
       )
     )
     println(Pipeline.issues(flaky).runCollect)
