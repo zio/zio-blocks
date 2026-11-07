@@ -83,6 +83,32 @@ The `expectedType` string is derived from the schema's primitive type name. When
 
 `InvalidValue` is also what a failing wrapper type produces: if a newtype's constructor throws while wrapping a successfully-decoded inner value, the thrown exception becomes the `cause`.
 
+`InvalidValue#message` redacts the offending value — printing `<secret>` in its place and dropping the `cause` text — when the key's path looks like it names a secret. It uses the same name-based check as `ProvenanceMap#dump`, so the same limits apply: see [Redaction is name-based only](./config-source.md#dumping-configuration). A key named `password` that fails to parse reports the type mismatch without ever printing what was typed:
+
+```scala mdoc:silent:reset
+import zio.blocks.config._
+import zio.blocks.schema.Schema
+
+case class Db(password: Int)
+
+object Db {
+  implicit val schema: Schema[Db] = Schema.derived[Db]
+}
+```
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults")).left.map(_.head.message)
+```
+
+Redaction applies to the rendered message only, which is also what `toString` prints. The `value` field of the error still holds the raw string, so read it only where printing it is safe:
+
+```scala mdoc
+Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults")).left.map(_.head match {
+  case e: ConfigError.InvalidValue => e.value
+  case other                       => other.message
+})
+```
+
 ### ConfigError.ParseError
 
 The raw value could not be decoded at the format level, as distinct from a type mismatch on a well-formed value. Carries the path, source, expected format, and optional cause. The YAML, JSON, and HOCON adapters produce it when the document itself is malformed, and the JVM file loader produces it for a missing file or a rejected include path.

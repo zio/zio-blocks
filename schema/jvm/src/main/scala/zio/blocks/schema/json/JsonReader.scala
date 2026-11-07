@@ -750,7 +750,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a number or has a fraction or
@@ -786,7 +786,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a number or has a fraction or
@@ -802,7 +802,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a number or has a fraction or
@@ -818,7 +818,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a number or has a fraction or
@@ -832,9 +832,8 @@ final class JsonReader private[json] (
    * Reads a JSON number into the nearest `Double`. A number beyond the `Double`
    * range reads as `Double.PositiveInfinity` or `Double.NegativeInfinity`, and
    * one too close to zero reads as `0.0` (or `-0.0` when negative), without an
-   * error, although [[JsonWriter]] then rejects the infinity (see
-   * `docs/dev/issues.md`). `NaN` and `Infinity` are not JSON numbers and are
-   * rejected.
+   * error, although [[JsonWriter]] then rejects the infinity (a known bug in
+   * 0.0.56). `NaN` and `Infinity` are not JSON numbers and are rejected.
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a JSON number (for example
@@ -864,7 +863,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not an integer or has a fraction
@@ -881,7 +880,7 @@ final class JsonReader private[json] (
    *
    * A number that starts with `0` is not checked past the `0`: `0.5` or `0e2`
    * reads as `0` and leaves the rest unread, so the error, if any, comes from
-   * the next read (a known bug, see `docs/dev/issues.md`).
+   * the next read (a known bug in 0.0.56).
    *
    * @param digitsLimit
    *   one more than the largest number of digits accepted
@@ -1746,8 +1745,7 @@ final class JsonReader private[json] (
    * Skips the next JSON value and the whitespace before it. It reads only
    * enough to find where the value ends: it rejects a first byte that no JSON
    * value starts with, but does not validate the rest, so `nope`, `[1,}]` and
-   * `1-2+e` are skipped without an error (a known bug, see
-   * `docs/dev/issues.md`).
+   * `1-2+e` are skipped without an error (a known bug in 0.0.56).
    *
    * @throws JsonCodecError
    *   `expected value` when the next token does not start a JSON value, or the

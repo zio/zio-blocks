@@ -472,7 +472,7 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
   /**
    * Narrows the single selected value to the type `t`. Fails if there are 0 or
    * more than 1 values, or if the value is of another type. The error message
-   * names both types as `<function1>` (see `docs/dev/issues.md`).
+   * names both types as `<function1>` (a known bug in 0.0.56).
    */
   def as(t: DynamicValueType): Either[SchemaError, t.Type] = one.flatMap { dv =>
     dv.as(t).toRight(SchemaError(s"Expected $t but got ${dv.valueType}"))
@@ -488,7 +488,7 @@ final case class DynamicValueSelection(either: Either[SchemaError, Chunk[Dynamic
    * Returns the contents of the single selected value (see
    * `DynamicValue#unwrap`). Fails if there are 0 or more than 1 values, or if
    * the value is not of type `t`; the error message names the types as
-   * `<function1>` (see `docs/dev/issues.md`).
+   * `<function1>` (a known bug in 0.0.56).
    */
   def unwrap(t: DynamicValueType): Either[SchemaError, t.Unwrap] = one.flatMap { dv =>
     dv.unwrap(t).toRight(SchemaError(s"Cannot unwrap ${dv.valueType} as $t"))

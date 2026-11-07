@@ -30,9 +30,8 @@ import zio.blocks.typeid.TypeId
  *
  * No mode checks that the value still holds what it held when the patch was
  * made: a delete by index removes whatever is at that index now, and a delta
- * adds to the current number (see `docs/dev/issues.md`). Check that the value
- * is unchanged, for example with a version number, before applying a stored
- * patch.
+ * adds to the current number (a known bug in 0.0.56). Check that the value is
+ * unchanged, for example with a version number, before applying a stored patch.
  *
  * @see
  *   [[https://zioblocks.com/reference/schema/patch/ Patching]]

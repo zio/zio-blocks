@@ -35,13 +35,13 @@ import zio.blocks.docs.Doc
  * by parent type and field name replaces that field's instance and wins over a
  * type override of the field's type, unless an optic override targets the same
  * field. For the same target, an override on the deriver wins over one given
- * here (see `docs/dev/issues.md`), and among those given here the last one
- * wins. A node overridden by optic or by type is not derived, so modifiers
- * added for it, and term modifiers for its fields, have no effect. Its
- * descendants, and a field overridden by parent type and name, are still
- * derived and the result discarded, so modifiers added for them still run: an
- * unknown `Modifier.fieldNaming` on one still makes `derive` throw (see
- * `docs/dev/issues.md`).
+ * here (a known bug in 0.0.56), and among those given here the last one wins. A
+ * node overridden by optic or by type is not derived, so modifiers added for
+ * it, and term modifiers for its fields, have no effect. Its descendants, and a
+ * field overridden by parent type and name, are still derived and the result
+ * discarded, so modifiers added for them still run: an unknown
+ * `Modifier.fieldNaming` on one still makes `derive` throw (a known bug in
+ * 0.0.56).
  *
  * {{{
  * import zio.blocks.schema.json._
@@ -82,12 +82,12 @@ final case class DerivationBuilder[TC[_], A](
    * are derived as usual; a path through `each` matches every element of that
    * sequence. The override is evaluated when the deriver first forces it, not
    * here: during `derive` for `JsonCodecDeriver`, possibly later for a deriver
-   * that forces children on first use. It may be evaluated more than once (see
-   * `docs/dev/issues.md`).
+   * that forces children on first use. It may be evaluated more than once (a
+   * known bug in 0.0.56).
    *
    * With `JsonCodecDeriver`, an override inside a record type that is recursive
    * or has a field with a default value applies to every occurrence of that
-   * type, or to none (see `docs/dev/issues.md`).
+   * type, or to none (a known bug in 0.0.56).
    *
    * {{{
    * import zio.blocks.schema.json._
@@ -120,7 +120,7 @@ final case class DerivationBuilder[TC[_], A](
    * An override by optic or by field name wins over this one for the nodes it
    * targets, and a later override for the same type replaces this one. When the
    * deriver has a `Deriver#withInstance` override for the same type, that one
-   * wins and this one is ignored without a warning (see `docs/dev/issues.md`).
+   * wins and this one is ignored without a warning (a known bug in 0.0.56).
    */
   def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides.appended(new InstanceOverrideByType(typeId, Lazy(instance))))
@@ -165,7 +165,7 @@ final case class DerivationBuilder[TC[_], A](
    * by type, then the schema's own, and `JsonCodecDeriver` uses the first
    * `rename` it finds. With `JsonCodecDeriver`, a modifier inside a record type
    * that is recursive or has a field with a default value can apply to every
-   * occurrence of that type, or to none (see `docs/dev/issues.md`).
+   * occurrence of that type, or to none (a known bug in 0.0.56).
    *
    * {{{
    * import zio.blocks.schema.json.JsonCodecDeriver

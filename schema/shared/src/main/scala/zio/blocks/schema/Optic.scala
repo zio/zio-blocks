@@ -151,9 +151,8 @@ sealed trait Optic[S, A] { self =>
    * case, an [[Optional]] on a missing index or key, a [[Traversal]] over an
    * empty collection. It also equals `s` when a `wrapped` step on the path
    * throws a [[SchemaError]], including one that `f` throws below that step (a
-   * bug, see `docs/dev/issues.md`); other exceptions, from the path or from
-   * `f`, propagate. `modifyOption` and `modifyOrFail` say when nothing was
-   * modified.
+   * known bug in 0.0.56); other exceptions, from the path or from `f`,
+   * propagate. `modifyOption` and `modifyOrFail` say when nothing was modified.
    *
    * {{{
    * case class Book(title: String, tags: List[String])
@@ -171,8 +170,8 @@ sealed trait Optic[S, A] { self =>
   /**
    * Like `modify`, but returns `None` instead of an unchanged value when there
    * is nothing to focus on, and when a `wrapped` step on the path throws a
-   * [[SchemaError]], including one that `f` throws below that step (a bug, see
-   * `docs/dev/issues.md`). A [[Lens]] always returns `Some`.
+   * [[SchemaError]], including one that `f` throws below that step (a known bug
+   * in 0.0.56). A [[Lens]] always returns `Some`.
    */
   def modifyOption(s: S, f: A => A): Option[S]
 
@@ -180,10 +179,9 @@ sealed trait Optic[S, A] { self =>
    * Like `modify`, but returns `Left` with an [[OpticCheck]] that says why
    * nothing was modified, as `check` does, and a [[OpticCheck.WrappingError]]
    * when a `wrapped` step on the path throws a [[SchemaError]], including one
-   * that `f` throws below that step (a bug, see `docs/dev/issues.md`). A
-   * [[Lens]] always returns `Right`. A [[Traversal]] returns `Right` once it
-   * has modified at least one part, even when other parts are missing; `check`
-   * reports those.
+   * that `f` throws below that step (a known bug in 0.0.56). A [[Lens]] always
+   * returns `Right`. A [[Traversal]] returns `Right` once it has modified at
+   * least one part, even when other parts are missing; `check` reports those.
    */
   def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S]
 
@@ -681,7 +679,7 @@ object Lens {
    * Creates a lens on the field `focusTerm` of the record `source`. The field
    * is looked up by the term's name, so `focusTerm` must be one of `source`'s
    * fields. If it is not, the lens throws `ArrayIndexOutOfBoundsException` the
-   * first time it reads or writes a value (see `docs/dev/issues.md`).
+   * first time it reads or writes a value (a known bug in 0.0.56).
    * `Reflect.Record#lensByName` and the `$` macro of [[CompanionOptics]] check
    * the field for you.
    *
@@ -953,9 +951,9 @@ object Prism {
   /**
    * Creates a prism on the case `focusTerm` of the variant `source`. The case
    * is looked up by the term's name, so `focusTerm` must be one of `source`'s
-   * cases. If it is not, this method throws `ArrayIndexOutOfBoundsException`
-   * (see `docs/dev/issues.md`). `Reflect.Variant#prismByName` and the `$` macro
-   * of [[CompanionOptics]] check the case for you.
+   * cases. If it is not, this method throws `ArrayIndexOutOfBoundsException` (a
+   * known bug in 0.0.56). `Reflect.Variant#prismByName` and the `$` macro of
+   * [[CompanionOptics]] check the case for you.
    *
    * @throws java.lang.IllegalArgumentException
    *   if `source` or `focusTerm` is null
@@ -2004,7 +2002,7 @@ object Traversal {
    * [[OpticCheck.SequenceIndexOutOfBounds]]. When another step follows
    * `atIndices` and the sequence is not indexed (a `List`, for example),
    * `check` also reports reachable indices after the first as out of bounds;
-   * `fold` and `modify` are not affected (a bug, see `docs/dev/issues.md`).
+   * `fold` and `modify` are not affected (a known bug in 0.0.56).
    *
    * @throws java.lang.IllegalArgumentException
    *   if `seq` or `indices` is null, `indices` is empty, or it holds a negative
@@ -4076,11 +4074,11 @@ object Traversal {
  * `check` visit it depth first, left to right: the value itself, then record
  * fields, case values, sequence elements, and both the keys and the values of
  * maps. `modify` visits the same nodes except map keys, so a match that is a
- * map key is read but never modified (see `docs/dev/issues.md`). Every node
- * that decodes with the focus schema is a match, and the children of a match
- * are searched too. `modify` applies `f` to each match and decodes the result
- * with the source schema; if that decoding fails, it returns `s` unchanged.
- * `check` reports an [[OpticCheck.EmptySequence]] when nothing matches.
+ * map key is read but never modified (a known bug in 0.0.56). Every node that
+ * decodes with the focus schema is a match, and the children of a match are
+ * searched too. `modify` applies `f` to each match and decodes the result with
+ * the source schema; if that decoding fails, it returns `s` unchanged. `check`
+ * reports an [[OpticCheck.EmptySequence]] when nothing matches.
  */
 object SearchTraversal {
 

@@ -50,7 +50,7 @@ trait ToStructural[A] {
    * Decoding builds an instance of `A`, which has the structural type's
    * members. Encoding reads the fields by reflection on Scala 3; on Scala 2 it
    * casts the value to `A`, so encoding any other value of the structural type
-   * throws `ClassCastException` (see `docs/dev/issues.md`).
+   * throws `ClassCastException` (a known bug in 0.0.56).
    */
   def apply(schema: Schema[A]): Schema[StructuralType]
 }
