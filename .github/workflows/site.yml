@@ -36,7 +36,7 @@ jobs:
       - name: Setup SBT
         uses: sbt/setup-sbt@v1.5.14
       - name: Cache Dependencies
-        uses: coursier/cache-action@v8.1.1
+        uses: coursier/cache-action@v9
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
