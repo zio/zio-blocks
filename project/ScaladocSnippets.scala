@@ -256,7 +256,11 @@ object ScaladocSnippets {
    * fails to compile loudly, so the example then needs its own import.
    */
   def needsModuleImport(snippet: Snippet, moduleNames: Set[String]): Boolean = {
-    val used     = snippet.code.flatMap(line => mentionedIdentifier.findAllIn(line).toList).toSet
+    // A `//` comment is not code: a word in it (`the deriver of your codecs`) is not a use of a name.
+    val used = snippet.code
+      .map(line => line.indexOf("//") match { case -1 => line; case i => line.take(i) })
+      .flatMap(line => mentionedIdentifier.findAllIn(line).toList)
+      .toSet
     val imported = snippet.code
       .filter(_.trim.startsWith("import "))
       .flatMap(line => importedIdentifier.findAllIn(line).toList)

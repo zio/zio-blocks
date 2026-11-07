@@ -403,7 +403,8 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(
         !needs(Set("Stream"), "import zio.blocks.streams.Stream", "val a = Stream.empty"),
         !needs(Set("Reader"), "final case class Reader(x: Int)", "val r = Reader(1)"),
-        !needs(Set("Stream"), "val a = zio.blocks.streams.Stream.empty")
+        !needs(Set("Stream"), "val a = zio.blocks.streams.Stream.empty"),
+        !needs(Set("deriver"), "lazy val d: Int = ??? // the deriver of your codecs")
       )
     },
     test("packageNames reads the top-level declarations and the sub-packages of a package") {
