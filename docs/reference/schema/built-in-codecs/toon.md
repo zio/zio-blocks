@@ -3,7 +3,7 @@ id: toon
 title: "TOON Codec Module"
 ---
 
-`zio-blocks-schema-toon` is a **schema-driven TOON codec module** for serializing and deserializing Scala types to and from TOON format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ToonCodec`, `ToonCodecDeriver`, `ToonFormat`, `ToonReader`, `ToonWriter`.
+`zio-blocks-schema-toon` is a **schema-driven TOON codec module** for serializing and deserializing Scala types to and from TOON format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ToonCodec`, `ToonCodecDeriver`, `ToonFormat`, `ToonReader`, `ToonWriter`.
 
 The module integrates with a pure-Scala TOON parser and writer to provide line-oriented, indentation-based serialization that is 30-60% more compact than JSON. TOON (Token-Oriented Object Notation) appears widely across LLM prompts, configuration files, and data exchange where compactness and human readability matter equally.
 
@@ -48,10 +48,10 @@ The module provides a complete pipeline for TOON codec derivation and usage:
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `Schema[A].derive(ToonFormat)` to obtain a `ToonCodec[A]`
 3. **Encode or decode** — Call `codec.encode(value)` or `codec.decode(toonBytes)`
-4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
+4. **Handle errors** — `decode` returns the `SchemaError`, with the path to the bad value, in a `Left`
 5. **Customize output** — Use `WriterConfig` for indentation and formatting, `ReaderConfig` for parsing behavior
 
-The derivation process is automatic for all supported types (all 27 primitives, records, variants, sequences, maps). The module automatically generates TOON-compatible formats and handles encoding/decoding without manual configuration.
+The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module automatically generates TOON-compatible formats and handles encoding/decoding without manual configuration.
 
 ## How They Work Together
 
@@ -83,18 +83,15 @@ The TOON codec pipeline flows through these layers:
                  ↓
 6. WriterConfig controls output formatting
    - Indentation (default: 2 spaces per level)
-   - Key folding strategy (flatten nested keys or expand)
-   - Discriminator field for variants
-   - Array format selection
+   - Key folding strategy, delimiter and discriminator field (DynamicValue codec only)
                  ↓
 7. ReaderConfig controls parsing behavior
-   - Path expansion (parse dot-separated keys as nested)
-   - Delimiter selection for inline arrays
    - Strict parsing mode (enforce TOON compliance)
-   - Discriminator field recognition
+   - Path expansion and discriminator field recognition (DynamicValue codec only)
+   - Array delimiters come from each array's header, not from ReaderConfig
                  ↓
 8. Errors include location traces
-   Shows path (.field[index].nested) to error location
+   Shows path (.field.at(index).nested) to error location
 ```
 
 A user type flows through the derivation and encoding pipeline as follows:
@@ -117,8 +114,8 @@ Handle SchemaError with location trace on failure
 - **`ToonCodec[A]`** — Main public API; contains encoder and decoder for bidirectional serialization
 - **`ToonCodecDeriver`** — Configuration and derivation system; generates codecs from Schema
 - **`ToonFormat`** — Integration with ZIO Schema format system; enables `Schema[A].derive(ToonFormat)`
-- **`WriterConfig`** — Output formatting configuration (indentation, delimiters, discriminators)
-- **`ReaderConfig`** — Input parsing configuration (path expansion, strict mode, delimiters)
+- **`WriterConfig`** — Output formatting configuration (indentation for every codec; delimiter, key folding and discriminator field for the `DynamicValue` codec)
+- **`ReaderConfig`** — Input parsing configuration (indentation and strict mode for every codec; path expansion and discriminator field for the `DynamicValue` codec)
 - **`ToonReader`, `ToonWriter`** — Low-level TOON parsing and serialization
 - **`NameMapper`** — Field and case name transformation strategies
 - **`ArrayFormat`** — Controls sequence encoding (Inline, Tabular, List, Auto)
@@ -437,7 +434,7 @@ Configuration and derivation system for creating `ToonCodec[A]` instances from `
 
 ### Overview
 
-`ToonCodecDeriver` implements the schema-driven derivation of TOON codecs. It automatically handles 27 primitive types and complex types (records, variants, sequences, maps), generating appropriate TOON encoders and decoders with comprehensive customization options.
+`ToonCodecDeriver` implements the schema-driven derivation of TOON codecs. It automatically handles 30 primitive types and complex types (records, variants, sequences, maps), generating appropriate TOON encoders and decoders with comprehensive customization options.
 
 ### How Derivation Works
 
@@ -458,7 +455,7 @@ val codec = User.schema.derive(ToonFormat)
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported:
+All 30 primitives of ZIO Blocks Schema are supported:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Logical: `Boolean`, `Char`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
@@ -735,11 +732,11 @@ Tags.schema.derive(ToonFormat).decode("items[3|]: scala|zio|functional")
 
 ## ToonReader
 
-Low-level binary parser implementing TOON format with state management and efficient token scanning.
+Low-level, line-oriented text parser implementing TOON format with state management and efficient token scanning.
 
 ### Overview
 
-`ToonReader` provides stateful reading of TOON-encoded data with automatic token recognition and error reporting at the byte level. It handles indentation tracking, quoted string parsing, and numeric value extraction.
+`ToonReader` provides stateful reading of TOON-encoded data with automatic token recognition and error reporting by path (for example `at: .port`). It handles indentation tracking, quoted string parsing, and numeric value extraction.
 
 ### Reading from Byte Array
 
@@ -781,11 +778,11 @@ val result = codec.decode(toonString)
 
 ## ToonWriter
 
-Low-level binary encoder implementing TOON format with optimization for compact representation.
+Low-level, line-oriented text writer implementing TOON format with optimization for compact representation.
 
 ### Overview
 
-`ToonWriter` provides efficient writing of Scala values into TOON binary format with automatic formatting, indentation, and type-specific encoding.
+`ToonWriter` provides efficient writing of Scala values into TOON text with automatic formatting, indentation, and type-specific encoding.
 
 ### Writing to Byte Array
 
@@ -1003,7 +1000,7 @@ The TOON codec module integrates seamlessly with ZIO Schema and other ZIO Blocks
 - Integrates through the standard `BinaryFormat` mechanism
 
 **Internal Type Relationships:**
-- `ToonCodecDeriver` drives all codec derivation via `ToonCodecDeriver.derive(schema)`
+- `ToonCodecDeriver` drives all codec derivation, through `Schema#derive(ToonCodecDeriver)` or `Schema#derive(ToonFormat)`
 - `WriterConfig` controls `ToonWriter` behavior during encoding
 - `ReaderConfig` controls `ToonReader` behavior during decoding
 - `NameMapper`, `ArrayFormat`, `Delimiter`, `DiscriminatorKind` all flow through `ToonCodecDeriver` configuration
@@ -1022,7 +1019,7 @@ TOON decoding errors include location traces showing the path through nested str
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed. Here a list field holds a plain value instead of an array:
+Errors render as `DynamicOptic` paths such as `.field.at(0).nested.value`: a record field is `.name`, a sequence index is `.at(0)`, a map value is `.atKey(...)` and a variant case is `.when[Case]`. The path shows exactly where decoding failed. Here a list field holds a plain value instead of an array:
 
 ```scala mdoc:reset
 import zio.blocks.schema._
