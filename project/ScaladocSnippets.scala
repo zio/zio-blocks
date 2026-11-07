@@ -151,7 +151,7 @@ object ScaladocSnippets {
    */
   def importsModule(snippet: Snippet): Boolean = {
     val quoted   = java.util.regex.Pattern.quote(modulePackage(snippet.sourcePath))
-    val covering = ("import " + quoted + """(?:\._(?!\w)|\.syntax[._{])""").r
+    val covering = ("import " + quoted + """(?:\._(?!\w)|\.\*(?!\w)|\.syntax[._{])""").r
     snippet.code.exists(line => covering.findPrefixOf(line.trim).isDefined)
   }
 
@@ -174,27 +174,29 @@ object ScaladocSnippets {
     declaration.findPrefixMatchOf(line).map(_.group(1)).toList
 
   /**
-   * The names that a source file of a module contributes to the module
-   * package, read from `sources`, which are all the files of one module for
-   * one Scala version: the top-level declarations (`class`, `trait`, `object`,
-   * `type`, `enum`, `def`, `val`, `var`, not `private`) of each file of the
-   * package itself, the members of a `package object` at any indentation, and
-   * the sub-package directories (`io` for `zio/blocks/streams/io/...`).
-   * Givens and implicit conversions are not names, so an example that needs
-   * one only through the wrapper's import fails to compile rather than
-   * compiling without it.
+   * The names that the files of one module, for one Scala version, contribute
+   * to the module package. The files are read from `sources`, which are all
+   * the files of one module for one Scala version. For each file of the package
+   * itself, every declaration (`class`, `trait`, `object`, `type`, `enum`,
+   * `def`, `val`, `var`, not `private`) counts, at any indentation: that covers
+   * top-level declarations, members of a `package object`, and members of an
+   * `implicit class` (`md` in `md"..."`). Indented names over-include, which
+   * only keeps the import. For each file of a sub-package, its directory name
+   * counts (`io` for `zio/blocks/streams/io/...`).
+   *
+   * Givens and anonymous implicit instances are not names. An example that
+   * needs one only through the wrapper's import fails to compile, so it then
+   * needs its own import.
    */
   def moduleNames(sources: Seq[(String, String)]): Set[String] =
     sources.flatMap { case (path, content) =>
-      val segments      = path.split('/').toList
-      val pkg           = modulePackage(path).split('.').toList
-      val at            = segments.indexOfSlice(pkg)
-      val below         = if (at < 0) Nil else segments.drop(at + pkg.length)
-      val lines         = content.split("\n", -1).toList
-      val packageObject = lines.exists(_.startsWith("package object"))
+      val segments = path.split('/').toList
+      val pkg      = modulePackage(path).split('.').toList
+      val at       = segments.indexOfSlice(pkg)
+      val below    = if (at < 0) Nil else segments.drop(at + pkg.length)
       below match {
         case Nil      => Nil
-        case List(_)  => lines.flatMap(line => declaredName(if (packageObject) line.trim else line))
+        case List(_)  => content.split("\n", -1).toList.flatMap(line => declaredName(line.trim))
         case sub :: _ => List(sub)
       }
     }.toSet
@@ -209,9 +211,9 @@ object ScaladocSnippets {
    *
    * The check errs towards keeping the import: a name it cannot tell apart
    * keeps the import, which is then used or at worst warns as before. The one
-   * way to drop it wrongly is a name the example gets from the module only
-   * implicitly (a given or an extension method), and that fails to compile
-   * loudly, so the example then needs its own import.
+   * way to drop it wrongly is a name the example reaches without naming it,
+   * which `moduleNames` does not list: a given or an anonymous implicit. That
+   * fails to compile loudly, so the example then needs its own import.
    */
   def needsModuleImport(snippet: Snippet, moduleNames: Set[String]): Boolean = {
     val used  = snippet.code.flatMap(line => mentionedIdentifier.findAllIn(line).toList).toSet

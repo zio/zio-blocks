@@ -384,7 +384,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
              |""".stripMargin
       )
     },
-    test("render keeps the module import when the example uses a module name it does not bind itself") {
+    test("render keeps the module import when an import renames away the module name the example uses") {
       val snippet =
         ScaladocSnippets.Snippet(path, 4, List("import zio.blocks.streams.{Stream => S}", "val a = Stream"), None)
       assertTrue(ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
@@ -400,7 +400,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         !needs(Set("Stream"), "val a = zio.blocks.streams.Stream.empty")
       )
     },
-    test("moduleNames reads the top-level declarations and the sub-packages of a module package") {
+    test("moduleNames reads the top-level and indented declarations and the sub-packages of a module package") {
       val streams        = "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala"
       val io             = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       val streamsContent = source(
@@ -415,7 +415,7 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(
         ScaladocSnippets.moduleNames(
           Seq(streams -> streamsContent, io -> "package zio.blocks.streams.io\n\ntrait Reader")
-        ) == Set("Stream", "io")
+        ) == Set("Stream", "io", "indented")
       )
     },
     test("moduleNames reads the members of a package object at any indentation") {
@@ -424,6 +424,30 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.moduleNames(Seq(pkg -> source("package object streams {", "  def helper = 1", "}"))) ==
           Set("helper")
       )
+    },
+    test("moduleNames reads a member of an implicit class, which an interpolator example uses") {
+      val docPath = "markdown/shared/src/main/scala/zio/blocks/docs/package.scala"
+      val content = source(
+        "package zio.blocks",
+        "",
+        "implicit class Interp(sc: StringContext) {",
+        "  def md(args: Any*): Doc = ???",
+        "}"
+      )
+      val names = ScaladocSnippets.moduleNames(Seq(docPath -> content))
+      assertTrue(
+        names.contains("md"),
+        ScaladocSnippets.needsModuleImport(
+          ScaladocSnippets.Snippet(docPath, 4, List("val d = md\"# Title\""), None),
+          names
+        )
+      )
+    },
+    test("render drops the module import for a Scala 3 wildcard import of the module package") {
+      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val code        = List("import zio.blocks.streams.*", "val a = Stream.empty")
+      val snippet     = ScaladocSnippets.Snippet(streamsPath, 4, code, None)
+      assertTrue(!ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
     },
     test("generate keeps the module import only for the examples that use a module name") {
       val streams = "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala"
