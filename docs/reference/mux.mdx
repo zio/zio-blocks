@@ -78,7 +78,7 @@ The multiplexer has three core concepts:
 
 **`MuxStream[Id, In, Out]`** represents a single logical stream within the mux. It has two independent message queues: one for messages you send (outbound, drained by the protocol), and one for messages delivered to you (inbound, enqueued by the protocol). It also manages a state machine that enforces correct sequencing of sends and receives as the stream progresses through OPEN, HALF_CLOSED_LOCAL, HALF_CLOSED_REMOTE, and CLOSED states.
 
-**`MuxError`** is a sealed trait representing all failure cases: `StreamClosed` (attempting operations on a closed stream), `CapacityExceeded` (too many concurrent streams), `QueueFull` (per-stream message queue exhausted), `Cancelled` (stream was cancelled by peer), `MuxClosed` (mux itself is closed), and `ProtocolError` (invalid state transition, duplicate ID, null message).
+**`MuxError`** is a sealed trait representing all failure cases: `StreamClosed` (attempting operations on a closed stream), `CapacityExceeded` (too many concurrent streams), `QueueFull` (per-stream message queue exhausted), `Cancelled` (a reason you pass to `cancel` or `closeAll`; the library never creates it), `MuxClosed` (mux itself is closed), and `ProtocolError` (duplicate ID, null message).
 
 ## How They Work Together
 
@@ -398,11 +398,11 @@ object MuxError {
 
 **`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (typically 256). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
 
-**`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)`. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
+**`Cancelled(id: Any, reason: String)`** — A reason you can pass to `mux.cancel(id, reason)` or `closeAll`; the library never creates a `Cancelled` itself. `receive()` returns the reason you passed, whatever its case, so a `Cancelled` appears only when you pass one.
 
 **`MuxClosed`** — Set when the mux itself is closed via `closeAll`. After this, `open` returns this error and all active streams transition to CLOSED.
 
-**`ProtocolError(message: String)`** — Returned when the protocol contract is violated (e.g., duplicate stream ID, null message, invalid state transition). These indicate bugs in the protocol implementation or incorrect API usage.
+**`ProtocolError(message: String)`** — Returned when the protocol contract is violated (duplicate stream ID, or a `null` message). These indicate bugs in the protocol implementation or incorrect API usage.
 
 ---
 
