@@ -12,6 +12,15 @@ def zioBlocks(module: String) = Def.setting {
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
 
+// The same artifact as `zioBlocks`, cross-published for Scala.js: `%%%` adds the `_sjs1` suffix.
+def zioBlocksCross(module: String) = Def.setting {
+  val prefix = CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((3, minor)) if minor >= 10 => "zio-blocks-next"
+    case _                               => "zio-blocks"
+  }
+  "dev.zio" %%% s"$prefix-$module" % zioBlocksVersion
+}
+
 lazy val commonSettings = Seq(
   publish / skip := true,
   run / fork     := true,
@@ -26,7 +35,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes, jsonLines)
+  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes, jsonLines, shareOneModelJVM, shareOneModelJS)
   .settings(
     commonSettings,
     name := "zio-blocks-examples",
@@ -91,3 +100,24 @@ lazy val jsonLines = (project in file("json-lines"))
       zioBlocks("streams").value
     )
   )
+
+// Examples for "Share One Model Between a Scala.js Page and a JVM Server": one Schema-based model, cross-built for the
+// JVM (the server encodes it) and Scala.js (the client decodes it under Node). The server first, then the client:
+//   shareOneModelJVM/runMain shareonemodel.Server      (keep it running)
+//   shareOneModelJS/run                                 (in another terminal)
+lazy val shareOneModel = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .in(file("share-one-model"))
+  .settings(
+    commonSettings,
+    name := "share-one-model",
+    libraryDependencies ++= Seq(
+      zioBlocksCross("schema").value
+    )
+  )
+  .jsSettings(
+    scalaJSUseMainModuleInitializer := true
+  )
+
+lazy val shareOneModelJVM = shareOneModel.jvm
+lazy val shareOneModelJS  = shareOneModel.js
