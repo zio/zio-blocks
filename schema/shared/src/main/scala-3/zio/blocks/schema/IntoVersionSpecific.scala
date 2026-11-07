@@ -49,7 +49,8 @@ trait IntoVersionSpecific {
    * types or types that convert (an implicit `Into`, and on Scala 3 also an
    * opaque type or a newtype), a step that case objects skip; failing that, to
    * the target case at the same position. A renamed or removed case can
-   * therefore convert to an unrelated case without any error (a known bug in 0.0.56).
+   * therefore convert to an unrelated case without any error (a known bug in
+   * 0.0.56).
    *
    * At run time, the conversion returns `Left` when a narrowing conversion, an
    * implicit `Into` it uses, a newtype or opaque-type smart constructor, or

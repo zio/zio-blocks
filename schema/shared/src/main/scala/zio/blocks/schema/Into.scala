@@ -218,8 +218,8 @@ trait IntoPrimitiveInstances {
   /**
    * Converts a `Float` to an `Int`, failing unless the value is a whole number
    * in the `Int` range (so `NaN` and the infinities fail). `2147483648.0f`
-   * (2^31) is a known exception: it converts to `Right(Int.MaxValue)` (a known
-   * bug in 0.0.56).
+   * (2^31) is an exception: it converts to `Right(Int.MaxValue)` (a known bug
+   * in 0.0.56).
    */
   implicit val floatToInt: Into[Float, Int] = (a: Float) =>
     if (a >= Int.MinValue && a <= Int.MaxValue && a == a.toInt.toFloat) new Right(a.toInt)
@@ -228,8 +228,8 @@ trait IntoPrimitiveInstances {
   /**
    * Converts a `Float` to a `Long`, failing unless the value is a whole number
    * in the `Long` range (so `NaN` and the infinities fail). `9.223372E18f`
-   * (2^63) is a known exception: it converts to `Right(Long.MaxValue)` (a known
-   * bug in 0.0.56).
+   * (2^63) is an exception: it converts to `Right(Long.MaxValue)` (a known bug
+   * in 0.0.56).
    */
   implicit val floatToLong: Into[Float, Long] = (a: Float) =>
     if (a >= Long.MinValue && a <= Long.MaxValue && a == a.toLong.toFloat) new Right(a.toLong)
@@ -246,7 +246,7 @@ trait IntoPrimitiveInstances {
   /**
    * Converts a `Double` to a `Long`, failing unless the value is a whole number
    * in the `Long` range (so `NaN` and the infinities fail).
-   * `9.223372036854775807E18` (2^63) is a known exception: it converts to
+   * `9.223372036854775807E18` (2^63) is an exception: it converts to
    * `Right(Long.MaxValue)` (a known bug in 0.0.56).
    */
   implicit val doubleToLong: Into[Double, Long] = (a: Double) =>

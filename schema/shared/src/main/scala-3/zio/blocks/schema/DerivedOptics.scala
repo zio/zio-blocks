@@ -47,9 +47,9 @@ import scala.language.implicitConversions
  * different methods: the second then fails with a `ClassCastException` or
  * `No optic found` (a known bug in 0.0.56).
  *
- * A known problem in 0.0.56: on Scala 2, `optics`
- * compiles only inside the `zio.blocks.schema` package, so the examples below
- * are compiled on Scala 3 only.
+ * A known problem in 0.0.56: on Scala 2, `optics` compiles only inside the
+ * `zio.blocks.schema` package, so the examples below are compiled on Scala 3
+ * only.
  *
  * {{{
  * // scala-3-only
