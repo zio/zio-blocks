@@ -183,7 +183,7 @@ To split a tuple into its init (all but last) and last element, access `Tuples#s
 import zio.blocks.combinators.Tuples
 
 val t2 = summon[Tuples.Tuples[Int, String]]
-t2.separate((1, "hello")) // (1, "hello"), a pair of 1 and "hello"
+t2.separate((1, "hello")) // (1, "hello")
 
 val t3 = summon[Tuples.Tuples[(Int, String), Boolean]]
 t3.separate((1, "hello", true)) // ((1, "hello"), true)
