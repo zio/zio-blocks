@@ -918,7 +918,7 @@ Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. 
 
 | Item | Result |
 |---|---|
-| PR | #1958 (one PR), opened 2026-11-06; two merges of main |
+| PR | #1958 (one PR), merged 2026-11-07 as `2b06e7eda`; several merges of main |
 | Coverage | 91 / 107 (85%) → 107 / 107; 16 files, comments only; `packageOverrides` `markdown` → `zio.blocks.docs` |
 | Examples | 14 compiled (checker on 2.13.18, 3.9.0, 3.10.0); the 6 old blocks rewritten on their own lines, which survive scalafmt |
 | Existing comments | 91 fact-checked; e.g. "output can be re-parsed to an equal AST" was false in three ways (unescaped text, backtick code, centred table columns); normalisation claims hold per class only |
