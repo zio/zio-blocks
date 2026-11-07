@@ -27,6 +27,7 @@ import zio.blocks.schema.yaml.{Yaml, YamlReader}
  *
  * {{{
  * import zio.blocks.config._
+ * import zio.blocks.config.yaml._
  *
  * val text =
  *   """server:

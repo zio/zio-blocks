@@ -34,6 +34,7 @@ import zio.http.Response
  *
  * {{{
  * import zio.http.Response
+ * import zio.http.schema._
  *
  * val response = Response.ok
  *   .addHeader("X-RateLimit-Remaining", "99")

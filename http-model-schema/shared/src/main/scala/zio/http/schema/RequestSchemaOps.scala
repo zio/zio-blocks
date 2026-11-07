@@ -36,6 +36,7 @@ import zio.http.Request
  *
  * {{{
  * import zio.http.{Request, URL}
+ * import zio.http.schema._
  *
  * val request = Request
  *   .get(URL.parse("/orders?status=open&page=2").toOption.get)

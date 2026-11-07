@@ -39,6 +39,7 @@ package object json {
      *
      * {{{
      * import zio.blocks.config._
+     * import zio.blocks.config.json._
      *
      * val source = ConfigSource.fromJson(
      *   """{"server": {"host": "0.0.0.0", "port": 8080}, "replicas": ["db-1", "db-2"]}""",
