@@ -258,7 +258,7 @@ Assigning a raw `String` is the one Datastar mistake that produces valid HTML an
 
 `DatastarAttrKey` is the low-level escape hatch — a raw attribute name plus `:=`. Every keyed helper returns one, and you can construct one for an attribute the module has no helper for yet.
 
-Since the constructor is `private[datastar]`, reach it through a helper that returns a bare key. `dataAttr`, `dataClass`, `dataStyle`, `dataText`, `dataShow`, `dataEffect`, `dataSignals`, `dataJsonSignals`, and `dataOnSignalPatchFilter` all have bare forms:
+`new DatastarAttrKey(name)` makes a key for an attribute that has no helper; the name is written as given, so use names from your own code. The bare helpers `dataAttr`, `dataClass`, `dataStyle`, `dataText`, `dataShow`, `dataEffect`, `dataSignals`, `dataJsonSignals`, and `dataOnSignalPatchFilter` all have bare forms:
 
 ```scala mdoc:silent:reset
 import zio.blocks.html._
