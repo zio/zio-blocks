@@ -34,6 +34,7 @@ class Decl:
     name: str
     line: int
     doc: Optional[str]
+    owner: tuple = ()  # names of the enclosing types, outermost first (`("Maybe",)` for `Maybe.apply`)
 
 
 @dataclasses.dataclass
@@ -42,6 +43,7 @@ class _Scope:
     is_type: bool  # a class, trait, object, enum, extension or package object: its members are API members
     hidden: bool  # this scope or an enclosing one is private, protected or override
     in_params: bool = False  # inside a multi-line constructor parameter list
+    name: Optional[str] = None  # the type's name, which a member's `owner` records
 
 
 def _normalise(comment_lines):
@@ -55,18 +57,50 @@ def _open_parens(code):
     return code.count("(") + code.count("[") - code.count(")") - code.count("]")
 
 
-def _is_annotation_line(line):
-    code = line.strip()
+def _strip_annotations(code):
+    """Removes the single-line annotations (`@deprecated("x", "1") `) from the start of `code`."""
     while _ANNOTATION.match(code):
         code = _ANNOTATION.sub("", code, count=1)
-    return line.strip().startswith("@") and not _DECL.match(code)
+    return code
+
+
+def _is_annotation_line(line):
+    code = line.strip()
+    return code.startswith("@") and not _DECL.match(_strip_annotations(code))
+
+
+def _annotation_start(lines, j):
+    """Returns the index of the line that opens the multi-line annotation closed on line `j`, or None.
+
+    Walks upwards, counting parentheses (string literals are ignored by `_open_parens`), until the count
+    balances. The balancing line must start with `@`; otherwise line `j` closes a parameter list, not an
+    annotation.
+    """
+    depth = 0
+    for k in range(j, -1, -1):
+        depth += _open_parens(lines[k])
+        if depth > 0:
+            return None
+        if depth == 0:
+            return k if lines[k].strip().startswith("@") else None
+    return None
 
 
 def _doc_before(lines, i):
-    """Returns the normalised Scaladoc above line `i`, skipping annotation lines, or None if there is none."""
+    """Returns the normalised Scaladoc above line `i`, skipping annotations, or None if there is none.
+
+    An annotation can span several lines (`@implicitNotFound(` / `"..."` / `)`); a closing `)` line sends the
+    walk back to the line that opens it.
+    """
     j = i - 1
-    while j >= 0 and _is_annotation_line(lines[j]):
-        j -= 1
+    while j >= 0:
+        if _is_annotation_line(lines[j]):
+            j -= 1
+            continue
+        start = _annotation_start(lines, j) if lines[j].strip().startswith(")") else None
+        if start is None:
+            break
+        j = start - 1
     if j < 0 or not lines[j].strip().endswith("*/"):
         return None
     k = j
@@ -91,6 +125,7 @@ def scan(text):
     stack = []
     in_comment = False
     in_string = False
+    annotation_depth = 0  # open parentheses of a multi-line annotation being skipped
     for i, line in enumerate(lines):
         code = line.strip()
         if in_string:
@@ -106,6 +141,14 @@ def scan(text):
             continue
         in_string = line.count('"""') % 2 == 1
         indent = len(line) - len(line.lstrip())
+        # A multi-line annotation is skipped whole: its arguments are not declarations, and its closing `)`
+        # line is not a parameter list. The declaration it annotates follows it.
+        if annotation_depth:
+            annotation_depth += _open_parens(code)
+            continue
+        if code.startswith("@") and _open_parens(code) > 0 and not _DECL.match(_strip_annotations(code)):
+            annotation_depth = _open_parens(code)
+            continue
         while stack and stack[-1].indent > indent:
             stack.pop()
         top = stack[-1] if stack else None
@@ -125,15 +168,20 @@ def scan(text):
             # (`class Patch[S] private[schema] (...)`) does not hide the class.
             hidden = hidden_parent or bool(_HIDDEN.search(m.group("mods")))
             if in_api and not hidden:
-                decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, i)))
+                owner = tuple(s.name for s in stack if s.name)
+                decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, i), owner))
             is_type = m.group("kind") in _TYPE_KINDS
             # A `private[pkg] trait` is mixed into a public object (`object Schema extends ... with DocsSchemas`):
             # the trait itself is hidden, but its members are API members of that object.
             mixin = m.group("kind") == "trait" and re.search(r"\b(private|protected)\[", m.group("mods"))
             scope_hidden = hidden_parent if mixin else hidden
-            stack.append(_Scope(indent, is_type, scope_hidden, is_type and _open_parens(code) > 0))
-        elif re.match(r"^extension\b", code) or re.match(r"^package\s+object\b", code):
-            stack.append(_Scope(indent, True, hidden_parent))
+            stack.append(
+                _Scope(indent, is_type, scope_hidden, is_type and _open_parens(code) > 0, m.group("name"))
+            )
+        elif re.match(r"^extension\b", code):
+            stack.append(_Scope(indent, True, hidden_parent, name="extension"))
+        elif re.match(r"^package\s+object\b", code):
+            stack.append(_Scope(indent, True, hidden_parent, name="package object"))
         elif not re.match(r"^(package|import)\b", code):
             stack.append(_Scope(indent, False, hidden_parent))
     return decls

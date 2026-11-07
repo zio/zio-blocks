@@ -34,6 +34,55 @@ class ScanTest(unittest.TestCase):
         text = '/** Old. */\n@deprecated("use b", "0.1")\ndef a: Int = 1\n'
         self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def a", True)])
 
+    def test_multi_line_annotation_keeps_the_doc_above_it(self):
+        text = textwrap.dedent('''\
+            /** A context requirement. */
+            @implicitNotFound(
+              "Context[${Ctx}] does not provide ${A}. Compare the two types."
+            )
+            trait ContextHas[Ctx, A]
+            ''')
+        self.assertEqual([(d.name, d.doc) for d in sc.scan(text)], [("trait ContextHas", "A context requirement.")])
+
+    def test_multi_line_annotation_with_nested_parentheses_and_strings(self):
+        text = textwrap.dedent('''\
+            object O {
+              /** Old. */
+              @deprecated(
+                message = f("a (b"),
+                since = g(h(1), "close ) paren")
+              )
+              def old = 1
+              @deprecated(
+                "unbalanced ( in a string"
+              )
+              def undocumented = 2
+            }
+            ''')
+        self.assertEqual(
+            [(d.name, d.doc is not None) for d in sc.scan(text)],
+            [("object O", False), ("def old", True), ("def undocumented", False)],
+        )
+
+    def test_multi_line_annotation_arguments_are_not_declarations(self):
+        text = textwrap.dedent('''\
+            @deprecated(
+              "def fake = 1"
+            )
+            def real = 1
+            ''')
+        self.assertEqual([d.name for d in sc.scan(text)], ["def real"])
+
+    def test_closing_paren_of_a_parameter_list_does_not_borrow_a_doc(self):
+        text = textwrap.dedent("""\
+            /** Doc for f. */
+            def f(
+              a: Int
+            )
+            def g = 1
+            """)
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def f", True), ("def g", False)])
+
     def test_private_protected_override_and_nested_members_are_skipped(self):
         text = textwrap.dedent("""\
             object O {
