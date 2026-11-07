@@ -117,7 +117,7 @@ object trace {
 
 `collectedSpans` returns each completed span as [`SpanData`](./span-data.md), oldest first, and `clearSpans()` empties the buffer — call it at the start of a test so you assert on that test's spans alone.
 
-Two limits are worth knowing before you rely on this. The buffer is a ring of 1024 spans, so a long run silently overwrites its oldest entries; assert as you go rather than at the end of a large suite. And both methods read the buffer belonging to the **default** provider, so once you call `trace.install(...)`, they stop seeing new spans — a test that installs a provider has to collect through that provider's own processors instead.
+Two limits are worth knowing before you rely on this. The buffer is a ring of 1024 spans, so a long run silently overwrites its oldest entries; assert as you go rather than at the end of a large suite. And both methods read the buffer belonging to the **default** provider, so once you call `trace.install(...)`, they stop seeing new spans, except from tracers taken with `trace.get` before the install — a test that installs a provider has to collect through that provider's own processors instead.
 
 ## Install a Provider and Reset
 

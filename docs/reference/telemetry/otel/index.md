@@ -36,7 +36,7 @@ final case class ExporterConfig(
 )
 ```
 
-Every field has a default, so `ExporterConfig()` is valid and points at a collector on localhost — the usual local development setup. `endpoint` is the collector's base URL, `headers` carries whatever it needs to accept you (typically an API key or bearer token), and `timeout` bounds a single send attempt:
+Every field has a default, so `ExporterConfig()` is valid and points at a collector on localhost — the usual local development setup. `endpoint` is the collector's base URL, `headers` carries whatever it needs to accept you (typically an API key or bearer token), and `timeout` is the value to pass to `HttpSender.jdk`, which bounds a single send attempt (nothing else reads it):
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry.otel._
@@ -126,7 +126,7 @@ tracer.span("call-inventory", SpanKind.Client) { span =>
 }
 ```
 
-On the way in, `extract` returns `None` when the header is absent or malformed, so a request without trace context simply starts its own trace. An extracted context is marked `isRemote = true`, which is how you tell a continued trace from one that started locally.
+On the way in, `extract` returns `None` for a missing header or one it cannot parse; check `SpanContext#isValid`, since `B3Propagator.single` returns an invalid context for a sampling-only header. A request without trace context simply starts its own trace. An extracted context is marked `isRemote = true`, which is how you tell a continued trace from one that started locally.
 
 Extracting isn't enough on its own, though — the context has to be *active* while your handler runs, or the span you open won't attach to it. Hold the `ContextStorage` you gave the provider and scope the remote context around the work:
 

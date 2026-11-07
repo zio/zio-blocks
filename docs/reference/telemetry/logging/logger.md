@@ -11,7 +11,7 @@ keywords:
 
 A `Logger` writes logs. It's tied to one name — the component or library it belongs to, like `"com.example.OrderService"` — and a [`LoggerProvider`](./logger-provider.md) hands you one; you never construct it yourself.
 
-That name travels with every record, marking which part of the system produced it. It's what lets you tell your own logs from a library's and turn one noisy component down without touching the rest. Records also arrive tied to the trace they happened in, so any line leads back to the request that caused it.
+That name travels with every record the logger's own methods emit; records from the global `log.*` calls keep the scope `zio.blocks.telemetry.log` even after `log.install` (a known bug in 0.0.56). The name marks which part of the system produced it. It's what lets you tell your own logs from a library's and turn one noisy component down without touching the rest. Records also arrive tied to the trace they happened in, so any line leads back to the request that caused it.
 
 Most application code shouldn't use a `Logger` directly — the global [`log`](./index.md) is easier and does more. A `Logger` earns its place when a library accepts one as a parameter: then it's an ordinary dependency, and a test can pass in one whose records it inspects.
 
