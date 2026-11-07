@@ -61,6 +61,7 @@ final case class ProjectionEngineConfig(
   evolution: SchemaEvolutionConfig = SchemaEvolutionConfig.default
 )
 
+/** Holds the default [[ProjectionEngineConfig]]. */
 object ProjectionEngineConfig {
 
   /**
@@ -93,7 +94,8 @@ object ProjectionEngineConfig {
  * first applies any pending lazy rebuild.
  *
  * Routing: for each event the engine builds a [[ProjectionContext]] from the
- * [[EventEnvelope]], runs the matching handler, and applies the resulting
+ * [[EventEnvelope]], runs the matching handler (found with
+ * [[Projection#handle]], without naming the source), and applies the resulting
  * [[ProjectionAction]] to the store chosen by the projection's
  * [[ProjectionScope]]: the primary store for per-entity and global projections,
  * and a shard per routing key for cross-entity ones.
@@ -113,7 +115,54 @@ object ProjectionEngineConfig {
  * Create an engine with the factories on the companion object. `make` and
  * `makeWithConfig` give it no event stores, so it has nothing to read; to give
  * it event stores, create it with `makeWithStores` or `makeWithStoresVarargs`,
- * or use `TestEngine` in tests.
+ * or use `TestEngine` in tests:
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.schema.{Modifier, Schema}
+ *
+ * case class PersonGreeted(name: String)
+ * object PersonGreeted {
+ *   implicit val schema: Schema[PersonGreeted] = Schema.derived[PersonGreeted]
+ * }
+ *
+ * case class Greeting(@Modifier.id personId: String, message: String)
+ * object Greeting {
+ *   implicit val schema: Schema[Greeting]         = Schema.derived[Greeting]
+ *   implicit val entityPath: EntityPath[Greeting] = EntityPath.derived[Greeting]
+ * }
+ *
+ * val greetings: Projection[Greeting] = Projection[Greeting]("greetings")
+ *   .from("people")
+ *   .routeToSelf
+ *   .on[PersonGreeted]
+ *   .insert((e, ctx) => Greeting(ctx.entityId, "Hello, " + e.name + "!"))
+ *
+ * // Needs sqlite-jdbc at run time, and the folders events/ and persons/
+ * val program: ZIO[Scope, Throwable, Option[Greeting]] =
+ *   for {
+ *     cache  <- TransactorCache.make()
+ *     tx     <- cache.get("events/people.db")
+ *     people <- SQLiteEventStore.make[PersonGreeted](tx)
+ *     store  <- SQLiteProjectionStore.make[Greeting]("persons/greetings.db", cache)
+ *     engine <- ProjectionEngine.makeWithStores(
+ *                 List(greetings),
+ *                 Map("greetings" -> store), // projection name -> its store
+ *                 Map("people" -> people),   // source name -> its event store
+ *                 cache
+ *               )
+ *     _      <- engine.start
+ *     _      <- people.append("person-1", PersonGreeted("Ada"))
+ *     row    <- engine.query(greetings, "person-1").delay(20.millis).repeatUntil(_.isDefined)
+ *   } yield row
+ * // ZIO.scoped(program) gives Some(Greeting(person-1,Hello, Ada!))
+ * }}}
+ *
+ * The query polls because the live fiber applies an appended event a moment
+ * later.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/projection-engine/ ProjectionEngine]]
  *
  * @param specs
  *   list of projections this engine manages
@@ -162,8 +211,12 @@ final class ProjectionEngine private[projection] (
    * When the stored rows are out of date and every action of `migration` adds a
    * top-level field, the engine adds the new columns with
    * `ALTER TABLE ADD COLUMN` instead of replaying the events. The existing rows
-   * get no value in the new columns. For any other change, it rebuilds the rows
-   * from the events as usual.
+   * get `NULL` in the new columns, whatever default the migration gives. For
+   * any other migration, it rebuilds the rows from the events as usual.
+   *
+   * The engine does not check that the migration describes the change it finds:
+   * while an add-field migration is registered, any change of the schema hash
+   * takes the shortcut, even when other fields changed too.
    *
    * Register it before `start`, which is when the schema is checked. That holds
    * with `lazyRebuild` too: `start` ends by forking a background rebuild, which
@@ -407,10 +460,13 @@ final class ProjectionEngine private[projection] (
    * new events. With `lazyRebuild` on, it also starts a fiber that rebuilds the
    * pending projections in the background.
    *
-   * A source that fails is logged and skipped. A source without an event store,
-   * which only happens when the engine has no event stores at all, is skipped
-   * with a warning. The fibers run until the enclosing `Scope` closes; there is
-   * no separate stop method.
+   * Each source reads the event store with its name, or else the one named
+   * `"_default"`, or else the first of the map, so a misspelt source name reads
+   * another store instead of failing. A source without an event store, which
+   * only happens when the engine has no event stores at all, is skipped with a
+   * warning. A source that fails with an error is logged and skipped. The
+   * fibers run until the enclosing `Scope` closes; there is no separate stop
+   * method.
    *
    * @return
    *   a scoped task that completes once every source has caught up and its live
@@ -544,11 +600,14 @@ final class ProjectionEngine private[projection] (
    * Queries the projection for the entity with the given id.
    *
    * Ensures any pending lazy rebuild for `spec` is applied before reading. For
-   * cross-entity projections, also searches sharded stores if the primary has
-   * no match.
+   * cross-entity projections, also searches the shards this engine has opened
+   * if the primary store has no match. The engine opens a shard when it routes
+   * an event to it, so after a restart a row kept in a shard is not found until
+   * a new event goes to that shard, which is a known bug.
    *
    * @param spec
-   *   the projection to query
+   *   the projection to query; it must be one this engine runs, or the task
+   *   dies with a `NoSuchElementException`
    * @param entityId
    *   the entity id to look up
    * @tparam A
@@ -604,24 +663,41 @@ final class ProjectionEngine private[projection] (
    * where the engine resumes after a restart. It is kept in the projection's
    * primary store, also for a cross-entity projection with shards.
    *
+   * A projection with several sources keeps one watermark for all of them,
+   * although each event store numbers its events from 1. That is a known bug:
+   * after a restart, a source can skip events below the number set by another
+   * source.
+   *
+   * The engine saves the watermark in a write after the row change, so a query
+   * can see the new row while this still returns the previous number.
+   *
    * @param spec
-   *   the projection
+   *   the projection; it must be one this engine runs, or the call throws a
+   *   `NoSuchElementException`
    */
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long] =
     primaryStoreFor(spec).getLastProcessedSeq
 
-  /** The primary store of each projection, keyed by projection name. */
+  /**
+   * The primary store of each projection, keyed by projection name. Shards of
+   * cross-entity projections are not included.
+   */
   def storesMap: Map[String, ProjectionStore[_]] = primaryStores
 
-  /** The event stores, keyed by source name. */
+  /**
+   * The event stores, keyed by source name. It is empty for an engine made with
+   * `make` or `makeWithConfig`.
+   */
   def eventStoresMap: Map[String, EventStore[_]] = eventStores
 }
 
+/** Creates [[ProjectionEngine]]s, and checks names and folders. */
 object ProjectionEngine {
 
   /**
-   * Creates a bounded hub for live events. Publishing suspends when the hub is
-   * full, so a slow consumer slows the producer down instead of losing events.
+   * Creates a bounded hub for live events, for example to pass to
+   * `SQLiteEventStore.makeWithHub`. Publishing suspends when the hub is full,
+   * so a slow consumer slows the producer down instead of losing events.
    *
    * @param capacity
    *   the most events the hub holds
@@ -635,6 +711,9 @@ object ProjectionEngine {
    *
    * @param name
    *   the projection name to check
+   * @throws java.lang.IllegalArgumentException
+   *   if the name is invalid; the message starts with
+   *   `requirement failed: invalid name`
    */
   def validateName(name: String): Unit =
     require(
@@ -646,10 +725,13 @@ object ProjectionEngine {
   /**
    * Checks that a folder path cannot escape the storage directory, and throws
    * `IllegalArgumentException` if it can. It rejects an empty path,
-   * backslashes, `..`, `//`, and absolute paths.
+   * backslashes, `..`, `//`, and absolute paths. A nested relative path such as
+   * `a/b` passes.
    *
    * @param path
    *   the folder path to check
+   * @throws java.lang.IllegalArgumentException
+   *   if the path is rejected
    */
   def validateBasePath(path: String): Unit = {
     require(
@@ -752,6 +834,13 @@ object ProjectionEngine {
    * It neither creates nor opens any store, and `stores` must have an entry for
    * every projection. An invalid projection name or folder is a defect, not a
    * typed error.
+   *
+   * When the primary store of a cross-entity projection is a
+   * [[SQLiteProjectionStore]], the engine creates each shard as
+   * `<basePath>/<name>_shard_<key>.db`, relative to the working directory,
+   * wherever the primary store's file is. The key is cut to 64 characters, and
+   * characters other than letters, digits, `_` and `-` become `_`. With any
+   * other primary store, shards are in-memory stores.
    *
    * @param specs
    *   the projections to run

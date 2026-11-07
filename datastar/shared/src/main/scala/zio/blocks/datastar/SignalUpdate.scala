@@ -19,21 +19,30 @@ package zio.http.datastar
 import zio.blocks.html._
 
 /**
- * A signal name paired with its JSON-serialized value.
+ * A signal name paired with its value encoded as JSON, made by [[Signal#:=]].
+ * [[DatastarEvent.patchSignals]] sends updates to the browser, and
+ * `dataSignals(update, ...)` declares them as initial values in a page.
  *
- * Created via `Signal.:=`. The `name` is the signal identifier and `serialized`
- * is the JSON string produced by the signal's schema codec. Used by
- * [[DatastarEvent.patchSignals]] to build SSE payloads and by the `ToJs`
- * instance to render inline JavaScript object literals.
- *
- * `serialized` is inserted verbatim into the final object expression, so it
- * must already be valid JSON for the value being assigned.
+ * `name` is the signal's name and `serialized` is the JSON that the signal's
+ * schema produced; it is inserted as given into the objects that the module
+ * builds.
  */
 final class SignalUpdate[A] private[datastar] (val name: String, val serialized: String)
 
+/** Renders signal updates as JavaScript object expressions. */
 object SignalUpdate {
 
-  /** Renders one or more updates as a single JavaScript object expression. */
+  /**
+   * Renders one or more updates as a JavaScript object expression, with quoted
+   * keys, `": "` after each key and `", "` between entries, in argument order.
+   *
+   * {{{
+   * val count = Signal[Int]("count")
+   * val name  = Signal[String]("name")
+   *
+   * SignalUpdate.objectExpression(count := 1, name := "Ada") // {"count": 1, "name": "Ada"}
+   * }}}
+   */
   def objectExpression(update: SignalUpdate[_], updates: SignalUpdate[_]*): String = {
     val all = update +: updates
     val sb  = new java.lang.StringBuilder(32)
@@ -49,6 +58,10 @@ object SignalUpdate {
     sb.toString
   }
 
+  /**
+   * Renders an update in JavaScript as a one-entry object, as
+   * [[objectExpression]] does.
+   */
   implicit def signalUpdateToJs[A]: ToJs[SignalUpdate[A]] = new ToJs[SignalUpdate[A]] {
     def toJs(u: SignalUpdate[A]): String = objectExpression(u)
   }

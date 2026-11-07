@@ -19,31 +19,39 @@ package zio.http.datastar
 import zio.blocks.maybe.Maybe
 
 /**
- * Modifier ADT used by `data-init` builders.
- *
- * Init modifiers are encoded as `__...` suffixes and normalized so repeated
- * delay or view-transition markers collapse to one effective form.
+ * A modifier of a `data-init` attribute, rendered as a `__` suffix.
+ * [[DataInit]] builds these values; a repeated `Delay` keeps the last value and
+ * a repeated `ViewTransition` is kept once.
  */
 sealed trait InitModifier extends Product with Serializable {
 
-  /** Renders the Datastar modifier suffix for this init modifier. */
+  /** Returns the attribute-name suffix, such as `__delay.500ms`. */
   def render: String
 }
 
+/** The `data-init` modifiers. */
 object InitModifier {
 
-  /** Delays the init action by the specified interval. */
+  /** Runs the expression `millis` milliseconds late. */
   final case class Delay(millis: Long) extends InitModifier {
+
+    /** Returns `__delay.<millis>ms`. */
     def render: String = "__delay." + millis + "ms"
   }
 
-  /** Wraps the init action in a view transition when supported. */
+  /**
+   * Runs the expression inside a view transition where the browser supports it.
+   */
   case object ViewTransition extends InitModifier {
+
+    /** Returns `__viewTransition`. */
     def render: String = "__viewTransition"
   }
 
-  /** Concatenates two init modifier suffixes in order. */
+  /** Two modifiers together. */
   final case class And(left: InitModifier, right: InitModifier) extends InitModifier {
+
+    /** Returns the left suffix followed by the right one. */
     def render: String = left.render + right.render
   }
 

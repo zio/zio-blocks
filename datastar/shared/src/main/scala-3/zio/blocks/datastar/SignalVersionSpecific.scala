@@ -19,6 +19,12 @@ package zio.http.datastar
 import scala.quoted.*
 
 private[datastar] trait SignalVersionSpecific {
+
+  /**
+   * Creates a signal named `name`. A literal name is checked at compile time,
+   * and an invalid one fails compilation; any other name is checked at run time
+   * and throws `IllegalArgumentException` if invalid.
+   */
   inline def apply[A](inline name: String): Signal[A] =
     ${ SignalMacros.applyImpl[A]('name) }
 }

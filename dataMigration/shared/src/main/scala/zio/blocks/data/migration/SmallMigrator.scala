@@ -20,12 +20,55 @@ import zio.blocks.schema.migration.Migration
 import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Repo, Transactor}
 
 /**
- * A-Small: queue-based batch migration worker.
+ * The Small tier: converts the rows whose keys wait in a queue table, one batch
+ * per [[processBatch]] call. Each batch runs in one transaction: it claims up
+ * to `batchSize` keys from `queueTable`, reads those rows through `repoV1`,
+ * converts them with `migration`, and writes them to the target that `target`
+ * selects. A key whose source row no longer exists deletes the target row.
  *
- * Dequeues IDs from a queue table, reads entities via Repo.findAll, applies
- * Migration[A,B], and writes to the target repo. Rows whose source entity no
- * longer exists are deleted from the target (ADR Decision 3). One transaction
- * per batch. Supports both in-place and shadow targets.
+ * The lifecycle is [[init]], then [[processBatch]] until `QueueTable.pending`
+ * reports an empty queue, then [[complete]]. A batch whose keys all belong to
+ * deleted rows returns `0` while other keys still wait, so loop on the pending
+ * count, not on a `0` result. `init()` does not create the queue table; call
+ * [[QueueTable.create]] first.
+ *
+ * {{{
+ * import zio.blocks.schema._
+ * import zio.blocks.schema.migration.Migration
+ * import zio.blocks.sql.{zio => _, _}
+ *
+ * case class ProductV1(id: Long, name: String)
+ * case class ProductV2(id: Long, name: String, stock: Int)
+ * object ProductV1 { implicit val schema: Schema[ProductV1] = Schema.derived }
+ * object ProductV2 { implicit val schema: Schema[ProductV2] = Schema.derived }
+ *
+ * val productsV1 = Repo.derived[ProductV1, Long]("products", "id", _.id)
+ * val productsV2 = Repo.derived[ProductV2, Long]("products", "id", _.id)
+ * val addStock: Migration[ProductV1, ProductV2] =
+ *   Migration.newBuilder[ProductV1, ProductV2].addField(_.stock, SchemaExpr.literal(0)).build
+ *
+ * // `products` already has the new `stock` column, for example from a TinyMigrator
+ * def backfill()(using transactor: Transactor, dialect: Dialect): Unit = {
+ *   QueueTable.create[Long]("products_q", transactor)
+ *   transactor.transact(QueueTable.enqueue("products_q", productsV1.all.map(_.id)))
+ *
+ *   val migrator =
+ *     SmallMigrator[ProductV1, ProductV2, Long, Long](productsV1, productsV2, addStock, "products_q", 500, TargetStrategy.InPlace)
+ *   migrator.init()
+ *   while (transactor.connect(QueueTable.pending("products_q")) > 0) migrator.processBatch()
+ *   migrator.complete()
+ * }
+ * }}}
+ *
+ * @param batchSize
+ *   the most keys one batch claims; with `0` or less, `processBatch` claims
+ *   nothing and returns `0`
+ * @param captureTriggers
+ *   whether `init()` installs triggers that queue every write to `repoV1`'s
+ *   table; leave it off when `repoV1` and the target are the same table
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/data-migration/ Data Migration]]
  */
 final class SmallMigrator[A, B, ID1, ID2](
   repoV1: Repo[A, ID1],
@@ -42,10 +85,15 @@ final class SmallMigrator[A, B, ID1, ID2](
   @volatile private var completed: Boolean   = false
 
   /**
-   * Prepare the target table. For ShadowTable strategy, creates the shadow
-   * table via `TargetStrategyApplier.prepare`. When `captureTriggers` is
-   * enabled, installs capture triggers on the source table. Safe to call
-   * multiple times (idempotent after first success).
+   * Prepares the target in one transaction: for `TargetStrategy.ShadowTable` it
+   * creates the shadow table (a known bug gives it the target table's current
+   * columns; on SQLite it throws `UnsupportedOperationException`), and with
+   * `captureTriggers` it installs the capture triggers. Later calls do nothing.
+   * It does not create the queue table, and with `captureTriggers` every write
+   * to the source table fails until the queue table exists (a known bug).
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if called after [[complete]]
    */
   def init(): Unit = {
     require(!completed, "cannot init() after complete(); create a new migrator")
@@ -63,10 +111,14 @@ final class SmallMigrator[A, B, ID1, ID2](
   }
 
   /**
-   * Finalize the migration. For ShadowTable strategy, performs the atomic swap
-   * (shadow table replaces the live table). Requires init() first and refuses
-   * to run while the queue still has pending items — draining is the caller's
-   * responsibility.
+   * Finishes the migration. For `TargetStrategy.ShadowTable` it renames the
+   * table to `<table>_old_<suffix>` and the shadow table to `<table>`, in one
+   * transaction; for `TargetStrategy.InPlace` it changes no table. The old
+   * table, the queue table and any triggers stay; drop them yourself.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if [[init]] has not run, if `complete` already ran, or if the queue table
+   *   still holds keys
    */
   def complete(): Unit = {
     require(initialized, "init() must be called before complete()")
@@ -80,11 +132,12 @@ final class SmallMigrator[A, B, ID1, ID2](
   }
 
   /**
-   * Pure preview of init/run SQL without opening any connection.
-   *
-   * Returns init/run statement texts (queue DDL, shadow create/rename,
-   * triggers, dequeue template) rendered against the ambient dialect. Does NOT
-   * call Transactor.
+   * Returns the statements of the migration for the `Dialect` in scope, without
+   * opening a connection: the queue table's `CREATE TABLE`, the shadow table's
+   * `CREATE TABLE` (a `-- ...` comment on SQLite), the trigger statements when
+   * `captureTriggers` is set, the claiming `SELECT`, and the two renames of a
+   * shadow-table swap. `init()` runs neither the queue table's statement nor
+   * the renames.
    */
   def previewSql(): Vector[String] = {
     val buf = Vector.newBuilder[String]
@@ -101,7 +154,15 @@ final class SmallMigrator[A, B, ID1, ID2](
     buf.result()
   }
 
-  /** Processes one batch. Returns count of migrated rows. */
+  /**
+   * Converts one batch in one transaction and returns the number of rows it
+   * wrote or deleted in the target, `0` when the queue is empty. A conversion
+   * failure throws `RuntimeException` (`Migration failed: ...`) and rolls the
+   * batch back, so its keys stay queued.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if [[init]] has not run or [[complete]] has
+   */
   def processBatch(): Int = {
     require(initialized, "init() must be called before processBatch()")
     require(!completed, "cannot processBatch() after complete(); create a new migrator")
@@ -145,9 +206,8 @@ final class SmallMigrator[A, B, ID1, ID2](
   }
 
   /**
-   * Reinterpret dequeued V1 IDs as V2 IDs using the type equality evidence
-   * supplied at construction time. Safe because the constructor requires
-   * `ID1 =:= ID2` (see ADR Decision 7).
+   * Reinterprets the claimed V1 keys as V2 keys, through the `ID1 =:= ID2`
+   * evidence that the constructor requires.
    */
   private def sameIds(ids: List[ID1]): List[ID2] =
     ev.substituteCo[List](ids)

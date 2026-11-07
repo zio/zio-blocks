@@ -20,7 +20,19 @@ import zio.blocks.schema.{Modifier, Schema}
 import zio.blocks.typeid.TypeId
 import scala.annotation.StaticAnnotation
 
+/**
+ * Sets the folder of a row type's store, in place of the one that
+ * `EntityPath.derived` works out from the ID field. For example,
+ * `@path("accounts")` on `case class Account(@Modifier.id accountId: String)`
+ * gives the folder `accounts`. The engine's factories also check the value with
+ * `ProjectionEngine.validateBasePath`.
+ *
+ * @param name
+ *   the folder name
+ */
 class path(name: String) extends StaticAnnotation {
+
+  /** The folder name given to the annotation. */
   def pathName: String = name
 }
 
@@ -29,7 +41,8 @@ class path(name: String) extends StaticAnnotation {
  * identifier.
  *
  * `basePath` is the folder name (e.g. `users` derived from `userId`),
- * `entityIdField` is the field name that holds the entity id.
+ * `entityIdField` is the field name that holds the entity id. Build one with
+ * `EntityPath.derived` or `EntityPath(basePath, entityIdField)`.
  */
 trait EntityPath[A] {
 
@@ -40,9 +53,13 @@ trait EntityPath[A] {
   def entityIdField: String
 }
 
+/** Builds [[EntityPath]]s, by hand or from a schema. */
 object EntityPath {
 
-  /** Manual construction with an explicit folder and id field. */
+  /**
+   * Builds an [[EntityPath]] with an explicit folder and ID field. Nothing is
+   * checked: the field name must be the Scala name of `A`'s ID field.
+   */
   def apply[A](basePath0: String, entityIdField0: String): EntityPath[A] =
     new EntityPath[A] {
       val basePath: String      = basePath0
@@ -50,12 +67,19 @@ object EntityPath {
     }
 
   /**
-   * Derive an [[EntityPath]] from `Schema[A]`.
+   * Derives an [[EntityPath]] from `Schema[A]`.
    *
    * Finds the `@Modifier.id` field (or `id` by name), then derives the folder
-   * as `pluralize(toSnakeCase(stripIdSuffix(fieldName)))` — e.g. `userId` →
-   * `users`, `id` → `ids` (prefer `userId` or `@path` to avoid the generic
-   * `ids` folder).
+   * from the field name: a name longer than two letters that ends in `id`, in
+   * any case, loses those two letters and a `_` before them; the rest is turned
+   * into snake_case and made plural. So `userId` gives `users`, `orderLineId`
+   * gives `order_lines`, and `id` gives `ids` (prefer `userId` or `@path` to
+   * avoid the generic `ids` folder). A [[path]] annotation on `A` sets the
+   * folder instead.
+   *
+   * @throws java.lang.RuntimeException
+   *   if `A` is not a record, or has neither an `@Modifier.id` field nor a
+   *   field named `id`
    */
   def derived[A](using schema: Schema[A]): EntityPath[A] = {
     val reflect = schema.reflect
@@ -86,6 +110,14 @@ object EntityPath {
     }
   }
 
+  /**
+   * Like `derived`, with the folder `pathOverride` instead of the derived one
+   * or the one from a [[path]] annotation.
+   *
+   * @throws java.lang.RuntimeException
+   *   if `A` is not a record, or has neither an `@Modifier.id` field nor a
+   *   field named `id`
+   */
   def derived[A](pathOverride: String)(using schema: Schema[A]): EntityPath[A] = {
     val reflect = schema.reflect
     reflect.asRecord match {
