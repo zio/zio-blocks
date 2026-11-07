@@ -281,8 +281,9 @@ def _differing(decls_a, decls_b):
     """Returns (owner, name, index) of each declaration whose Scaladoc differs between two copies of a file.
 
     Declarations pair up by their full enclosing path first. Those left over pair up by innermost enclosing
-    type, so a version-specific wrapper (`object MaybeValue { final class Present }` against a top-level
-    `final class Present`) does not hide them. Members of different types never pair.
+    type, so a version-specific wrapper (`object MaybeValue { final class Present { def get } }` against a
+    top-level `final class Present { def get }`) does not hide the members. The wrapped type itself does not pair
+    this way, because its own owner differs. Members of different types never pair.
     """
     report = []
     for scope in (_full_path, _innermost):

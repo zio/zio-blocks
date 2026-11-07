@@ -83,6 +83,30 @@ class ScanTest(unittest.TestCase):
             """)
         self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def f", True), ("def g", False)])
 
+    def test_multi_line_annotation_whose_last_line_is_not_a_bare_paren(self):
+        text = textwrap.dedent('''\
+            /** Old. */
+            @deprecated("msg",
+              "0.1")
+            def a = 1
+            ''')
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def a", True)])
+
+    def test_declaration_on_the_line_that_closes_an_annotation_is_counted(self):
+        text = '/** Doc. */\n@deprecated(\n  "1") def f(x: Int) = 1\ndef h = 2\n'
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def f", True), ("def h", False)])
+
+    def test_declaration_with_a_parameter_list_is_not_an_annotation_opener(self):
+        # `@tailrec def f(` opens a declaration, so the `)` that closes its parameters must not give `g` the doc of `f`.
+        text = textwrap.dedent("""\
+            /** f doc. */
+            @tailrec def f(
+              a: Int
+            )
+            def g = 1
+            """)
+        self.assertEqual([(d.name, d.doc) for d in sc.scan(text)], [("def f", "f doc."), ("def g", None)])
+
     def test_private_protected_override_and_nested_members_are_skipped(self):
         text = textwrap.dedent("""\
             object O {
