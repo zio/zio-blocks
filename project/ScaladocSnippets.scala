@@ -90,6 +90,7 @@ object ScaladocSnippets {
     "htmx"               -> "zio.http.htmx",
     "http-model"         -> "zio.http",
     "http-model-schema"  -> "zio.http.schema",
+    "markdown"           -> "zio.blocks.docs",
     "otel"               -> "zio.blocks.telemetry.otel",
     "schema-messagepack" -> "zio.blocks.schema.msgpack"
   )
