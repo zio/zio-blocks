@@ -1232,7 +1232,7 @@ val page = userList(List("Alice", "Bob", "Charlie"))
 
 Combine interpolators and DSL for flexibility:
 
-```scala mdoc
+```scala mdoc:nest
 import zio.blocks.html._
 
 val title = "My Page"
