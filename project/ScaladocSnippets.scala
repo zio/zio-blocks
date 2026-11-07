@@ -107,8 +107,10 @@ object ScaladocSnippets {
   }
 
   /**
-   * The import that every example of a module gets: its package, from
-   * `modulePackage`, as in `zio.blocks.streams._` or `zio.http._`.
+   * The import that the wrapper of an example of a module gets, unless the
+   * example already imports the module package itself (see `importsModule`):
+   * the module's package, from `modulePackage`, as in `zio.blocks.streams._` or
+   * `zio.http._`.
    *
    * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
    * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
@@ -135,16 +137,40 @@ object ScaladocSnippets {
       .replace("/" + modulePackage(sourcePath).replace('.', '/') + "/", "/")
       .replaceAll("[^A-Za-z0-9]", "_") + "_L" + line
 
-  /** The source file that wraps `snippet` in an object. */
-  def render(snippet: Snippet): String =
+  /**
+   * Whether `snippet` imports the `syntax` object of its own module package,
+   * with a line starting `import <package>.syntax` (`_` or `{`), as the
+   * schema-xml `syntax` examples do with
+   * `import zio.blocks.schema.xml.syntax._`. Only that case is covered: other
+   * sub-package imports (such as `zio.blocks.schema.patch.X`) still need names
+   * from the package itself, so their wrappers keep the module import.
+   *
+   * Such an example does not need the wrapper's module import. Keeping it would
+   * be an unused import, which scalac warns about in every copy of the example
+   * (the example's own imports stay, so that they can be copied).
+   */
+  def importsModule(snippet: Snippet): Boolean = {
+    val syntaxImport =
+      ("import " + java.util.regex.Pattern.quote(modulePackage(snippet.sourcePath)) + """\.syntax[._{]""").r
+    snippet.code.exists(line => syntaxImport.findPrefixOf(line.trim).isDefined)
+  }
+
+  /**
+   * The source file that wraps `snippet` in an object. The module import of
+   * `moduleImport` is written only when `importsModule` is false.
+   */
+  def render(snippet: Snippet): String = {
+    val moduleImportLines =
+      if (importsModule(snippet)) Nil
+      else List(s"import ${moduleImport(snippet.sourcePath)}", "")
     (List(
       s"// Generated from ${snippet.sourcePath}:${snippet.line} by scaladoc-check. Do not edit.",
       "package scaladoccheck",
-      "",
-      s"import ${moduleImport(snippet.sourcePath)}",
-      "",
+      ""
+    ) ++ moduleImportLines ++ List(
       s"object ${objectName(snippet.sourcePath, snippet.line)} {"
     ) ++ snippet.code.map(line => if (line.trim.isEmpty) "" else "  " + line) ++ List("}", "")).mkString("\n")
+  }
 
   /**
    * Turns `(path, content)` source files into `(fileName, fileContent)` wrapper

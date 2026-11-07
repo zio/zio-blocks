@@ -367,6 +367,43 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
              |""".stripMargin
       )
     },
+    test("render leaves out the module import when the example imports a sub-package of its module") {
+      val xmlPath = "schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala"
+      val snippet =
+        ScaladocSnippets.Snippet(xmlPath, 12, List("import zio.blocks.schema.xml.syntax._", "", "val a = 1"), None)
+      assertTrue(
+        ScaladocSnippets.importsModule(snippet),
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $xmlPath:12 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |object Snippet_schema_xml_shared_scala_3_syntax_L12 {
+             |  import zio.blocks.schema.xml.syntax._
+             |
+             |  val a = 1
+             |}
+             |""".stripMargin
+      )
+    },
+    test("render keeps the module import when the example only imports other packages") {
+      val xmlPath = "schema-xml/shared/src/main/scala-3/zio/blocks/schema/xml/syntax.scala"
+      val snippet = ScaladocSnippets.Snippet(xmlPath, 13, List("import zio.blocks.schema._", "", "val a = 1"), None)
+      assertTrue(
+        !ScaladocSnippets.importsModule(snippet),
+        ScaladocSnippets.render(snippet) ==
+          s"""// Generated from $xmlPath:13 by scaladoc-check. Do not edit.
+             |package scaladoccheck
+             |
+             |import zio.blocks.schema.xml._
+             |
+             |object Snippet_schema_xml_shared_scala_3_syntax_L13 {
+             |  import zio.blocks.schema._
+             |
+             |  val a = 1
+             |}
+             |""".stripMargin
+      )
+    },
     test("generate fails when two examples would get the same wrapper name") {
       val content = source("/**", " * {{{", " * val a = 1", " * }}}", " */")
       val result  = Try(
