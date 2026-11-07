@@ -1232,16 +1232,16 @@ val page = userList(List("Alice", "Bob", "Charlie"))
 
 Combine interpolators and DSL for flexibility:
 
-```scala mdoc:nest
+```scala mdoc
 import zio.blocks.html._
 
-val title = "My Page"
-val content = "Welcome to my site"
+val pageTitle = "My Page"
+val pageContent = "Welcome to my site"
 
 val page = html"""<html>
-  <head><title>$title</title></head>
+  <head><title>$pageTitle</title></head>
   <body>
-    ${div(p(content))}
+    ${div(p(pageContent))}
   </body>
 </html>"""
 
