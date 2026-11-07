@@ -19,39 +19,44 @@ package zio.http.datastar
 import zio.blocks.maybe.Maybe
 
 /**
- * Modifier ADT used by `data-on-signal-patch` builders.
- *
- * Supported modifiers delay, debounce, or throttle reactions to incoming signal
- * patches. Composition preserves left-to-right ordering and normalization keeps
- * the last effective modifier of each timing family.
+ * A modifier of a `data-on-signal-patch` attribute, rendered as a `__` suffix.
+ * [[DataOnSignalPatch]] builds these values and keeps the last one of each
+ * kind.
  */
 sealed trait OnSignalPatchModifier extends Product with Serializable {
 
-  /** Renders the Datastar modifier suffix for this signal-patch modifier. */
+  /** Returns the attribute-name suffix, such as `__debounce.200ms`. */
   def render: String
 }
 
+/** The `data-on-signal-patch` modifiers. */
 object OnSignalPatchModifier {
 
-  /** Constructors and normalization rules for signal-patch modifiers. */
-
-  /** Delays signal-patch handling by the specified interval. */
+  /** Runs the expression `millis` milliseconds late. */
   final case class Delay(millis: Long) extends OnSignalPatchModifier {
+
+    /** Returns `__delay.<millis>ms`. */
     def render: String = "__delay." + millis + "ms"
   }
 
-  /** Debounces signal-patch handling by the specified interval. */
+  /** Debounces the trigger by `millis` milliseconds. */
   final case class Debounce(millis: Long) extends OnSignalPatchModifier {
+
+    /** Returns `__debounce.<millis>ms`. */
     def render: String = "__debounce." + millis + "ms"
   }
 
-  /** Throttles signal-patch handling by the specified interval. */
+  /** Throttles the trigger to once every `millis` milliseconds. */
   final case class Throttle(millis: Long) extends OnSignalPatchModifier {
+
+    /** Returns `__throttle.<millis>ms`. */
     def render: String = "__throttle." + millis + "ms"
   }
 
-  /** Concatenates two signal-patch modifier suffixes in order. */
+  /** Two modifiers together. */
   final case class And(left: OnSignalPatchModifier, right: OnSignalPatchModifier) extends OnSignalPatchModifier {
+
+    /** Returns the left suffix followed by the right one. */
     def render: String = left.render + right.render
   }
 

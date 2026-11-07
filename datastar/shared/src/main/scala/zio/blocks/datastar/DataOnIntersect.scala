@@ -20,35 +20,60 @@ import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 
 /**
- * Builder for `data-on-intersect` Datastar attributes.
+ * A `data-on-intersect` attribute, whose expression runs when the element
+ * enters the viewport. Made by `dataOnIntersect`. Modifiers add suffixes in
+ * call order. `half`, `full` and `threshold` replace one another, a second
+ * `delay`, `debounce` or `throttle` replaces the first of its kind, and the
+ * replacing modifier goes last; a repeated flag such as `once` is kept once.
  *
- * Visibility, timing, and transition modifiers are encoded into the final
- * attribute name. Repeated modifiers are normalized to a single effective
- * suffix. Use `once`, `half`, `full`, `exit`, `threshold`, `delay`, `debounce`,
- * `throttle`, and `viewTransition` to model Datastar's supported intersection
- * semantics.
+ * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
+ * import zio.blocks.html._
+ *
+ * div(dataOnIntersect.once.full := js"@get('/page/2')").render
+ * // <div data-on-intersect__once__full="@get(&#x27;/page/2&#x27;)"></div>
+ * }}}
  */
 final class DataOnIntersect(private[datastar] val modifier: Maybe[IntersectModifier]) {
 
+  /** Adds `__once`: the expression runs only the first time. */
   def once: DataOnIntersect = withModifier(IntersectModifier.Once)
 
+  /** Adds `__half`: the expression runs when half of the element is visible. */
   def half: DataOnIntersect = withModifier(IntersectModifier.Half)
 
+  /** Adds `__full`: the expression runs when all of the element is visible. */
   def full: DataOnIntersect = withModifier(IntersectModifier.Full)
 
+  /**
+   * Adds `__exit`: the expression runs when the element leaves the viewport.
+   */
   def exit: DataOnIntersect = withModifier(IntersectModifier.Exit)
 
+  /**
+   * Adds `__threshold.<pct>`: the expression runs when `pct` percent of the
+   * element is visible. Datastar reads the value as a percentage from 0 to 100,
+   * so pass a whole number such as `25`; it is written without trailing zeros
+   * (`25.0` gives `__threshold.25`). `:=` throws `NumberFormatException` for
+   * `NaN` or an infinite value.
+   */
   def threshold(pct: Double): DataOnIntersect = withModifier(IntersectModifier.Threshold(pct))
 
+  /**
+   * Adds `__delay.<millis>ms`: the expression runs `millis` milliseconds late.
+   */
   def delay(millis: Long): DataOnIntersect = withModifier(IntersectModifier.Delay(millis))
 
+  /** Adds `__debounce.<millis>ms` to the trigger. */
   def debounce(millis: Long): DataOnIntersect = withModifier(IntersectModifier.Debounce(millis))
 
+  /** Adds `__throttle.<millis>ms` to the trigger. */
   def throttle(millis: Long): DataOnIntersect = withModifier(IntersectModifier.Throttle(millis))
 
+  /** Adds `__viewTransition`: the expression runs inside a view transition. */
   def viewTransition: DataOnIntersect = withModifier(IntersectModifier.ViewTransition)
 
-  /** Assigns the Datastar expression rendered for this intersect trigger. */
+  /** Returns `data-on-intersect<modifiers>="<expression>"`. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-intersect" + modifierStr

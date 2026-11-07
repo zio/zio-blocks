@@ -17,25 +17,66 @@
 package zio.blocks.projection
 
 /**
- * A sealed enumeration of field-level update operations.
+ * A change to one field of a row, as part of a [[ProjectionAction.Update]].
  *
- * Each variant describes how a single field should be modified during an
- * `Update` action on a `ProjectionAction`.
- *
- * Provides two APIs:
+ * The field is named by its column name, in snake_case. There are two ways to
+ * build one:
  *   - '''String-based''' (direct): `FieldUpdate.Increment("user_count", 1L)`
  *   - '''Selector-based''' (macro): `FieldUpdate.increment[User](_.userCount)`
- *     which maps `userCount` → `user_count` via `SqlNameMapper.SnakeCase`
+ *     which maps `userCount` to `user_count` via `SqlNameMapper.SnakeCase`
+ *
+ * {{{
+ * import zio.blocks.chunk.Chunk
+ * import zio.blocks.schema.Modifier
+ *
+ * case class DailyStats(@Modifier.id day: String, userCount: Long, peak: Long)
+ *
+ * val onSignUp: Chunk[FieldUpdate] = Chunk(
+ *   FieldUpdate.increment[DailyStats](_.userCount),
+ *   FieldUpdate.maxValue[DailyStats](_.peak, 42L)
+ * )
+ * // Chunk(Increment(user_count,1),Max(peak,42))
+ * }}}
+ *
+ * A [[ProjectionStore]] applies the changes of one `Update` in order, and
+ * creates the row first when it is missing.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/projection/ Projection]]
  */
 enum FieldUpdate {
 
-  case Set(field: String, value: Any)     extends FieldUpdate
+  /**
+   * Replaces the field's value with `value`. A SQLite store writes the value as
+   * it is, without checking it against the field's type.
+   */
+  case Set(field: String, value: Any) extends FieldUpdate
+
+  /** Adds `by` to the field. A SQLite store treats a `NULL` value as `0`. */
   case Increment(field: String, by: Long) extends FieldUpdate
+
+  /**
+   * Subtracts `by` from the field. A SQLite store treats a `NULL` value as `0`.
+   */
   case Decrement(field: String, by: Long) extends FieldUpdate
-  case Max(field: String, value: Long)    extends FieldUpdate
-  case Min(field: String, value: Long)    extends FieldUpdate
+
+  /**
+   * Keeps the larger of the field's value and `value`. A SQLite store treats a
+   * `NULL` value as `value`.
+   */
+  case Max(field: String, value: Long) extends FieldUpdate
+
+  /**
+   * Keeps the smaller of the field's value and `value`. A SQLite store treats a
+   * `NULL` value as `value`.
+   */
+  case Min(field: String, value: Long) extends FieldUpdate
 }
 
+/**
+ * Builds [[FieldUpdate]]s, with the field picked by a selector checked at
+ * compile time, or named by a string.
+ */
 object FieldUpdate {
 
   // ---------------------------------------------------------------------------
@@ -44,11 +85,14 @@ object FieldUpdate {
 
   /**
    * Replaces the value of the selected field. The field is chosen with a
-   * selector such as `_.userCount`, checked at compile time, and mapped to its
-   * `snake_case` column name.
+   * selector such as `_.userCount`, and the name of the last member it reads is
+   * mapped to its `snake_case` column name at compile time (see
+   * [[FieldSelectorMacros]] for what a selector may be).
    *
    * {{{
-   * FieldUpdate.setValue[Stats](_.peak, 10L)   // Set("peak", 10L)
+   * case class Stats(day: String, peak: Long)
+   *
+   * FieldUpdate.setValue[Stats](_.peak, 10L) // Set(peak,10)
    * }}}
    */
   inline def setValue[A](inline selector: A => Any, value: Any): FieldUpdate.Set =
@@ -56,12 +100,14 @@ object FieldUpdate {
 
   /**
    * Adds `by` to the selected field, atomically in the store. A missing row is
-   * created first, so incrementing a counter that does not exist yet gives
-   * `by`.
+   * created first, with `0` in the counter, so incrementing a counter that does
+   * not exist yet gives `by`.
    *
    * {{{
-   * FieldUpdate.increment[Stats](_.userCount)       // Increment("user_count", 1)
-   * FieldUpdate.increment[Stats](_.userCount, 5L)   // Increment("user_count", 5)
+   * case class Stats(day: String, userCount: Long)
+   *
+   * FieldUpdate.increment[Stats](_.userCount)     // Increment(user_count,1)
+   * FieldUpdate.increment[Stats](_.userCount, 5L) // Increment(user_count,5)
    * }}}
    */
   inline def increment[A](inline selector: A => Any, by: Long = 1L): FieldUpdate.Increment =
@@ -91,15 +137,23 @@ object FieldUpdate {
   def apply(field: String, value: Any): FieldUpdate.Set =
     FieldUpdate.Set(field, value)
 
+  /**
+   * Same as `Increment(field, by)`, using a column name written out in full.
+   */
   def increment(field: String, by: Long): FieldUpdate.Increment =
     FieldUpdate.Increment(field, by)
 
+  /**
+   * Same as `Decrement(field, by)`, using a column name written out in full.
+   */
   def decrement(field: String, by: Long): FieldUpdate.Decrement =
     FieldUpdate.Decrement(field, by)
 
+  /** Same as `Max(field, value)`, using a column name written out in full. */
   def maxValue(field: String, value: Long): FieldUpdate.Max =
     FieldUpdate.Max(field, value)
 
+  /** Same as `Min(field, value)`, using a column name written out in full. */
   def minValue(field: String, value: Long): FieldUpdate.Min =
     FieldUpdate.Min(field, value)
 }

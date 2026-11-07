@@ -1405,8 +1405,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
 // `zio.blocks.<module-dir>` with `-` read as `.` (`schema-avro` is `zio.blocks.schema.avro`)
 // unless `ScaladocSnippets.packageOverrides` names another (`http-model` is `zio.http`,
 // `http-model-schema` is `zio.http.schema`, `schema-messagepack` is `zio.blocks.schema.msgpack`,
-// `markdown` is `zio.blocks.docs`, `otel` is `zio.blocks.telemetry.otel`). `datastar`, `htmx` and
-// `dataMigration` break the rule too and need a `packageOverrides` entry first. Not
+// `markdown` is `zio.blocks.docs`, `otel` is `zio.blocks.telemetry.otel`; `datastar`, `htmx` and
+// `dataMigration` have entries too). A module whose package breaks the rule needs an entry first. Not
 // published. The extractor lives in project/ScaladocSnippets.scala so that sbt can run it as a
 // source generator; the Test configuration compiles that file again to unit-test it.
 lazy val fatalWarningFlags: Set[String] = Set("-Werror", "-Xfatal-warnings")
@@ -1464,7 +1464,11 @@ lazy val `scaladoc-check` = project
 lazy val scaladocCheckedScala3Modules: Seq[Project] =
   Seq(
     sql.jvm,
-    `sql-zio`
+    `sql-zio`,
+    projection.jvm,
+    dataMigration.jvm,
+    htmx.jvm,
+    datastar.jvm
   )
 
 lazy val `scaladoc-check-scala3` = project

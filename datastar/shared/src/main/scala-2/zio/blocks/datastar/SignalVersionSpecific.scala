@@ -20,6 +20,12 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 private[datastar] trait SignalVersionSpecific {
+
+  /**
+   * Creates a signal named `name`. A literal name is checked at compile time,
+   * and an invalid one fails compilation; any other name is checked at run time
+   * and throws `IllegalArgumentException` if invalid.
+   */
   def apply[A](name: String): Signal[A] = macro SignalMacros.applyImpl[A]
 }
 

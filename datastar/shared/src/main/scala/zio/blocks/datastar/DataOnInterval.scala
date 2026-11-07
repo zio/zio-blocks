@@ -20,22 +20,34 @@ import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 
 /**
- * Builder for `data-on-interval` Datastar attributes.
+ * A `data-on-interval` attribute, whose expression runs on a timer. Made by
+ * `dataOnInterval`. Without [[duration]], Datastar uses its default interval of
+ * one second. A second `duration` or `durationLeading` replaces the first and
+ * goes last.
  *
- * Duration modifiers describe how often the interval fires, and
- * `durationLeading` encodes Datastar's leading-edge interval variant. Repeated
- * modifiers are normalized to the last effective duration. Use `:=` to assign
- * the expression executed on each interval tick.
+ * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
+ * import zio.blocks.html._
+ *
+ * div(dataOnInterval.duration(5000) := js"@get('/status')").render
+ * // <div data-on-interval__duration.5000ms="@get(&#x27;/status&#x27;)"></div>
+ * }}}
  */
 final class DataOnInterval(private[datastar] val modifier: Maybe[OnIntervalModifier]) {
 
+  /** Adds `__duration.<millis>ms`, the interval in milliseconds. */
   def duration(millis: Long): DataOnInterval = withModifier(OnIntervalModifier.Duration(millis, false))
 
+  /**
+   * Adds `__duration.<millis>ms.leading`: the interval in milliseconds, with
+   * the first run at once instead of after one interval.
+   */
   def durationLeading(millis: Long): DataOnInterval = withModifier(OnIntervalModifier.Duration(millis, true))
 
+  /** Adds `__viewTransition`: each run happens inside a view transition. */
   def viewTransition: DataOnInterval = withModifier(OnIntervalModifier.ViewTransition)
 
-  /** Assigns the Datastar expression rendered for this interval trigger. */
+  /** Returns `data-on-interval<modifiers>="<expression>"`. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-interval" + modifierStr

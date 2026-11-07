@@ -21,29 +21,60 @@ import zio.blocks.schema.{DynamicOptic, Schema}
 import zio.blocks.schema.migration.{Migration, MigrationAction}
 import zio.blocks.sql.{SqlDialect, Table}
 
-/** Controls schema-evolution behavior (rebuild vs migration shortcut). */
+/**
+ * Settings for the functions of [[SchemaEvolution]] that take one.
+ * [[ProjectionEngine]] does not read them; it has its own `lazyRebuild` and
+ * `rebuildParallelism` in [[ProjectionEngineConfig]].
+ *
+ * @param rebuildParallelism
+ *   how many projections `bulkRebuildPending` rebuilds at once
+ * @param lazyRebuild
+ *   not read by any function
+ * @param enableMigrationShortcut
+ *   whether `checkAndRebuild` tries the add-column shortcut before a full
+ *   rebuild
+ */
 final case class SchemaEvolutionConfig(
   rebuildParallelism: Int = 4,
   lazyRebuild: Boolean = false,
   enableMigrationShortcut: Boolean = true
 )
 
+/** Holds the default [[SchemaEvolutionConfig]]. */
 object SchemaEvolutionConfig {
+
+  /**
+   * The default settings: 4 rebuilds at once, and the migration shortcut on.
+   */
   val default: SchemaEvolutionConfig = SchemaEvolutionConfig()
 }
 
 /**
  * Detects schema drift via [[SchemaHash]] and rebuilds or migrates projection
- * stores.
+ * stores. [[ProjectionEngine]] calls these functions during `start` and
+ * `query`; call them yourself to rebuild a projection on demand.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/migration/ Migration]]
  */
 object SchemaEvolution {
 
+  /**
+   * Whether the store holds a schema hash that differs from the current hash of
+   * `A`. A store without a hash, such as a new one, gives `false`.
+   */
   def needsRebuild[A: Schema](store: ProjectionStore[A]): Task[Boolean] =
     for {
       current <- ZIO.succeed(SchemaHash.compute[A])
       stored  <- store.getSchemaHash
     } yield stored.exists(_ != current)
 
+  /**
+   * Brings the store up to date if [[needsRebuild]] says so: with the migration
+   * shortcut when `config.enableMigrationShortcut` is on and `migrationOpt`
+   * qualifies, and otherwise with a full [[rebuild]]. Returns whether it
+   * changed anything.
+   */
   @scala.annotation.nowarn
   def checkAndRebuild[A: Schema: EntityPath](
     store: ProjectionStore[A],
@@ -65,6 +96,16 @@ object SchemaEvolution {
                    }
     } yield rebuilt
 
+  /**
+   * Rebuilds the rows from the events: recreates the table (or empties it if
+   * that fails), sets the watermark to `0`, applies the events that
+   * `eventStore.readAll()` returns through the handlers of `spec`, saves the
+   * highest sequence number as the watermark, and saves `currentHash`.
+   *
+   * An event whose action fails is logged and skipped, and an `Insert` that
+   * fails is tried again as an upsert. A read of the events that fails is
+   * logged too, and the hash is saved anyway.
+   */
   def rebuild[A](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
@@ -78,6 +119,7 @@ object SchemaEvolution {
       _ <- store.updateSchemaHash(currentHash)
     } yield ()
 
+  /** Same as [[rebuild]], with the current hash of `A`'s schema. */
   @scala.annotation.nowarn
   def rebuildWithHash[A: Schema: EntityPath](
     store: ProjectionStore[A],
@@ -137,6 +179,10 @@ object SchemaEvolution {
   // Migration shortcut: ALTER TABLE ADD COLUMN for simple AddField migrations
   // ---------------------------------------------------------------------------
 
+  /**
+   * Whether `migration` has at least one action, and every action adds a
+   * top-level field. Only such a migration can take the add-column shortcut.
+   */
   def isSimpleAddFieldMigration(migration: Migration[?, ?]): Boolean = {
     val actions = migration.dynamicMigration.actions
     actions.nonEmpty && actions.forall {
@@ -148,6 +194,14 @@ object SchemaEvolution {
     }
   }
 
+  /**
+   * Takes the add-column shortcut if `migrationOpt` is a simple add-field
+   * migration: adds a column for each added field, named in snake_case and
+   * typed from `A` (or `TEXT` when the field is not a column of `A`), and saves
+   * `currentHash`. Returns `false`, changing nothing, when there is no such
+   * migration. A column that cannot be added is logged and skipped, and the
+   * result is still `true`.
+   */
   @scala.annotation.nowarn
   def tryMigrationShortcut[A: Schema: EntityPath](
     store: ProjectionStore[A],
@@ -184,6 +238,10 @@ object SchemaEvolution {
         }
     }
 
+  /**
+   * [[tryMigrationShortcut]] for a projection whose row type is not known
+   * statically, as the engine has it.
+   */
   def tryMigrationShortcutForSpec(
     spec: Projection[_],
     store: ProjectionStore[_],
@@ -201,6 +259,10 @@ object SchemaEvolution {
     )
   }
 
+  /**
+   * Adds `migration` to `registry` under `specName`, replacing any migration
+   * already there.
+   */
   @scala.annotation.nowarn
   def registerMigration[Old, New: Schema: EntityPath](
     migration: Migration[Old, New],
@@ -213,6 +275,12 @@ object SchemaEvolution {
   // Lazy rebuild helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * If `pendingRef` marks `spec` as pending, brings the store up to date (with
+   * the shortcut or a full [[rebuild]]) and removes the mark. `rebuildSem`
+   * makes concurrent callers wait, and the mark is checked again once the
+   * permit is held, so the work runs once.
+   */
   def lazyRebuildIfNeeded[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
@@ -239,6 +307,13 @@ object SchemaEvolution {
         }
     }
 
+  /**
+   * Brings every projection that `pendingRef` marks as pending up to date,
+   * `config.rebuildParallelism` at a time, and removes the marks. Each reads
+   * the event store named after its first source, or after the projection when
+   * it has none, or else any event store. A projection that fails is logged and
+   * stays pending.
+   */
   def bulkRebuildPending(
     specs: List[Projection[_]],
     stores: Map[String, ProjectionStore[_]],

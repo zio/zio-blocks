@@ -22,51 +22,78 @@ import zio.blocks.sql.Transactor
 /**
  * Cache of SQLite Transactors keyed by file path with LRU eviction.
  *
- * Each distinct file path maps to a single [[Transactor]] instance. When the
- * cache reaches `maxSize` the least-recently-used entry is evicted.
+ * Each distinct file path maps to a single `Transactor` instance. When a new
+ * path is opened while the cache holds `maxSize` entries, the least recently
+ * used entry is evicted; a `maxSize` of `0` or less never evicts.
+ *
+ * Opening a path loads the `org.sqlite.JDBC` driver, so `sqlite-jdbc` must be
+ * on the runtime classpath, and connects once to turn on WAL mode, which
+ * creates the file. A `Transactor` keeps no connection open: it opens one for
+ * each operation, so evicting or closing an entry releases nothing.
  */
 trait TransactorCache {
 
-  /** Returns a cached [[Transactor]] for `path` or opens a new one. */
+  /**
+   * Returns the cached `Transactor` for `path`, or opens a new one. Fails if
+   * the file cannot be opened, for example because its folder does not exist,
+   * and with an `IllegalStateException` once the cache is closed.
+   */
   def get(path: String): Task[Transactor]
 
-  /** Evicts and closes the [[Transactor]] for `path` if present. */
+  /** Removes the `Transactor` for `path` from the cache, if it is there. */
   def evict(path: String): Task[Unit]
 
-  /** Closes all cached transactors and clears the cache. */
+  /**
+   * Clears the cache and marks it closed, so that later calls to `get` fail.
+   */
   def close: Task[Unit]
 
-  /** Number of cached entries. */
+  /** The number of cached entries, `0` once the cache is closed. */
   def size: Task[Int]
 }
 
-/** Configuration for [[TransactorCache]]. */
+/**
+ * Configuration for [[TransactorCache]].
+ *
+ * @param maxSize
+ *   the most entries the cache holds before it evicts one
+ */
 final case class TransactorCacheConfig(maxSize: Int = 256)
 
+/** Holds the default [[TransactorCacheConfig]]. */
 object TransactorCacheConfig {
+
+  /** The default configuration, with a `maxSize` of 256. */
   val default: TransactorCacheConfig = TransactorCacheConfig()
 }
 
+/** Creates [[TransactorCache]]s. */
 object TransactorCache {
 
   /**
    * Creates a [[TransactorCache]] with the given `maxSize` and registers a
-   * finalizer on the enclosing [[Scope]] to close the cache when the scope
+   * finalizer on the enclosing `Scope` to close the cache when the scope
    * closes.
    */
   def make(maxSize: Int = 256): ZIO[Scope, Nothing, TransactorCache] =
     ZIO.acquireRelease(TransactorCachePlatform.makeInternal(maxSize))(_.close.orDie)
 
-  /** Creates a [[TransactorCache]] without scope management. */
+  /**
+   * Creates a [[TransactorCache]] that is never closed for you; call `close`
+   * when done.
+   */
   def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache] =
     TransactorCachePlatform.makeInternal(maxSize)
 
   // $COVERAGE-OFF$
-  /** ZLayer that provides a [[TransactorCache]] with default size 256. */
+  /**
+   * A `ZLayer` that provides a [[TransactorCache]] made with `make`, closed
+   * when the `Scope` it needs closes. `maxSize` defaults to 256.
+   */
   def live(maxSize: Int = 256): ZLayer[Scope, Nothing, TransactorCache] =
     ZLayer.fromZIO(make(maxSize))
 
-  /** ZLayer with custom config. */
+  /** Same as `live(config.maxSize)`. */
   def liveConfig(config: TransactorCacheConfig): ZLayer[Scope, Nothing, TransactorCache] =
     live(config.maxSize)
   // $COVERAGE-ON$

@@ -36,26 +36,47 @@ import java.time.Instant
  * `ProjectionEngine.makeWithStores` wiring.
  *
  * Use [[append]] to feed events in and [[query]] to read the projected rows
- * back. Appending only publishes the event; the engine processes it
- * asynchronously, so a query issued straight after an append may not see the
- * result yet.
+ * back. Appending stores the event and publishes it; the engine applies it on
+ * its own fiber, so a query issued straight after an append may not see the
+ * result yet, and a test polls until it does.
  *
  * Events are stored with the event class's simple name as their tag, and they
  * are kept in memory only.
  *
  * {{{
- * val projection = Projection[UserProfile]("userProfiles")
- *   .from("users").routeToSelf
- *   .on[UserCreated].insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+ * import zio._
+ * import zio.blocks.projection.testing.TestEngine
+ * import zio.blocks.schema.{Modifier, Schema}
  *
- * val program = ZIO.scoped {
+ * case class UserCreated(name: String, email: String)
+ * object UserCreated {
+ *   implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
+ * }
+ *
+ * case class UserProfile(@Modifier.id userId: String, name: String, email: String)
+ * object UserProfile {
+ *   implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+ *   implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+ * }
+ *
+ * val projection: Projection[UserProfile] = Projection[UserProfile]("userProfiles")
+ *   .from("users")
+ *   .routeToSelf
+ *   .on[UserCreated]
+ *   .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+ *
+ * val program: Task[Option[UserProfile]] = ZIO.scoped {
  *   for {
  *     engine <- TestEngine.make(projection)
- *     _      <- engine.append("user-1", UserCreated("Alice", "a@b.com"))
- *     u1     <- engine.query(projection, "user-1")
+ *     _      <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+ *     u1     <- engine.query(projection, "user-1").delay(20.millis).repeatUntil(_.isDefined)
  *   } yield u1
  * }
+ * // Some(UserProfile(user-1,Alice,alice@example.com))
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/testing/ Testing]]
  *
  * @param projections
  *   the projections this engine runs, in the order they were given
@@ -77,7 +98,9 @@ final class TestEngine private (
    * With a single source the event goes to it and any failure is returned. With
    * several sources the event goes to every source whose binding has a handler
    * for the event's runtime class, or to all sources if none has. In the
-   * several-sources case a failure while appending to one source is ignored.
+   * several-sources case a failure while appending to one source is ignored. An
+   * event that goes to two sources is applied twice by a projection that reads
+   * both.
    *
    * To pick the source yourself, use the overload that takes a source name.
    *
@@ -121,7 +144,7 @@ final class TestEngine private (
 
   /**
    * Reads the row with the given ID from a projection, or `None` if there is
-   * none.
+   * none. Same as [[ProjectionEngine#query]] on the underlying engine.
    *
    * @param projection
    *   the projection to read from
@@ -142,6 +165,7 @@ final class TestEngine private (
   def underlying: ProjectionEngine = engine
 }
 
+/** Builds and starts [[TestEngine]]s. */
 object TestEngine {
 
   /**
@@ -209,9 +233,7 @@ object TestEngine {
       _ <- engine.start
     } yield new TestEngine(projections.toList, storesMap, eventStoresMap, engine)
 
-  /**
-   * Alias so `TestEngine(proj)` works inside a `ZIO.scoped` for-comprehension.
-   */
+  /** Same as [[make]], so that `TestEngine(projection)` reads naturally. */
   def apply(projections: Projection[_]*): ZIO[Scope, Nothing, TestEngine] =
     make(projections: _*)
 
