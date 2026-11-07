@@ -19,16 +19,39 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * Renderer for HTML output.
+ * Writes a [[Doc]], or any of its [[Block]] and [[Inline]] elements, as HTML.
  *
- * Converts markdown AST elements to HTML5-compliant HTML strings. Provides both
- * full document rendering with DOCTYPE and head/body tags, and fragment
- * rendering for embedding in existing HTML documents.
+ * [[HtmlRenderer.render]] wraps the content in a minimal page and
+ * [[HtmlRenderer.renderFragment]] writes the content alone, for embedding in a
+ * page you already have. The output has no added newlines or indentation.
+ *
+ * Text, code, link and image text and addresses are escaped with
+ * [[HtmlRenderer.escape]]. Raw HTML in the document (`HtmlBlock` and
+ * `HtmlInline`) is written out unchanged, and the renderer does not sanitize
+ * links or HTML, so do not render Markdown from an untrusted source without
+ * sanitizing the output.
+ *
+ * @example
+ *   {{{
+ * val doc = Parser.parse("## Release 1.4\n\nFixed *two* bugs in [the parser](https://example.com/parser).")
+ *   .toOption
+ *   .get
+ *
+ * val html = HtmlRenderer.renderFragment(doc)
+ * // <h2>Release 1.4</h2><p>Fixed <em>two</em> bugs in <a href="https://example.com/parser">the parser</a>.</p>
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 object HtmlRenderer {
 
   /**
    * Render a Doc to a complete HTML5 document.
+   *
+   * The document is the fragment from [[HtmlRenderer.renderFragment]] inside
+   * `<!DOCTYPE html><html><head></head><body>` and `</body></html>`. The head
+   * is empty: there is no title and no charset declaration.
    *
    * @param doc
    *   The document to render
@@ -53,6 +76,16 @@ object HtmlRenderer {
 
   /**
    * Render a Block to its HTML representation.
+   *
+   * Paragraphs, headings, quotes, lists and tables become the matching HTML
+   * elements. A list item always wraps its paragraphs in `<p>`, whether or not
+   * the list is tight. A task item starts with a disabled checkbox. An ordered
+   * list gets a `start` attribute only when it does not start at 1. A table has
+   * a `thead` and a `tbody`, and each cell has a `text-align` style when its
+   * column is left, right or center aligned. Cells are paired with the table's
+   * alignments by position, so a row with more cells than alignments loses the
+   * extra cells. A code block is written as `<pre><code>`, with a `language-`
+   * class when it has an info string. An `HtmlBlock` is written as it is.
    *
    * @param block
    *   The block element to render
@@ -168,13 +201,17 @@ object HtmlRenderer {
    * @param inlines
    *   The inline elements to render
    * @return
-   *   Concatenated HTML string
+   *   The rendered elements, one after another
    */
   def renderInlines(inlines: Chunk[Inline]): String =
     inlines.map(renderInline).mkString
 
   /**
    * Render a single inline element.
+   *
+   * A soft break becomes a space and a hard break becomes `<br>`. An autolink
+   * that is an email address links to `mailto:` and the address. An
+   * `HtmlInline` is written as it is.
    *
    * @param inline
    *   The inline element to render
@@ -259,12 +296,16 @@ object HtmlRenderer {
   }
 
   /**
-   * Escape HTML entities.
+   * Escape the characters that have a meaning in HTML text and attribute
+   * values.
+   *
+   * Replaces `&` with `&amp;`, `<` with `&lt;`, `>` with `&gt;`, `"` with
+   * `&quot;` and `'` with `&#39;`.
    *
    * @param s
    *   The string to escape
    * @return
-   *   String with HTML entities escaped
+   *   The escaped string
    */
   def escape(s: String): String =
     s.replace("&", "&amp;")

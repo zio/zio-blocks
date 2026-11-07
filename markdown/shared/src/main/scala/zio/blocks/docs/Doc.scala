@@ -19,23 +19,44 @@ package zio.blocks.docs
 import zio.blocks.chunk.Chunk
 
 /**
- * A GitHub Flavored Markdown document.
+ * A GitHub Flavored Markdown document: a sequence of [[Block]] elements.
  *
- * Represents a complete GFM document as a sequence of block elements. Documents
- * can be created by parsing markdown strings or constructed programmatically.
+ * Build one by parsing text with [[Parser.parse]], with the `md` string
+ * interpolator, or by constructing the blocks directly. Render it with
+ * `Doc#toString` (Markdown), `Doc#toHtml`, `Doc#toHtmlFragment` or
+ * `Doc#toTerminal`, or with the matching renderer object.
+ *
+ * `==` and `hashCode` compare the normalized form of both documents and their
+ * metadata, so two documents that differ only in how their text is split into
+ * `Text` nodes are equal.
  *
  * @param blocks
- *   The sequence of block elements in the document
+ *   The blocks of the document, in order
  * @param metadata
- *   Optional metadata (reserved for future use)
+ *   Key-value pairs carried along with the document. [[Parser]] and the `md`
+ *   interpolator always leave it empty, and the renderers ignore it; it only
+ *   takes part in `==`, `hashCode` and `Doc#++`
  *
  * @example
- *   {{{ import zio.blocks.docs._ import zio.blocks.chunk.Chunk
+ *   {{{
+ * import zio.blocks.chunk.Chunk
  *
- * // Parse from string val doc = Parser.parse("# Hello World")
+ * val parsed = Parser.parse("# Release 1.4\n\n- Faster startup")
+ * val built = Doc(
+ *   Chunk(
+ *     Heading(HeadingLevel.H1, Chunk(Text("Release 1.4"))),
+ *     BulletList(Chunk(ListItem(Chunk(Paragraph(Chunk(Text("Faster startup")))), None)), tight = true)
+ *   )
+ * )
  *
- * // Construct programmatically val doc2 = Doc(Chunk( Heading(HeadingLevel.H1,
- * Chunk(Text("Hello World"))) )) }}}
+ * val same = parsed == Right(built)
+ * // true
+ * val html = built.toHtmlFragment
+ * // <h1>Release 1.4</h1><ul><li><p>Faster startup</p></li></ul>
+ *   }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/docs/ Docs]]
  */
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
     extends Product
@@ -44,8 +65,9 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
   /**
    * Concatenate two documents.
    *
-   * Combines blocks from both documents and merges metadata. On key conflict,
-   * right metadata wins.
+   * Appends the blocks of `other` to the blocks of this document and merges the
+   * metadata. When both documents have the same metadata key, the value from
+   * `other` wins.
    *
    * @param other
    *   The document to concatenate
@@ -56,7 +78,8 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
     Doc(blocks ++ other.blocks, metadata ++ other.metadata)
 
   /**
-   * Render this document as GitHub Flavored Markdown.
+   * Render this document as GitHub Flavored Markdown, the same as
+   * [[Renderer.render]].
    *
    * @return
    *   GFM markdown string representation
@@ -65,10 +88,15 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
     Renderer.render(this)
 
   /**
-   * Normalize this document to canonical form.
+   * Normalize this document to canonical form, the same as
+   * [[Doc.normalizeBlocks]] on its blocks.
    *
-   * Merges adjacent Text nodes, removes empty blocks, and recursively
-   * normalizes nested structures.
+   * Merges adjacent text nodes, removes empty text nodes and the empty
+   * paragraphs, block quotes and lists, and does the same inside nested blocks,
+   * list items, table cells, emphasis, strong, strikethrough and link text. The
+   * metadata is kept as it is. A lone `Inline.Text` that has nothing to merge
+   * with stays an `Inline.Text`, and so do the other `Inline.` cases without
+   * children.
    *
    * @return
    *   A normalized copy of this document
@@ -77,9 +105,12 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
     Doc(Doc.normalizeBlocks(blocks), metadata)
 
   /**
-   * Override equals to use normalized comparison.
+   * Compare two documents by their normalized form.
    *
-   * Two documents are equal if their normalized forms are equal.
+   * Two documents are equal when their normalized blocks are equal and their
+   * metadata is equal. A lone `Inline.Text` is kept as it is, so a document
+   * built from `Inline.Text("a")` is not equal to one built from `Text("a")`;
+   * see [[Inline]] for which `Inline.` cases normalize.
    */
   override def equals(obj: Any): Boolean = obj match {
     case that: Doc =>
@@ -89,31 +120,51 @@ final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.e
   }
 
   /**
-   * Override hashCode to be consistent with equals.
-   *
-   * Hash code is based on normalized form.
+   * The hash code of the normalized blocks and the metadata, consistent with
+   * `Doc#equals`.
    */
   override def hashCode(): Int = {
     val normalized = this.normalize
     (normalized.blocks, normalized.metadata).hashCode()
   }
 
-  def toHtml: String         = HtmlRenderer.render(this)
+  /**
+   * Render this document as a complete HTML page, the same as
+   * [[HtmlRenderer.render]].
+   */
+  def toHtml: String = HtmlRenderer.render(this)
+
+  /**
+   * Render this document as HTML without the page wrapper, the same as
+   * [[HtmlRenderer.renderFragment]].
+   */
   def toHtmlFragment: String = HtmlRenderer.renderFragment(this)
-  def toTerminal: String     = TerminalRenderer.render(this)
+
+  /**
+   * Render this document with ANSI escape codes for a terminal, the same as
+   * [[TerminalRenderer.render]].
+   */
+  def toTerminal: String = TerminalRenderer.render(this)
 }
 
+/**
+ * The empty document and the normalization functions behind `Doc#normalize`.
+ */
 object Doc {
 
+  /** A document with no blocks and no metadata. */
   val empty: Doc = Doc(Chunk.empty)
 
   /**
    * Normalize a chunk of blocks to canonical form.
    *
+   * Normalizes each block with [[Doc.normalizeBlock]], then drops the blocks
+   * for which [[Doc.isEmpty]] is true.
+   *
    * @param blocks
    *   The blocks to normalize
    * @return
-   *   Normalized blocks with adjacent Text nodes merged and empty blocks
+   *   Normalized blocks with adjacent text nodes merged and empty blocks
    *   removed
    */
   def normalizeBlocks(blocks: Chunk[Block]): Chunk[Block] =
@@ -123,6 +174,11 @@ object Doc {
 
   /**
    * Normalize a single block to canonical form.
+   *
+   * Normalizes the inline content of paragraphs, headings and table cells, and
+   * the blocks inside block quotes and list items. Code blocks, thematic breaks
+   * and HTML blocks are returned unchanged. The block itself is kept even when
+   * it ends up empty; [[Doc.normalizeBlocks]] removes empty blocks.
    *
    * @param block
    *   The block to normalize
@@ -167,7 +223,9 @@ object Doc {
   /**
    * Normalize a chunk of inlines to canonical form.
    *
-   * Adjacent Text nodes are merged, and empty Text nodes are removed.
+   * Adjacent text nodes, whether `Text` or `Inline.Text`, are merged into one
+   * package-level `Text`, and empty text nodes are removed. Each element is
+   * first normalized with [[Doc.normalizeInline]].
    *
    * @param inlines
    *   The inlines to normalize
@@ -194,6 +252,11 @@ object Doc {
   /**
    * Normalize a single inline to canonical form.
    *
+   * Normalizes the children of emphasis, strong, strikethrough and link text,
+   * and turns the `Inline.` versions of those four cases into the package-level
+   * ones. Every other inline, including `Inline.Text`, is returned unchanged;
+   * text nodes are merged by [[Doc.normalizeInlines]].
+   *
    * @param inline
    *   The inline to normalize
    * @return
@@ -214,7 +277,10 @@ object Doc {
   /**
    * Check if a block is empty.
    *
-   * Empty paragraphs, block quotes, and lists are considered empty.
+   * A paragraph is empty when it has no content or only empty text nodes. A
+   * block quote with no blocks is empty, and so is a bullet or ordered list
+   * with no items. No other block is empty: headings, code blocks, tables and
+   * list items are never removed.
    *
    * @param block
    *   The block to check
