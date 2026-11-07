@@ -629,6 +629,7 @@ const sidebars = {
             "guides/read-and-write-json-lines",
             "guides/run-streams-without-blocking",
             "guides/wrap-callback-and-future-apis",
+            "guides/turn-a-paginated-api-into-a-stream",
             "guides/run-a-mux-over-a-socket",
           ]
         },
@@ -667,6 +668,7 @@ const sidebars = {
             "guides/protect-pages-with-basic-auth-or-a-session-cookie",
             "guides/write-and-export-openapi",
             "guides/generate-scala-types-from-openapi",
+            "guides/generate-service-traits-from-smithy-or-openapi",
           ]
         },
         {

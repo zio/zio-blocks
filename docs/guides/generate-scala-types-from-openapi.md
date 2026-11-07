@@ -771,6 +771,8 @@ This table lists what each part handles, so you know where to extend the generat
 | Paths, operations, parameters and responses                      | Yes                                  | Not generated: data types only                  |
 | YAML documents                                                   | Through schema-yaml, see above       | Same as JSON                                    |
 
+Next step: [How to Generate Service Traits from Smithy Operations or OpenAPI Paths](./generate-service-traits-from-smithy-or-openapi.md) maps each path and operation to a method of a Scala service trait.
+
 Note that the model is OpenAPI 3.1, and the parser doesn't check the `openapi` version field: a 3.0 document decodes, and its schemas are read as JSON Schema 2020-12. The two differ in the keywords above, so a 3.0 spec needs the `nullable` handling from [Map Schema Types to Scala Types](#map-schema-types-to-scala-types), and its exclusive bounds are lost.
 
 ## Running the Examples

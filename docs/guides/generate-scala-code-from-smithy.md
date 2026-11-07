@@ -70,6 +70,8 @@ orders.smithy ──SmithyModel.parse──▶ SmithyModel ──our mapping─�
 
 If you need a complete Smithy toolchain, [smithy4s](https://disneystreaming.github.io/smithy4s/) generates data types and services, clients and servers too. This tutorial builds something smaller: a generator you own and can read in one sitting, covering data shapes only, whose output carries ZIO Blocks schemas.
 
+Next step: [How to Generate Service Traits from Smithy Operations or OpenAPI Paths](./generate-service-traits-from-smithy-or-openapi.md) maps each operation of the service to a method of a Scala trait.
+
 ## 3. Parse the Model
 
 Let's start with the contract itself. A Smithy file begins with a `$version` line and a `namespace`, followed by shapes: a `structure` is a record with named members, a `list` and a `map` are collections, a `union` holds exactly one of several members, and an `enum` is a fixed set of names. Members are optional unless they carry the `@required` trait, and a `///` line is a documentation comment.
