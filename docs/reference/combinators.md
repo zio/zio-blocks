@@ -6,15 +6,14 @@ title: "Combinators"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, choices, concatenation widening, Either types, and union types.
+The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, concatenation widening, Either types, and union types.
 
 ## Overview
 
-The combinators module consists of five core modules:
+The combinators module consists of four core modules:
 
 - **Tuples** - Tuple composition with automatic flattening and separation
-- **Choices** - Cross-version branch construction and elimination over `|`
-- **Concat** - Scala-2-only union-aware widening for sequential composition
+- **Concat** - Union-aware widening for sequential composition: the supertype or `Either` on Scala 2, `L | R` on Scala 3
 - **Eithers** - Either canonicalization to left-nested form
 - **Unions** - Union type operations (Scala 3 only)
 
@@ -39,8 +38,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 Supported platforms:
-- **Tuples, Choices, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
-- **Concat**: Scala 2.13 only
+- **Tuples, Concat, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
 ## Motivation
@@ -112,29 +110,31 @@ val validationError: Either[String, Either[String, Boolean]] = Right(Left("inval
 val canonical      : Either[Either[String, String], Boolean] = Eithers.combine(validationError)
 ```
 
-## Concat (Scala 2 Only)
+The nested `Tuples.combine` call relies on Scala 3 flattening a tuple on the right-hand side. On Scala 2.13 it gives `(String, (Int, String))` and the `Tuple3` annotation does not compile; see [Tuples: Version Differences](#tuples-version-differences).
 
-`Concat` is the Scala-2-only witness used by APIs such as `Stream.++` / `Stream.concat` to preserve Scala 3-style union behavior without introducing a separate operator.
+## Concat
 
-Its rules are:
+`Concat` is the witness used by APIs such as `Stream.++` / `Stream.concat` to give the result of a concatenation the same shape on both Scala versions. On Scala 3 it derives `Out = L | R` and is identity-like. On Scala 2 it preserves that union behavior without introducing a separate operator.
+
+On Scala 2, its rules are:
 
 - same type => keep that type
 - subtype + supertype => keep the supertype
 - siblings with a unique meaningful common supertype => keep that supertype (e.g. `Dog` and `Cat` under sealed `Animal` collapse to `Animal`)
 - otherwise (no shared meaningful supertype) => widen to `Either[L, R]` (the Scala 2 encoding of `L | R`)
 
-For example, Scala 2 infers witnesses equivalent to these shapes:
+For example, Scala 2 infers witnesses equivalent to these shapes (on Scala 3 the last one is `Concat.WithOut[String, Int, String | Int]`):
 
 ```scala
-Concat.Concat.WithOut[Int, Int, Int]
-Concat.Concat.WithOut[Dog, Animal, Animal]
-Concat.Concat.WithOut[Dog, Cat, Animal]
-Concat.Concat.WithOut[String, Int, Either[String, Int]]
+Concat.WithOut[Int, Int, Int]
+Concat.WithOut[Dog, Animal, Animal]
+Concat.WithOut[Dog, Cat, Animal]
+Concat.WithOut[String, Int, Either[String, Int]]
 ```
 
 A common supertype is "meaningful" when it is something other than the noise types Scala 2's LUB inference produces by default (`Any`, `AnyRef`, `AnyVal`, `Object`, `Product`, `Serializable`, `java.io.Serializable`, `Comparable`). If filtering those parents leaves exactly one candidate, it becomes the result type — and the witness is identity-like, so callers such as `Stream.concat` reuse values bare without wrapping. Zero or multiple meaningful parents fall through to `Either`.
 
-Unlike `Choices`, `Concat` is not usually called directly at runtime. It exists mainly so shared Scala-2 APIs can infer the same public result types that Scala 3 expresses with native unions.
+`Concat` is not usually called directly at runtime. It exists mainly so shared APIs can infer the same public result types on both versions: on Scala 2 through the rules above, on Scala 3 through native unions.
 
 ## Tuples
 
@@ -149,7 +149,7 @@ import zio.blocks.combinators.Tuples
 
 val result1 = Tuples.combine(1, "hello")                 // (1, "hello")
 val result2 = Tuples.combine((1, "hello"), true)         // (1, "hello", true)
-val result3 = Tuples.combine((1, "hello"), (true, 3.14)) // (1, "hello", true, 3.14)j
+val result3 = Tuples.combine((1, "hello"), (true, 3.14)) // (1, "hello", true, 3.14)
 ```
 
 #### Identity Handling
@@ -183,7 +183,7 @@ To split a tuple into its init (all but last) and last element, access `Tuples#s
 import zio.blocks.combinators.Tuples
 
 val t2 = summon[Tuples.Tuples[Int, String]]
-t2.separate((1, "hello")) // ((1), "hello")
+t2.separate((1, "hello")) // (1, "hello"), a pair of 1 and "hello"
 
 val t3 = summon[Tuples.Tuples[(Int, String), Boolean]]
 t3.separate((1, "hello", true)) // ((1, "hello"), true)
@@ -412,7 +412,7 @@ val result = combineAll(1, "hello", true)
 
 ### Path-Dependent Types
 
-The `Out`, `Left`, and `Right` type members are path-dependent:
+The `Out` type member is path-dependent:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -427,7 +427,7 @@ val result: (Int, String) = process(1, "hello")
 
 The combinator types integrate with other ZIO Blocks modules through systematic composition:
 
-**Schema Evolution**: The `Eithers` canonicalization strategy directly supports schema sum type encoding. When deriving schemas for sealed trait hierarchies, the combinator ensures all Either encodings use the same left-nested form, enabling consistent serialization across schema variants.
+**Sum Type Encoding**: The `Eithers` canonicalization strategy gives every Either encoding of a sum type the same left-nested form, so code that serializes such types can rely on one shape. The `schema` module does not use it itself.
 
 **Error Handling**: `Eithers` provides a foundation for systematic error composition. Libraries building polymorphic error types can leverage canonicalization to ensure uniform error nesting, preventing subtle bugs from inconsistent Either structure.
 
@@ -456,13 +456,13 @@ The combinators module works across Scala 2.13 and Scala 3.x with **full source 
 <Tabs groupId="scala-version" defaultValue="scala2">
   <TabItem value="scala2" label="Scala 2.13">
 
-In Scala 2.13, combining two tuples on the right side fails to compile:
+In Scala 2.13, combining two tuples compiles, but only the left tuple is flattened; the right one stays nested (a known limitation of the Scala 2 implementation, not a compile error):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.combinators.Tuples
 
-// ERROR: right side not flattened
-val result = Tuples.combine((1, 2), (3, 4))  // Type mismatch
+// compiles; right side not flattened
+val result = Tuples.combine((1, 2), (3, 4))  // (1, 2, (3, 4))
 ```
 
   </TabItem>
@@ -482,7 +482,7 @@ val result = Tuples.combine((1, 2), (3, 4))  // (1, 2, 3, 4)
 
 ### Eithers: Full Cross-Version Support
 
-`Eithers` canonicalization works identically on Scala 2.13 and 3.x. No version-specific behavior. Use with confidence across versions—canonicalization is deterministic.
+`Eithers` canonicalization produces the same shapes on Scala 2.13 and 3.x, and is deterministic. One difference remains in how you obtain the instance: on Scala 2.13, `implicitly[Eithers.Eithers[L, R]]` loses the `Out` type member (the macro's declared type is `Eithers[L, R]`), so `separate` is usable only through an implicit parameter, as in the Scaladoc examples. The same applies to `Tuples`, and the `summon[...]` examples on this page are Scala 3 only.
 
 ### Unions: Scala 3 Only
 
@@ -501,7 +501,6 @@ For Scala 2.13 codebases, use `Either` directly or `Eithers` canonicalization in
 | **Tuples.separate**            | ✅          | ✅         | Works identically on both     |
 | **Eithers.combine**            | ✅          | ✅         | No differences                |
 | **Eithers.separate**           | ✅          | ✅         | No differences                |
-| **Choices.left/right/separate**| ✅          | ✅         | Scala 2 uses `Either` alias   |
 | **Unions.combine**             | ❌          | ✅         | Requires Scala 3              |
 | **Unions.separate**            | ❌          | ✅         | Requires Scala 3              |
 | **EmptyTuple as identity**     | ❌          | ✅         | Use `Unit` in Scala 2         |
@@ -514,11 +513,9 @@ When adopting Scala 3, no changes are required for existing `Tuples` and `Either
 
 1. **Adopt `EmptyTuple` idiom**: Use `EmptyTuple` instead of `Unit` when combining with `Tuples` in Scala 3 for consistency with modern tuple syntax. Note that `Unit` remains fully supported and valid—`EmptyTuple` is a stylistic enhancement, not a replacement.
 2. **Simplify tuple builders**: Leverage recursive flattening on both sides to remove manual nesting. In Scala 3, `Tuples.combine((1, "a"), (true, 3.14))` automatically flattens to `(1, "a", true, 3.14)`.
-3. **Adopt `Choices` in shared code**: Use `Choices.left`, `Choices.right`, and `Choices.separate` when you want a single `|`-based API shape to compile on both Scala 2 and Scala 3.
-4. **Adopt `Unions` in Scala 3-only code**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
-5. **Gradual adoption**: Use `Choices` in cross-version modules and `Unions` in Scala-3-only modules. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
+3. **Adopt `Unions` in Scala 3-only code**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
+4. **Gradual adoption**: Keep `Either` in cross-version modules and use `Unions` in Scala-3-only modules. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
 
 ## See Also
 
-- [Schema](./schema/schema.md) — The Schema module uses `Eithers` canonicalization for encoding sealed trait hierarchies and sum types with consistent Either nesting.
 - **HTTP Model Schema** — When extracting multiple typed query parameters or headers in the HTTP Model schema module, `Eithers` provides systematic composition of error types for uniform error handling.
