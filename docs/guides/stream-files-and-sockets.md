@@ -671,3 +671,5 @@ The reference pages cover each constructor in full:
 - The streams [overview](../reference/streams/index.md#resource-management) explains how streams integrate with `Scope`.
 
 Streaming rows from a SQL query uses the same guarantee for a database cursor; [How to Stream Large Query Results](./stream-large-query-results.md) covers it.
+
+For a file of one JSON value per line, see [How to Read and Write JSON Lines with Streams](./read-and-write-json-lines.md).

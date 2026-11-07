@@ -26,7 +26,7 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes, paginatedApi)
+  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes, paginatedApi, jsonLines)
   .settings(
     commonSettings,
     name := "zio-blocks-examples",
@@ -91,5 +91,17 @@ lazy val paginatedApi = (project in file("paginated-api"))
       zioBlocks("schema").value,
       zioBlocks("streams").value,
       zioBlocks("async").value
+    )
+  )
+
+// Examples for "How to Read and Write JSON Lines (NDJSON) with Streams": one JSON value per line, read and written as a stream.
+// Run with: sbt "jsonLines/runMain readandwritejsonlines.<Object>"
+lazy val jsonLines = (project in file("json-lines"))
+  .settings(
+    commonSettings,
+    name := "json-lines",
+    libraryDependencies ++= Seq(
+      zioBlocks("schema").value,
+      zioBlocks("streams").value
     )
   )
