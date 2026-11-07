@@ -149,8 +149,7 @@ object MigrationAction {
    * the value of `default`, evaluated against the whole value the action runs
    * on, unwraps a `Some`, and leaves any other value as it is. A `Some` unwraps
    * to the record that holds its `value` field rather than to the value itself,
-   * so a typed migration from `Option[A]` to `A` fails for every `Some` (see
-   * `docs/dev/issues.md`). Its reverse is an [[OptionalizeField]], which has
+   * so a typed migration from `Option[A]` to `A` fails for every `Some` (a known bug in 0.0.56). Its reverse is an [[OptionalizeField]], which has
    * the same problem the other way round.
    *
    * @param at
@@ -169,7 +168,7 @@ object MigrationAction {
    * Turns a required value into an optional one by wrapping the value at `at`
    * in a `Some` case. The `Some` it builds lacks the `value` field that the
    * schema of `Option` expects, so a typed migration to an `Option` field fails
-   * to decode the result (see `docs/dev/issues.md`). It has no inverse.
+   * to decode the result (a known bug in 0.0.56). It has no inverse.
    *
    * @param at
    *   the path of the value

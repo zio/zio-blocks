@@ -83,16 +83,14 @@ transparent trait CompanionOptics[S] {
     /**
      * In a path, focuses on the value of type `B` inside a wrapper, such as a
      * schema built with `Schema#transform`. On Scala 2 the expansion also needs
-     * `import zio.blocks.schema.binding.Binding` (a bug, see
-     * `docs/dev/issues.md`). Compiles only inside `$` and `optic`.
+     * `import zio.blocks.schema.binding.Binding` (a known bug in 0.0.56). Compiles only inside `$` and `optic`.
      */
     inline def wrapped[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
     /**
      * In a path, focuses on every value at or below this point that decodes as
      * a `B`, found depth first. It needs an implicit `Schema[B]`. Map keys are
-     * read by `fold` and `check` but skipped by `modify` (see
-     * `docs/dev/issues.md`). Compiles only inside `$` and `optic`.
+     * read by `fold` and `check` but skipped by `modify` (a known bug in 0.0.56). Compiles only inside `$` and `optic`.
      */
     inline def searchFor[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }

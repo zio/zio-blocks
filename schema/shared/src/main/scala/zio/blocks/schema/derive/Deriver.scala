@@ -218,13 +218,12 @@ trait Deriver[TC[_]] { self =>
    * evaluated when the deriver first forces it, not here: during `derive` for
    * `JsonCodecDeriver`, possibly later for a deriver that forces children on
    * first use. It may be evaluated more than once, and again on each derivation
-   * that uses this deriver (see `docs/dev/issues.md`).
+   * that uses this deriver (a known bug in 0.0.56).
    *
    * An override by optic or by field name wins over this one for the nodes it
    * targets. For the same type, a later `withInstance` wins over an earlier
    * one, and this override wins over one given to `DerivationBuilder#instance`
-   * for the same derivation, which is then ignored without a warning (see
-   * `docs/dev/issues.md`).
+   * for the same derivation, which is then ignored without a warning (a known bug in 0.0.56).
    *
    * Derivation never looks for an implicit `TC[A]` in scope.
    * `Schema#jsonCodec`, `Schema#getInstance` and the `toJsonString` and

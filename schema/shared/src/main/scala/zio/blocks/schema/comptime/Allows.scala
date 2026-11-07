@@ -496,7 +496,7 @@ object Allows extends AllowsCompanionVersionSpecific {
    * directly or through other types: mutually recursive `Forest` and `Tree`
    * checked as `Allows[Forest, …]` are accepted. A recursive type below `A`,
    * such as a self-recursive `Category` field of a record that is not
-   * recursive, is rejected (see `docs/dev/issues.md`).
+   * recursive, is rejected (a known bug in 0.0.56).
    *
    * A type that contains no recursive type satisfies a `Self`-containing
    * grammar whenever its parts match: `Self` checks the part at its position

@@ -24,7 +24,7 @@ import zio.blocks.schema.{DynamicOptic, Schema}
  * The macros that turn builder selectors into
  * [[zio.blocks.schema.DynamicOptic]] paths. They accept field accesses; they
  * are meant to accept the syntax of [[MigrationSelectorSyntax]] too, but reject
- * it (see `docs/dev/issues.md`).
+ * it (a known bug in 0.0.56).
  */
 object SelectorMacros {
 

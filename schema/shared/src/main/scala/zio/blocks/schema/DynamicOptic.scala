@@ -142,7 +142,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
    *
    * Not every rendering is accepted by `p"..."`: the interpolator rejects `.~`
    * and `.`, and a `Char` key with an escape renders with a doubled backslash
-   * (`{'\\n'}`), which it also rejects (see `docs/dev/issues.md`).
+   * (`{'\\n'}`), which it also rejects (a known bug in 0.0.56).
    */
   override lazy val toString: String = {
     val sb = new java.lang.StringBuilder

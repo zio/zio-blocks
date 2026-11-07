@@ -24,8 +24,7 @@ trait MigrationCompanionVersionSpecific {
 
   /**
    * Starts an empty [[MigrationBuilder]] from `A` to `B`; [[Migration]] shows
-   * an example. On Scala 2 the builder does not compile outside ZIO Blocks (see
-   * `docs/dev/issues.md`): build a [[DynamicMigration]] and call
+   * an example. On Scala 2 the builder does not compile outside ZIO Blocks (a known bug in 0.0.56): build a [[DynamicMigration]] and call
    * [[Migration.fromDynamic]] instead.
    */
   def newBuilder[A, B](implicit
