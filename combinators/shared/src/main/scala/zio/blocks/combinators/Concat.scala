@@ -17,57 +17,80 @@
 package zio.blocks.combinators
 
 /**
- * Typeclass describing the element type produced by sequential concatenation of
- * values of type `L` and `R`.
+ * Picks the element type of a sequence that holds values of type `L` followed
+ * by values of type `R`, such as a stream concatenated with another stream, and
+ * converts each value to it. `Out` is that type.
  *
- * The derivation rules — implemented per platform — are:
+ * On Scala 3, `Out` is the union `L | R`, and the values need no conversion. On
+ * Scala 2, which has no unions, a macro picks `Out`:
  *
- *   - same type: keep that type;
- *   - subtype + supertype: keep the supertype;
- *   - siblings sharing a unique meaningful common supertype (e.g. `Dog` and
- *     `Cat` extending sealed `Animal`): keep that supertype (a supertype is
- *     ''meaningful'' when it is not a noise type such as `Any`, `AnyRef`,
- *     `AnyVal`, `Object`, `Product`, or `Serializable`);
- *   - otherwise: widen disjoint values into `Either[L, R]` on Scala 2 (or
- *     produce the native union `L | R` on Scala 3).
+ *   - same type: that type;
+ *   - one a subtype of the other: the supertype;
+ *   - otherwise, the one most specific common supertype left after dropping
+ *     `Any`, `AnyRef`, `AnyVal`, `Object`, `Product`, `Serializable`,
+ *     `java.io.Serializable` and `Comparable` (two case classes of a sealed
+ *     `Shape` give `Shape`);
+ *   - when no such supertype is left, or more than one: `Either[L, R]`, and
+ *     `left` and `right` wrap values in `Left` and `Right`.
  *
- * `Stream.concat` uses [[isIdentityLike]] to decide whether it can reuse
- * elements as-is or must wrap/project them through [[left]] and [[right]].
+ * Stream methods such as `Stream#concat` and `Stream#catchAll` take a
+ * `Concat.WithOut` and use `isIdentityLike` to reuse elements as they are.
+ *
+ * {{{
+ * sealed trait Shape
+ * final case class Circle(radius: Double) extends Shape
+ * final case class Square(side: Double) extends Shape
+ *
+ * def asOut[O](circle: Circle)(implicit c: Concat.WithOut[Circle, Square, O]): O =
+ *   c.left(circle)
+ *
+ * val shape: Shape = asOut(Circle(1.0)) // Circle(1.0), not wrapped
+ * }}}
+ *
+ * Unrelated types give `Either` on Scala 2:
+ * {{{
+ * // scala-2-only
+ * def sides[O](implicit c: Concat.WithOut[String, Int, O]): (O, O) =
+ *   (c.left("timeout"), c.right(504))
+ *
+ * val both: (Either[String, Int], Either[String, Int]) = sides // (Left(timeout),Right(504))
+ * }}}
+ *
+ * and a union on Scala 3:
+ * {{{
+ * // scala-3-only
+ * val c = summon[Concat[String, Int]]
+ * val status: String | Int = c.left("timeout") // timeout
+ * }}}
  *
  * @tparam L
- *   left element type
+ *   the type of the first values
  * @tparam R
- *   right element type
+ *   the type of the values that follow
+ * @see
+ *   [[https://zioblocks.com/reference/combinators/ Combinators]]
  */
 trait Concat[L, R] {
+
+  /** The element type of the concatenation. */
   type Out
 
   /**
-   * True when both input sides can be viewed directly as [[Out]] without
-   * allocating wrapper values.
-   *
-   * @return
-   *   whether concat can reuse existing elements as the output type
+   * Returns `true` when `left` and `right` return their argument unchanged,
+   * typed as `Out`. It is `false` only for the Scala 2 `Either[L, R]` fallback,
+   * whose `left` and `right` allocate a `Left` or a `Right`.
    */
   def isIdentityLike: Boolean
 
   /**
-   * Projects a left-side value into the concat output type.
-   *
-   * @param l
-   *   left-side value
-   * @return
-   *   the value represented as [[Out]]
+   * Converts a value of the first type to `Out`: the value itself, or `Left(l)`
+   * for the Scala 2 `Either` fallback.
    */
   def left(l: L): Out
 
   /**
-   * Projects a right-side value into the concat output type.
-   *
-   * @param r
-   *   right-side value
-   * @return
-   *   the value represented as [[Out]]
+   * Converts a value of the second type to `Out`: the value itself, or
+   * `Right(r)` for the Scala 2 `Either` fallback.
    */
   def right(r: R): Out
 }
@@ -75,9 +98,10 @@ trait Concat[L, R] {
 private[combinators] trait EqualTypeConcat {
 
   /**
-   * Identity concatenation for equal element types. Kept in shared bytecode so
-   * Scala 3 consumers of a Scala 2-built dependency do not need to expand the
-   * Scala-version-specific derivation macro merely to concatenate equal types.
+   * The instance for two equal types: `Out` is `A`, and values pass through
+   * unchanged. It lives in the shared sources, so Scala 3 code that uses a
+   * library built with Scala 2 finds it without expanding the Scala 2
+   * derivation macro.
    */
   implicit def same[A]: Concat.WithOut[A, A, A] =
     new _root_.zio.blocks.combinators.Concat[A, A] {
@@ -88,20 +112,27 @@ private[combinators] trait EqualTypeConcat {
     }
 }
 
+/**
+ * Holds the `Concat` instances: the ones for `Nothing` and for equal types, and
+ * the derived instance for any other pair (on Scala 2, `derive`, or the
+ * `Either` fallback `disjoint` when `derive` finds no supertype).
+ */
 object Concat extends ConcatCompanionPlatform with EqualTypeConcat {
 
   /**
-   * Convenience alias for a [[Concat]] instance with a fixed output type.
+   * A `Concat` instance whose `Out` is `O`. Ask for it with `O` as a type
+   * parameter of the method, so the compiler infers the result type.
    *
    * @tparam L
-   *   left element type
+   *   the type of the first values
    * @tparam R
-   *   right element type
+   *   the type of the values that follow
    * @tparam O
-   *   concat output type
+   *   the element type of the result
    */
   type WithOut[L, R, O] = _root_.zio.blocks.combinators.Concat[L, R] { type Out = O }
 
+  /** The instance for two `Nothing` sides: `Out` is `Nothing`. */
   implicit val bothNothing: WithOut[Nothing, Nothing, Nothing] =
     new _root_.zio.blocks.combinators.Concat[Nothing, Nothing] {
       type Out = Nothing
@@ -110,6 +141,10 @@ object Concat extends ConcatCompanionPlatform with EqualTypeConcat {
       def right(r: Nothing): Nothing = r
     }
 
+  /**
+   * The instance for a `Nothing` first side, such as an empty stream: `Out` is
+   * `R`.
+   */
   implicit def leftNothing[R]: WithOut[Nothing, R, R] =
     new _root_.zio.blocks.combinators.Concat[Nothing, R] {
       type Out = R
@@ -118,6 +153,10 @@ object Concat extends ConcatCompanionPlatform with EqualTypeConcat {
       def right(r: R): R          = r
     }
 
+  /**
+   * The instance for a `Nothing` second side, such as an empty stream: `Out` is
+   * `L`.
+   */
   implicit def rightNothing[L]: WithOut[L, Nothing, L] =
     new _root_.zio.blocks.combinators.Concat[L, Nothing] {
       type Out = L
