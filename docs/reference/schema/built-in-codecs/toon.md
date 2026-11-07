@@ -478,6 +478,10 @@ object Address {
 val codec = Address.schema.derive(ToonFormat)
 ```
 
+:::caution[Known bug in 0.0.56]
+With the default deriver (`withTransientEmptyCollection(true)`), a record field of type `Array[...]` is never written, even when the array has elements, so decoding the output gives an empty array and the data is lost silently. `List`, `Vector` and `Map` fields are written as expected, and so is an `Array` field once you set `withTransientEmptyCollection(false)`. Prefer `List` or `Vector` for fields that you encode with this codec.
+:::
+
 ### Variant Type Support
 
 Sealed traits and sum types are encoded as discriminated variants, with customizable discriminator strategies:
@@ -901,6 +905,10 @@ import zio.blocks.schema.toon._
 val deriver = ToonCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
 // pid: 42
 ```
+
+:::caution[Known bugs in 0.0.56]
+Two known bugs affect `DiscriminatorKind.Field` and `DiscriminatorKind.None`. With `DiscriminatorKind.Field`, a case object of a sealed trait that also has case classes is written as an empty string, with no `type: Idle` line, so decoding the output fails with `Missing discriminator field: type`. And a variant stored in a record field is written with its first line on the key's line and its other fields at the level of the parent record, so decoding treats every field after it as part of the variant, and a later field fails with `Missing required field`. The default `DiscriminatorKind.Key` round-trips both cases.
+:::
 
 ---
 
