@@ -21,6 +21,8 @@ Its three variants line up with the instrument that produced them:
 
 So a `match` on `MetricData` tells you both the shape of the numbers and the kind of instrument they came from.
 
+To read a counter's total back from `MetricData.SumData` in a test, see [How to Test Code That Logs, Traces and Records Metrics](../../../guides/test-telemetry.md).
+
 ```scala
 sealed trait MetricData
 

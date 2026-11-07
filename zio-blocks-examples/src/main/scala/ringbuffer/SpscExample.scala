@@ -1,7 +1,7 @@
 package ringbuffer
 
 import zio.blocks.ringbuffer.SpscRingBuffer
-import java.util.concurrent.{CountDownLatch, Thread}
+import java.util.concurrent.CountDownLatch
 
 object SpscExample extends App {
   val buffer = SpscRingBuffer[String](8)

@@ -20,10 +20,13 @@ package zio.blocks.codegen.ir
  * Represents a Scala package declaration in the IR.
  *
  * @param path
- *   The fully qualified package path (e.g., "com.example")
+ *   The fully qualified package path (e.g., "com.example"). An empty path emits
+ *   no package line.
  *
  * @example
  *   {{{
+ * import zio.blocks.codegen.ir._
+ *
  * val pkg = PackageDecl("com.example")
  * // Represents: package com.example
  *   }}}

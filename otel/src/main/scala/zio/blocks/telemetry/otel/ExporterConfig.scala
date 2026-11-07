@@ -19,21 +19,51 @@ package zio.blocks.telemetry.otel
 import java.time.Duration
 
 /**
- * Configuration for OTLP JSON exporters.
+ * The settings of an OTLP/HTTP JSON export: where to send, which headers to
+ * add, and how to batch. Every field has a default, so `ExporterConfig()`
+ * points at a collector on `localhost:4318`, the standard OTLP/HTTP port.
+ *
+ * The module's exporters that read it are internal, so it serves as the one
+ * place for these settings in an export loop of your own, built from
+ * [[OtlpJsonEncoder]], [[HttpSender]] and [[ExportResult]]. `toString` prints
+ * the number of headers, not their values, so printing a config with `toString`
+ * does not show a token; the `headers` field, and anything that reads the case
+ * class's fields, still does.
+ *
+ * {{{
+ * import java.time.Duration
+ *
+ * val config = ExporterConfig(
+ *   endpoint = "https://otlp.example.com:4318",
+ *   headers = Map("Authorization" -> "Bearer s3cr3t"),
+ *   timeout = Duration.ofSeconds(10),
+ *   flushIntervalMillis = 1000
+ * )
+ * val printed = config.toString
+ * // ExporterConfig(endpoint=https://otlp.example.com:4318, headers=<redacted:1>, timeout=PT10S, maxQueueSize=2048, maxBatchSize=512, flushIntervalMillis=1000)
+ * val tracesUrl = config.endpoint + "/v1/traces" // https://otlp.example.com:4318/v1/traces
+ * }}}
  *
  * @param endpoint
- *   collector base URL (default `http://localhost:4318`)
+ *   the collector's base URL, without a trailing slash: the exporters append
+ *   `/v1/traces`, `/v1/logs` or `/v1/metrics`
  * @param headers
- *   extra HTTP headers sent with every export (e.g. auth tokens); redacted in
- *   `toString`
+ *   HTTP headers sent with every export, such as an API key; the exporters
+ *   replace any `Content-Type` entry with `application/json`
  * @param timeout
- *   connect and read timeout per HTTP request
+ *   not read by this module, since the exporters take an [[HttpSender]] built
+ *   separately: pass it to `HttpSender.jdk`
  * @param maxQueueSize
- *   maximum items buffered before oldest are dropped
+ *   the most records waiting for export; one more drops the oldest, with a line
+ *   on standard error
  * @param maxBatchSize
- *   maximum items sent in a single export request
+ *   the most records sent in one request; a flush sends as many requests as the
+ *   queue needs
  * @param flushIntervalMillis
- *   milliseconds between automatic background flushes
+ *   the time between the periodic flushes of the trace and log exporters; the
+ *   metric exporter exports only when asked
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/otel/ OTLP Export]]
  */
 final case class ExporterConfig(
   endpoint: String = "http://localhost:4318",

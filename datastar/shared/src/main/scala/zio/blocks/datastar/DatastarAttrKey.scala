@@ -19,23 +19,35 @@ package zio.http.datastar
 import zio.blocks.html._
 
 /**
- * Low-level key for constructing Datastar `data-*` attributes directly.
+ * An attribute name whose value is a Datastar expression. The `data*` methods
+ * of [[DatastarAttributes]], such as `dataText` and `dataClass("active")`,
+ * return one; `new DatastarAttrKey(name)` makes one for an attribute that has
+ * no method. `:=` takes any value with a [[ToDatastarExpr]] instance, so a raw
+ * Scala `String` does not compile.
  *
- * Most callers should prefer higher-level `data*` helpers from
- * [[DatastarAttributes]]. Use `DatastarAttrKey` when defining a custom Datastar
- * attribute name or when no dedicated helper exists yet. Values assigned with
- * `:=` are rendered through [[ToDatastarExpr]], so expression contexts reject
- * raw Scala `String` values in favor of explicit Datastar expressions.
+ * The name is written into the HTML as given, without checks or escaping, so
+ * pass only names from your own code.
+ *
+ * {{{
+ * // no-check: Scala 3.10 users can't summon ToDatastarExpr (a known bug)
+ * import zio.blocks.html._
+ *
+ * span(new DatastarAttrKey("data-custom") := js"1").render // <span data-custom="1"></span>
+ * }}}
  */
 final class DatastarAttrKey(val name: String) {
 
-  /** Builds a DOM attribute from this key and a Datastar expression value. */
+  /**
+   * Returns the attribute `name="<expression>"`, with the expression text from
+   * [[ToDatastarExpr]], HTML-escaped when the element is rendered.
+   */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute =
     Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
 }
 
+/** Creates [[DatastarAttrKey]] values inside the module. */
 object DatastarAttrKey {
 
-  /** Creates a low-level Datastar attribute key for the provided raw name. */
+  /** Creates a key for `name`, as given. */
   private[datastar] def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
 }

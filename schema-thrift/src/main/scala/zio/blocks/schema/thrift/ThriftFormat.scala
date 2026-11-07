@@ -18,4 +18,25 @@ package zio.blocks.schema.thrift
 
 import zio.blocks.schema.codec.BinaryFormat
 
+/**
+ * The Thrift binary format, with MIME type `application/thrift`. Pass it to
+ * `Schema#derive` to get a [[ThriftCodec]] for a type, which encodes values
+ * with Apache Thrift's `TBinaryProtocol`. Its codecs come from
+ * [[ThriftCodecDeriver]].
+ *
+ * {{{
+ * import zio.blocks.schema._
+ *
+ * case class AuditEntry(actor: String, action: String)
+ * object AuditEntry {
+ *   implicit val schema: Schema[AuditEntry] = Schema.derived
+ * }
+ *
+ * val codec: ThriftCodec[AuditEntry] = AuditEntry.schema.derive(ThriftFormat)
+ * val mimeType                       = ThriftFormat.mimeType // application/thrift
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/thrift/ Thrift Codec Module]]
+ */
 object ThriftFormat extends BinaryFormat("application/thrift", ThriftCodecDeriver)

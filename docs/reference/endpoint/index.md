@@ -1,6 +1,6 @@
 ---
 id: index
-title: "Endpoint (Module)"
+title: "Endpoint"
 ---
 
 `zio-blocks-endpoint` is a **pure, type-safe HTTP endpoint descriptor** for building clients, servers, and API documentation from a single source of truth. It provides composable types that describe every part of an HTTP surface — routes, query parameters, headers, request bodies, response bodies, error shapes, and authentication — without committing to any particular server or client implementation.
@@ -49,7 +49,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-endpoint" % "@VERSION@"
 ```
 
-**For Scala 3.7+**, the module name is rewritten to `zio-blocks-next-endpoint`:
+**For Scala 3.10+**, use `zio-blocks-next-endpoint` and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)):
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint" % "@VERSION@"  // JVM
 libraryDependencies += "dev.zio" %%% "zio-blocks-next-endpoint" % "@VERSION@" // Scala.js
@@ -235,7 +235,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/BasicEndpoin
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/BasicEndpointDefinition.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.BasicEndpointDefinition"
+cd endpoint-examples && sbt "runMain endpointexamples.BasicEndpointDefinition"
 ```
 
 ### HttpCodec Smart Constructors and Composition
@@ -251,7 +251,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/HttpCodecCon
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/HttpCodecConstruction.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.HttpCodecConstruction"
+cd endpoint-examples && sbt "runMain endpointexamples.HttpCodecConstruction"
 ```
 
 ### PathCodec and SegmentCodec
@@ -267,7 +267,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/PathAndSegme
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/PathAndSegmentCodecs.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.PathAndSegmentCodecs"
+cd endpoint-examples && sbt "runMain endpointexamples.PathAndSegmentCodecs"
 ```
 
 ### AuthType Patterns
@@ -283,7 +283,7 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/AuthTypePatt
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/AuthTypePatterns.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.AuthTypePatterns"
+cd endpoint-examples && sbt "runMain endpointexamples.AuthTypePatterns"
 ```
 
 ### Complete REST API
@@ -299,11 +299,11 @@ SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/CompleteApiD
 ([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/CompleteApiDefinition.scala))
 
 ```bash
-sbt "endpoint-examples/runMain endpointexamples.CompleteApiDefinition"
+cd endpoint-examples && sbt "runMain endpointexamples.CompleteApiDefinition"
 ```
 
 **3. Or compile all examples at once:**
 
 ```bash
-sbt "endpoint-examples/compile"
+cd endpoint-examples && sbt "compile"
 ```

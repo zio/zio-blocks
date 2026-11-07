@@ -153,3 +153,4 @@ trace.span("handle-request", SpanKind.Server)(_.setAttribute("http.route", "/ord
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — tracing data flow, sampling, and production patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
 - [Common Types](../common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`
+- To test code that takes a `Tracer` as a constructor parameter, see [How to Test Code That Logs, Traces and Records Metrics](../../../guides/test-telemetry.md).

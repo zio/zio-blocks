@@ -19,6 +19,7 @@ package zio.blocks.schema.migration
 import scala.reflect.macros.whitebox
 import zio.blocks.schema.SchemaExpr
 
+/** Macro implementations of the `MigrationBuilder` methods. */
 object MigrationBuilderMacros {
 
   private def extractFieldPathFromSelector(c: whitebox.Context)(selector: c.Tree): String = {
@@ -104,6 +105,10 @@ object MigrationBuilderMacros {
     appliedType(typeOf[Changeset.MigrateField[_]].typeConstructor, nameLiteral)
   }
 
+  /**
+   * Expands `addField`: appends a `MigrationAction.AddField` at the target path
+   * and adds `Changeset.AddField` of the field path to the changeset type.
+   */
   def addFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     target: c.Expr[B => Any],
     default: c.Expr[SchemaExpr[_, _]]
@@ -133,6 +138,11 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `dropField`: appends a `MigrationAction.DropField` at the source
+   * path and adds `Changeset.DropField` of the field path to the changeset
+   * type.
+   */
   def dropFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Any],
     defaultForReverse: c.Expr[SchemaExpr[_, _]]
@@ -162,6 +172,11 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `renameField`: appends a `MigrationAction.RenameField` to the last
+   * field name of `to` and adds `Changeset.RenameField` of both field paths to
+   * the changeset type.
+   */
   def renameFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     from: c.Expr[A => Any],
     to: c.Expr[B => Any]
@@ -195,6 +210,11 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `transformField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a `MigrationAction.TransformField`
+   * and adds `Changeset.TransformField` to the changeset type.
+   */
   def transformFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     from: c.Expr[A => Any],
     to: c.Expr[B => Any],
@@ -236,6 +256,11 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `mandateField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a `MigrationAction.MandateField`
+   * and adds `Changeset.MandateField` to the changeset type.
+   */
   def mandateFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     source: c.Expr[A => Option[_]],
     target: c.Expr[B => Any],
@@ -277,6 +302,12 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `optionalizeField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a
+   * `MigrationAction.OptionalizeField` and adds `Changeset.OptionalizeField` to
+   * the changeset type.
+   */
   def optionalizeFieldImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -316,6 +347,11 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `changeFieldType`: appends a `MigrationAction.ChangeFieldType` at
+   * the source path and adds `Changeset.ChangeFieldType` of the field path to
+   * the changeset type.
+   */
   def changeFieldTypeImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -347,6 +383,10 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `transformElements`: appends a `MigrationAction.TransformElements`
+   * at the selected path and leaves the changeset type unchanged.
+   */
   def transformElementsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -374,6 +414,10 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `transformKeys`: appends a `MigrationAction.TransformKeys` at the
+   * selected path and leaves the changeset type unchanged.
+   */
   def transformKeysImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](c: whitebox.Context)(
     at: c.Expr[A => Map[_, _]],
     transform: c.Expr[SchemaExpr[_, _]]
@@ -399,6 +443,10 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `transformValues`: appends a `MigrationAction.TransformValues` at
+   * the selected path and leaves the changeset type unchanged.
+   */
   def transformValuesImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](
     c: whitebox.Context
   )(
@@ -426,6 +474,15 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `migrateField` with an explicit migration: appends a
+   * `MigrationAction.MigrateField` at the selected path and adds
+   * `Changeset.MigrateField` of the field path, and a `Changeset.FieldName` for
+   * each direct field of `F1` and of `F2` under that path, to the changeset
+   * type. Unlike on Scala 3, fields nested deeper get no marker, so
+   * `MigrationComplete.derive` called with explicit type arguments reports them
+   * as missing (a known bug).
+   */
   def migrateFieldExplicitImpl[
     A: c.WeakTypeTag,
     B: c.WeakTypeTag,
@@ -477,6 +534,10 @@ object MigrationBuilderMacros {
     }"""
   }
 
+  /**
+   * Expands `migrateField` with an implicit migration, as
+   * `migrateFieldExplicitImpl` does.
+   */
   def migrateFieldImplicitImpl[
     A: c.WeakTypeTag,
     B: c.WeakTypeTag,
@@ -503,8 +564,20 @@ object MigrationBuilderMacros {
   }
 }
 
+/**
+ * Macro implementation of `MigrationComplete.derive`, the compile-time
+ * changeset check.
+ */
 object MigrationValidationMacros {
 
+  /**
+   * Expands `MigrationComplete.derive`: aborts compilation with a
+   * `Migration incomplete` message that lists the target fields of `B` not
+   * provided and the source fields of `A` not handled, otherwise returns
+   * `MigrationComplete.unsafeCreate`. In the implicit search behind
+   * `MigrationBuilder#build`, the compiler infers `A`, `B` and `CS` as `Any`,
+   * so no field is checked there (a known bug).
+   */
   def validateMigrationImpl[A: c.WeakTypeTag, B: c.WeakTypeTag, CS: c.WeakTypeTag](
     c: whitebox.Context
   ): c.Tree = {

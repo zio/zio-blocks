@@ -21,19 +21,21 @@ import scala.quoted._
 import zio.blocks.schema.{DynamicOptic, Schema}
 
 /**
- * Scala 3 macros for converting selector expressions into DynamicOptic paths.
- *
- * These macros parse selector expressions like:
- *   - `_.field` → `DynamicOptic.root.field("field")`
- *   - `_.a.b.c` → `DynamicOptic.root.field("a").field("b").field("c")`
- *   - `_.items.each` → `DynamicOptic.root.field("items").elements`
- *   - `_.country.when[UK]` → `DynamicOptic.root.field("country").caseOf("UK")`
+ * The macros that turn builder selectors into
+ * [[zio.blocks.schema.DynamicOptic]] paths. They accept field accesses; they
+ * are meant to accept the syntax of [[MigrationSelectorSyntax]] too, but reject
+ * it (see `docs/dev/issues.md`).
  */
 object SelectorMacros {
 
+  /**
+   * Returns the path of `selector`, a lambda such as `_.author.name`.
+   * Compilation fails for any other expression.
+   */
   inline def toPath[S, A](inline selector: S => A): DynamicOptic =
     ${ toPathImpl[S, A]('selector) }
 
+  /** Returns the name of the last field that `selector` accesses. */
   inline def extractFieldName[S, A](inline selector: S => A): String =
     ${ extractFieldNameImpl[S, A]('selector) }
 
@@ -80,6 +82,7 @@ object SelectorMacros {
     }
   }
 
+  /** Expands [[extractFieldName]]. */
   def extractFieldNameImpl[S: Type, A: Type](selector: Expr[S => A])(using q: Quotes): Expr[String] = {
     import q.reflect.*
 
@@ -104,6 +107,7 @@ object SelectorMacros {
     Expr(fieldName)
   }
 
+  /** Expands [[toPath]]. */
   def toPathImpl[S: Type, A: Type](selector: Expr[S => A])(using q: Quotes): Expr[DynamicOptic] = {
     import q.reflect._
 

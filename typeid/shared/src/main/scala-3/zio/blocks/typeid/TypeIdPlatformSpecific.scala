@@ -19,38 +19,28 @@ package zio.blocks.typeid
 import zio.blocks.chunk.Chunk
 
 /**
- * Platform-specific methods for TypeId.
- *
- * On JVM, provides reflection-based capabilities. On JS, returns None for
- * reflection operations.
+ * The members of [[TypeId]] whose behaviour depends on the platform: on the JVM
+ * they use reflection, and on Scala.js they find no class and construct
+ * nothing.
  */
 trait TypeIdPlatformSpecific { self: TypeId[?] =>
 
   /**
-   * Returns the `Class` associated with this TypeId, if available.
-   *
-   * On the JVM, for nominal types, this returns the `Class` object
-   * corresponding to this type's fullName. On JS, always returns `None`.
-   *
-   * Note: This only works for nominal types (not aliases or opaque types). For
-   * generic types, returns the erased class (e.g., `List[Int]` returns
-   * `classOf[List[_]]`).
+   * Returns the runtime class of this type on the JVM, or `None` when there is
+   * none. A primitive gives its primitive class (`int` for `Int`), an applied
+   * type its erased class (`List` for `List[Int]`), and an object the class of
+   * its single instance. Aliases, opaque types, `Any`, `Nothing`, and classes
+   * that cannot be loaded give `None`. On Scala.js it returns `None`.
    */
   def clazz: Option[Class[?]]
 
   /**
-   * Constructs an instance of the type represented by this TypeId using the
-   * provided arguments.
-   *
-   * On the JVM, this uses reflection to invoke the primary constructor. For
-   * known types (collections, java.time, etc.), optimized construction is used.
-   *
-   * On JS, always returns `Left` with an error message.
-   *
-   * @param args
-   *   the constructor arguments
-   * @return
-   *   Right with the constructed instance, or Left with an error message
+   * Creates a value of this type from `args`, on the JVM: some standard
+   * collections, `Option`, `Some`, `None`, `Either`, `Tuple2`, `Tuple3` and
+   * several `java.time` types directly, any other class by reflection with the
+   * first public constructor that fits `args`. Returns `Left` with a message
+   * when that fails. On Scala.js it returns `Left` for every type. See
+   * [[TypeId#construct]].
    */
   def construct(args: Chunk[AnyRef]): Either[String, Any]
 }

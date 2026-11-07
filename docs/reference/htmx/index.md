@@ -58,7 +58,27 @@ libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
+On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental features:
+
+```scala
+scalaVersion := "3.9.0"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "@VERSION@"
+
+scalacOptions += "-experimental"
+```
+
 Supported Scala versions: Scala 3.x. The module is cross-compiled for JVM and Scala.js.
+
+### Which htmx Version This Reference Targets
+
+The attribute syntax in this reference targets **htmx 2.x**. The examples and browser checks pin `htmx@2.0.11`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"></script>
+```
+
+htmx 4 parses several of these attributes differently, so a value that works in htmx 2 may do nothing in htmx 4. Pin the htmx version in your page the same way.
 
 ## Overview
 
@@ -182,7 +202,7 @@ Modifier methods return updated `HxTrigger` instances, so you can chain: `HxTrig
 
 ### Pattern 4: Out-of-Band Swaps
 
-Update multiple DOM regions with a single response using `hxSwapOob` (out-of-bounds):
+Update multiple DOM regions with a single response using `hxSwapOob` (out-of-band swap):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -230,6 +250,8 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With headers:** The [`zio.http.htmx.headers`](./response-headers.md) submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
 
+**In a tutorial:** [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md) builds a live book search with these attributes, step by step.
+
 **Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
 
 ## Running the Examples
@@ -262,7 +284,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsa
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.BasicUsage"
 ```
 
 ### Advanced Patterns
@@ -280,7 +302,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Advanced
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.AdvancedPatterns"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.AdvancedPatterns"
 ```
 
 ### Complete Example
@@ -298,7 +320,7 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Complete
 Run this example with the following command:
 
 ```bash
-sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
+cd zio-blocks-htmx-examples && sbt "runMain zioBlocksHtmx.CompleteExample"
 ```
 
 **3. Or compile all examples at once:**
@@ -306,5 +328,5 @@ sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
 To compile all example sources without running them, use:
 
 ```bash
-sbt "zio-blocks-htmx-examples/compile"
+cd zio-blocks-htmx-examples && sbt "compile"
 ```

@@ -24,23 +24,66 @@ import zio.stream.ZStream
 import java.time.Instant
 
 /**
- * Simple test engine that auto-creates an `InMemoryProjectionStore` per
- * projection and a `Hub` per distinct source. Provides `append` and `query`
- * without the verbose 4-arg `makeWithStores` wiring.
+ * A running [[ProjectionEngine]] wired entirely in memory, for tests and
+ * examples.
+ *
+ * For every projection it creates an [[InMemoryProjectionStore]], and for every
+ * distinct source name used by the projections it creates an in-memory event
+ * store backed by a `Hub`. If no projection declares a source, a single
+ * `"_default"` source is created. The engine is started when the `TestEngine`
+ * is built and stopped when the enclosing `Scope` closes, so no database or
+ * files are involved. This replaces the verbose
+ * `ProjectionEngine.makeWithStores` wiring.
+ *
+ * Use [[append]] to feed events in and [[query]] to read the projected rows
+ * back. Appending stores the event and publishes it; the engine applies it on
+ * its own fiber, so a query issued straight after an append may not see the
+ * result yet, and a test polls until it does.
+ *
+ * Events are stored with the event class's simple name as their tag, and they
+ * are kept in memory only.
  *
  * {{{
- * val projection = Projection[UserProfile]("userProfiles")
- *   .from("users").routeToSelf
- *   .on[UserCreated].insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+ * import zio._
+ * import zio.blocks.projection.testing.TestEngine
+ * import zio.blocks.schema.{Modifier, Schema}
  *
- * val program = ZIO.scoped {
+ * case class UserCreated(name: String, email: String)
+ * object UserCreated {
+ *   implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
+ * }
+ *
+ * case class UserProfile(@Modifier.id userId: String, name: String, email: String)
+ * object UserProfile {
+ *   implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
+ *   implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
+ * }
+ *
+ * val projection: Projection[UserProfile] = Projection[UserProfile]("userProfiles")
+ *   .from("users")
+ *   .routeToSelf
+ *   .on[UserCreated]
+ *   .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+ *
+ * val program: Task[Option[UserProfile]] = ZIO.scoped {
  *   for {
  *     engine <- TestEngine.make(projection)
- *     _      <- engine.append("user-1", UserCreated("Alice", "a@b.com"))
- *     u1     <- engine.query(projection, "user-1")
+ *     _      <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+ *     u1     <- engine.query(projection, "user-1").delay(20.millis).repeatUntil(_.isDefined)
  *   } yield u1
  * }
+ * // Some(UserProfile(user-1,Alice,alice@example.com))
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/testing/ Testing]]
+ *
+ * @param projections
+ *   the projections this engine runs, in the order they were given
+ * @param stores
+ *   the in-memory store of each projection, keyed by projection name
+ * @param engine
+ *   the underlying engine that processes the events
  */
 final class TestEngine private (
   val projections: List[Projection[_]],
@@ -50,9 +93,22 @@ final class TestEngine private (
 ) {
 
   /**
-   * Append an event for the given entity. If the engine has multiple sources it
-   * tries to route the event to the source whose binding has a handler for the
-   * event's runtime class; otherwise it broadcasts to all sources.
+   * Appends an event for the given entity.
+   *
+   * With a single source the event goes to it and any failure is returned. With
+   * several sources the event goes to every source whose binding has a handler
+   * for the event's runtime class, or to all sources if none has. In the
+   * several-sources case a failure while appending to one source is ignored. An
+   * event that goes to two sources is applied twice by a projection that reads
+   * both.
+   *
+   * To pick the source yourself, use the overload that takes a source name.
+   *
+   * @param entityId
+   *   the entity the event is recorded under, exposed to handlers as
+   *   `ctx.entityId`
+   * @param event
+   *   the event to append
    */
   @scala.annotation.nowarn
   def append[E: Schema](entityId: String, event: E): Task[Unit] =
@@ -70,7 +126,15 @@ final class TestEngine private (
       }
     }
 
-  /** Append to a specific source hub. */
+  /**
+   * Appends an event to one named source.
+   *
+   * Fails with a `RuntimeException` listing the known sources if `source` is
+   * not one of them.
+   *
+   * @param source
+   *   the source name, as passed to `Projection.from`
+   */
   @scala.annotation.nowarn
   def append[E: Schema](entityId: String, event: E, source: String): Task[Unit] =
     eventStores.get(source) match {
@@ -78,20 +142,47 @@ final class TestEngine private (
       case None     => ZIO.fail(new RuntimeException(s"Unknown source '$source' known=${eventStores.keys.mkString(",")}"))
     }
 
+  /**
+   * Reads the row with the given ID from a projection, or `None` if there is
+   * none. Same as [[ProjectionEngine#query]] on the underlying engine.
+   *
+   * @param projection
+   *   the projection to read from
+   * @param id
+   *   the entity ID of the row
+   */
   def query[A](projection: Projection[A], id: String): Task[Option[A]] =
     engine.query(projection, id)
 
+  /**
+   * Like [[query]], but finds the projection by its name instead of by value.
+   * The caller chooses the result type `A`, and it is not checked.
+   */
   def queryByName[A](specName: String, id: String): Task[Option[A]] =
     engine.queryByName[A](specName, id)
 
+  /** The underlying [[ProjectionEngine]], same as `engine`. */
   def underlying: ProjectionEngine = engine
 }
 
+/** Builds and starts [[TestEngine]]s. */
 object TestEngine {
 
+  /**
+   * Builds and starts a `TestEngine` for the given projections with the default
+   * [[ProjectionEngineConfig]].
+   *
+   * The engine runs until the enclosing `Scope` closes.
+   */
   def make(projections: Projection[_]*): ZIO[Scope, Nothing, TestEngine] =
     makeWithConfig(ProjectionEngineConfig.default, projections: _*)
 
+  /**
+   * Builds and starts a `TestEngine` with a custom [[ProjectionEngineConfig]].
+   *
+   * The config's `ringCapacity` sets the size of each source's `Hub`. A failure
+   * while creating a store is treated as a defect, not a typed error.
+   */
   def makeWithConfig(
     config: ProjectionEngineConfig,
     projections: Projection[_]*
@@ -142,9 +233,7 @@ object TestEngine {
       _ <- engine.start
     } yield new TestEngine(projections.toList, storesMap, eventStoresMap, engine)
 
-  /**
-   * Alias so `TestEngine(proj)` works inside a `ZIO.scoped` for-comprehension.
-   */
+  /** Same as [[make]], so that `TestEngine(projection)` reads naturally. */
   def apply(projections: Projection[_]*): ZIO[Scope, Nothing, TestEngine] =
     make(projections: _*)
 

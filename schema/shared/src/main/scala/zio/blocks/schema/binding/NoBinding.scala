@@ -16,10 +16,23 @@
 
 package zio.blocks.schema.binding
 
+/**
+ * The metadata of a `Reflect.Unbound` node: a marker that stands where a
+ * [[Binding]] would be. A node with `NoBinding` holds no functions, so it can
+ * be serialized; `Reflect#noBinding` produces one and `DynamicSchema#rebind`
+ * gives it bindings again.
+ *
+ * @tparam T
+ *   the binding kind, one of the [[BindingType]] members
+ * @tparam A
+ *   the type the node describes
+ */
 sealed trait NoBinding[T, A]
 
+/** Creates [[NoBinding]] markers. */
 object NoBinding {
   private[this] val _noBinding = new NoBinding[Any, Any] {}
 
+  /** Returns the marker. Every call returns the same instance. */
   def apply[T, A](): NoBinding[T, A] = _noBinding.asInstanceOf[NoBinding[T, A]]
 }

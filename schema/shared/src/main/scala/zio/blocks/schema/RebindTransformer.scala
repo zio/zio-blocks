@@ -21,15 +21,11 @@ import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
 
 /**
- * A [[ReflectTransformer]] that rebinds an unbound reflect structure using
- * bindings from a [[BindingResolver]].
- *
- * This transformer is used internally by [[Schema.rebind]] to convert
- * `Reflect.Unbound[A]` to `Reflect.Bound[A]` by looking up the appropriate
- * bindings for each type in the reflect structure.
- *
- * @param resolver
- *   The BindingResolver providing bindings for all types in the structure
+ * A [[ReflectTransformer]] that turns an unbound reflect into a bound one,
+ * looking up the binding of each node by its type ID in `resolver`.
+ * `DynamicSchema#rebind` runs it. The `Lazy` that each method returns throws a
+ * [[RebindException]], when forced, if the resolver has no binding of the right
+ * kind for the node's type.
  */
 private[schema] final class RebindTransformer(resolver: BindingResolver)
     extends ReflectTransformer[NoBinding, Binding] {
@@ -218,15 +214,20 @@ private[schema] final class RebindTransformer(resolver: BindingResolver)
 }
 
 /**
- * Exception thrown when rebinding fails due to a missing binding in the
- * registry.
+ * Thrown by `DynamicSchema#rebind` when its `BindingResolver` has no binding
+ * for a type in the schema. For a node behind a [[Reflect.Deferred]], such as
+ * the recursive field of a recursive type, it is thrown later, when that part
+ * of the rebound schema is first used. The message names the kind of binding,
+ * the full name of the type and the path.
  *
  * @param path
- *   The path in the schema structure where the binding was needed
+ *   the location of the node that needs the binding (a wrapped node has the
+ *   path of its wrapper)
  * @param typeId
- *   The TypeId of the type that was missing
+ *   the type ID that has no binding
  * @param expectedKind
- *   The kind of binding that was expected (Record, Variant, etc.)
+ *   the kind of binding that was looked up: `Record`, `Variant`, `Sequence`,
+ *   `Map`, `Dynamic`, `Primitive` or `Wrapper`
  */
 final class RebindException(
   val path: DynamicOptic,

@@ -18,14 +18,25 @@ package zio.blocks.codegen.ir
 
 /**
  * Modifier for a parameter list, indicating whether it is normal, implicit, or
- * using.
+ * using. `Implicit` and `Using` give the same output: `using` with
+ * `EmitterConfig.scala3Syntax`, `implicit` otherwise.
  */
 sealed trait ParamListModifier
 
+/** The three parameter list modifiers. */
 object ParamListModifier {
-  case object Normal   extends ParamListModifier
+
+  /** A plain parameter list: `(a: A)`. */
+  case object Normal extends ParamListModifier
+
+  /** An implicit parameter list, emitted like `Using`. */
   case object Implicit extends ParamListModifier
-  case object Using    extends ParamListModifier
+
+  /**
+   * A context parameter list: `(using a: A)` in Scala 3 syntax,
+   * `(implicit a: A)` otherwise.
+   */
+  case object Using extends ParamListModifier
 }
 
 /**

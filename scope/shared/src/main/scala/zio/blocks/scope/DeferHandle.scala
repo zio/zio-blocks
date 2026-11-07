@@ -28,8 +28,25 @@ package zio.blocks.scope
  * resource is explicitly released before the scope ends, and running the
  * finalizer again would be unnecessary or harmful.
  *
+ * {{{
+ * final class TempFile(val path: String) {
+ *   def delete(): Unit = println("deleted " + path)
+ * }
+ *
+ * Scope.global.scoped { scope =>
+ *   import scope._
+ *   val report  = new TempFile("/tmp/report.csv")
+ *   val cleanup = defer(report.delete())
+ *   // the report was published, so keep the file
+ *   cleanup.cancel()
+ * }
+ * // prints nothing: the finalizer was cancelled
+ * }}}
+ *
  * @see
  *   [[Scope.defer]] for registering finalizers
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/defer-handle/ DeferHandle]]
  */
 abstract class DeferHandle {
 
@@ -43,11 +60,20 @@ abstract class DeferHandle {
   def cancel(): Unit
 }
 
+/** The handles that `defer` returns. */
 object DeferHandle {
+
+  /**
+   * The handle returned when the scope is already closed; `cancel()` does
+   * nothing.
+   */
   private[scope] object Noop extends DeferHandle {
     def cancel(): Unit = ()
   }
 
+  /**
+   * Cancels a registered finalizer by marking its node in `owner` as cancelled.
+   */
   private[scope] final class NodeHandle(
     node: internal.Finalizers.Node,
     owner: internal.Finalizers

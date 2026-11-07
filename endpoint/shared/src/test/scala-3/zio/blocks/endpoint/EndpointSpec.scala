@@ -41,88 +41,55 @@ object EndpointSpec extends ZIOSpecDefault {
         val seg = SegmentCodec.IntSeg("id")
         assertTrue(seg.name == "id")
       },
-      test("rejects combining two string segments") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.string("a") ~ SegmentCodec.string("b")
-          """)
-        )(isLeft)
+      test("adjacent string segments compile but fail fast at runtime") {
+        val result = scala.util.Try(SegmentCodec.string("a") ~ SegmentCodec.string("b"))
+        assertTrue(
+          result.isFailure,
+          result.failed.get.getMessage.contains("Cannot combine two string segments")
+        )
       },
-      test("rejects combining two numeric segments (int ~ int)") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.int("a") ~ SegmentCodec.int("b")
-          """)
-        )(isLeft)
+      test("adjacent numeric segments compile but fail fast at runtime") {
+        val pairs = List(
+          scala.util.Try(SegmentCodec.int("a") ~ SegmentCodec.int("b")),
+          scala.util.Try(SegmentCodec.long("a") ~ SegmentCodec.int("b")),
+          scala.util.Try(SegmentCodec.int("a") ~ SegmentCodec.long("b")),
+          scala.util.Try(SegmentCodec.long("a") ~ SegmentCodec.long("b"))
+        )
+        assertTrue(
+          pairs.forall(_.isFailure),
+          pairs.flatMap(_.failed.toOption).forall(_.getMessage.contains("Cannot combine two numeric segments"))
+        )
       },
-      test("rejects combining int after long") {
+      test("ambiguous pairs are no longer rejected at compile time") {
         assertZIO(
           typeCheck("""
             import zio.blocks.endpoint._
 
-            val invalid = SegmentCodec.long("a") ~ SegmentCodec.int("b")
-          """)
-        )(isLeft)
-      },
-      test("rejects combining long after int") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.int("a") ~ SegmentCodec.long("b")
-          """)
-        )(isLeft)
-      },
-      test("rejects invalid nested combinations at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.uuid("id") ~ SegmentCodec.int("a") ~ SegmentCodec.int("b")
-          """)
-        )(isLeft)
-      },
-      test("allows string followed by uuid followed by string at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val valid: SegmentCodec[?] =
-              SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
+            val stringPair  = SegmentCodec.string("a") ~ SegmentCodec.string("b")
+            val numericPair = SegmentCodec.int("a") ~ SegmentCodec.int("b")
           """)
         )(isRight)
       },
-      test("allows string followed by int followed by string at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val valid: SegmentCodec[?] =
-              SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix")
-          """)
-        )(isRight)
+      test("flattened and grouped ambiguous tails fail fast at runtime") {
+        val flat    = scala.util.Try(SegmentCodec.int("a") ~ SegmentCodec.string("s") ~ SegmentCodec.string("t"))
+        val nested  = scala.util.Try(SegmentCodec.uuid("id") ~ SegmentCodec.int("a") ~ SegmentCodec.int("b"))
+        val grouped =
+          scala.util.Try(SegmentCodec.string("prefix") ~ (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id")))
+        assertTrue(flat.isFailure, nested.isFailure, grouped.isFailure)
       },
-      test("rejects grouped combinations with an ambiguous boundary at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.string("prefix") ~ (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id"))
-          """)
-        )(isLeft)
+      test("string-uuid-string and string-int-string compose and render") {
+        val uuidFirst =
+          PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix"))
+        val intFirst =
+          PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix"))
+        assertTrue(
+          uuidFirst.render == "/{prefix}{id}{suffix}",
+          intFirst.render == "/{prefix}{id}{suffix}"
+        )
       },
-      test("rejects trailing combinations at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val invalid = SegmentCodec.Trailing ~ SegmentCodec.string("suffix")
-          """)
-        )(isLeft)
+      test("trailing combinations fail fast at runtime") {
+        val result = scala.util.Try(SegmentCodec.Trailing ~ SegmentCodec.string("suffix"))
+        assertTrue(result.isFailure)
       },
       test("rejects slash literals at compile time") {
         assertZIO(
@@ -133,15 +100,14 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
-      test("allows valid mixed combinations") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val valid: SegmentCodec[(Int, String)] =
-              SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
-          """)
-        )(isRight)
+      test("literal-int-string mixes compose") {
+        val combined: SegmentCodec[(Int, String)] =
+          SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
+        val codec = PathCodec(combined)
+        assertTrue(
+          codec.decode(zio.http.Path("/v42stable")) == Right((42, "stable")),
+          codec.render == "/v{major}{suffix}"
+        )
       },
       test("string followed by uuid followed by string decodes") {
         val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
@@ -154,32 +120,37 @@ object EndpointSpec extends ZIOSpecDefault {
 
         assertTrue(codec.decode(zio.http.Path("/pre123post")).isRight)
       },
-      test("allows transformed size-delimited boundaries at compile time") {
-        assertZIO(
-          typeCheck("""
-            import zio.blocks.endpoint._
-
-            val valid: SegmentCodec[?] =
-              SegmentCodec.string("prefix").transform(identity, identity) ~
-                SegmentCodec.uuid("id") ~
-                SegmentCodec.string("suffix").transform(identity, identity)
-          """)
-        )(isRight)
+      test("transform lifts a segment into a PathCodec") {
+        val codec: PathCodec[String] = SegmentCodec.string("id").transform(_.toUpperCase, _.toLowerCase)
+        assertTrue(
+          codec.decode(zio.http.Path("/abc")) == Right("ABC"),
+          codec.format("ABC").map(_.render) == Right("/abc")
+        )
+      },
+      test("segments compose with ~ before transform; the composed codec then transforms") {
+        final case class Versioned(major: Int, suffix: String)
+        val combined: SegmentCodec[(Int, String)] =
+          SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
+        val codec: PathCodec[Versioned] = combined.transform(
+          { case (major, suffix) => Versioned(major, suffix) },
+          versioned => (versioned.major, versioned.suffix)
+        )
+        assertTrue(
+          codec.decode(zio.http.Path("/v42stable")) == Right(Versioned(42, "stable")),
+          codec.format(Versioned(42, "stable")).map(_.render) == Right("/v42stable")
+        )
       },
       test("transformed segment codec decodes and formats") {
-        val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val codec = PathCodec(
-          SegmentCodec
-            .uuid("id")
-            .transform[String](_.toString, UUID.fromString)
-        )
+        val uuid                     = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val codec: PathCodec[String] =
+          SegmentCodec.uuid("id").transform(_.toString, UUID.fromString)
 
         assertTrue(
           codec.decode(zio.http.Path(s"/$uuid")) == Right(uuid.toString),
           codec.format(uuid.toString).map(_.render) == Right(s"/$uuid")
         )
       },
-      test("rejects transformed string boundaries at compile time") {
+      test("transformed segments no longer compose with ~") {
         assertZIO(
           typeCheck("""
             import zio.blocks.endpoint._
@@ -190,7 +161,7 @@ object EndpointSpec extends ZIOSpecDefault {
         )(isLeft)
       },
       test("transformed path codec decodes and formats") {
-        val codec = PathCodec.int("id").transform[String](_.toString, _.toInt)
+        val codec = PathCodec.int("id").transform(_.toString, _.toInt)
 
         assertTrue(
           codec.decode(zio.http.Path("/42")) == Right("42"),

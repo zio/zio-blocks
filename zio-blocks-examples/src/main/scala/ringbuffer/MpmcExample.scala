@@ -1,7 +1,7 @@
 package ringbuffer
 
 import zio.blocks.ringbuffer.MpmcRingBuffer
-import java.util.concurrent.{CountDownLatch, Thread}
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
 object MpmcExample extends App {

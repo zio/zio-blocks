@@ -19,8 +19,16 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 import scala.quoted.*
 
+/**
+ * Macro implementation of the `p"..."` interpolator: it parses the literal with
+ * `PathParser` and builds the [[DynamicOptic]] expression.
+ */
 object PathMacros {
 
+  /**
+   * Expands `p"..."`, or reports a compile error for interpolated arguments or
+   * a malformed path.
+   */
   def pImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[DynamicOptic] = {
     import quotes.reflect.*
 

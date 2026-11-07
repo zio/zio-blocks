@@ -492,25 +492,7 @@ In a real code generator, you'd:
 4. **Emit** files in a loop
 5. **Write** strings to disk
 
-Example structure:
-
-```scala
-// Pseudocode: real generators follow this pattern
-
-// def generateFromOpenAPI(spec: OpenAPI): Unit = {
-//   val config = EmitterConfig(...)
-//
-//   for (schema <- spec.schemas) {
-//     val irType = openAPISchemaToIR(schema)  // Parse → IR
-//     val file = ScalaFile(
-//       packageDecl = PackageDecl("com.generated"),
-//       types = List(irType)
-//     )
-//     val code = ScalaEmitter.emit(file, config)  // IR → Scala
-//     writeFile(s"generated/${schema.name}.scala", code)  // Write
-//   }
-// }
-```
+[Generate Scala Code from a Smithy Model](../../guides/generate-scala-code-from-smithy.md) is a complete, compiled walk-through of these five steps for Smithy, ending with the generator running as an sbt source generator. [How to Generate Scala Types from an OpenAPI Spec at Build Time](../../guides/generate-scala-types-from-openapi.md) does the same for the component schemas of an OpenAPI document, including `oneOf` with a discriminator.
 
 This separation of concerns (format-specific parsing → generic IR → emission) is the core value of `zio-blocks-codegen`.
 

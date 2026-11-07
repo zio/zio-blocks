@@ -22,6 +22,12 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.{Owner, TypeId}
 
+/**
+ * Hand-written schemas for `Doc` and the types it is made of, from the
+ * `zio-blocks-docs` module. The [[Schema]] companion extends this trait, so the
+ * schemas are found implicitly, for example when a [[DynamicSchema]] with
+ * documentation is serialized.
+ */
 private[schema] trait DocsSchemas {
   private[this] val docsOwner: Owner         = Owner.fromPackagePath("zio.blocks.docs")
   private[this] val headingLevelOwner: Owner = docsOwner.tpe("HeadingLevel")
@@ -104,6 +110,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `HeadingLevel`: a variant with the cases `H1` to `H6`.
+   */
   implicit lazy val schemaHeadingLevel: Schema[HeadingLevel] = new Schema(
     reflect = new Reflect.Variant[Binding, HeadingLevel](
       cases = Chunk(
@@ -221,6 +230,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of a table column's `Alignment`: a variant with the cases
+   * `Left`, `Center`, `Right` and `None`.
+   */
   implicit lazy val schemaAlignment: Schema[Alignment] = new Schema(
     reflect = new Reflect.Variant[Binding, Alignment](
       cases = Chunk(
@@ -274,6 +287,9 @@ private[schema] trait DocsSchemas {
   // Inline leaf types (inside Inline companion)
   // ===========================================================================
 
+  /**
+   * The schema of `Inline.Text`: a record with a `value` field.
+   */
   implicit lazy val schemaInlineText: Schema[Inline.Text] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Text](
       fields = Chunk(Schema[String].reflect.asTerm("value")),
@@ -294,6 +310,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Inline.Code`: a record with a `value` field.
+   */
   implicit lazy val schemaInlineCode: Schema[Inline.Code] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Code](
       fields = Chunk(Schema[String].reflect.asTerm("value")),
@@ -314,6 +333,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Inline.HtmlInline`: a record with a `content` field.
+   */
   implicit lazy val schemaInlineHtmlInline: Schema[Inline.HtmlInline] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.HtmlInline](
       fields = Chunk(Schema[String].reflect.asTerm("content")),
@@ -334,6 +356,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of the singleton `Inline.SoftBreak`: a record with no fields.
+   */
   implicit lazy val schemaInlineSoftBreak: Schema[Inline.SoftBreak.type] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.SoftBreak.type](
       fields = Chunk.empty,
@@ -346,6 +371,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of the singleton `Inline.HardBreak`: a record with no fields.
+   */
   implicit lazy val schemaInlineHardBreak: Schema[Inline.HardBreak.type] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.HardBreak.type](
       fields = Chunk.empty,
@@ -359,6 +387,9 @@ private[schema] trait DocsSchemas {
   )
 
   // Autolink(url: String, isEmail: Boolean) — 1 object + 1 boolean
+  /**
+   * The schema of `Inline.Autolink`: a record with `url` and `isEmail` fields.
+   */
   implicit lazy val schemaInlineAutolink: Schema[Inline.Autolink] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Autolink](
       fields = Chunk(
@@ -388,6 +419,10 @@ private[schema] trait DocsSchemas {
   )
 
   // Image(alt: String, url: String, title: Option[String]) — 3 objects
+  /**
+   * The schema of `Inline.Image`: a record with `alt`, `url` and `title`
+   * fields.
+   */
   implicit lazy val schemaInlineImage: Schema[Inline.Image] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Image](
       fields = Chunk(
@@ -424,6 +459,9 @@ private[schema] trait DocsSchemas {
   // ===========================================================================
 
   // Emphasis(content: Chunk[Inline]) — 1 object, uses Deferred
+  /**
+   * The schema of `Inline.Emphasis`: a record with a `content` field.
+   */
   implicit lazy val schemaInlineEmphasis: Schema[Inline.Emphasis] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Emphasis](
       fields = Chunk(
@@ -447,6 +485,9 @@ private[schema] trait DocsSchemas {
   )
 
   // Strong(content: Chunk[Inline]) — 1 object, uses Deferred
+  /**
+   * The schema of `Inline.Strong`: a record with a `content` field.
+   */
   implicit lazy val schemaInlineStrong: Schema[Inline.Strong] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Strong](
       fields = Chunk(
@@ -470,6 +511,9 @@ private[schema] trait DocsSchemas {
   )
 
   // Strikethrough(content: Chunk[Inline]) — 1 object, uses Deferred
+  /**
+   * The schema of `Inline.Strikethrough`: a record with a `content` field.
+   */
   implicit lazy val schemaInlineStrikethrough: Schema[Inline.Strikethrough] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Strikethrough](
       fields = Chunk(
@@ -493,6 +537,10 @@ private[schema] trait DocsSchemas {
   )
 
   // Link(text: Chunk[Inline], url: String, title: Option[String]) — 3 objects, uses Deferred for text
+  /**
+   * The schema of `Inline.Link`: a record with `text`, `url` and `title`
+   * fields.
+   */
   implicit lazy val schemaInlineLink: Schema[Inline.Link] = new Schema(
     reflect = new Reflect.Record[Binding, Inline.Link](
       fields = Chunk(
@@ -528,6 +576,10 @@ private[schema] trait DocsSchemas {
   // Inline sealed trait (Variant with 11 cases)
   // ===========================================================================
 
+  /**
+   * The schema of `Inline`, the inline content of documentation: a variant with
+   * a case for each kind, such as `Text`, `Code`, `Emphasis` and `Link`.
+   */
   implicit lazy val schemaInline: Schema[Inline] = new Schema(
     reflect = new Reflect.Variant[Binding, Inline](
       cases = Chunk(
@@ -659,6 +711,9 @@ private[schema] trait DocsSchemas {
   // Top-level Inline aliases (separate classes with identical structure)
   // ===========================================================================
 
+  /**
+   * The schema of `Text`: a record with a `value` field, like `Inline.Text`.
+   */
   implicit lazy val schemaText: Schema[Text] = new Schema(
     reflect = new Reflect.Record[Binding, Text](
       fields = Chunk(Schema[String].reflect.asTerm("value")),
@@ -679,6 +734,9 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Code`: a record with a `value` field, like `Inline.Code`.
+   */
   implicit lazy val schemaCode: Schema[Code] = new Schema(
     reflect = new Reflect.Record[Binding, Code](
       fields = Chunk(Schema[String].reflect.asTerm("value")),
@@ -699,6 +757,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Emphasis`: a record with a `content` field, like
+   * `Inline.Emphasis`.
+   */
   implicit lazy val schemaEmphasis: Schema[Emphasis] = new Schema(
     reflect = new Reflect.Record[Binding, Emphasis](
       fields = Chunk(
@@ -721,6 +783,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Strong`: a record with a `content` field, like
+   * `Inline.Strong`.
+   */
   implicit lazy val schemaStrong: Schema[Strong] = new Schema(
     reflect = new Reflect.Record[Binding, Strong](
       fields = Chunk(
@@ -743,6 +809,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Strikethrough`: a record with a `content` field, like
+   * `Inline.Strikethrough`.
+   */
   implicit lazy val schemaStrikethrough: Schema[Strikethrough] = new Schema(
     reflect = new Reflect.Record[Binding, Strikethrough](
       fields = Chunk(
@@ -765,6 +835,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Link`: a record with `text`, `url` and `title` fields, like
+   * `Inline.Link`.
+   */
   implicit lazy val schemaLink: Schema[Link] = new Schema(
     reflect = new Reflect.Record[Binding, Link](
       fields = Chunk(
@@ -796,6 +870,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Image`: a record with `alt`, `url` and `title` fields, like
+   * `Inline.Image`.
+   */
   implicit lazy val schemaImage: Schema[Image] = new Schema(
     reflect = new Reflect.Record[Binding, Image](
       fields = Chunk(
@@ -827,6 +905,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `HtmlInline`: a record with a `content` field, like
+   * `Inline.HtmlInline`.
+   */
   implicit lazy val schemaHtmlInline: Schema[HtmlInline] = new Schema(
     reflect = new Reflect.Record[Binding, HtmlInline](
       fields = Chunk(Schema[String].reflect.asTerm("content")),
@@ -847,6 +929,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of the singleton `SoftBreak`: a record with no fields, like
+   * `Inline.SoftBreak`.
+   */
   implicit lazy val schemaSoftBreak: Schema[SoftBreak.type] = new Schema(
     reflect = new Reflect.Record[Binding, SoftBreak.type](
       fields = Chunk.empty,
@@ -859,6 +945,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of the singleton `HardBreak`: a record with no fields, like
+   * `Inline.HardBreak`.
+   */
   implicit lazy val schemaHardBreak: Schema[HardBreak.type] = new Schema(
     reflect = new Reflect.Record[Binding, HardBreak.type](
       fields = Chunk.empty,
@@ -871,6 +961,10 @@ private[schema] trait DocsSchemas {
     )
   )
 
+  /**
+   * The schema of `Autolink`: a record with `url` and `isEmail` fields, like
+   * `Inline.Autolink`.
+   */
   implicit lazy val schemaAutolink: Schema[Autolink] = new Schema(
     reflect = new Reflect.Record[Binding, Autolink](
       fields = Chunk(
@@ -904,6 +998,9 @@ private[schema] trait DocsSchemas {
   // ===========================================================================
 
   // TableRow(cells: Chunk[Chunk[Inline]]) — 1 object
+  /**
+   * The schema of `TableRow`: a record with a `cells` field.
+   */
   implicit lazy val schemaTableRow: Schema[TableRow] = new Schema(
     reflect = new Reflect.Record[Binding, TableRow](
       fields = Chunk(
@@ -927,6 +1024,9 @@ private[schema] trait DocsSchemas {
   )
 
   // ListItem(content: Chunk[Block], checked: Option[Boolean]) — 2 objects
+  /**
+   * The schema of `ListItem`: a record with `content` and `checked` fields.
+   */
   implicit lazy val schemaListItem: Schema[ListItem] = new Schema(
     reflect = new Reflect.Record[Binding, ListItem](
       fields = Chunk(
@@ -960,6 +1060,9 @@ private[schema] trait DocsSchemas {
   // ===========================================================================
 
   // Paragraph(content: Chunk[Inline]) — 1 object
+  /**
+   * The schema of `Paragraph`: a record with a `content` field.
+   */
   implicit lazy val schemaParagraph: Schema[Paragraph] = new Schema(
     reflect = new Reflect.Record[Binding, Paragraph](
       fields = Chunk(
@@ -983,6 +1086,9 @@ private[schema] trait DocsSchemas {
   )
 
   // Heading(level: HeadingLevel, content: Chunk[Inline]) — 2 objects
+  /**
+   * The schema of `Heading`: a record with `level` and `content` fields.
+   */
   implicit lazy val schemaHeading: Schema[Heading] = new Schema(
     reflect = new Reflect.Record[Binding, Heading](
       fields = Chunk(
@@ -1012,6 +1118,9 @@ private[schema] trait DocsSchemas {
   )
 
   // CodeBlock(info: Option[String], code: String) — 2 objects
+  /**
+   * The schema of `CodeBlock`: a record with `info` and `code` fields.
+   */
   implicit lazy val schemaCodeBlock: Schema[CodeBlock] = new Schema(
     reflect = new Reflect.Record[Binding, CodeBlock](
       fields = Chunk(
@@ -1041,6 +1150,9 @@ private[schema] trait DocsSchemas {
   )
 
   // ThematicBreak — case object
+  /**
+   * The schema of the singleton `ThematicBreak`: a record with no fields.
+   */
   implicit lazy val schemaThematicBreak: Schema[ThematicBreak.type] = new Schema(
     reflect = new Reflect.Record[Binding, ThematicBreak.type](
       fields = Chunk.empty,
@@ -1054,6 +1166,9 @@ private[schema] trait DocsSchemas {
   )
 
   // BlockQuote(content: Chunk[Block]) — 1 object, uses Deferred for Chunk[Block]
+  /**
+   * The schema of `BlockQuote`: a record with a `content` field.
+   */
   implicit lazy val schemaBlockQuote: Schema[BlockQuote] = new Schema(
     reflect = new Reflect.Record[Binding, BlockQuote](
       fields = Chunk(
@@ -1077,6 +1192,9 @@ private[schema] trait DocsSchemas {
   )
 
   // BulletList(items: Chunk[ListItem], tight: Boolean) — 1 object + 1 boolean
+  /**
+   * The schema of `BulletList`: a record with `items` and `tight` fields.
+   */
   implicit lazy val schemaBulletList: Schema[BulletList] = new Schema(
     reflect = new Reflect.Record[Binding, BulletList](
       fields = Chunk(
@@ -1106,6 +1224,10 @@ private[schema] trait DocsSchemas {
   )
 
   // OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) — 1 int + 1 object + 1 boolean
+  /**
+   * The schema of `OrderedList`: a record with `start`, `items` and `tight`
+   * fields.
+   */
   implicit lazy val schemaOrderedList: Schema[OrderedList] = new Schema(
     reflect = new Reflect.Record[Binding, OrderedList](
       fields = Chunk(
@@ -1139,6 +1261,9 @@ private[schema] trait DocsSchemas {
   )
 
   // HtmlBlock(content: String) — 1 object
+  /**
+   * The schema of `HtmlBlock`: a record with a `content` field.
+   */
   implicit lazy val schemaHtmlBlock: Schema[HtmlBlock] = new Schema(
     reflect = new Reflect.Record[Binding, HtmlBlock](
       fields = Chunk(Schema[String].reflect.asTerm("content")),
@@ -1160,6 +1285,10 @@ private[schema] trait DocsSchemas {
   )
 
   // Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow]) — 3 objects
+  /**
+   * The schema of `Table`: a record with `header`, `alignments` and `rows`
+   * fields.
+   */
   implicit lazy val schemaTable: Schema[Table] = new Schema(
     reflect = new Reflect.Record[Binding, Table](
       fields = Chunk(
@@ -1195,6 +1324,10 @@ private[schema] trait DocsSchemas {
   // Block sealed trait (Variant with 10 cases)
   // ===========================================================================
 
+  /**
+   * The schema of `Block`, a block of documentation: a variant with a case for
+   * each kind, such as `Paragraph`, `Heading`, `CodeBlock` and `Table`.
+   */
   implicit lazy val schemaBlock: Schema[Block] = new Schema(
     reflect = new Reflect.Variant[Binding, Block](
       cases = Chunk(
@@ -1297,6 +1430,10 @@ private[schema] trait DocsSchemas {
   // ===========================================================================
 
   // Doc(blocks: Chunk[Block], metadata: Map[String, String]) — 2 objects
+  /**
+   * The schema of `Doc`, the documentation that a schema and its parts carry: a
+   * record with `blocks` and `metadata` fields.
+   */
   implicit lazy val schemaDoc: Schema[Doc] = new Schema(
     reflect = new Reflect.Record[Binding, Doc](
       fields = Chunk(

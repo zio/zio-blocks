@@ -17,10 +17,16 @@
 package zio.blocks.schema.binding
 
 /**
- * A `Discriminator` is a typeclass that can discriminate between different
- * terms of a sum type, by returning a numerical index that represents which
- * term in the sum type the value represents.
+ * A `Discriminator` tells which case of a sum type a value belongs to: it is
+ * half of a [[Binding.Variant]]. It returns the index of the case in the order
+ * of the variant node's cases, and the [[Matcher]] at that index of the
+ * variant's [[Matchers]] downcasts the value to that case.
+ *
+ * @tparam A
+ *   the sum type
  */
 trait Discriminator[-A] {
+
+  /** Returns the 0-based index of the case that `a` belongs to. */
   def discriminate(a: A): Int
 }

@@ -18,26 +18,66 @@ package zio.blocks.sql
 
 import zio.blocks.schema.*
 
+/**
+ * Describes one column of a [[Table]] for DDL: its name, a representative
+ * [[DbValue]] that `SqlDialect#typeName` maps to the column type (such as
+ * `DbValue.DbInt(0)` for `INTEGER`), and whether it accepts `NULL`.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/table-metadata/ TableMetadata]]
+ */
 final case class ColumnMeta(name: String, dbValue: DbValue, nullable: Boolean)
 
+/**
+ * How `Table.derived` turns a type name into a table name when the type has no
+ * `@Modifier.config("sql.table_name", ...)` annotation.
+ *
+ * {{{
+ * val singular = TableNamingPolicy.Singular.defaultName("OrderLine") // order_line
+ * val plural   = TableNamingPolicy.Plural.defaultName("Category")    // categories
+ * val custom   = TableNamingPolicy.Custom("shop_" + _.toLowerCase).defaultName("Product")
+ * // shop_product
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/table/ Table]]
+ */
 sealed trait TableNamingPolicy {
+
+  /** Returns the table name for the type named `typeName`. */
   def defaultName(typeName: String): String
 }
 
+/** The predefined [[TableNamingPolicy]] values. */
 object TableNamingPolicy {
+
+  /** The type name in snake case: `OrderLine` becomes `order_line`. */
   case object Singular extends TableNamingPolicy {
+
+    /** Returns `typeName` in snake case. */
     def defaultName(typeName: String): String = SqlNameMapper.SnakeCase(typeName)
   }
 
+  /**
+   * The type name in snake case with an English plural ending: `Category`
+   * becomes `categories`, `Box` becomes `boxes`, and `Person` becomes
+   * `persons`.
+   */
   case object Plural extends TableNamingPolicy {
+
+    /** Returns `typeName` in snake case with a plural ending. */
     def defaultName(typeName: String): String =
       TableNamingPolicy.pluralize(SqlNameMapper.SnakeCase(typeName))
   }
 
+  /** Applies `f` to the type name as written, such as `OrderLine`. */
   final case class Custom(f: String => String) extends TableNamingPolicy {
+
+    /** Returns `f(typeName)`. */
     def defaultName(typeName: String): String = f(typeName)
   }
 
+  /** Adds an English plural ending to `s`, as [[Plural]] uses it. */
   private[sql] def pluralize(s: String): String =
     if (s.isEmpty) s
     else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh") || s.endsWith("zz"))
@@ -50,7 +90,35 @@ object TableNamingPolicy {
   private def isVowel(c: Char): Boolean = "aeiouAEIOU".indexOf(c) >= 0
 }
 
+/**
+ * Computes the column metadata that `Table.derived` puts in a [[Table]].
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/table-metadata/ TableMetadata]]
+ */
 object TableMetadata {
+
+  /**
+   * Returns one [[ColumnMeta]] per primitive leaf of `schema`, named with
+   * `columnNameMapper` or `@Modifier.rename`. `Option` and `Maybe` fields are
+   * nullable, `@Modifier.transient` fields are skipped, an enum of case objects
+   * is a text column, and a nested case class field becomes
+   * `<field>_<subfield>` columns. A collection or a sealed trait with fields
+   * throws `UnsupportedOperationException`.
+   *
+   * The nested and collection cases disagree with the row codec, which stores
+   * such fields as one JSON column, a known bug in 0.0.56.
+   *
+   * {{{
+   * import zio.blocks.schema.Schema
+   *
+   * case class Customer(customerId: Int, nickname: Option[String])
+   * object Customer { implicit val schema: Schema[Customer] = Schema.derived }
+   *
+   * val columns = TableMetadata.columnsFor(Customer.schema)
+   * // Vector(ColumnMeta(customer_id,DbInt(0),false), ColumnMeta(nickname,DbString(),true))
+   * }}}
+   */
   def columnsFor[A](
     schema: Schema[A],
     columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase

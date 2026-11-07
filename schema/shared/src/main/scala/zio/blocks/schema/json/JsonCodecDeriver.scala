@@ -35,48 +35,17 @@ import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 /**
- * An object that represents the JSON format used for serialization and
- * deserialization.
- *
- * It extends the `BinaryFormat` class, specifying "application/json" as the
- * MIME type and utilizing the `JsonCodecDeriver` for deriving the necessary
- * codecs.
+ * The JSON [[zio.blocks.schema.codec.BinaryFormat]]: MIME type
+ * `application/json`, with codecs derived by the default [[JsonCodecDeriver]].
  */
 object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
 
 /**
- * Provides a default implementation of `JsonCodecDeriver` with customizable
- * settings for JSON and binary codec derivation. This object allows the
- * derivation of codecs for various data types, including primitives, records,
- * variants, sequences, maps, and dynamic values.
- *
- * The derivation process can be customized through pre-configured parameters,
- * including:
- *   - `fieldNameMapper`: Controls how field names are transformed during
- *     serialization and deserialization.
- *   - `caseNameMapper`: Controls how case names in variants are transformed.
- *   - `discriminatorKind`: Determines the strategy for handling type
- *     discriminators in variants.
- *   - `rejectExtraFields`: Specifies if unrecognized fields should cause
- *     validation errors.
- *   - `enumValuesAsStrings`: Specifies whether enumeration values are
- *     represented as strings.
- *   - `transientNone`: Excludes fields with a value of `None` (for `Option`) or
- *     absent (for `Maybe`) during serialization.
- *   - `requireOptionFields`: Enforces the inclusion of optional fields
- *     (`Option` and `Maybe`) in deserialization.
- *   - `transientEmptyCollection`: Excludes empty collections during
- *     serialization.
- *   - `requireCollectionFields`: Enforces the inclusion of collection fields in
- *     deserialization.
- *   - `transientDefaultValue`: Excludes fields with default values during
- *     serialization.
- *   - `requireDefaultValueFields`: Enforces the inclusion of fields with
- *     default values in deserialization.
- *
- * This predefined object uses the `NameMapper.Identity` strategy, which applies
- * no transformation to field or case names, and `DiscriminatorKind.Key`, which
- * embeds type information as a key in serialized data.
+ * The default deriver, which `Schema#jsonCodec` uses, and the starting point
+ * for a configured one: field and case names as declared,
+ * `DiscriminatorKind.Key`, extra fields ignored, enumerations as strings, and
+ * `None`, empty collections and default values left out when encoding and
+ * accepted as missing when decoding.
  */
 object JsonCodecDeriver
     extends JsonCodecDeriver(
@@ -93,6 +62,51 @@ object JsonCodecDeriver
       requireDefaultValueFields = false
     )
 
+/**
+ * Derives a [[JsonCodec]] from a [[zio.blocks.schema.Schema]]. Each `with`
+ * method returns a copy with one setting changed; pass the result to
+ * `Schema#derive`. `Schema#jsonCodec`, `toJsonString` and `fromJson` always use
+ * the default [[JsonCodecDeriver]], not a configured one.
+ *
+ * Modifiers in the schema win over the deriver: a type's
+ * `@Modifier.fieldNaming`, `@Modifier.caseNaming` and `@Modifier.discriminator`
+ * replace the field and case name mappers and the discriminator kind for that
+ * type, a field's or case's `@Modifier.rename` replaces its mapped name, and
+ * `@Modifier.noExtraFields` turns rejection of extra fields on (it cannot turn
+ * it off). `@Modifier.alias` adds names that decoding also accepts.
+ *
+ * Fields are handled in this order:
+ *   - when encoding, a field with a default value is left out when it equals
+ *     the default; otherwise a `None` (or absent `Maybe`) is left out, then an
+ *     empty collection, as the `transient` settings allow;
+ *   - when decoding a missing field, its default value is used; otherwise an
+ *     `Option` becomes `None`, then a collection becomes empty, as the
+ *     `require` settings allow; otherwise decoding fails with `missing required
+ *     field`.
+ *
+ * Each `require` setting also turns off the matching `transient` one, so a
+ * `None` or an empty collection is written, unless the field has a default
+ * value that it equals and `withTransientDefaultValue` is on. A record with
+ * more than 128 fields, or two fields or cases that map to the same name, makes
+ * derivation throw.
+ *
+ * {{{
+ * import zio.blocks.schema.json._
+ *
+ * case class Book(title: String, firstEdition: Int, isbn: Option[String] = None)
+ * object Book {
+ *   implicit val schema: Schema[Book] = Schema.derived
+ * }
+ *
+ * val snakeCase = Book.schema.derive(JsonCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase))
+ *
+ * snakeCase.encodeToString(Book("Zionomicon", 2021))                // {"title":"Zionomicon","first_edition":2021}
+ * snakeCase.decode("""{"title":"Zionomicon","first_edition":2021}""") // Right(Book(Zionomicon,2021,None))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/json/ JSON]]
+ */
 class JsonCodecDeriver private[json] (
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
@@ -108,148 +122,97 @@ class JsonCodecDeriver private[json] (
 ) extends Deriver[JsonCodec] {
 
   /**
-   * Updates the `JsonCodecDeriver` instance with the specified field name
-   * mapper. The field name mapper defines how field names should be transformed
-   * during encoding and decoding.
-   *
-   * @param fieldNameMapper
-   *   The `NameMapper` to apply for transforming field names.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated field name mapper.
+   * Returns a deriver that names the JSON fields of every record with
+   * `fieldNameMapper`, such as `NameMapper.SnakeCase`, unless the record has
+   * `@Modifier.fieldNaming` or the field has `@Modifier.rename`.
    */
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
   /**
-   * Updates the `JsonCodecDeriver` instance with the specified case name
-   * mapper. The case name mapper defines how case names should be transformed
-   * during encoding and decoding.
-   *
-   * @param caseNameMapper
-   *   The `NameMapper` to apply for transforming case names.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated case name mapper.
+   * Returns a deriver that names the cases of every sealed trait or enum with
+   * `caseNameMapper`, in discriminators and in enumeration strings, unless the
+   * type has `@Modifier.caseNaming` or the case has `@Modifier.rename`.
    */
   def withCaseNameMapper(caseNameMapper: NameMapper): JsonCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
   /**
-   * Updates the `JsonCodecDeriver` instance with the specified discriminator
-   * kind. The discriminator kind defines how the subtype discriminator is
-   * represented in the serialized JSON.
-   *
-   * @param discriminatorKind
-   *   The `DiscriminatorKind` to apply for specifying how the discriminator is
-   *   handled in the JSON schema for sealed hierarchies.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated discriminator kind.
+   * Returns a deriver that encodes the case of every sealed trait or enum as
+   * `discriminatorKind` says, unless the type has `@Modifier.discriminator` or
+   * is an enumeration written as strings; see [[DiscriminatorKind]].
    */
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonCodecDeriver =
     copy(discriminatorKind = discriminatorKind)
 
   /**
-   * Updates the `JsonCodecDeriver` instance to specify whether additional
-   * fields in the JSON input that are not part of the schema should be rejected
-   * during decoding.
-   *
-   * @param rejectExtraFields
-   *   A boolean flag indicating whether to reject extra fields that are not
-   *   defined in the schema. If `true`, decoding will fail when extra fields
-   *   are encountered; if `false`, extra fields will be ignored.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated `rejectExtraFields`
-   *   setting.
+   * Returns a deriver whose record decoders fail on a field that the record
+   * does not have, with `unexpected field "pages"` (`true`), or skip it
+   * (`false`, the default). A discriminator field is never extra, and
+   * `@Modifier.noExtraFields` turns rejection on for one record.
    */
   def withRejectExtraFields(rejectExtraFields: Boolean): JsonCodecDeriver = copy(rejectExtraFields = rejectExtraFields)
 
   /**
-   * Updates the `JsonCodecDeriver` instance to specify whether enumeration
-   * values should be serialized and deserialized as strings.
-   *
-   * @param enumValuesAsStrings
-   *   A boolean flag indicating whether to treat enumeration values as strings.
-   *   If `true`, enumeration values are serialized and deserialized as their
-   *   string representations; if `false`, they are encoded with default
-   *   `DiscriminatorKind.Key` encoding.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated
-   *   `enumValuesAsStrings` setting.
+   * Returns a deriver that writes a sealed trait or enum whose cases all have
+   * no fields as the case name, such as `"Red"` (`true`, the default), or with
+   * the discriminator kind like any other variant (`false`), such as
+   * `{"Red":{}}`.
    */
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
   /**
-   * Updates the `JsonCodecDeriver` instance to specify whether fields of type
-   * `Option` with a value of `None` or `Maybe` with an absent value should be
-   * excluded during encoding.
-   *
-   * @param transientNone
-   *   A boolean flag indicating whether to exclude fields of type `Option` with
-   *   a value of `None` (or `Maybe` with an absent value) during encoding. If
-   *   `true`, such fields are omitted; if `false`, they are included.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated `transientNone`
-   *   setting.
+   * Returns a deriver that leaves an `Option` field that is `None`, or a
+   * `Maybe` field that is absent, out of the encoded object (`true`, the
+   * default), or writes it as `null` (`false`). It has no effect with
+   * `withRequireOptionFields(true)`, and while `withTransientDefaultValue` is
+   * on, a field with a default value follows it instead.
    */
   def withTransientNone(transientNone: Boolean): JsonCodecDeriver = copy(transientNone = transientNone)
 
   /**
-   * Sets the requirement for optional fields (`Option` and `Maybe`).
-   *
-   * @param requireOptionFields
-   *   A boolean flag indicating whether optional fields (`Option` and `Maybe`)
-   *   are required. If true, these fields must be present in the JSON input and
-   *   will not be treated as optional during codec derivation.
-   * @return
-   *   A new instance of JsonCodecDeriver with the updated setting for requiring
-   *   optional fields.
+   * Returns a deriver whose decoders fail on a missing `Option` or `Maybe`
+   * field (`true`), instead of using `None` (`false`, the default). With `true`
+   * the encoders also write `None` as `null`, except for a field whose default
+   * it equals while `withTransientDefaultValue` is on. A field with a default
+   * value still decodes to its default when missing.
    */
   def withRequireOptionFields(requireOptionFields: Boolean): JsonCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
   /**
-   * Configures whether the derived codec should handle empty collections as
-   * transient.
-   *
-   * @param transientEmptyCollection
-   *   Indicates if empty collections should be treated as transient.
-   * @return
-   *   A new instance of JsonCodecDeriver with the updated
-   *   transientEmptyCollection setting.
+   * Returns a deriver that leaves an empty sequence or map field out of the
+   * encoded object (`true`, the default), or writes `[]` or `{}` (`false`). It
+   * has no effect with `withRequireCollectionFields(true)`, and while
+   * `withTransientDefaultValue` is on, a field with a default value follows it
+   * instead.
    */
   def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
 
   /**
-   * Sets the flag indicating whether collection fields are required.
-   *
-   * @param requireCollectionFields
-   *   A boolean value specifying if collection fields should be required.
-   * @return
-   *   A new instance of JsonCodecDeriver with the updated configuration.
+   * Returns a deriver whose decoders fail on a missing sequence or map field
+   * (`true`), instead of using an empty one (`false`, the default). With `true`
+   * the encoders also write empty collections, except for a field whose default
+   * it equals while `withTransientDefaultValue` is on. A field with a default
+   * value still decodes to its default when missing.
    */
   def withRequireCollectionFields(requireCollectionFields: Boolean): JsonCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
   /**
-   * Sets the transient behavior for fields with defined default values.
-   *
-   * @param transientDefaultValue
-   *   A boolean indicating whether the transient behavior for fields with
-   *   defined default values should be applied or not.
-   * @return
-   *   A new instance of JsonCodecDeriver with the specified transient default
-   *   value setting.
+   * Returns a deriver that leaves a field equal to its default value out of the
+   * encoded object (`true`, the default), or does not leave it out for being
+   * the default (`false`); a `None` or an empty collection is then still left
+   * out by `withTransientNone` and `withTransientEmptyCollection`. It has no
+   * effect with `withRequireDefaultValueFields(true)`.
    */
   def withTransientDefaultValue(transientDefaultValue: Boolean): JsonCodecDeriver =
     copy(transientDefaultValue = transientDefaultValue)
 
   /**
-   * Sets the flag indicating whether fields with default values are required.
-   *
-   * @param requireDefaultValueFields
-   *   A boolean flag indicating whether fields with default values should be
-   *   required.
-   * @return
-   *   A new instance of `JsonCodecDeriver` with the updated configuration.
+   * Returns a deriver that ignores default values (`true`): a missing field is
+   * then treated as if it had no default, and default values are written. With
+   * `false` (the default), a missing field gets its default value.
    */
   def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
@@ -2894,6 +2857,11 @@ class JsonCodecDeriver private[json] (
     else binding.asInstanceOf[BindingInstance[TC, ?, ?]].instance
   }.asInstanceOf[Lazy[JsonCodec[DynamicValue]]]
 
+  /**
+   * Derives the codec of a wrapper type, such as a `Schema#transform` newtype,
+   * from the codec of the wrapped type. A failure of the wrapping function adds
+   * a `.wrapped` step to the error path.
+   */
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
@@ -2972,12 +2940,25 @@ class JsonCodecDeriver private[json] (
     super.instanceOverrides
   }
 
+  /** Internal placeholder type of the derived codecs. */
   type Elem
+
+  /** Internal placeholder type of the derived codecs. */
   type Key
+
+  /** Internal placeholder type of the derived codecs. */
   type Value
+
+  /** Internal placeholder type of the derived codecs. */
   type Wrapped
+
+  /** Internal placeholder type of the derived codecs. */
   type Col[_]
+
+  /** Internal placeholder type of the derived codecs. */
   type Map[_, _]
+
+  /** Internal placeholder type of the derived codecs. */
   type TC[_]
 
   private[this] val recursiveRecordCache =

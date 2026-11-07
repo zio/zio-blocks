@@ -19,8 +19,33 @@ package zio.blocks.config
 import zio.blocks.maybe.Maybe
 
 /**
- * A decoded configuration value paired with the `ConfigSource` that produced
- * it, allowing per-key provenance queries.
+ * A decoded configuration value paired with the [[ConfigSource]] it was decoded
+ * from, which [[Config.loadWithProvenance]] returns. Ask it where one key came
+ * from with `provenanceOf`, or print a table of the source with `dump`.
+ *
+ * Both methods ask the source again when called, so they report what the source
+ * holds now.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * final case class Cache(ttlSeconds: Int, maxEntries: Int)
+ * object Cache { implicit val schema: Schema[Cache] = Schema.derived }
+ *
+ * val defaults = ConfigSource.fromMap(Map("ttlSeconds" -> "60", "maxEntries" -> "1000"), "defaults")
+ * val env      = ConfigSource.fromMap(Map("ttlSeconds" -> "300"), "env")
+ * val loaded   = Config.loadWithProvenance[Cache](env.orElse(defaults))
+ * val table    = loaded.map(_.dump()).getOrElse("")
+ * // ┌────────────┬───────┬──────────┐
+ * // │ Key        │ Value │ Source   │
+ * // ├────────────┼───────┼──────────┤
+ * // │ maxEntries │ 1000  │ defaults │
+ * // │ ttlSeconds │ 300   │ env      │
+ * // └────────────┴───────┴──────────┘
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/config-source/ ConfigSource]]
  */
 final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
 
@@ -30,14 +55,23 @@ final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
     if (shouldRedact(key)) "<secret>" else rawValue
 
   /**
-   * Look up the provenance of a specific dot-separated key path.
+   * Returns the provenance that the source reports for the dot-separated key
+   * `path`, or `Maybe.absent` when the source has no value for it, as for a
+   * field that took its default value.
    */
   def provenanceOf(path: String): Maybe[Provenance] =
     source.get(path).map(_.provenance)
 
   /**
-   * Render a formatted table showing all keys visible under the given prefix
-   * with their values and sources.
+   * Renders a table of every key that the source returns for `prefix` (see
+   * [[ConfigSource#all]]), sorted, with its value and the `sourceId` that
+   * supplied it, or `(no keys found)` when there is none.
+   *
+   * The table lists the source's keys, not only the keys the value was decoded
+   * from, so an unprefixed [[EnvSource]] prints the whole environment, a known
+   * bug. Values are hidden as `<secret>` by key name only (a key containing
+   * `password`, `token` or a similar marker), so a [[Secret]] field under
+   * another name is printed in clear, a known bug.
    */
   def dump(prefix: String = ""): String = {
     val entries = source.all(prefix)

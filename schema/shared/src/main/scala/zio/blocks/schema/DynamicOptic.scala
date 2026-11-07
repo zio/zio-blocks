@@ -22,49 +22,128 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.json.JsonCodec
 import zio.blocks.typeid.TypeId
 
+/**
+ * An untyped path into a value: a sequence of [[DynamicOptic.Node]] steps, such
+ * as a field, a case, an index, a map key or every element. A typed [[Optic]]
+ * turns into one with `Optic#toDynamic`. The [[DynamicValue]] operations
+ * (`get`, `modify`, `set`, `delete`, `insert`) take one, `Reflect#get`
+ * navigates a schema with one, and [[SchemaError]] and [[OpticCheck]] use them
+ * to say where a problem is.
+ *
+ * Build a path from [[DynamicOptic.root]] with the builder methods, or with the
+ * `p"..."` interpolator, which checks the syntax at compile time. `toString`
+ * renders the path in the interpolator syntax (`.books[0].title`), and
+ * `toScalaString` in the syntax of the optic macros (`.books.at(0).title`),
+ * which error messages use. The companion's `schema` makes paths serializable.
+ *
+ * {{{
+ * val path = DynamicOptic.root.field("books").at(0).field("title")
+ *
+ * path.toString              // .books[0].title
+ * path.toScalaString         // .books.at(0).title
+ * path == p".books[0].title" // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/dynamic-optic/ DynamicOptic]]
+ */
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   import DynamicOptic.Node
 
+  /**
+   * Returns this path followed by the steps of `that`.
+   */
   def apply(that: DynamicOptic): DynamicOptic = new DynamicOptic(nodes ++ that.nodes)
 
+  /**
+   * Returns the schema node that this path leads to inside `reflect`, or `None`
+   * when a step does not fit, such as a field that the record does not have. An
+   * index step leads to the element schema and a key step to the value schema,
+   * whatever the index or key; a search step leads to the first matching node.
+   * The same as `reflect.get(this)`.
+   */
   def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, ?]] = reflect.get(this)
 
+  /**
+   * Appends a step to the record field `name`.
+   */
   def field(name: String): DynamicOptic = new DynamicOptic(nodes.appended(new Node.Field(name)))
 
+  /**
+   * Appends a step to the variant case `name`.
+   */
   def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes.appended(new Node.Case(name)))
 
+  /**
+   * Appends a step to the sequence element at `index`.
+   */
   def at(index: Int): DynamicOptic = new DynamicOptic(nodes.appended(new Node.AtIndex(index)))
 
+  /**
+   * Appends a step to the sequence elements at `indices`, kept in the order
+   * given.
+   */
   def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes.appended(new Node.AtIndices(indices)))
 
+  /**
+   * Appends a step to the map value at `key`. The key is stored as a
+   * [[DynamicValue]], converted with `schema`.
+   */
   def atKey[K](key: K)(implicit schema: Schema[K]): DynamicOptic =
     new DynamicOptic(nodes.appended(new Node.AtMapKey(schema.toDynamicValue(key))))
 
+  /**
+   * Appends a step to the map values at `keys`, each stored as a
+   * [[DynamicValue]] converted with `schema`.
+   */
   def atKeys[K](keys: K*)(implicit schema: Schema[K]): DynamicOptic =
     new DynamicOptic(nodes.appended(new Node.AtMapKeys(keys.map(schema.toDynamicValue))))
 
+  /**
+   * Appends a step to every element of a sequence.
+   */
   def elements: DynamicOptic = new DynamicOptic(nodes.appended(Node.Elements))
 
+  /**
+   * Appends a step to every key of a map.
+   */
   def mapKeys: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapKeys))
 
+  /**
+   * Appends a step to every value of a map.
+   */
   def mapValues: DynamicOptic = new DynamicOptic(nodes.appended(Node.MapValues))
 
+  /**
+   * Appends a step to the value inside a wrapper.
+   */
   def wrapped: DynamicOptic = new DynamicOptic(nodes.appended(Node.Wrapped))
 
   /**
-   * Appends a search node that matches all values of the specified nominal
-   * type.
+   * Appends a step that searches for every value of the nominal type `A`,
+   * identified by its `TypeId`.
    */
   def search[A](implicit typeId: TypeId[A]): DynamicOptic =
     new DynamicOptic(nodes.appended(new Node.TypeSearch(typeId)))
 
   /**
-   * Appends a search node that matches all values matching the specified schema
-   * pattern.
+   * Appends a step that searches for every value that matches the schema
+   * pattern `schemaRepr`. The `#` steps of `p"..."` build this kind of step.
    */
   def searchSchema(schemaRepr: SchemaRepr): DynamicOptic =
     new DynamicOptic(nodes.appended(new Node.SchemaSearch(schemaRepr)))
 
+  /**
+   * Renders this path in the syntax of the `p"..."` interpolator: `.name` for a
+   * field, `<Case>` for a case, `[0]` and `[0,2]` for indices, `[*]` for every
+   * element, `{"key"}` and `{"a", "b"}` for map keys, `{*}` for every map
+   * value, `{*:}` for every map key, `.~` for a wrapper, `#Type` for a search,
+   * and `.` for the empty path.
+   *
+   * Not every rendering is accepted by `p"..."`: the interpolator rejects `.~`
+   * and `.`, and a `Char` key with an escape renders with a doubled backslash
+   * (`{'\\n'}`), which it also rejects (see `docs/dev/issues.md`).
+   */
   override lazy val toString: String = {
     val sb = new java.lang.StringBuilder
     DynamicOptic.renderString(sb, nodes)
@@ -72,10 +151,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   }
 
   /**
-   * Renders this optic path using Scala-style method syntax (e.g.,
-   * `.when[Case]`, `.each`, `.atKey(<key>)`). This is used for typed Optic
-   * error messages, as opposed to `toString` which uses the compact
-   * interpolator syntax.
+   * Renders this path in the syntax of the optic macros, as error messages do:
+   * `.name`, `.when[Case]`, `.at(0)`, `.atIndices(0, 2)`, `.atKey("key")`,
+   * `.atKeys("a", "b")`, `.each`, `.eachKey`, `.eachValue`, `.wrapped`,
+   * `.search[Type]` and `.searchSchema(pattern)`, and `.` for the empty path.
    */
   lazy val toScalaString: String = {
     val sb = new java.lang.StringBuilder
@@ -84,6 +163,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   }
 }
 
+/**
+ * The starting points for paths, their [[DynamicOptic.Node]] steps, and the
+ * schemas that make paths serializable.
+ */
 object DynamicOptic {
   private[schema] def renderString(sb: java.lang.StringBuilder, nodes: IndexedSeq[DynamicOptic.Node]): Unit = {
     val len = nodes.length
@@ -226,46 +309,101 @@ object DynamicOptic {
       case _ => sb.append(value.toString)
     }
 
+  /**
+   * The empty path, which points at the value itself.
+   */
   val root: DynamicOptic = new DynamicOptic(Chunk.empty)
 
+  /**
+   * A one-step path to every element of a sequence.
+   */
   val elements: DynamicOptic = new DynamicOptic(Chunk.single(Node.Elements))
 
+  /**
+   * A one-step path to every key of a map.
+   */
   val mapKeys: DynamicOptic = new DynamicOptic(Chunk.single(Node.MapKeys))
 
+  /**
+   * A one-step path to every value of a map.
+   */
   val mapValues: DynamicOptic = new DynamicOptic(Chunk.single(Node.MapValues))
 
+  /**
+   * A one-step path to the value inside a wrapper.
+   */
   val wrapped: DynamicOptic = new DynamicOptic(Chunk.single(Node.Wrapped))
 
+  /**
+   * One step of a [[DynamicOptic]].
+   */
   sealed trait Node
 
+  /**
+   * The kinds of step a [[DynamicOptic]] can take.
+   */
   object Node {
+
+    /**
+     * The record field `name`.
+     */
     case class Field(name: String) extends Node
 
+    /**
+     * The variant case `name`.
+     */
     case class Case(name: String) extends Node
 
+    /**
+     * The sequence element at `index`.
+     */
     case class AtIndex(index: Int) extends Node
 
+    /**
+     * The map value at `key`.
+     */
     case class AtMapKey(key: DynamicValue) extends Node
 
+    /**
+     * The sequence elements at the indices in `index`.
+     */
     case class AtIndices(index: Seq[Int]) extends Node
 
+    /**
+     * The map values at `keys`.
+     */
     case class AtMapKeys(keys: Seq[DynamicValue]) extends Node
 
+    /**
+     * Every element of a sequence.
+     */
     case object Elements extends Node
 
+    /**
+     * Every key of a map.
+     */
     case object MapKeys extends Node
 
+    /**
+     * Every value of a map.
+     */
     case object MapValues extends Node
 
+    /**
+     * The value inside a wrapper.
+     */
     case object Wrapped extends Node
 
     /**
-     * Search for all values matching a nominal type by TypeId.
+     * Every value of the nominal type identified by `typeId`.
+     * `DynamicOptic#search` and the `searchFor` step of the optic macros build
+     * it.
      */
     case class TypeSearch(typeId: TypeId[?]) extends Node
 
     /**
-     * Search for all values matching a structural schema pattern.
+     * Every value that matches the schema pattern `schemaRepr`.
+     * `DynamicOptic#searchSchema` and the `#` steps of `p"..."` build it.
      */
     case class SchemaSearch(schemaRepr: SchemaRepr) extends Node
   }
@@ -274,6 +412,9 @@ object DynamicOptic {
   // In Scala 3, You can derive Schema using `Schema.derive`
 
   // Schema for case objects
+  /**
+   * The schema of [[DynamicOptic.Node.Elements]].
+   */
   implicit lazy val elementsSchema: Schema[Node.Elements.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Elements.type](
       fields = Chunk.empty,
@@ -286,6 +427,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.MapKeys]].
+   */
   implicit lazy val mapKeysSchema: Schema[Node.MapKeys.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.MapKeys.type](
       fields = Chunk.empty,
@@ -298,6 +442,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.MapValues]].
+   */
   implicit lazy val mapValuesSchema: Schema[Node.MapValues.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.MapValues.type](
       fields = Chunk.empty,
@@ -310,6 +457,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.Wrapped]].
+   */
   implicit lazy val wrappedSchema: Schema[Node.Wrapped.type] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Wrapped.type](
       fields = Chunk.empty,
@@ -323,6 +473,9 @@ object DynamicOptic {
   )
 
   // Schemas for case classes
+  /**
+   * The schema of [[DynamicOptic.Node.Field]].
+   */
   implicit lazy val fieldSchema: Schema[Node.Field] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Field](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -343,6 +496,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.Case]].
+   */
   implicit lazy val caseSchema: Schema[Node.Case] = new Schema(
     reflect = new Reflect.Record[Binding, Node.Case](
       fields = Chunk.single(Schema[String].reflect.asTerm("name")),
@@ -363,6 +519,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.AtIndex]].
+   */
   implicit lazy val atIndexSchema: Schema[Node.AtIndex] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtIndex](
       fields = Chunk.single(Schema[Int].reflect.asTerm("index")),
@@ -383,6 +542,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.AtMapKey]].
+   */
   implicit lazy val atMapKeySchema: Schema[Node.AtMapKey] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtMapKey](
       fields = Chunk.single(Schema[DynamicValue].reflect.asTerm("key")),
@@ -403,6 +565,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.AtIndices]].
+   */
   implicit lazy val atIndicesSchema: Schema[Node.AtIndices] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtIndices](
       fields = Chunk.single(Schema[Seq[Int]].reflect.asTerm("index")),
@@ -423,6 +588,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.AtMapKeys]].
+   */
   implicit lazy val atMapKeysSchema: Schema[Node.AtMapKeys] = new Schema(
     reflect = new Reflect.Record[Binding, Node.AtMapKeys](
       fields = Chunk.single(Schema[Seq[DynamicValue]].reflect.asTerm("keys")),
@@ -443,6 +611,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.TypeSearch]].
+   */
   implicit lazy val typeSearchSchema: Schema[Node.TypeSearch] = new Schema(
     reflect = new Reflect.Record[Binding, Node.TypeSearch](
       fields = Chunk.single(
@@ -465,6 +636,9 @@ object DynamicOptic {
     )
   )
 
+  /**
+   * The schema of [[DynamicOptic.Node.SchemaSearch]].
+   */
   implicit lazy val schemaSearchSchema: Schema[Node.SchemaSearch] = new Schema(
     reflect = new Reflect.Record[Binding, Node.SchemaSearch](
       fields = Chunk.single(
@@ -488,6 +662,9 @@ object DynamicOptic {
   )
 
   // Schema for Node sealed trait
+  /**
+   * The schema of [[DynamicOptic.Node]], a variant of all the node kinds.
+   */
   implicit lazy val nodeSchema: Schema[Node] = new Schema(
     reflect = new Reflect.Variant[Binding, Node](
       cases = Chunk(
@@ -602,6 +779,9 @@ object DynamicOptic {
   )
 
   // Schema for DynamicOptic
+  /**
+   * The schema of [[DynamicOptic]], a record with one field, `nodes`.
+   */
   implicit lazy val schema: Schema[DynamicOptic] = new Schema(
     reflect = new Reflect.Record[Binding, DynamicOptic](
       fields = Chunk.single(Schema[IndexedSeq[Node]].reflect.asTerm("nodes")),

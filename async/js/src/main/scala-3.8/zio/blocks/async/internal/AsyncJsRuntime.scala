@@ -36,7 +36,10 @@ import zio.blocks.async.*
  */
 object AsyncJsRuntime {
 
-  /** Opaque transport wrapper — see the class doc above. */
+  /**
+   * Transport wrapper for a value crossing a `js.Promise`, so promise
+   * resolution cannot adopt a thenable value.
+   */
   final class Box[A](val value: A)
 
   /**

@@ -19,7 +19,7 @@ package zio.blocks.async
 import zio._
 import zio.test._
 
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
 
@@ -71,6 +71,15 @@ object AsyncInteropSpec extends ZIOSpecDefault {
         test("toFuture: driver advances to the pollable returned by poll (not re-polling the original)") {
           ZIO.fromFuture(_ => AsyncInterop.toFuture(new StepChain(5, 0))).map(v => assertTrue(v == 5))
         },
+        test("toFuture: a silent distinct replacement is polled without requiring a callback") {
+          val terminal = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = Async.succeed(42)
+          }
+          val initial = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = terminal
+          }
+          ZIO.fromFuture(_ => AsyncInterop.toFuture(initial)).map(v => assertTrue(v == 42))
+        },
         test("toFuture: a multi-wake pollable resolves once and is not re-polled after completion") {
           val p = new DoubleWake
           for {
@@ -78,6 +87,19 @@ object AsyncInteropSpec extends ZIOSpecDefault {
             // Let any stray resumption microtasks drain before reading the count.
             _ <- Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(50)))
           } yield assertTrue(v == 42, p.polls == 2)
+        },
+        test("toFuture: a synchronous waker is not re-entered by a parasitic execution context") {
+          var polls = 0
+          val p     = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = {
+              polls += 1
+              onComplete.run()
+              Async.succeed(42)
+            }
+          }
+          val parasitic: ExecutionContext = ExecutionContext.parasitic
+          val future                      = AsyncInterop.toFuture(p)(parasitic)
+          assertTrue(future.value.exists(_.get == 42), polls == 1)
         }
       ),
       suite("js.Promise ↔ Async")(

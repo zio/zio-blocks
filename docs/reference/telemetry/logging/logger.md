@@ -15,6 +15,8 @@ That name travels with every record, marking which part of the system produced i
 
 Most application code shouldn't use a `Logger` directly — the global [`log`](./index.md) is easier and does more. A `Logger` earns its place when a library accepts one as a parameter: then it's an ordinary dependency, and a test can pass in one whose records it inspects.
 
+To pass a `Logger` that records into memory when testing a service, see [How to Test Code That Logs, Traces and Records Metrics](../../../guides/test-telemetry.md).
+
 ```scala
 final class Logger {
   // One method per severity: trace, debug, info, warn, error, fatal

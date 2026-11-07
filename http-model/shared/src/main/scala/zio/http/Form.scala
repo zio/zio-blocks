@@ -18,8 +18,19 @@ package zio.http
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * A list of name and value pairs in the `application/x-www-form-urlencoded`
+ * format, in insertion order. A name can appear more than once.
+ *
+ * Build one with `Form.apply` or [[Form.fromString]], and write it with
+ * `encode`.
+ */
 final case class Form(entries: Chunk[(String, String)]) {
 
+  /**
+   * Returns the value of the first entry named `key`, or `None` if there is
+   * none. The name must match exactly, including letter case.
+   */
   def get(key: String): Option[String] = {
     var i = 0
     while (i < entries.length) {
@@ -30,6 +41,7 @@ final case class Form(entries: Chunk[(String, String)]) {
     None
   }
 
+  /** Returns the values of every entry named `key`, in order. */
   def getAll(key: String): Chunk[String] = {
     val builder = Chunk.newBuilder[String]
     var i       = 0
@@ -41,12 +53,23 @@ final case class Form(entries: Chunk[(String, String)]) {
     builder.result()
   }
 
+  /** Returns a new form with the pair appended after the existing entries. */
   def add(key: String, value: String): Form =
     Form(entries :+ (key -> value))
 
-  def isEmpty: Boolean  = entries.isEmpty
+  /** Whether the form has no entries. */
+  def isEmpty: Boolean = entries.isEmpty
+
+  /** Whether the form has at least one entry. */
   def nonEmpty: Boolean = entries.nonEmpty
 
+  /**
+   * Renders the entries as `name=value` pairs joined with `&`; an empty form
+   * gives the empty string. A space becomes `+`. A literal `+`, and characters
+   * such as `&`, `%`, `#` and non-ASCII ones (as UTF-8 bytes), are
+   * percent-encoded; `=` is encoded in names but kept in values. For example,
+   * `Form("q" -> "a b&c=d")` renders as `q=a+b%26c=d`.
+   */
   def encode: String = {
     if (entries.isEmpty) return ""
     val sb = new StringBuilder
@@ -63,12 +86,27 @@ final case class Form(entries: Chunk[(String, String)]) {
   }
 }
 
+/** Constructors and parsing for [[Form]]. */
 object Form {
+
+  /** A form with no entries. */
   val empty: Form = Form(Chunk.empty)
 
+  /** Creates a form from the given pairs, keeping their order. */
   def apply(pairs: (String, String)*): Form =
     Form(Chunk.fromArray(pairs.toArray))
 
+  /**
+   * Parses an `application/x-www-form-urlencoded` string such as `a=1&b=x+y`.
+   *
+   * The input is split at `&`. In each part, the text before the first `=` is
+   * the name and the rest is the value; a part without `=` becomes a name with
+   * an empty value. `+` becomes a space, and percent-encoded sequences are
+   * decoded (see [[PercentEncoder.decode]]). The empty string gives
+   * [[Form.empty]]. Parts are not trimmed. Empty parts between `&` characters
+   * become an empty name with an empty value, but empty parts at the end of the
+   * input are dropped: `a=1&&b=2` has three entries, `a=1&` has one.
+   */
   def fromString(s: String): Form = {
     if (s.isEmpty) return empty
     val parts   = s.split('&')

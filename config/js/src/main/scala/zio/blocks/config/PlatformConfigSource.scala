@@ -20,20 +20,40 @@ import scala.scalajs.js
 import zio.blocks.maybe.Maybe
 
 /**
- * Config source backed by environment variables (Scala.js / Node.js). Uses
- * `process.env` when available. Key lookup converts dots to underscores and
- * uppercases. A missing or undefined env var is treated as absent (None). An
- * empty string `""` is present (Some).
+ * A [[ConfigSource]] over the process environment. A key is read from the
+ * environment variable with the same name, its dots replaced by underscores and
+ * in upper case: `db.host` reads `DB_HOST`. A variable set to the empty string
+ * is present. `all` turns variable names back into keys in lower case with
+ * every underscore replaced by a dot, so `MAX_POOL_SIZE` is listed as
+ * `max.pool.size`.
+ *
+ * On the JVM it reads `System.getenv`. On Scala.js it reads `process.env` under
+ * Node.js, and finds nothing where `process` is not defined, such as in a
+ * browser.
  */
 object EnvSource extends ConfigSource {
+
+  /**
+   * The id `env`.
+   */
   val sourceId: String = "env"
 
+  /**
+   * Returns the environment variable for `key`, with provenance naming that
+   * variable, or `Maybe.absent` when it is not set.
+   */
   def get(key: String): Maybe[SourceValue[String]] = {
     val envKey = toEnvKey(key)
     val raw    = readEnv(envKey)
     Maybe.fromOption(raw.map(v => SourceValue(v, Provenance.Resolved(sourceId, envKey, Maybe.present(v)))))
   }
 
+  /**
+   * Returns the environment variables whose name is `prefix` in upper case with
+   * its dots replaced by underscores, or starts with that name and an
+   * underscore, under their lower-case keys with underscores replaced by dots.
+   * An empty `prefix` returns every variable.
+   */
   def all(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
@@ -75,14 +95,27 @@ object EnvSource extends ConfigSource {
 }
 
 /**
- * Config source backed by system properties (Scala.js). System properties are
- * not available in JS environments, so this source always returns empty
- * results.
+ * A [[ConfigSource]] over JVM system properties: a key is read from the
+ * property with the same name, so `http.port` reads `-Dhttp.port=9000`. On
+ * Scala.js it is always empty, even for properties set with
+ * `System.setProperty`.
  */
 object SysPropSource extends ConfigSource {
+
+  /**
+   * The id `sysprop`.
+   */
   val sourceId: String = "sysprop"
 
+  /**
+   * Returns the system property named `key`, or `Maybe.absent` when it is not
+   * set.
+   */
   def get(key: String): Maybe[SourceValue[String]] = Maybe.absent
 
+  /**
+   * Returns the system properties whose name is `prefix` or starts with
+   * `prefix` followed by a dot. An empty `prefix` returns every property.
+   */
   def all(prefix: String): Map[String, SourceValue[String]] = Map.empty
 }

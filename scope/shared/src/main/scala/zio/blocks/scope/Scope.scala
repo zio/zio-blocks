@@ -19,27 +19,53 @@ package zio.blocks.scope
 import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
 
 /**
- * A scope that manages resource lifecycle with compile-time verified safety.
+ * A `Scope` owns resources and releases them when it closes. Open a child scope
+ * with `scoped`, acquire resources in it with `allocate`, and use them with
+ * `$`. When the `scoped` block returns or throws, the child runs its finalizers
+ * in reverse order of registration (last in, first out).
  *
- * ==Closed-scope safety==
+ * Each scope has its own type `$[A]` for the values it owns. The `$` macro lets
+ * the block call methods on such a value but not pass it on, and `scoped`
+ * returns only a value whose type has an [[Unscoped]] instance, so a resource
+ * cannot leave its scope by accident (except, on Scala 3, a case class, sealed
+ * trait or enum that extends `AutoCloseable`, a known bug). [[Scope.global]] is
+ * the root of every scope tree.
  *
- * The operations `allocate`, `open`, and `$` throw
- * [[java.lang.IllegalStateException]] if called on a scope that has already
- * closed. The exception message explains what went wrong and how to fix it.
- * This prevents silent use-after-free bugs where a scope reference escapes its
- * `scoped { }` block and a resource is accessed after its finalizers have run.
+ * {{{
+ * final class Connection(val url: String) extends AutoCloseable {
+ *   def query(sql: String): Int = sql.length
+ *   def close(): Unit           = println("closed " + url)
+ * }
  *
- * `defer` on a closed scope is silently ignored (no-op), and `scoped` on a
- * closed scope creates a born-closed child.
+ * val rows: Int = Scope.global.scoped { scope =>
+ *   import scope._
+ *   val conn = allocate(Resource(new Connection("jdbc:h2:mem:shop")))
+ *   $(conn)(_.query("SELECT 1"))
+ * }
+ * // prints: closed jdbc:h2:mem:shop
+ * // rows: 8
+ * }}}
+ *
+ * ==Closed scopes==
+ *
+ * `allocate`, `open` and `$` throw [[java.lang.IllegalStateException]] on a
+ * scope that has already closed, for example a scope reference that escaped its
+ * `scoped` block. The message explains the mistake and how to fix it. `defer`
+ * on a closed scope registers nothing and returns a handle whose `cancel()`
+ * does nothing, and `scoped` on a closed scope runs its block in a child that
+ * is already closed.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/scope/ Scope]]
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 
   /**
-   * Opaque scoped-value wrapper, unique to each scope instance.
+   * The type of a value that this scope owns, such as the result of `allocate`.
    *
-   * Different scopes have structurally incompatible `$` types, which prevents
-   * accidentally mixing values from one scope with operations on another at
-   * compile time. Erased to `A` at runtime (zero-cost).
+   * Each scope has its own `$`, so a value of one scope cannot be used where
+   * another scope's value is expected without an explicit [[lower]]. On
+   * [[Scope.global]], `$[A]` is `A`. At run time a `$[A]` is the `A` itself.
    *
    * @tparam A
    *   the underlying value type
@@ -56,11 +82,13 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   type Parent <: Scope
 
   /**
-   * Reference to the parent scope in the hierarchy.
+   * The scope that created this one.
    *
-   * [[Scope.global]] is self-referential (`parent == this`). For child scopes,
-   * this points to the scope that created this one. The parent always outlives
-   * its children, which is what makes [[lower]] safe.
+   * [[Scope.global]] is its own parent (`parent == this`). A child from
+   * `scoped` closes when its block exits, and a child from [[open]] closes at
+   * the latest when its parent closes. Closing an `open()` scope while one of
+   * its `scoped` blocks runs breaks this order, and then [[lower]]ed values are
+   * already closed.
    */
   val parent: Parent
 
@@ -95,11 +123,28 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   protected def $unwrap[A](sa: $[A]): A
 
   /**
-   * Lowers a parent-scoped value into this scope.
+   * Lowers a value of the parent scope into this scope, so that this scope's
+   * `$` accepts it.
    *
-   * This is safe because a parent scope always outlives its children: the
-   * child's finalizers run before the parent closes. The operation is zero-cost
-   * at runtime (a cast).
+   * This is safe because a child normally closes before its parent (see
+   * [[parent]] for the exception). At run time it is a cast and costs nothing.
+   *
+   * {{{
+   * final class Pool extends AutoCloseable {
+   *   def size: Int      = 4
+   *   def close(): Unit = ()
+   * }
+   *
+   * Scope.global.scoped { outer =>
+   *   import outer._
+   *   val pool = allocate(new Pool)
+   *   outer.scoped { inner =>
+   *     import inner._
+   *     val local = lower(pool)
+   *     $(local)(_.size)
+   *   }
+   * }
+   * }}}
    *
    * @param value
    *   a value scoped to this scope's [[parent]]
@@ -111,10 +156,7 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   final def lower[A](value: parent.$[A]): $[A] =
     value.asInstanceOf[$[A]]
 
-  /**
-   * Underlying finalizer registry. Package-private; implemented by
-   * [[Scope.Child]] and [[Scope.global]].
-   */
+  /** The registry that holds this scope's finalizers. */
   protected def finalizers: Finalizers
 
   /**
@@ -126,11 +168,12 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   private[scope] def scopeDisplayName: String
 
   /**
-   * Thread-safe check for whether this scope has been closed.
+   * Returns whether this scope has closed. Safe to call from any thread.
    *
-   * Once a scope is closed its finalizers have already run. Subsequent calls to
-   * `$`, `allocate`, or `open` will throw [[java.lang.IllegalStateException]].
-   * [[Scope.global]] returns `false` until JVM shutdown.
+   * A scope closes when it starts running its finalizers; after that, `$`,
+   * `allocate` and `open` throw [[java.lang.IllegalStateException]]. On the
+   * JVM, [[Scope.global]] returns `false` until its shutdown hook runs; on
+   * Scala.js it never closes.
    *
    * @return
    *   `true` if this scope's finalizers have already been executed
@@ -140,10 +183,11 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /**
    * Returns whether the current thread owns this scope.
    *
-   * Ownership is checked to detect cross-thread scope usage. Always returns
-   * `true` for [[Scope.global]] and for scopes created with `open()` (which are
-   * ''unowned''). For scopes created via `scoped`, returns `true` only on the
-   * thread that entered the `scoped` block.
+   * `scoped` checks it, so that a child scope is not opened from another
+   * thread. Always returns `true` for [[Scope.global]] and for scopes created
+   * with `open()` (which are ''unowned''). For scopes created with `scoped`, it
+   * returns `true` only on the thread that called `scoped`. On Scala.js it
+   * always returns `true`.
    *
    * @return
    *   `true` if the calling thread is the owner of this scope
@@ -151,12 +195,24 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   def isOwner: Boolean
 
   /**
-   * Acquires a resource in this scope, registering its finalizer.
+   * Acquires a resource in this scope and returns it as a value of this scope.
    *
-   * The resource's `make` method is called to produce a value and register any
-   * cleanup actions with this scope's finalizer registry. If this scope is
-   * already closed, no acquisition occurs and a default-valued `$[A]` is
-   * returned.
+   * The resource is acquired now, and its finalizers are registered with this
+   * scope, so they run when this scope closes.
+   *
+   * {{{
+   * final class Connection extends AutoCloseable {
+   *   def query(sql: String): Int = sql.length
+   *   def close(): Unit           = println("connection closed")
+   * }
+   *
+   * Scope.global.scoped { scope =>
+   *   import scope._
+   *   val conn: $[Connection] = allocate(Resource(new Connection))
+   *   $(conn)(_.query("SELECT 1"))
+   * }
+   * // prints: connection closed
+   * }}}
    *
    * @param resource
    *   the [[Resource]] describing how to acquire and release the value
@@ -178,10 +234,10 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     }
 
   /**
-   * Convenience overload that acquires an `AutoCloseable` value directly.
+   * Acquires an `AutoCloseable` value in this scope and registers its `close()`
+   * as a finalizer.
    *
-   * Equivalent to `allocate(Resource(value))`; the value's `close()` method is
-   * registered as a finalizer.
+   * Equivalent to `allocate(Resource(value))`.
    *
    * @param value
    *   a by-name expression producing the `AutoCloseable` value
@@ -198,9 +254,21 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
   /**
    * Registers a finalizer to run when this scope closes.
    *
-   * Finalizers are executed in LIFO order when the scope closes. If the scope
-   * is already closed, the finalizer is silently ignored and a no-op
-   * `DeferHandle` is returned.
+   * Finalizers run in reverse order of registration (last in, first out). If a
+   * finalizer throws, the others still run, and the errors are reported when
+   * the scope closes. If the scope is already closed, the finalizer is never
+   * run and the returned handle does nothing.
+   *
+   * {{{
+   * Scope.global.scoped { scope =>
+   *   import scope._
+   *   defer(println("closed second"))
+   *   defer(println("closed first"))
+   *   ()
+   * }
+   * // prints: closed first
+   * // prints: closed second
+   * }}}
    *
    * @param f
    *   the cleanup action to run on scope closure
@@ -213,13 +281,26 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
     else finalizers.addFn(() => f)
 
   /**
-   * Creates a child scope that must be explicitly closed.
+   * Creates a child scope that stays open until its `close()` is called.
    *
-   * The returned [[Scope.OpenScope]] contains the child scope and a `close()`
-   * function. The child's finalizers are linked to this (parent) scope so that
-   * if the parent closes first, the child's finalizers also run. Calling
-   * `close()` on the [[Scope.OpenScope]] detaches the child from the parent,
-   * runs its finalizers, and returns a [[Finalization]].
+   * The returned [[Scope.OpenScope]] holds the child scope and a `close()`
+   * function. The child is linked to this (parent) scope, so if the parent
+   * closes first, the child's finalizers run as part of the parent's. Calling
+   * `close()` detaches the child from the parent, runs its finalizers, and
+   * returns a [[Finalization]] with their errors instead of throwing them. The
+   * child is unowned: any thread can use it.
+   *
+   * {{{
+   * final class Session extends AutoCloseable {
+   *   def close(): Unit = println("session closed")
+   * }
+   *
+   * val handle  = Scope.global.open()
+   * val session = handle.scope.allocate(new Session)
+   * val result  = handle.close()
+   * // prints: session closed
+   * // result.isEmpty: true
+   * }}}
    *
    * @return
    *   a scoped [[Scope.OpenScope]] wrapping the new child
@@ -257,8 +338,8 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
      * Allocates the scoped [[Resource]] within this scope, returning the
      * acquired value as `$[A]`.
      *
-     * The [[Resource]] is never extracted from `$`; only its acquired *result*
-     * becomes a new scoped value. Equivalent to `self.allocate(\$unwrap(sr))`.
+     * The [[Resource]] itself stays inside `$`; only its acquired value becomes
+     * a new scoped value. Equivalent to `self.allocate(\$unwrap(sr))`.
      *
      * @return
      *   the acquired value wrapped as `$[A]`
@@ -279,27 +360,53 @@ sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =
    *   the resource value type
    */
   implicit class ResourceOps[A](private val r: Resource[A]) { // not AnyVal: nested in Scope
+
+    /**
+     * Allocates this resource in the enclosing scope; the same as
+     * `scope.allocate(resource)`.
+     *
+     * @throws java.lang.IllegalStateException
+     *   if the scope is already closed
+     */
     def allocate: $[A] = self.allocate(r)
   }
 }
 
 /**
- * Companion object for [[Scope]], providing the global scope, child scope
- * implementation, and the [[OpenScope]] handle.
+ * Holds [[Scope.global]], the root of every scope tree, the child scope class
+ * [[Scope.Child]], and the [[OpenScope]] handle that [[Scope.open]] returns.
  */
 object Scope {
 
   /**
-   * The root of all scope hierarchies.
+   * The root of every scope tree.
    *
-   * `global` is self-referential (`parent == this`) and never closes under
-   * normal operation. Its `$[A]` is simply `A` (zero-cost identity). Finalizers
-   * registered with `global.defer` run on JVM shutdown via a shutdown hook.
-   * `isOwner` always returns `true`.
+   * `global` is its own parent (`parent == this`), and its `$[A]` is `A`, so
+   * its values need no unwrapping. It is the usual starting point:
+   * `Scope.global.scoped { scope => ... }`. Any thread may use it (`isOwner` is
+   * always `true`). On the JVM, its finalizers, such as those of
+   * `Scope.global.defer` or of a value allocated directly in it, run in a
+   * shutdown hook when the JVM exits; on Scala.js they never run.
+   *
+   * {{{
+   * val greeting: String = Scope.global.scoped { scope =>
+   *   import scope._
+   *   defer(println("scope closed"))
+   *   "hello"
+   * }
+   * // prints: scope closed
+   * // greeting: hello
+   * }}}
    */
   object global extends Scope { self =>
-    type $[+A]  = A
+
+    /** In `global`, a scoped value is the value itself: `$[A]` is `A`. */
+    type $[+A] = A
+
+    /** The type of `global` itself: it is its own parent. */
     type Parent = global.type
+
+    /** `global` itself. */
     val parent: Parent = this
 
     protected def $wrap[A](a: A): $[A]    = a
@@ -313,6 +420,7 @@ object Scope {
       f
     }
 
+    /** Returns `true` for every thread, because any thread may use `global`. */
     def isOwner: Boolean = true
 
     private[scope] val scopeDisplayName: String = "Scope.global"
@@ -329,7 +437,7 @@ object Scope {
    * @param close
    *   a function that detaches the child from its parent, runs the child's
    *   finalizers in LIFO order, and returns a [[Finalization]] collecting any
-   *   errors
+   *   errors; a second call runs nothing and returns an empty [[Finalization]]
    */
   case class OpenScope private[scope] (scope: Scope, close: () => Finalization)
 
@@ -369,7 +477,8 @@ object Scope {
    * @param finalizers
    *   the finalizer registry for this child
    * @param owner
-   *   opaque reference to the creating thread (used by [[isOwner]])
+   *   the thread that created this child (used by [[isOwner]]); `null` for a
+   *   child from [[Scope.open]], and on Scala.js
    * @param unowned
    *   if `true`, [[isOwner]] always returns `true` (used by [[Scope.open]])
    */
@@ -379,6 +488,8 @@ object Scope {
     private[scope] val owner: AnyRef,
     private[scope] val unowned: Boolean = false
   ) extends Scope { self =>
+
+    /** The type of the parent scope, the type argument `P`. */
     type Parent = P
 
     /**
@@ -386,7 +497,7 @@ object Scope {
      *
      * Always returns `true` for unowned scopes (created via [[Scope.open]]).
      * For scopes created via `scoped`, returns `true` only on the creating
-     * thread.
+     * thread. On Scala.js it always returns `true`.
      *
      * @return
      *   `true` if the calling thread is the owner of this scope
@@ -397,12 +508,13 @@ object Scope {
 
     private[scope] def close(): Finalization = finalizers.runAll()
 
-    // $[A] type and $wrap/$unwrap are version-specific
-    // Scala 3: opaque type $[+A] = A
-    // Scala 2: module pattern
-    //
-    // For cross-compilation, we use asInstanceOf which is sound
-    // because $[A] = A at runtime for both Scala 2 and 3
+    // $[A] is abstract here on both Scala 2 and 3; $wrap/$unwrap are casts,
+    // which is sound because $[A] = A at runtime.
+    /**
+     * The type of a value scoped to this child. It is abstract, so a
+     * `child.$[A]` is a different type from the `$[A]` of any other scope; at
+     * runtime it is the `A` itself.
+     */
     type $[+A]
     protected def $wrap[A](a: A): $[A]    = a.asInstanceOf[$[A]]
     protected def $unwrap[A](sa: $[A]): A = sa.asInstanceOf[A]

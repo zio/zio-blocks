@@ -23,12 +23,17 @@ import zio.blocks.scope.internal.ErrorMessages
 private[scope] trait UnscopedVersionSpecific {
 
   /**
-   * Derives [[Unscoped]] for case classes and sealed traits/abstract classes.
-   * All fields (for case classes) or subtypes (for sealed hierarchies) must
-   * themselves have `Unscoped` instances, verified at compile time via a macro.
+   * Derives [[Unscoped]] for a case class, a case object, or a sealed trait or
+   * sealed abstract class (and, on Scala 3, an enum) when every field or case
+   * has an `Unscoped` instance or can itself be derived. A missing instance is
+   * a compile error.
+   *
+   * On Scala 3 it is a `given`, so these types get an instance without asking
+   * for one. On Scala 2 it is a macro, so call it to define an instance:
+   * `implicit val unscoped: Unscoped[Report] = Unscoped.derived[Report]`.
    *
    * @tparam A
-   *   the case class or sealed trait/abstract class to derive `Unscoped` for
+   *   the case class, sealed trait, or enum to derive `Unscoped` for
    * @return
    *   an `Unscoped[A]` instance, or a compile error if any constituent type
    *   lacks an `Unscoped` instance

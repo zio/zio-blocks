@@ -16,7 +16,8 @@
 
 package zio.blocks.scope
 
-// InStack is deprecated in the new Scope design.
-// This file is kept for source compatibility.
-
+/**
+ * Unused; kept for source compatibility with an earlier, HList-based design of
+ * `scope`.
+ */
 private[scope] trait InStackVersionSpecific

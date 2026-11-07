@@ -13,7 +13,7 @@ title: "JsonSelection"
 - **Fluent chaining:** Operations chain naturally without unwrapping intermediate results
 - **Multi-value support:** Can contain zero, one, or many `Json` values
 - **Error propagation:** Errors short-circuit further operations; querying an error selection returns the same error
-- **Type extraction:** Use `.as[Type]` to decode to Scala types with Schema-based derivation
+- **Type extraction:** Use `JsonSelection#as` to decode to Scala types with Schema-based derivation
 
 ## Creating JsonSelection
 
@@ -89,7 +89,7 @@ val email = data.get("user").get("email")
 
 ### Array Navigation
 
-Access array elements by index using `JsonSelection#apply` or `JsonSelection#get`:
+Access array elements by index with `Json#get` on a `Json` value, or with `JsonSelection#apply` on a selection:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -230,7 +230,7 @@ val data = Json.Object("x" -> Json.Number(1))
 val x: Option[Json] = data.get("x").values.flatMap(_.headOption)
 
 // Check if selection succeeded
-val success = data.get("exists").isSuccess    // true if "exists" field found
+val success = data.get("x").isSuccess          // true: field "x" exists
 val failed = data.get("notFound").isFailure   // true if field not found
 ```
 
@@ -250,9 +250,9 @@ val isEmpty = selection.isEmpty  // false
 val nonEmpty = selection.nonEmpty  // true
 ```
 
-## Modifying Selections
+## Modifying Values
 
-Use `JsonSelection` to update values at specific paths using `set` for replacement or `modify` for transformation:
+To update the value at a path, call `Json#set` to replace it or `Json#modify` to transform it; both return a new `Json`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -281,7 +281,7 @@ import zio.blocks.schema.json.Json
 val data = Json.Object("name" -> Json.String("Alice"))
 
 // Missing field returns error
-val missing = data.get("age").error  // Some(SchemaError("field not found"))
+val missing = data.get("age").error  // Some(zio.blocks.schema.SchemaError: Key 'age' not found)
 
 // Chain continues with error
 val stillMissing = data.get("age").get("nested")  // Still carries the error
@@ -294,7 +294,7 @@ val maybeValues = result.values      // None if error
 
 ## Integration with Codecs
 
-`JsonSelection` integrates seamlessly with `JsonCodec` and `Schema`:
+`JsonSelection` works with `JsonCodec` and `Schema`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -316,7 +316,11 @@ val allUsers: Either[SchemaError, Chunk[User]] = JsonSelection.succeedMany(users
 
 ## Performance Notes
 
-- **Zero-allocation navigation:** `JsonSelection` itself is a value type (AnyVal) and compiles to no allocation
-- **Lazy chaining:** Operations chain without intermediate allocations; only final extraction materializes values
+- **Value class wrapper:** `JsonSelection` extends `AnyVal`, so wrapping the underlying `Either` adds no extra object in most uses
+- **Eager chaining:** Each step builds a new `Chunk` of results, so intermediate selections are allocated
 - **Error short-circuiting:** Failed selections don't execute further operations
-- **Streaming-friendly:** For large JSON, use `JsonSelection#get` selectively rather than iterating over all values
+- **Selective navigation:** For large JSON, call `JsonSelection#get` to reach only the values you need rather than iterating over every element
+
+## See Also
+
+- [How to Read and Modify JSON Without Case Classes](../../../../guides/json-without-case-classes.md) - A task-oriented guide to navigating and changing JSON by path, then decoding only the part you need

@@ -44,13 +44,23 @@ Add the module to your build:
 libraryDependencies += "dev.zio" %% "zio-blocks-datastar" % "@VERSION@"
 ```
 
+On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental features. The `zio-blocks-next-*` artifacts are compiled with `-experimental`, so code that calls them must be too:
+
+```scala
+scalaVersion := "3.9.0"
+
+libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "@VERSION@"
+
+scalacOptions += "-experimental"
+```
+
 For Scala.js, use `%%%` instead of `%%`:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: Scala 3.x only. The module is not published for Scala 2.13. Scala 3.3 to 3.8 use `zio-blocks-datastar`, and Scala 3.9 and newer use `zio-blocks-next-datastar`, as described in [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md).
 
 :::note[The package is `zio.http.datastar`]
 Despite living under `zio/blocks/datastar` in the source tree, the package is `zio.http.datastar`. The package object extends `DatastarAttributes`, so a single wildcard import brings every `data*` helper into scope.
@@ -234,10 +244,10 @@ The module is a thin typed layer over three other blocks, and adds no dependency
 
 - **`zio-blocks-html`** supplies `Dom`, `Dom.Attribute`, `Js`, `CssSelector`, and the `ToJs` type class. Every attribute helper returns a `Dom.Attribute`, so Datastar attributes compose with the HTML DSL exactly like `id` or `class` — see [HTML](../html.md).
 - **`zio-blocks-schema`** supplies the JSON codec behind `Signal#:=`. A signal of type `A` needs a `Schema[A]`, and the serialized form is whatever that schema's JSON codec produces — see [Schema](../schema/index.md).
-- **`zio-http-model`** supplies `ServerSentEvent`, which `DatastarEvent#renderSSE` delegates to for the wire format. The Datastar-specific part is the event name and the structured `data:` body — see [ServerSentEvent](../http-model/server-sent-event.md).
+- **`zio-blocks-http-model`** supplies `ServerSentEvent`, which `DatastarEvent#renderSSE` delegates to for the wire format. The Datastar-specific part is the event name and the structured `data:` body — see [ServerSentEvent](../http-model/server-sent-event.md).
 
 Within the module, the dependency direction is one-way: attributes and events both consume `Signal`, and neither knows about the other. Nothing in the SSE layer reads the attribute DSL.
 
 ## Next Steps
 
-Start with [Signals](./signals.md), which every other page builds on, then [Attributes](./attributes.md) for the declarative surface and [Event Handlers](./events.md) for triggers. [Server-Sent Events](./sse.md) covers the server half.
+Start with [Signals](./signals.md), which every other page builds on, then [Attributes](./attributes.md) for the declarative surface and [Event Handlers](./events.md) for triggers. [Server-Sent Events](./sse.md) covers the server half. To build a counter and a live dashboard step by step, follow [Build a Live Counter and Dashboard with Datastar](../../guides/build-a-live-dashboard-with-datastar.md).

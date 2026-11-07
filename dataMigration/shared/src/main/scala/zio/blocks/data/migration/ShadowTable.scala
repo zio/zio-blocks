@@ -19,17 +19,36 @@ package zio.blocks.data.migration
 import zio.blocks.sql.{DbCon, Dialect, Frag, Table as SqlTable}
 
 /**
- * Helpers for creating and swapping shadow tables during large migrations.
+ * Creates and swaps shadow tables, which `TargetStrategy.ShadowTable` uses: the
+ * migrator writes converted rows into `<table>_<suffix>`, and the swap then
+ * renames `<table>` to `<table>_old_<suffix>` and the shadow table to
+ * `<table>`. Table names and suffixes must be ASCII letters, digits and
+ * underscores, not starting with a digit, or the methods throw
+ * `IllegalArgumentException`.
  *
- * Pattern: CREATE TABLE users_v2 LIKE users; migrate into v2; swap atomically.
+ * {{{
+ * ShadowTable.swapPreview("customers", "v2")
+ * // List(ALTER TABLE customers RENAME TO customers_old_v2, ALTER TABLE customers_v2 RENAME TO customers)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/data-migration/ Data Migration]]
  */
 object ShadowTable {
 
   /**
-   * Creates a shadow table by copying structure from the source table. Uses the
-   * given `dialect` to generate database-appropriate DDL —
-   * `CREATE TABLE ... (LIKE ... INCLUDING ALL)` on PostgreSQL, or raises an
-   * error on SQLite (which requires manual DDL).
+   * Creates `<table>_<suffix>` with the columns of `table` as they are in the
+   * database, and returns its name. On PostgreSQL it runs
+   * `CREATE TABLE IF NOT EXISTS <shadow> (LIKE <table> INCLUDING ALL)`, so an
+   * existing shadow table is left alone. When the migration changes columns,
+   * the copy has the old ones (a known bug); create the shadow table yourself
+   * first.
+   *
+   * @throws java.lang.UnsupportedOperationException
+   *   on SQLite, which has no `CREATE TABLE ... LIKE`
+   * @throws java.lang.IllegalArgumentException
+   *   if `suffix` is not a plain identifier, or `dialect` targets another
+   *   database than the connection
    */
   def create[E](table: SqlTable[E], suffix: String)(using con: DbCon, dialect: Dialect): String = {
     QueueTable.requireDialectMatch(con.dialect, dialect)
@@ -41,10 +60,11 @@ object ShadowTable {
   }
 
   /**
-   * Atomically swaps the live table with the shadow table.
-   *
-   * Postgres: renames live → live_old_suffix, shadow → live. Caller is
-   * responsible for dropping the old table after verification.
+   * Renames `tableName` to `<tableName>_old_<suffix>` and
+   * `<tableName>_<suffix>` to `tableName`, and returns `(oldName, tableName)`.
+   * The two renames are atomic when the connection is a transaction, as in
+   * `Transactor#transact`. It works on PostgreSQL and SQLite. Drop the old
+   * table yourself once the result is checked.
    */
   def swap(tableName: String, suffix: String)(using con: DbCon): (String, String) = {
     val tblValid   = QueueTable.SqlId.validate("table", tableName)
@@ -61,7 +81,10 @@ object ShadowTable {
 
   // ---- Pure preview helpers (no connection) ----
 
-  /** Pure shadow-create DDL for the given dialect. */
+  /**
+   * Returns the statement that [[create]] runs, without running it; on SQLite,
+   * which has none, a `-- ...` comment that says so.
+   */
   def createPreview[E](table: SqlTable[E], suffix: String)(using dialect: Dialect): String = {
     val validated  = QueueTable.SqlId.validate("suffix", suffix)
     val shadowName = s"${table.name}_$validated"
@@ -69,7 +92,7 @@ object ShadowTable {
     catch { case e: UnsupportedOperationException => s"-- ${e.getMessage}" }
   }
 
-  /** Pure swap (rename) statements. */
+  /** Returns the two renames that [[swap]] runs, without running them. */
   def swapPreview(tableName: String, suffix: String): List[String] = {
     val tblValid   = QueueTable.SqlId.validate("table", tableName)
     val sfxValid   = QueueTable.SqlId.validate("suffix", suffix)

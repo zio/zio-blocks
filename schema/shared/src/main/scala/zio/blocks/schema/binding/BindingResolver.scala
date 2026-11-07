@@ -36,6 +36,11 @@ import zio.blocks.typeid.TypeId
  *
  * @example
  *   {{{
+ * import zio.blocks.schema.binding._
+ *
+ * case class Person(name: String, age: Int)
+ * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+ *
  * // Use defaults for primitives and collections, with custom bindings
  * val resolver = customRegistry ++ BindingResolver.defaults
  *
@@ -85,7 +90,7 @@ trait BindingResolver { self =>
    * Resolves a wrapper binding for a type.
    *
    * @tparam A
-   *   The outer (wrapped) type
+   *   The wrapper type
    * @param typeId
    *   The TypeId for type A (usually derived implicitly)
    * @return
@@ -186,6 +191,11 @@ trait BindingResolver { self =>
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
+   * case class Person(name: String, age: Int)
+   * val customRegistry = BindingResolver.empty.bind(Binding.of[Person])
+   *
    * // customRegistry overrides defaults
    * val resolver = customRegistry ++ BindingResolver.defaults
    *   }}}
@@ -193,6 +203,10 @@ trait BindingResolver { self =>
   final def ++(that: BindingResolver): BindingResolver = new BindingResolver.Combined(self, that)
 }
 
+/**
+ * The ready-made resolvers `empty`, `defaults` and `reflection`, and
+ * [[BindingResolver.Registry]], the resolver that `bind` builds.
+ */
 object BindingResolver extends BindingResolverPlatformSpecific {
 
   /**
@@ -211,6 +225,10 @@ object BindingResolver extends BindingResolverPlatformSpecific {
    *   - DynamicValue
    *   - Common sequence types (List, Vector, Set, IndexedSeq, Seq, Chunk)
    *   - Map
+   *
+   * It has no binding for `ChunkMap`, `Array`, `ArraySeq` or, on Scala 3,
+   * `IArray`. Add one with a `bind` overload when a schema uses them, such as
+   * `bind[ChunkMap](Binding.of[ChunkMap])`.
    */
   val defaults: Registry =
     empty
@@ -264,12 +282,19 @@ object BindingResolver extends BindingResolverPlatformSpecific {
    * Registry is an immutable data structure. Each `bind` operation returns a
    * new Registry with the added binding.
    *
+   * Proper bindings (record, variant, primitive, wrapper and dynamic) are
+   * stored by the normalized `TypeId` of the full type. Binding a type that
+   * already has a proper binding replaces it, whatever its kind: a type has at
+   * most one proper binding.
+   *
    * For sequence and map types, bindings are stored by their unapplied type
    * constructor (e.g., `List` rather than `List[Int]`), allowing a single
    * binding to work for all element types.
    *
    * @example
    *   {{{
+   * import zio.blocks.schema.binding._
+   *
    * case class Person(name: String, age: Int)
    *
    * val registry = BindingResolver.empty
@@ -286,7 +311,9 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      *
      * This unified entry point accepts any proper binding type (Record,
      * Variant, Primitive, Wrapper, or Dynamic) and stores it appropriately. It
-     * works with `Binding.of[A]` which returns `Any` in Scala 2.
+     * accepts the result of `Binding.of[A]` on both Scala versions: on Scala 2
+     * its static type is `Binding[_, A]`, and on Scala 3 it is the specific
+     * binding type.
      *
      * @tparam A
      *   The type to bind
@@ -302,6 +329,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
      *
      * @example
      *   {{{
+     * import zio.blocks.schema.binding._
+     *
      * case class Person(name: String, age: Int)
      * val registry = BindingResolver.empty.bind(Binding.of[Person])
      *   }}}
@@ -365,41 +394,85 @@ object BindingResolver extends BindingResolverPlatformSpecific {
     ): Registry =
       updated(keyForConstructor(typeId), new Entry.Map(binding.asInstanceOf[Binding.Map[M, Nothing, Nothing]]))
 
+    /**
+     * Returns the record binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind, such as a variant.
+     */
     def resolveRecord[A](implicit typeId: TypeId[A]): Option[Binding.Record[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Record(b) => b.asInstanceOf[Binding.Record[A]] }
 
+    /**
+     * Returns the variant binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolveVariant[A](implicit typeId: TypeId[A]): Option[Binding.Variant[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Variant(b) => b.asInstanceOf[Binding.Variant[A]] }
 
+    /**
+     * Returns the primitive binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolvePrimitive[A](implicit typeId: TypeId[A]): Option[Binding.Primitive[A]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Primitive(b) => b.asInstanceOf[Binding.Primitive[A]] }
 
+    /**
+     * Returns the wrapper binding bound for `A`, or `None` when `A` has no
+     * binding or its binding is of another kind.
+     */
     def resolveWrapper[A](implicit typeId: TypeId[A]): Option[Binding.Wrapper[A, _]] =
       entries.get(keyForProper(typeId)).collect { case Entry.Wrapper(b) => b.asInstanceOf[Binding.Wrapper[A, _]] }
 
+    /**
+     * Returns the dynamic binding bound for `DynamicValue`, or `None` when
+     * `DynamicValue` has no binding or its binding is of another kind.
+     */
     def resolveDynamic(implicit typeId: TypeId[DynamicValue]): Option[Binding.Dynamic] =
       entries.get(keyForProper(typeId)).collect { case Entry.Dynamic(b) => b }
 
+    /**
+     * Returns the sequence binding bound for the type constructor of `X`
+     * (`List` for `List[Int]`), typed for `X`'s element type, or `None` when
+     * that constructor has no sequence binding.
+     */
     def resolveSeq[X](implicit typeId: TypeId[X], u: UnapplySeq[X]): Option[Binding.Seq[u.C, u.A]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq =>
         e.binding.asInstanceOf[Binding.Seq[u.C, u.A]]
       }
 
+    /**
+     * Returns the sequence binding bound for the type constructor of `typeId`
+     * (`List` for `List[Int]`), typed for the element type `A`, or `None` when
+     * that constructor has no sequence binding.
+     */
     def resolveSeqFor[C[_], A](typeId: TypeId[C[A]]): Option[Binding.Seq[C, A]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Seq => e.binding.asInstanceOf[Binding.Seq[C, A]] }
 
+    /**
+     * Returns the map binding bound for the type constructor of `X` (`Map` for
+     * `Map[String, Int]`), typed for `X`'s key and value types, or `None` when
+     * that constructor has no map binding.
+     */
     def resolveMap[X](implicit typeId: TypeId[X], u: UnapplyMap[X]): Option[Binding.Map[u.M, u.K, u.V]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Map =>
         e.binding.asInstanceOf[Binding.Map[u.M, u.K, u.V]]
       }
 
+    /**
+     * Returns the map binding bound for the type constructor of `typeId` (`Map`
+     * for `Map[String, Int]`), typed for `K` and `V`, or `None` when that
+     * constructor has no map binding.
+     */
     def resolveMapFor[M[_, _], K, V](typeId: TypeId[M[K, V]]): Option[Binding.Map[M, K, V]] =
       entries.get(keyForConstructor(typeId)).collect { case e: Entry.Map =>
         e.binding.asInstanceOf[Binding.Map[M, K, V]]
       }
 
     /**
-     * Checks if the registry contains a binding for the given type.
+     * Checks if the registry contains a proper binding (record, variant,
+     * primitive, wrapper or dynamic) for the given type. It returns `false` for
+     * a sequence or map type whose type constructor is bound, such as
+     * `List[Int]` in [[BindingResolver.defaults]]; use `containsSeq` or
+     * `containsMap` for those.
      *
      * @tparam A
      *   The type to check
@@ -443,7 +516,8 @@ object BindingResolver extends BindingResolverPlatformSpecific {
       entries.get(keyForConstructor(typeId)).exists(_.isInstanceOf[Entry.Map])
 
     /**
-     * Returns the number of bindings in the registry.
+     * Returns the number of bindings in the registry, counting each bound type
+     * or type constructor once.
      */
     def size: Int = entries.size
 
@@ -469,6 +543,9 @@ object BindingResolver extends BindingResolverPlatformSpecific {
     override def toString: String = s"BindingResolver.Registry(${entries.size} entries)"
   }
 
+  /**
+   * The companion of [[BindingResolver.Registry]]; its members are internal.
+   */
   object Registry {
     private[binding] sealed trait Entry
 

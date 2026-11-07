@@ -17,23 +17,52 @@
 package zio.blocks.sql
 
 /**
- * Metadata for a single column in a `CREATE TABLE` statement.
+ * One column of a `CREATE TABLE` statement built by [[Ddl.createTable]].
  *
  * @param name
- *   The column name as it appears in SQL.
+ *   the column name, written into the SQL without quotes
  * @param sqlType
- *   The SQL type string (e.g. `"INTEGER"`, `"TEXT"`).
+ *   the SQL type, written as is, such as `"INTEGER"` or `"TEXT"`
  * @param nullable
- *   Whether the column allows SQL NULL.
+ *   `false` adds `NOT NULL`
+ * @see
+ *   [[https://zioblocks.com/reference/sql/ddl/ Ddl]]
  */
 final case class ColumnDef(name: String, sqlType: String, nullable: Boolean)
 
-/** Helpers for generating DDL fragments (`CREATE TABLE`, `DROP TABLE`). */
+/**
+ * Builds `CREATE TABLE` and `DROP TABLE` statements as [[Frag]]s with no
+ * parameters. [[Table#createTable]] and [[Table#dropTable]] call it.
+ *
+ * Names are checked as SQL identifiers (`IllegalArgumentException` otherwise)
+ * but not quoted, unlike the statements [[Repo]] and [[Upsert]] build, so a
+ * table or column named by an SQL keyword, such as `order`, gives invalid SQL,
+ * a known bug in 0.0.56.
+ *
+ * {{{
+ * val ddl = Ddl.createTable(
+ *   "coupon",
+ *   IndexedSeq(
+ *     ColumnDef("code", "TEXT", nullable = false),
+ *     ColumnDef("percent_off", "INTEGER", nullable = true)
+ *   )
+ * )
+ * val sqlText = ddl.sql(SqlDialect.SQLite)
+ * // CREATE TABLE IF NOT EXISTS coupon (
+ * //   code TEXT NOT NULL,
+ * //   percent_off INTEGER
+ * // )
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/sql/ddl/ Ddl]]
+ */
 object Ddl {
 
   /**
-   * Produces a `CREATE TABLE IF NOT EXISTS <tableName> (...)` fragment. Each
-   * column is rendered as `name sqlType [NOT NULL]`.
+   * Returns `CREATE TABLE IF NOT EXISTS <tableName> (...)`, one line per column
+   * rendered as `name sqlType`, followed by `NOT NULL` unless the column is
+   * nullable. It declares no key or other constraint.
    */
   def createTable(tableName: String, columns: IndexedSeq[ColumnDef]): Frag = {
     val validatedTable = SqlIdentifier.validate("table", tableName)
@@ -45,7 +74,7 @@ object Ddl {
     Frag.literal(s"CREATE TABLE IF NOT EXISTS $validatedTable (\n${colDefs.mkString(",\n")}\n)")
   }
 
-  /** Produces a `DROP TABLE IF EXISTS <tableName>` fragment. */
+  /** Returns `DROP TABLE IF EXISTS <tableName>`. */
   def dropTable(tableName: String): Frag =
     Frag.literal(s"DROP TABLE IF EXISTS ${SqlIdentifier.validate("table", tableName)}")
 }

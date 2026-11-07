@@ -17,15 +17,18 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a Scala type reference in the IR, supporting generic types.
+ * A reference to a Scala type in the codegen IR: a name plus type arguments, as
+ * in `Map[String, List[Int]]`. Use it for field types, return types, parents
+ * and type arguments. `zio.blocks.codegen.emit.ScalaEmitter` writes it as
+ * `Name[Arg1, Arg2]`. A name that contains a `.` or one of `()[]=>` is written
+ * as is, so qualified names (`java.util.UUID`) and hand-written types work; any
+ * other name that is a Scala keyword or not a plain identifier is wrapped in
+ * backquotes.
  *
- * @param name
- *   The name of the type (e.g., "String", "List", "Option")
- * @param typeArgs
- *   Type arguments for generic types (defaults to empty list)
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.ScalaEmitter
  *
- * @example
- *   {{{
  * // Simple type
  * val stringType = TypeRef("String")
  *
@@ -35,29 +38,65 @@ package zio.blocks.codegen.ir
  * // Using factory methods
  * val optionalString = TypeRef.optional(TypeRef.String)
  * val mapStringInt = TypeRef.map(TypeRef.String, TypeRef.Int)
- *   }}}
+ *
+ * ScalaEmitter.emitTypeRef(TypeRef.map(TypeRef.String, TypeRef.list(TypeRef.Int)))
+ * // Map[String, List[Int]]
+ * }}}
+ *
+ * @param name
+ *   The name of the type (e.g., "String", "List", "Option")
+ * @param typeArgs
+ *   Type arguments for generic types (defaults to empty list)
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/type-ref/ TypeRef]]
  */
 final case class TypeRef(
   name: String,
   typeArgs: List[TypeRef] = Nil
 )
 
+/** Ready-made references to common types, and factories for generic ones. */
 object TypeRef {
 
   // Primitive types
-  val Unit: TypeRef       = TypeRef("Unit")
-  val Boolean: TypeRef    = TypeRef("Boolean")
-  val Byte: TypeRef       = TypeRef("Byte")
-  val Short: TypeRef      = TypeRef("Short")
-  val Int: TypeRef        = TypeRef("Int")
-  val Long: TypeRef       = TypeRef("Long")
-  val Float: TypeRef      = TypeRef("Float")
-  val Double: TypeRef     = TypeRef("Double")
-  val String: TypeRef     = TypeRef("String")
-  val BigInt: TypeRef     = TypeRef("BigInt")
+  /** The `Unit` type. */
+  val Unit: TypeRef = TypeRef("Unit")
+
+  /** The `Boolean` type. */
+  val Boolean: TypeRef = TypeRef("Boolean")
+
+  /** The `Byte` type. */
+  val Byte: TypeRef = TypeRef("Byte")
+
+  /** The `Short` type. */
+  val Short: TypeRef = TypeRef("Short")
+
+  /** The `Int` type. */
+  val Int: TypeRef = TypeRef("Int")
+
+  /** The `Long` type. */
+  val Long: TypeRef = TypeRef("Long")
+
+  /** The `Float` type. */
+  val Float: TypeRef = TypeRef("Float")
+
+  /** The `Double` type. */
+  val Double: TypeRef = TypeRef("Double")
+
+  /** The `String` type. */
+  val String: TypeRef = TypeRef("String")
+
+  /** The `BigInt` type. */
+  val BigInt: TypeRef = TypeRef("BigInt")
+
+  /** The `BigDecimal` type. */
   val BigDecimal: TypeRef = TypeRef("BigDecimal")
-  val Any: TypeRef        = TypeRef("Any")
-  val Nothing: TypeRef    = TypeRef("Nothing")
+
+  /** The `Any` type. */
+  val Any: TypeRef = TypeRef("Any")
+
+  /** The `Nothing` type. */
+  val Nothing: TypeRef = TypeRef("Nothing")
 
   /**
    * Creates a TypeRef with the given name and type arguments.
@@ -71,6 +110,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val either = TypeRef.of("Either", TypeRef.String, TypeRef.Int)
    * val list = TypeRef.of("List", TypeRef.String)
    *   }}}
@@ -88,6 +129,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val optString = TypeRef.optional(TypeRef.String)
    * // Creates: Option[String]
    *   }}}
@@ -105,6 +148,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val listOfInt = TypeRef.list(TypeRef.Int)
    * // Creates: List[Int]
    *   }}}
@@ -122,6 +167,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val setOfStrings = TypeRef.set(TypeRef.String)
    * // Creates: Set[String]
    *   }}}
@@ -141,6 +188,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val mapStringInt = TypeRef.map(TypeRef.String, TypeRef.Int)
    * // Creates: Map[String, Int]
    *   }}}
@@ -149,8 +198,8 @@ object TypeRef {
     TypeRef("Map", List(key, value))
 
   /**
-   * Wraps a TypeRef in Chunk, representing a high-performance immutable
-   * sequence.
+   * Wraps a TypeRef in `Chunk`, the immutable sequence of ZIO Blocks. The
+   * generated file needs an import of `Chunk`.
    *
    * @param typeRef
    *   The element type
@@ -159,6 +208,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val chunkOfLongs = TypeRef.chunk(TypeRef.Long)
    * // Creates: Chunk[Long]
    *   }}}
@@ -167,7 +218,8 @@ object TypeRef {
     TypeRef("Chunk", List(typeRef))
 
   /**
-   * Creates a union type reference (Scala 3 `A | B`).
+   * Creates a union type reference (Scala 3 `A | B`). The emitter writes
+   * `A | B` in both dialects, so the output needs Scala 3.
    *
    * @param types
    *   The types in the union
@@ -176,6 +228,8 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val strOrInt = TypeRef.union(TypeRef.String, TypeRef.Int)
    * // Represents: String | Int
    *   }}}
@@ -183,7 +237,8 @@ object TypeRef {
   def union(types: TypeRef*): TypeRef = TypeRef("|", types.toList)
 
   /**
-   * Creates an intersection type reference (Scala 3 `A & B`).
+   * Creates an intersection type reference (Scala 3 `A & B`). The emitter
+   * writes `A & B` in both dialects, so the output needs Scala 3.
    *
    * @param types
    *   The types in the intersection
@@ -192,17 +247,28 @@ object TypeRef {
    *
    * @example
    *   {{{
+   * import zio.blocks.codegen.ir._
+   *
    * val named = TypeRef.intersection(TypeRef("HasName"), TypeRef("HasId"))
    * // Represents: HasName & HasId
    *   }}}
    */
   def intersection(types: TypeRef*): TypeRef = TypeRef("&", types.toList)
 
+  /**
+   * Creates a tuple type, emitted as `TupleN[...]` where N is the number of
+   * types (`Tuple2[Int, String]`). Pass at least one type.
+   */
   def tuple(types: TypeRef*): TypeRef = TypeRef(s"Tuple${types.length}", types.toList)
 
+  /**
+   * Creates a function type, emitted as `FunctionN[...]` with the parameter
+   * types followed by the result type (`Function1[Int, String]`).
+   */
   def function(params: List[TypeRef], returnType: TypeRef): TypeRef =
     TypeRef(s"Function${params.length}", params :+ returnType)
 
+  /** The wildcard type argument `_`, as in `List[_]`. */
   val Wildcard: TypeRef = TypeRef("_")
 
 }

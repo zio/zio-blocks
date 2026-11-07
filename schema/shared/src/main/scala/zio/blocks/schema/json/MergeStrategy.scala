@@ -19,75 +19,90 @@ package zio.blocks.schema.json
 import zio.blocks.schema.DynamicOptic
 
 /**
- * Strategy for merging two JSON values.
+ * How [[Json#merge]] combines two values. At each path where both sides are
+ * objects or both are arrays, [[recurse]] decides whether to descend; every
+ * other pair, including two values of different kinds, goes to [[apply]], with
+ * the left value, the right value and the path.
  *
- * A `MergeStrategy` is a function `(DynamicOptic, Json, Json) => Json` that
- * determines how to merge two JSON values at a given path. The [[recurse]]
- * method controls whether the merge driver should descend into containers
- * (objects/arrays) or call [[apply]] directly.
+ * When the merge descends:
+ *   - two objects merge by key: the fields of the left, in order, then the new
+ *     fields of the right; a key on both sides merges recursively, and a key
+ *     repeated on one side keeps its last value;
+ *   - two arrays merge by index: shared indices merge recursively, and the
+ *     longer array's extra elements are kept.
  *
- * When [[recurse]] returns `true` for a container type:
- *   - Objects are merged by key (union of keys, recursive merge on shared keys)
- *   - Arrays are merged by index (union of indices, recursive merge on shared
- *     indices)
+ * {{{
+ * import zio.blocks.schema.json._
  *
- * When [[recurse]] returns `false`, [[apply]] is called with the container
- * values directly.
+ * val left  = Json.parseUnsafe("""{"tags":["fp"],"info":{"year":2021,"lang":"en"}}""")
+ * val right = Json.parseUnsafe("""{"tags":["scala","zio"],"info":{"year":2022}}""")
+ *
+ * left.merge(right, MergeStrategy.Auto).print    // {"tags":["scala","zio"],"info":{"year":2022,"lang":"en"}}
+ * left.merge(right, MergeStrategy.Shallow).print // {"tags":["scala","zio"],"info":{"year":2022}}
+ * }}}
+ *
+ * The built-in strategies print as `<function3>` (a known bug).
  */
 sealed trait MergeStrategy extends ((DynamicOptic, Json, Json) => Json) {
 
   /**
-   * Determines whether the merge driver should recurse into a container (object
-   * or array) at the given path.
-   *
-   * If true, the driver merges by key (objects) or by index (arrays),
-   * recursively calling merge on each child pair.
-   *
-   * If false, the driver calls [[apply]] with the container values directly.
+   * Returns `true` to merge two objects (`jsonType` is `JsonType.Object`) or
+   * two arrays (`JsonType.Array`) at `path` child by child, or `false` to pass
+   * them to [[apply]] whole.
    */
   def recurse(path: DynamicOptic, jsonType: JsonType): Boolean
 }
 
+/** The built-in merge strategies and [[MergeStrategy.Custom]]. */
 object MergeStrategy {
 
   /**
-   * Deep merge: recursively merge all objects and arrays. Objects merge by key,
-   * arrays merge by index (not concatenation). At leaves, right value wins.
+   * The default deep merge: objects merge by key and arrays by index at every
+   * depth, and the right value wins everywhere else, so `[1,2,3]` merged with
+   * `[9]` gives `[9,2,3]`.
    */
   case object Auto extends MergeStrategy {
+
+    /** Always `true`. */
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = true
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: Json, right: Json): Json = right
   }
 
-  /**
-   * Complete replacement: no merging at any level. Right value completely
-   * replaces left value.
-   */
+  /** No merging: the right value replaces the left one. */
   case object Replace extends MergeStrategy {
+
+    /** Always `false`. */
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = false
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: Json, right: Json): Json = right
   }
 
   /**
-   * Shallow merge: merge only at the root level, no recursion. Top-level object
-   * keys or array indices are merged, but nested containers are replaced (right
-   * wins).
+   * Merges the two root objects (or arrays) child by child, and the right value
+   * wins for each child, so nested objects are replaced, not merged.
    */
   case object Shallow extends MergeStrategy {
+
+    /** Returns `true` at the root path only. */
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = path.nodes.isEmpty
 
+    /** Returns `right`. */
     def apply(path: DynamicOptic, left: Json, right: Json): Json = right
   }
 
   /**
-   * Concatenate arrays instead of merging by index. Objects are still merged by
-   * key recursively.
+   * Merges objects by key at every depth, appends the right array to the left
+   * one, and the right value wins everywhere else.
    */
   case object Concat extends MergeStrategy {
+
+    /** Returns `true` for objects only. */
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = jsonType eq JsonType.Object
 
+    /** Returns the two arrays joined when both are arrays, or else `right`. */
     def apply(path: DynamicOptic, left: Json, right: Json): Json =
       if (left.isInstanceOf[Json.Array] && right.isInstanceOf[Json.Array]) {
         new Json.Array(left.asInstanceOf[Json.Array].value ++ right.asInstanceOf[Json.Array].value)
@@ -95,21 +110,23 @@ object MergeStrategy {
   }
 
   /**
-   * Custom merge strategy with full control over recursion and merging.
+   * A strategy built from two functions.
    *
    * @param f
-   *   A function that takes (path, left, right) and returns the merged JSON
-   *   value
+   *   merges the pairs the driver does not descend into: `(path, left, right)`
    * @param r
-   *   A function that determines whether to recurse into containers (default:
-   *   always recurse)
+   *   decides whether to descend into two objects or two arrays at a path
+   *   (default: always)
    */
   final case class Custom(
     f: (DynamicOptic, Json, Json) => Json,
     r: (DynamicOptic, JsonType) => Boolean = (_, _) => true
   ) extends MergeStrategy {
+
+    /** Returns `r(path, jsonType)`. */
     def recurse(path: DynamicOptic, jsonType: JsonType): Boolean = r(path, jsonType)
 
+    /** Returns `f(path, left, right)`. */
     def apply(path: DynamicOptic, left: Json, right: Json): Json = f(path, left, right)
   }
 }

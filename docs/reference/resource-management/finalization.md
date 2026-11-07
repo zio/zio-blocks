@@ -8,7 +8,7 @@ title: "Finalization"
 ```scala
 import zio.blocks.chunk.Chunk
 
-abstract class Finalization(val errors: Chunk[Throwable]) {
+final class Finalization(val errors: Chunk[Throwable]) {
   def isEmpty: Boolean
   def nonEmpty: Boolean
   def orThrow(): Unit
@@ -31,7 +31,7 @@ Returns `true` if no finalizer errors were collected:
 ```scala
 import zio.blocks.chunk.Chunk
 
-abstract class Finalization(val errors: Chunk[Throwable]) {
+final class Finalization(val errors: Chunk[Throwable]) {
   def isEmpty: Boolean
 }
 ```
@@ -62,7 +62,7 @@ Returns `true` if at least one finalizer error was collected:
 ```scala
 import zio.blocks.chunk.Chunk
 
-abstract class Finalization(val errors: Chunk[Throwable]) {
+final class Finalization(val errors: Chunk[Throwable]) {
   def nonEmpty: Boolean
 }
 ```
@@ -95,7 +95,7 @@ Throws the first collected error with all remaining errors added as suppressed e
 ```scala
 import zio.blocks.chunk.Chunk
 
-abstract class Finalization(val errors: Chunk[Throwable]) {
+final class Finalization(val errors: Chunk[Throwable]) {
   def orThrow(): Unit
 }
 ```
@@ -130,7 +130,7 @@ Adds all collected finalizer errors as suppressed exceptions to `initial` and re
 ```scala
 import zio.blocks.chunk.Chunk
 
-abstract class Finalization(val errors: Chunk[Throwable]) {
+final class Finalization(val errors: Chunk[Throwable]) {
   def suppress(initial: Throwable): Throwable
 }
 ```
@@ -170,7 +170,7 @@ Scope.global.scoped { scope =>
     // Registered first, runs last (LIFO)
     defer { throw Exception("Error 1") }
 
-    // Registered second, runs first
+    // Registered second, runs second
     defer { throw Exception("Error 2") }
 
     // Registered third, runs first
@@ -276,8 +276,7 @@ Scope.global.scoped { scope =>
 
 `Finalization` is returned by:
 
-- `Scope.open().close()` — when explicitly closing a scope
-- `Scope.global.runFinalizers()` — when running global finalizers on shutdown
+- `OpenScope#close()` — when explicitly closing a child scope made with `open()`
 
 ## See Also
 

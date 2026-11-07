@@ -21,22 +21,18 @@ import zio.blocks.ringbuffer.MpscRingBuffer
 import java.util.concurrent.locks.LockSupport
 
 /**
- * A blocking MPSC (multi-producer, single-consumer) queue.
+ * A bounded, blocking queue for many producer threads and one consumer thread
+ * (JVM only), on top of a lock-free ring buffer.
  *
- * Backed by [[MpscRingBuffer]] for the fast path; uses [[LockSupport.park]] and
- * [[LockSupport.unpark]] for blocking when the buffer is full or empty.
- *
- * Multiple threads may call [[offer]] concurrently. Only a single thread may
- * call [[take]], [[drain]], [[isEmpty]], or [[isClosed]].
- *
- * Multi-producer parking: a single `producerWaiter` volatile slot is used. One
- * producer registers and gets fast-path unpark from consumer. Others use
- * `parkNanos(1000)` (1µs) to retry — VT-friendly, no starvation.
- *
- * Null elements are not permitted.
+ * Any number of threads may call [[offer]] at once; at most one thread at a
+ * time may call [[take]] and [[drain]]. A blocked producer parks for about a
+ * microsecond at a time and then retries, and the consumer parks until a
+ * producer wakes it or the queue closes. Elements must not be `null`, because
+ * [[take]] uses `null` to report a closed, empty queue.
  *
  * @param capacity
- *   The logical capacity. Rounded up to the next power of two internally.
+ *   The number of elements the queue holds, rounded up to a power of two (`3`
+ *   holds 4). Throws `IllegalArgumentException` when it is below 1.
  */
 final class BlockingMpscQueue[A <: AnyRef](capacity: Int) {
   require(capacity >= 1, s"BlockingMpscQueue requires capacity >= 1, got: $capacity")
@@ -49,9 +45,9 @@ final class BlockingMpscQueue[A <: AnyRef](capacity: Int) {
   @volatile private var closed: Boolean        = false
 
   /**
-   * Offers an element to the queue, blocking until space is available or the
-   * queue is closed. Returns `true` on success, `false` if the queue was
-   * closed.
+   * Adds `a`, blocking while the queue is full. Returns `true` once `a` is in
+   * the queue, or `false`, without adding it, when the queue is closed. Throws
+   * `NullPointerException` for a `null` element.
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("BlockingMpscQueue.offer(null) is not permitted")
@@ -79,8 +75,9 @@ final class BlockingMpscQueue[A <: AnyRef](capacity: Int) {
   }
 
   /**
-   * Takes an element from the queue, blocking until one is available or the
-   * queue is closed. Returns the element, or `null` if closed and empty.
+   * Removes and returns the oldest element, blocking while the queue is empty.
+   * After [[close]], it still returns the elements left in the queue, and then
+   * `null`.
    */
   def take(): A = {
     while (true) {
@@ -108,7 +105,10 @@ final class BlockingMpscQueue[A <: AnyRef](capacity: Int) {
     null.asInstanceOf[A]
   }
 
-  /** Closes the queue, unblocking any waiting thread on either side. */
+  /**
+   * Closes the queue: later offers return `false`, and threads blocked in
+   * [[offer]] or [[take]] wake up and see it.
+   */
   def close(): Unit = {
     closed = true
     val cw = consumerWaiter
@@ -117,21 +117,19 @@ final class BlockingMpscQueue[A <: AnyRef](capacity: Int) {
     if (pw ne null) LockSupport.unpark(pw)
   }
 
-  /** Whether the queue has been closed. */
+  /** Returns `true` once [[close]] has been called. */
   def isClosed: Boolean = closed
 
-  /** Whether the ring buffer contains no elements. */
+  /**
+   * Returns `true` when the queue holds no elements; with other threads
+   * offering or taking, the answer may be stale by the time it returns.
+   */
   def isEmpty: Boolean = ringBuffer.isEmpty
 
   /**
-   * Drains up to `limit` elements from the queue and passes each to `consumer`.
-   *
-   * @param consumer
-   *   callback invoked for each drained element
-   * @param limit
-   *   maximum number of elements to drain
-   * @return
-   *   number of elements drained
+   * Removes up to `limit` elements without blocking, oldest first, passes each
+   * to `consumer`, and returns how many it removed (0 when the queue is empty).
+   * Throws `IllegalArgumentException` when `limit` is negative.
    */
   def drain(consumer: A => Unit, limit: Int): Int = {
     val drained = ringBuffer.drain(consumer.asInstanceOf[AnyRef => Unit], limit)

@@ -17,43 +17,54 @@
 package zio.blocks.async
 
 /**
- * Handle returned by [[Async.start]] (via [[Async.Running]]) that stops a
- * running [[Async]].
+ * Something that can be stopped: the cancellation side of an `Async.Running`
+ * and of an [[AsyncSelector]]. It extends `AutoCloseable`, so
+ * `scala.util.Using` or a Java try-with-resources block cancels it on exit.
  *
- * [[cancel]] is idempotent and synchronous. It prevents a terminal value from
- * being published if cancellation linearizes before the run reaches completion,
- * and it is a no-op once the run has completed.
+ * For an `Async.Running`, `cancel()` stops the driver. If the call wins the
+ * race against completion, no outcome is ever published, and the driver calls
+ * [[Pollable.cancel]] on the pending leaf before `cancel()` returns. Only a
+ * leaf that overrides that hook aborts its work (a socket read, a timer); the
+ * default hook does nothing. Cancellation does not wait for a `poll` already in
+ * progress, and it interrupts no thread. Once the run has completed, `cancel()`
+ * does nothing.
  *
- * Cancellation is '''driver-level only''': it stops the poll loop and
- * suppresses the callback, but does NOT guarantee that an already-running
- * `poll` has returned, nor does it abort an in-flight leaf (socket read, timer,
- * JS promise). Aborting a leaf is the source's responsibility.
+ * {{{
+ * import scala.util.Using
  *
- * Extends [[java.lang.AutoCloseable]] so a [[Async.Running]] handle can be used
- * as a managed resource (`scala.util.Using`, Java try-with-resources):
- * [[close]] simply delegates to [[cancel]]. `cancel` remains the canonical verb
- * — it names the domain operation (stop an in-flight computation) and, unlike
- * `AutoCloseable.close`, declares no checked exception.
+ * def watchPrices(): Int = { Thread.sleep(50); 0 }
+ *
+ * Using(Async.start(watchPrices())) { _ =>
+ *   // other work while the watcher runs
+ * } // leaving the block closes the handle, which cancels it
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#cancelable Cancelable]]
  */
 trait Cancelable extends AutoCloseable {
 
   /**
-   * Stop the driver loop. Idempotent and synchronous; a no-op after the run has
-   * completed. See the trait documentation for the cancellation contract.
+   * Requests cancellation and returns without waiting for cleanup to finish. A
+   * second call, or a call after completion, does nothing.
    */
   def cancel(): Unit
 
-  /** Alias for [[cancel]] so a running handle works as an `AutoCloseable`. */
+  /** Calls `cancel()`, so a `Cancelable` works as an `AutoCloseable`. */
   final def close(): Unit = cancel()
 }
 
-/** Companion for [[Cancelable]], providing the no-op handle. */
+/** Companion for [[Cancelable]], providing a handle that does nothing. */
 object Cancelable {
 
   /**
-   * A [[Cancelable]] whose [[Cancelable.cancel]] does nothing. Returned for
-   * runs that complete synchronously (an already-ready or already-failed
-   * [[Async]]), where there is no driver loop left to stop.
+   * A [[Cancelable]] whose `cancel()` does nothing: a placeholder where an API
+   * needs a `Cancelable` but there is nothing to stop.
+   *
+   * {{{
+   * val nothingToStop: Cancelable = Cancelable.noop
+   * nothingToStop.cancel() // does nothing
+   * }}}
    */
   val noop: Cancelable = new Cancelable {
     def cancel(): Unit = ()

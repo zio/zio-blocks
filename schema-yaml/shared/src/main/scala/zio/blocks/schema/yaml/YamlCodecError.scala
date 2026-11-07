@@ -19,22 +19,21 @@ package zio.blocks.schema.yaml
 import zio.blocks.schema.DynamicOptic
 
 /**
- * A custom exception class without the stack trace representing errors that
- * occur during YAML encoding/decoding operations.
- *
- * The `XmlCodecError` class extends `Throwable` to provide enhanced error
- * reporting for scenarios involving YAML encoding or decoding errors where
- * dynamic data paths (spans) are involved. These spans represent the stack of
- * nodes traversed within the data structure when the error occurred. So that
- * top-level spans are at the end of the list.
+ * The exception, without a stack trace, that a [[YamlCodec]] throws from
+ * `YamlCodec#decodeValue` or `YamlCodec#decodeKey` when the YAML does not match
+ * the type (some `java.time` and enum codecs throw their own exception
+ * instead). `YamlCodec#decode` catches it and returns a
+ * [[zio.blocks.schema.SchemaError]] whose path comes from `spans`, such as
+ * `Invalid int value: ten at: .size`.
  *
  * @param spans
- *   A list of `DynamicOptic.Node` objects representing the traversal path
- *   within the data structure where the error occurred. Each node encapsulates
- *   information about a specific element (field, index, etc.).
+ *   the path to the value that failed, outermost node first: a bad `level`
+ *   field inside an `inner` field gives `List(Field(inner), Field(level))`.
+ *   Each enclosing codec adds its node to the front as the error passes through
+ *   it.
  * @param message
- *   A descriptive message providing additional context or details about the
- *   error.
+ *   the error message without the path, such as `Invalid int value: ten`;
+ *   `getMessage` returns it.
  */
 class YamlCodecError(var spans: List[DynamicOptic.Node], message: String)
     extends Throwable(message, null, false, false) {

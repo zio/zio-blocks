@@ -3,7 +3,7 @@ id: as
 title: "As"
 ---
 
-`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `As#into`, it also converts `B → A` via `As#from`, providing a round-trip guarantee.
+`As[A, B]` is a **bidirectional conversion type class** that extends `Into[A, B]` with a reverse direction. In addition to converting `A → B` via `As#into`, it also converts `B → A` via `As#from`, providing a round-trip guarantee for every field the two types share.
 
 `As`:
 - extends `Into[A, B]`, so every `As` can be used wherever an `Into` is expected
@@ -289,7 +289,7 @@ val tupleAs: As[(Int, String), (Long, String)] = As.derived[(Int, String), (Long
 
 ### Coproducts (Sealed Traits and Enums)
 
-`As.derived` handles sealed traits and Scala 3 enums the same way `Into.derived` does — each subtype is matched by name and derived recursively:
+`As.derived` handles sealed traits and Scala 3 enums the same way `Into.derived` does: each subtype is matched as `Into.derived` matches it, by name, then by convertible field types, then by position (see the [Into](into.md) page), and its fields are converted:
 
 ```scala
 import zio.blocks.schema._
@@ -331,7 +331,7 @@ numericAs.from(LongModel(Long.MaxValue))
 
 ## Restrictions
 
-`As` enforces constraints that `Into` does not. Because `As.derived` must produce valid conversions in both directions, it rejects configurations that would silently lose data during a round-trip.
+`As` enforces constraints that `Into` does not. Because `As.derived` must produce valid conversions in both directions, it rejects most configurations that would lose data during a round-trip. `Option` fields that only one side has are the exception, as shown below.
 
 **Default values on asymmetric fields are rejected.** A field with a default that has no counterpart in the other type cannot be round-tripped: when converting back, the field is missing and there is no way to distinguish a real default from a missing value:
 
@@ -356,15 +356,21 @@ case class PersonB(name: String, age: Int)
 As.derived[PersonA, PersonB]  // compiles — age is present in both types
 ```
 
-**`Option` fields on one side are allowed.** An `Option` field absent from the other type round-trips cleanly: `Some(v)` becomes `None` after a round-trip, which is the only safe behaviour for a missing field:
+**`Option` fields on one side are allowed.** An `Option` field absent from the other type is dropped on the way out and comes back as `None`, so `Some(v)` does not survive a round trip:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:nest
 import zio.blocks.schema.As
 
 case class TypeA(name: String, nickname: Option[String])
 case class TypeB(name: String)
 
-As.derived[TypeA, TypeB]  // compiles
+val dropsNickname: As[TypeA, TypeB] = As.derived[TypeA, TypeB]
+```
+
+Converting a value with a nickname and back loses the nickname:
+
+```scala mdoc
+dropsNickname.into(TypeA("Ada", Some("Countess"))).flatMap(dropsNickname.from)
 ```
 
 **Numeric coercions must be invertible in both directions.** Widening `Int → Long` is automatically paired with narrowing `Long → Int`. The narrowing validates at runtime, so the round-trip is safe even though it can fail:
@@ -446,11 +452,11 @@ The call to `jsonString.fromJson[DynamicValue]` parses the JSON string into a `D
 
 ### Use Cases
 
-`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently loses or corrupts data.
+`As` is ideal when data must flow in both directions within the same system, with guarantees that neither direction silently corrupts data, apart from an `Option` field that only one side has, which comes back as `None`.
 
 #### Polyglot configuration systems
 
-Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro verifies will round-trip faithfully.
+Configuration is often stored externally (Consul, etcd, a JSON file) and must be read, modified in-place, and written back. A naive approach requires two separate conversions — `Into[DynamicValue, DatabaseConfig]` to read and `Into[DatabaseConfig, DynamicValue]` to write — with no guarantee they align. `As` solves this by providing a single bidirectional instance that the macro checks will round-trip every field the two types share.
 
 Consider a service that:
 1. Reads config from an external store (JSON → `DynamicValue` → typed `DatabaseConfig`)
@@ -501,3 +507,7 @@ result
 `As[A, B]` is defined in `zio.blocks.schema` alongside `Into[A, B]`. Because `As` is a subtype of `Into`, the two type classes compose naturally: you can derive an outer `As` from inner `As` instances, or mix `As` and custom `Into` instances when some fields need one-way or custom logic.
 
 For a full reference on one-way conversions and the derivation rules that `As` builds on, see [Into](into.md).
+
+## See Also
+
+- [Evolve Your Data](../../../guides/evolve-your-data.md) - a tutorial that converts a book record between two versions with `As` and checks the round trip in both directions.

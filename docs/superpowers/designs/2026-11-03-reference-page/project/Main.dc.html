@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reference directory</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit}
+.mod{display:inline-flex;align-items:center;min-height:44px}
+.mod:hover{text-decoration:underline}
+a:focus-visible,input:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+.chip:hover{background:var(--surface)}
+.jump:hover{background:var(--surface)}
+input[type=search]::placeholder{color:var(--label);opacity:1}
+</style>
+</helmet>
+<div style="min-height: 100%; background: var(--bg); color: var(--fg); font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.55; {{rootStyle}}">
+  <div style="background: #141a2e; border-bottom: 1px solid #2d3659; color: #f3f5fc; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 32px; padding: 0 clamp(16px, 4vw, 40px); min-height: 56px">
+    <a href="#" style="font-weight: 800; font-size: 18px; text-decoration: none; color: #ffffff; min-height: 44px; display: inline-flex; align-items: center">ZIO Blocks</a>
+    <nav aria-label="Site" style="display: flex; flex-wrap: wrap; gap: 4px 24px; font-size: 15px; font-weight: 600">
+      <a href="#" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; color: #c9cfe6">Getting Started</a>
+      <a href="#" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; color: #ffffff; box-shadow: inset 0 -3px 0 #8f9fe0">Reference</a>
+      <a href="#" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; color: #c9cfe6">Guides</a>
+      <a href="#" style="text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; color: #c9cfe6">API</a>
+    </nav>
+  </div>
+
+  <div style="max-width: 1200px; margin: 0 auto; padding: 48px clamp(16px, 4vw, 40px) 72px">
+    <p style="margin: 0 0 12px; font-size: 13px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--label)">Documentation</p>
+    <h1 style="margin: 0 0 16px; font-size: clamp(34px, 6vw, 52px); line-height: 1.05; font-weight: 800; color: var(--fg)">Reference</h1>
+    <p style="margin: 0 0 28px; max-width: 46rem; font-size: 17px; color: var(--soft)">Each block has its own reference pages, which describe what its data types are for, how to construct them, and the operations they offer. Find a block by name, or jump to an area. The <a href="#" style="color: var(--link); font-weight: 600">overview</a> compares every block in one table, and the <a href="#" style="color: var(--link); font-weight: 600">API reference</a> lists every type and method.</p>
+
+    <div style="display: flex; flex-direction: column; gap: 8px; max-width: 36rem; margin-bottom: 24px">
+      <label for="q" style="font-size: 14px; font-weight: 800; color: var(--fg)">Filter blocks</label>
+      <input id="q" type="search" value="{{q}}" onInput="{{onQuery}}" placeholder="Try jwt, chunk, or avro" autocomplete="off" style="font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 2px solid var(--strong); border-radius: 0; padding: 0 14px; min-height: 48px; box-sizing: border-box; width: 100%">
+    </div>
+
+    <nav aria-label="Areas" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px">
+      <sc-for list="{{jump}}" as="j" hint-placeholder-count="10">
+        <a class="jump" href="{{j.href}}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; box-sizing: border-box; border: 1px solid var(--rule); font-size: 14px; font-weight: 600; text-decoration: none; color: var(--fg)">{{j.title}} <span style="color: var(--label); font-weight: 400">{{j.count}}</span></a>
+      </sc-for>
+    </nav>
+
+    <p style="margin: 0 0 8px; font-size: 14px; color: var(--label)" aria-live="polite">{{summary}}</p>
+
+    <sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+      <p style="margin: 32px 0; font-size: 17px; color: var(--soft)">No block matches that. Try a shorter name, such as <code style="font-family: ui-monospace, Menlo, Consolas, monospace">stream</code> or <code style="font-family: ui-monospace, Menlo, Consolas, monospace">http</code>.</p>
+    </sc-if>
+
+    <div style="column-width: 480px; column-gap: 56px">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="10">
+        <section id="{{g.anchor}}" aria-labelledby="{{g.headingId}}" style="break-inside: avoid; margin: 0 0 40px; padding-top: 4px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 3px solid var(--fg)">
+            <h2 id="{{g.headingId}}" style="margin: 0; font-size: 22px; line-height: 1.25; font-weight: 800; color: var(--fg)">{{g.title}}</h2>
+            <span style="font-size: 14px; color: var(--label); white-space: nowrap">{{g.countText}}</span>
+          </div>
+          <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="2">
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 16px 0; border-bottom: 1px solid var(--rule)">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px">
+                <a class="mod" href="#" style="font-size: 18px; font-weight: 800; color: var(--link); text-decoration: none">{{r.name}}</a>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--label); border: 1px solid var(--rule); padding: 2px 8px">{{r.platform}}</span>
+                  <sc-if value="{{r.scalaOnly}}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 13px; font-weight: 800; color: var(--link); background: var(--tint); padding: 3px 9px">Scala 3 only</span>
+                  </sc-if>
+                  <sc-if value="{{r.scalaBoth}}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 13px; font-weight: 600; color: var(--label); border: 1px solid var(--rule); padding: 2px 8px">Scala 2.13 · 3</span>
+                  </sc-if>
+                </div>
+              </div>
+              <p style="margin: 0; font-size: 15px; color: var(--soft)">{{r.desc}}</p>
+              <sc-if value="{{r.hasExtra}}" hint-placeholder-val="{{ false }}">
+                <p style="margin: 0; font-size: 14px; color: var(--label)">{{r.extra}}</p>
+              </sc-if>
+              <code style="font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 13px; color: var(--label)">{{r.artifact}}</code>
+              <sc-if value="{{r.hasSubs}}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px">
+                  <sc-for list="{{r.subs}}" as="s" hint-placeholder-count="3">
+                    <a class="chip" href="#" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--rule); font-size: 13px; font-weight: 600; color: var(--fg); text-decoration: none">{{s.label}}</a>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </section>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","default":"light","options":["light","dark"]},"$preview":{"width":1280,"height":2100}}'>
+const G = [
+['meta','Meta Programming',[
+ ['Schema','zio-blocks-schema','JVM · JS','2.13 · 3','Type-safe schemas with automatic codec, optic, and validator derivation',['Core Type System','Dynamic Values','Reflective Optics','Serialization','Built-in Formats and Codecs','Validation & Errors','Schema Evolution'],'Codecs: JSON, Avro, BSON, CSV, MessagePack, Thrift, TOON, XML, YAML (zio-blocks-schema-avro, -bson, -csv, -messagepack, -thrift, -toon, -xml, -yaml)'],
+ ['TypeId','zio-blocks-typeid','JVM · JS','2.13 · 3','Compile-time type identity with rich metadata',[]]]],
+['res','Resource Management',[
+ ['Scope','zio-blocks-scope','JVM · JS','2.13 · 3','Compile-time safe resource boundaries that keep values from escaping their lifetime',['Resource','Unscoped','DeferHandle','Finalizer','Finalization']]]],
+['di','Dependency Injection',[
+ ['Wire','zio-blocks-scope','JVM · JS','2.13 · 3','Compile-time safe recipes for constructing a service and its dependencies',[]],
+ ['Context','zio-blocks-context','JVM · JS','2.13 · 3','Type-indexed heterogeneous collections',[]]]],
+['cfg','Configuration & Feature Flags',[
+ ['Configuration','zio-blocks-config','JVM · JS','2.13 · 3','Typed configuration loading, feature flags, and rollout rules',['ConfigSource','ConfigDecoder','Errors','Flags','Rollout','File Formats'],'Source adapters: YAML, JSON, HOCON (zio-blocks-config-yaml, -json, -hocon)']]],
+['web','Web & HTTP',[
+ ['MediaType','zio-blocks-mediatype','JVM · JS','2.13 · 3','Type-safe IANA media types with 2,600+ predefined types',[]],
+ ['HTTP Model','zio-blocks-http-model','JVM · JS','2.13 · 3','Pure HTTP data model with URL parsing, headers, cookies, and forms',['HTTP Model Schema']],
+ ['Endpoint','zio-blocks-endpoint','JVM · JS','2.13 · 3','Type-safe HTTP endpoint descriptors with composable codecs and typed auth',[]],
+ ['OpenAPI','zio-blocks-openapi','JVM · JS','2.13 · 3','Type-safe OpenAPI 3.1 specification generation and rendering',[]],
+ ['JWT','zio-blocks-jwt','JVM · JS','2.13 · 3','Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support',[]],
+ ['HTML','zio-blocks-html','JVM · JS','2.13 · 3','Type-safe HTML templating with XSS protection',[]],
+ ['Datastar','zio-blocks-datastar','JVM · JS','3','Typed Datastar attribute and signal DSL, plus the SSE events that patch a live page',[]],
+ ['HTMX','zio-blocks-http-htmx','JVM · JS','3','Typed HTMX DSL for compile-time-checked HTMX attributes',[]]]],
+['data','Data Types',[
+ ['Chunk','zio-blocks-chunk','JVM · JS','2.13 · 3','High-performance immutable indexed sequences with zero-boxing builders',[]],
+ ['Maybe','zio-blocks-maybe','JVM · JS','2.13 · 3','Optional values that store a present reference as is, without a wrapper object (Scala 3)',[]],
+ ['Combinators','zio-blocks-combinators','JVM · JS','2.13 · 3','Compile-time composition and decomposition of tuples, eithers, and unions',[]]]],
+['conc','Concurrency',[
+ ['Async','zio-blocks-async','JVM · JS','2.13 · 3','Zero-allocation asynchronous effect type with direct-style await',[]],
+ ['Mux','zio-blocks-mux','JVM · JS','2.13 · 3','Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols',[]],
+ ['RingBuffer','zio-blocks-ringbuffer','JVM · JS','2.13 · 3','Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC)',[]]]],
+['streams','Streams',[
+ ['Streams','zio-blocks-streams','JVM · JS','2.13 · 3','Pull-based streaming with typed errors, zero boxing, and synchronous or asynchronous execution',['Core Types','Low-Level Primitives','Execution and Compatibility']]]],
+['tel','Telemetry',[
+ ['Telemetry','zio-blocks-telemetry','JVM · JS','2.13 · 3','Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics',['Tracing','Logging','Metrics','Common Types','OTLP Export'],'OTLP export to an OpenTelemetry collector: zio-blocks-telemetry-otel (JVM)']]],
+['persist','Persistence',[
+ ['SQL Module','zio-blocks-sql','JVM · JS','3','Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository',[]],
+ ['ZIO Integration','zio-blocks-sql-zio','JVM','3','ZIO integration with ZIO.attemptBlocking and ZLayer',[]],
+ ['Data Migration','zio-blocks-data-migration','JVM · JS','3','Typed, online database schema migrations in three execution models, with no hand-written SQL',[]],
+ ['Projection','zio-blocks-projection','JVM','3','Event-sourced projections with per-entity SQLite storage',[]]]],
+['tool','Tooling & Codegen',[
+ ['Code Generation','zio-blocks-codegen','JVM','2.13 · 3','Generic Scala code generation IR and emitter',[]],
+ ['Docs','zio-blocks-markdown','JVM · JS','2.13 · 3','GitHub Flavored Markdown parsing, rendering, and programmatic construction',[]],
+ ['Smithy','zio-blocks-smithy','JVM','2.13 · 3','Smithy IDL parser and AST library for API modeling',[]]]]
+];
+class Component extends DCLogic {
+  state = { q: '' };
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const t = dark
+      ? { bg:'#141a2e', fg:'#f3f5fc', soft:'#c0c7e0', label:'#9aa3c0', rule:'#2d3659', strong:'#7c86ab', surface:'#1f2850', link:'#9aa8ea', tint:'#252f62' }
+      : { bg:'#ffffff', fg:'#141a2e', soft:'#4a5470', label:'#5b6580', rule:'#e4e7f0', strong:'#8791ab', surface:'#f3f5fc', link:'#2d3f8f', tint:'#e6eafb' };
+    const rootStyle = Object.keys(t).map((k) => '--' + k + ':' + t[k]).join(';') + ';';
+    const q = (this.state.q || '').trim().toLowerCase();
+    let shown = 0, total = 0;
+    const groups = [], jump = [];
+    G.forEach((g) => {
+      const all = g[2].length;
+      total += all;
+      const rows = g[2].filter((r) => !q || (g[1] + ' ' + r[0] + ' ' + r[1] + ' ' + r[4] + ' ' + r[5].join(' ') + ' ' + (r[6] || '')).toLowerCase().indexOf(q) >= 0)
+        .map((r) => ({ name: r[0], artifact: r[1], platform: r[2], scalaOnly: r[3] === '3', scalaBoth: r[3] !== '3', desc: r[4], hasExtra: !!r[6], extra: r[6] || '', hasSubs: r[5].length > 0, subs: r[5].map((s) => ({ label: s })) }));
+      shown += rows.length;
+      if (rows.length) jump.push({ title: g[1], count: rows.length, href: '#g-' + g[0] });
+      if (rows.length) groups.push({ anchor: 'g-' + g[0], headingId: 'h-' + g[0], title: g[1], countText: rows.length + (rows.length === 1 ? ' block' : ' blocks'), rows });
+    });
+    return {
+      rootStyle, q: this.state.q, jump, groups, empty: shown === 0,
+      summary: q ? shown + ' of ' + total + ' blocks match' : total + ' blocks in ' + G.length + ' areas',
+      onQuery: (e) => this.setState({ q: e.target.value })
+    };
+  }
+}
+</script>
+</body>
+</html>

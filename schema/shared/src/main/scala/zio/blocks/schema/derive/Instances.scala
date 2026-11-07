@@ -18,8 +18,16 @@ package zio.blocks.schema.derive
 
 import zio.blocks.schema._
 
+/**
+ * An automatically derived instance of `TC[A]` together with an optional custom
+ * one that replaces it. Nothing in ZIO Blocks creates it: a `DerivationBuilder`
+ * keeps its custom instances as [[InstanceOverride]]s.
+ */
 final case class Instances[TC[_], A](automatic: Lazy[TC[A]], custom: Option[Lazy[TC[A]]]) {
+
+  /** Returns `custom` when it is set, or else `automatic`. */
   def derivation: Lazy[TC[A]] = custom.getOrElse(automatic)
 }
 
+/** The companion of [[Instances]]; it has no members. */
 object Instances {}

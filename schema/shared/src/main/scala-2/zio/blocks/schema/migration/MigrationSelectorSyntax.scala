@@ -19,44 +19,78 @@ package zio.blocks.schema.migration
 import scala.annotation.compileTimeOnly
 
 /**
- * Scala 2 extension methods for selector syntax in migrations. These are
- * compile-time-only placeholders that get transformed by the macros.
+ * Selector syntax meant for migration builder selectors: `each` selects every
+ * element of a collection, `eachKey` and `eachValue` every key or value of a
+ * map, `at(index)` one element, `atKey(key)` one map value, `when[B]` the case
+ * `B` of a variant, and `wrapped[B]` the value inside a wrapper type.
  *
- * Provides syntax sugar for selector expressions like:
- *   - `_.field.each` for collection traversal
- *   - `_.variant.when[Type]` for case selection
- *   - `_.wrapper.wrapped[Inner]` for wrapper unwrapping
- *   - `_.seq.at(0)` for index access
- *   - `_.map.atKey(key)` for map key access
+ * Calling these methods outside a selector fails at compile time. They do not
+ * compile inside builder selectors either, and the selector macros reject them
+ * (a known bug in 0.0.56).
  */
 trait MigrationSelectorSyntax {
 
+  /** The `when` and `wrapped` selector syntax. */
   implicit class ValueExtension[A](a: A) {
+
+    /**
+     * Selects the case `B` of a variant. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def when[B <: A]: B = ???
 
+    /**
+     * Selects the value inside a wrapper type, as a `B`. It does not compile in
+     * any `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def wrapped[B]: B = ???
   }
 
+  /** The `at` and `each` selector syntax. */
   implicit class SequenceExtension[C[_], A](c: C[A]) {
+
+    /**
+     * Selects the element at `index` of a collection. It does not compile in
+     * any `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def at(index: Int): A = ???
 
+    /**
+     * Selects every element of a collection. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def each: A = ???
   }
 
+  /** The `atKey`, `eachKey` and `eachValue` selector syntax. */
   implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
+
+    /**
+     * Selects the value at `key` of a map. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def atKey(key: K): V = ???
 
+    /**
+     * Selects every key of a map. It does not compile in any `MigrationBuilder`
+     * method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def eachKey: K = ???
 
+    /**
+     * Selects every value of a map. It does not compile in any
+     * `MigrationBuilder` method yet (a known bug).
+     */
     @compileTimeOnly("Can only be used inside migration selector macros")
     def eachValue: V = ???
   }
 }
 
+/** The selector syntax, for an explicit import. */
 object MigrationSelectorSyntax extends MigrationSelectorSyntax

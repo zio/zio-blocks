@@ -42,8 +42,8 @@ trait DbTx extends DbCon {
 The following example opens a transaction via `Transactor#transact`, accesses all three context members, and combines a `Repo` CRUD operation with a hand-written `Frag` query — both of which accept `DbTx` transparently in place of `DbCon`:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -77,6 +77,12 @@ tx.transact {
 ## Nested Transactions via Savepoints
 
 Nested transactions reuse the same underlying JDBC connection via SQL savepoints. The `DbTx` given in scope exposes an extension `transact` and the `transactNested` helpers:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._

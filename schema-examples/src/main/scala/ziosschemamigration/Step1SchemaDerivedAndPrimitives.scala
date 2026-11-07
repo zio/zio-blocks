@@ -90,7 +90,7 @@ object Step1SchemaDerivedAndPrimitives extends App {
   println(s"Roundtrip: $back")
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 6. DynamicValue structure (6 cases vs ZIO Schema's 15+)
+  // 6. DynamicValue structure (6 cases vs ZIO Schema's 15)
   // ─────────────────────────────────────────────────────────────────────────
 
   val manualRecord = DynamicValue.Record(

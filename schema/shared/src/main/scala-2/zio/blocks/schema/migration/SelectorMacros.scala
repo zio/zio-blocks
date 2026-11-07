@@ -21,21 +21,20 @@ import scala.reflect.macros.whitebox
 import zio.blocks.schema.DynamicOptic
 
 /**
- * Scala 2 macros for converting selector expressions into DynamicOptic paths.
- *
- * These macros parse selector expressions like:
- *   - `_.field` → `DynamicOptic.root.field("field")`
- *   - `_.a.b.c` → `DynamicOptic.root.field("a").field("b").field("c")`
- *   - `_.items.each` → `DynamicOptic.root.field("items").elements`
- *   - `_.country.when[UK]` → `DynamicOptic.root.field("country").caseOf("UK")`
+ * The macros that turn builder selectors into
+ * [[zio.blocks.schema.DynamicOptic]] paths. They accept field accesses; they
+ * are meant to accept the syntax of [[MigrationSelectorSyntax]] too, but reject
+ * it (see `docs/dev/issues.md`).
  */
 object SelectorMacros {
 
   /**
-   * Convert a selector expression to a DynamicOptic.
+   * Returns the path of `selector`, a lambda such as `_.author.name`.
+   * Compilation fails for any other expression.
    */
   def toPath[S, A](selector: S => A): DynamicOptic = macro toPathImpl[S, A]
 
+  /** Expands [[toPath]]. */
   def toPathImpl[S: c.WeakTypeTag, A: c.WeakTypeTag](c: whitebox.Context)(selector: c.Expr[S => A]): c.Tree = {
     import c.universe._
 

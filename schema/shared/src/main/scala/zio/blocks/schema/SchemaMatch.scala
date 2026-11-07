@@ -20,32 +20,37 @@ import zio.blocks.chunk.Chunk
 import scala.annotation.tailrec
 
 /**
- * Provides matching logic for SchemaRepr patterns against DynamicValue
- * instances.
- *
- * This object implements structural pattern matching between schema
- * representations and runtime dynamic values, enabling the search optic to find
- * values that match a given schema pattern.
+ * Matches [[SchemaRepr]] patterns against [[DynamicValue]]s. A `searchSchema`
+ * step of a [[DynamicOptic]] (`#pattern` in `p"..."`) uses it to find values of
+ * a given shape.
  *
  * ==Matching Rules==
  *
- *   - '''Wildcard''': Matches any DynamicValue
- *   - '''Primitive(name)''': Matches DynamicValue.Primitive where the
- *     underlying PrimitiveValue type matches the name (case-insensitive)
- *   - '''Record(fields)''': Matches DynamicValue.Record using subset matching -
- *     all specified fields must exist with matching types, but extra fields are
- *     allowed
- *   - '''Variant(cases)''': Matches DynamicValue.Variant if the case name
- *     matches one of the pattern cases and the payload matches that case's
- *     pattern
- *   - '''Sequence(elem)''': Matches DynamicValue.Sequence if all elements match
- *     the element pattern (empty sequence always matches)
- *   - '''Map(k, v)''': Matches DynamicValue.Map if all entries have matching
- *     key and value types (empty map always matches)
- *   - '''Optional(inner)''': Matches DynamicValue.Null always, otherwise checks
- *     inner pattern
- *   - '''Nominal(name)''': Returns false (requires schema context not available
- *     in DynamicValue)
+ *   - '''Wildcard''': matches any value.
+ *   - '''Primitive(name)''': matches a primitive whose type has that name,
+ *     ignoring case (`int`, `string`, `localdate`, ...); an unknown name
+ *     matches nothing.
+ *   - '''Record(fields)''': matches a record that has every field of the
+ *     pattern with a matching value; other fields are allowed.
+ *   - '''Variant(cases)''': matches a variant whose case is one of the
+ *     pattern's cases and whose payload matches that case's pattern.
+ *   - '''Sequence(element)''': matches a sequence whose elements all match (an
+ *     empty sequence always matches).
+ *   - '''Map(key, value)''': matches a map whose keys and values all match (an
+ *     empty map always matches).
+ *   - '''Optional(inner)''': matches `Null`, or a value that matches `inner`. A
+ *     `Schema` encodes an `Option` as a variant named `Some` or `None`, which
+ *     this does not match, so `option(string)` matches every string instead
+ *     (see `docs/dev/issues.md`).
+ *   - '''Nominal(name)''': matches nothing, because a [[DynamicValue]] does not
+ *     record its Scala type.
+ *
+ * {{{
+ * val book = DynamicValue.Record("title" -> DynamicValue.string("Zionomicon"), "year" -> DynamicValue.int(2021))
+ *
+ * SchemaMatch.matches(SchemaRepr.Record(Vector("title" -> SchemaRepr.Primitive("string"))), book) // true
+ * SchemaMatch.matches(SchemaRepr.Nominal("Book"), book)                                          // false
+ * }}}
  */
 object SchemaMatch {
 

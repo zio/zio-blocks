@@ -20,27 +20,34 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
 import scala.util.{Failure => SFailure, Success => SSuccess}
+import zio.blocks.async.internal.PlatformAsync
 
 /**
- * Scala.js-only interop between [[Async]] and the standard async types: Scala's
- * [[scala.concurrent.Future]] and JavaScript's [[scala.scalajs.js.Promise]].
+ * Converts between [[Async]] and the standard asynchronous types of Scala.js:
+ * Scala's [[scala.concurrent.Future]] and JavaScript's
+ * [[scala.scalajs.js.Promise]]. Use these conversions to hand an `Async` to a
+ * JavaScript API, or to bring a promise from one into `Async` code.
  *
- * Both directions preserve success and failure. All conversions are
- * non-blocking, as required on JavaScript. The JVM offers the analogous
- * `Future` conversions plus `CompletionStage` / `CompletableFuture` interop in
- * place of `js.Promise`.
+ * Callers reach them through `Async.fromFuture` and `Async.fromJsPromise` on
+ * the companion and the `toFuture` and `toJsPromise` extension methods, which
+ * forward here. Each direction keeps the value or the failure, and none of them
+ * blocks. The JVM has the same `Future` conversions, with `CompletionStage` and
+ * `CompletableFuture` in place of `js.Promise`.
  *
- * Internal implementation: the public surface is [[Async.fromFuture]] /
- * [[Async.fromJsPromise]] on the companion and the `fa.toFuture` /
- * `fa.toJsPromise` extension methods (see `AsyncSyntaxPlatformSpecific`), which
- * forward here.
+ * {{{
+ * // no-check: Scala.js only
+ * import scala.scalajs.js
+ *
+ * val port: Async[Int]      = Async.fromJsPromise(js.Promise.resolve[Int](8080))
+ * val next: js.Promise[Int] = port.map(_ + 1).toJsPromise // resolves to 8081
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/async/#integration-points Integration Points]]
  */
 private[async] object AsyncInterop {
 
-  /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `future`.
-   */
+  /** Implements `Async.fromFuture`. */
   def fromFuture[A](future: Future[A]): Async[A] = {
     val cur = future.value
     if (cur.isDefined) cur.get match {
@@ -56,24 +63,16 @@ private[async] object AsyncInterop {
       }
   }
 
-  /**
-   * Construct an [[Async]] that completes with the same value or error as
-   * `promise`.
-   */
+  /** Implements `Async.fromJsPromise`. */
   def fromJsPromise[A](promise: js.Promise[A]): Async[A] =
     fromFuture(promise.toFuture)
 
-  /**
-   * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
-   * same value or error. If `fa` is not yet complete it is driven without
-   * blocking, so this call returns immediately and the future completes when
-   * `fa` does. `ec` schedules the continuations.
-   */
+  /** Implements the `toFuture` extension method. */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
     // `requiresDriver` also routes a depth-1 pollable-as-value carrier through
-    // the microtask driver: delivering it drives the user pollable for
+    // the non-blocking driver: delivering it drives the user pollable for
     // effects, which may suspend — and JS cannot block for that.
     else if (AsyncEncoding.requiresDriver(any)) {
       val p = Promise[A]()
@@ -85,8 +84,8 @@ private[async] object AsyncInterop {
   }
 
   /**
-   * Convert `fa` into a [[scala.scalajs.js.Promise]] — the canonical JS async
-   * carrier — that resolves with `fa`'s value or rejects with its error.
+   * Implements the `toJsPromise` extension method, driving `fa` on
+   * `JSExecutionContext.queue`.
    */
   def toJsPromise[A](fa: Async[A]): js.Promise[A] = {
     implicit val queue: ExecutionContext = scala.scalajs.concurrent.JSExecutionContext.queue
@@ -94,9 +93,10 @@ private[async] object AsyncInterop {
   }
 
   /**
-   * Drive `fa` through to a value via microtask polls; complete `p` with the
-   * result. The waker re-enters the loop on a `Promise.resolve().then(...)`
-   * microtask so the surrounding event loop stays responsive.
+   * Polls `fa` until it settles and completes `p` with the outcome. The first
+   * poll runs in the caller; each later one runs on `ec`, except that after
+   * `PlatformAsync.ReadyResumptionLimit` resumptions in a row without a fresh
+   * wake it yields through a `setTimeout` macrotask.
    */
   private def drive[A](fa: Async[A], p: Promise[A])(implicit ec: ExecutionContext): Unit = {
     val any = fa.asInstanceOf[Any]
@@ -105,7 +105,7 @@ private[async] object AsyncInterop {
       // `current` holds the latest pollable; `step` advances it to the pollable
       // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
       // the *returned* pollable rather than re-polling the original. A single
-      // shared waker re-enters `step` on the next microtask, so a stale waker
+      // shared waker re-enters `step` through `ec` (or `setTimeout`), so a stale waker
       // captured by an earlier suspension still resumes the current state.
       // A depth-1 pollable-as-value carrier is driven for effects through an
       // observing pollable that settles to the user pollable itself.
@@ -121,30 +121,67 @@ private[async] object AsyncInterop {
       // `IllegalStateException: Promise already completed`. Mirrors the JVM
       // driver, which collapses multiple wakeups and stops polling after a value.
       var settled = false
-      // Re-arm on the next microtask via a cached `Runnable` scheduled directly
-      // onto the JS microtask queue (`ec.execute`, which Scala.js implements as
-      // `Promise.resolve().then(...)`), instead of allocating a
+      // Re-arm through a cached `Runnable` handed to `ec.execute` (a microtask
+      // when `ec` is `JSExecutionContext.queue`), instead of allocating a
       // Promise + Future + `Try` bridge per wakeup. `step` already guards on
       // `settled`, so a redundant resumption stays idempotent.
-      lazy val resume: Runnable     = new Runnable { def run(): Unit = step() }
+      var signalled                                     = false
+      var polling                                       = false
+      var wakePending                                   = false
+      var readyResumptions                              = 0
+      var yieldScheduled                                = false
+      def requestStep(freshWake: Boolean = false): Unit =
+        if (!settled && !signalled) {
+          if (freshWake) readyResumptions = 0
+          signalled = true
+          readyResumptions += 1
+          yieldScheduled = readyResumptions >= PlatformAsync.ReadyResumptionLimit
+          if (yieldScheduled) PlatformAsync.schedule(resume, forceMacrotask = true)
+          else ec.execute(resume)
+        }
+      lazy val resume: Runnable = new Runnable {
+        def run(): Unit = {
+          if (yieldScheduled) readyResumptions = 0
+          yieldScheduled = false
+          signalled = false
+          step()
+        }
+      }
       lazy val onComplete: Runnable = new Runnable {
-        def run(): Unit = ec.execute(resume)
+        def run(): Unit =
+          if (polling) wakePending = true
+          else requestStep(freshWake = true)
       }
       def step(): Unit =
         if (!settled) {
           // A throwing `poll` (on the initial or any resumption microtask) must
           // surface as a failed `Promise`, not be thrown to the caller / orphan
-          // the future — matching the JVM driver and the JS `start` runner
-          // runner, both of which funnel a thrown `poll` into the failure path.
+          // the future — matching the JVM driver and the JS `start` runner,
+          // both of which funnel a thrown `poll` into the failure path.
+          polling = true
+          wakePending = false
           val next =
             try current.poll(onComplete)
-            catch { case t: Throwable => settled = true; failPromise(p, Failure.unwindCause(t)); return }
+            catch {
+              case t: Throwable =>
+                polling = false
+                settled = true
+                failPromise(p, Failure.unwindCause(t))
+                return
+            }
+          polling = false
           val nany = next.asInstanceOf[Any]
           if (nany.isInstanceOf[Failure]) { settled = true; failPromise(p, nany.asInstanceOf[Failure].cause) }
           else if (nany.isInstanceOf[Pollable[_]]) {
-            current = nany.asInstanceOf[Pollable[A]]; ()
-          } // advance; wait for waker
-          else { settled = true; p.success(AsyncEncoding.deliverSuccess[A](nany)); () }
+            val replacement = nany.asInstanceOf[Pollable[A]]
+            if (replacement ne current) {
+              current = replacement
+              // A distinct replacement is synchronous driver progress. It has
+              // not necessarily registered this callback, so schedule its
+              // first poll rather than waiting for a wake it never promised.
+              requestStep()
+            } else if (wakePending) requestStep()
+          } else { settled = true; p.success(AsyncEncoding.deliverSuccess[A](nany)); () }
         }
       step()
     } else
@@ -161,11 +198,17 @@ private[async] object AsyncInterop {
       case other                                            => other
     })
 
-  /** Scala `Future` / `Promise.failure` reject a `null` exception. */
+  /**
+   * A failed `Future`, with `Failure.NullCauseMarker` in place of a `null`
+   * cause, which `fromFuture` turns back into `null`.
+   */
   private def failFuture[A](cause: Throwable): Future[A] =
     if (cause eq null) Future.failed(Failure.NullCauseMarker)
     else Future.failed(cause)
 
+  /**
+   * Fails `promise`, with `Failure.NullCauseMarker` in place of a `null` cause.
+   */
   private def failPromise[A](promise: Promise[A], cause: Throwable): Unit = {
     if (cause eq null) promise.failure(Failure.NullCauseMarker)
     else promise.failure(cause)

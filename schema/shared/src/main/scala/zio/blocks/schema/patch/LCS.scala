@@ -19,7 +19,7 @@ package zio.blocks.schema.patch
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
- * Longest Common Subsequence algorithms shared between Differ and JsonPatch.
+ * Longest-common-subsequence algorithms shared by `Differ` and `JsonDiffer`.
  */
 private[schema] object LCS {
 

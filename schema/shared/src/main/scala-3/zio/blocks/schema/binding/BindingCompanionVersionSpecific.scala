@@ -24,6 +24,7 @@ import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.quoted._
 
+/** The `Binding.of` methods, which differ between Scala 2 and Scala 3. */
 trait BindingCompanionVersionSpecific {
 
   /**
@@ -31,14 +32,33 @@ trait BindingCompanionVersionSpecific {
    *
    * Supports:
    *   - Primitive types (Int, String, Boolean, etc.)
-   *   - Case classes (derives [[Binding.Record]])
-   *   - Sealed traits/enums (derives [[Binding.Variant]])
+   *   - Case classes and tuples (derives [[Binding.Record]])
+   *   - Case objects and enum cases without parameters (derives a
+   *     [[Binding.Record]] that always returns the object)
+   *   - Sealed traits, sealed abstract classes and enums (derives
+   *     [[Binding.Variant]])
    *   - Option, Either, and their subtypes
-   *   - [[DynamicValue]]
-   *   - Structural types (JVM only)
+   *   - [[zio.blocks.schema.DynamicValue]]
+   *   - A class with one field whose companion has an `apply` from the field's
+   *     type to `Either[E, A]` (derives a [[Binding.Wrapper]] whose `wrap`
+   *     calls `apply` and throws a `SchemaError` on a `Left`)
+   *   - Structural types, on the JVM only
+   *   - zio-prelude newtypes (derives [[Binding.Wrapper]])
+   *   - On Scala 3 only: named tuples (derives [[Binding.Record]]), union types
+   *     (derives [[Binding.Variant]], with the cases sorted by the full name of
+   *     each case's type, not in the order the union is written) and opaque
+   *     types (derives [[Binding.Wrapper]])
+   *
+   * On Scala 3, a structural record type needs a build of this library with
+   * Scala 3.5 or later; a union of structural types does not. Both Scala 3
+   * artifacts are such builds (`zio-blocks-schema` with Scala 3.9,
+   * `zio-blocks-next-schema` with Scala 3.10). (In 0.0.56, `zio-blocks-schema`
+   * was built with Scala 3.3 and rejected structural record types at compile
+   * time.)
    *
    * For sequence types (List, Vector, etc.) and map types, use the overloads
-   * that take type constructors: `Binding.of[List]`, `Binding.of[Map]`.
+   * that take type constructors: `Binding.of[List]`, `Binding.of[Map]`;
+   * `Binding.of[List[Int]]` does not compile.
    *
    * @tparam A
    *   the type to derive a binding for
@@ -48,9 +68,10 @@ trait BindingCompanionVersionSpecific {
   transparent inline def of[A]: Binding[_, A] = ${ BindingCompanionVersionSpecificImpl.of[A] }
 
   /**
-   * Creates a [[Binding.Seq]] for a sequence type constructor. Uses given
+   * Creates a [[Binding.Seq]] for a sequence type constructor from the implicit
    * [[SeqConstructor]] and [[SeqDeconstructor]] instances. The resulting
-   * binding has element type `Nothing` which upcasts via covariance.
+   * binding has element type `Nothing`, which upcasts to any element type via
+   * covariance.
    *
    * @tparam F
    *   the sequence type constructor (e.g., List, Vector)
@@ -59,8 +80,9 @@ trait BindingCompanionVersionSpecific {
     new Binding.Seq(sc, sd)
 
   /**
-   * Creates a [[Binding.Map]] for a map type constructor. Uses given
-   * [[MapConstructor]] and [[MapDeconstructor]] instances.
+   * Creates a [[Binding.Map]] for a map type constructor from the implicit
+   * [[MapConstructor]] and [[MapDeconstructor]] instances. The resulting
+   * binding has key and value types `Nothing`, which upcast via covariance.
    *
    * @tparam M
    *   the map type constructor (e.g., Map)

@@ -446,6 +446,8 @@ All 75 built-in headers, grouped the way the module's own test suites group them
 
 `Unparsed` is the escape hatch: a scheme the ADT does not model is preserved rather than rejected, so an unknown authentication scheme survives a parse-render round trip.
 
+[How to Protect Pages with Basic Auth or a Session Cookie](../../guides/protect-pages-with-basic-auth-or-a-session-cookie.md) reads `Header.Authorization.Basic` from requests and answers with a `Header.WWWAuthenticate` challenge.
+
 ### Content
 
 | Type                               | Wire name                   | Shape                                                      |
@@ -657,4 +659,4 @@ The parse cache compares codec identity by reference. A codec constructed inline
 
 Several headers hold values from elsewhere in the module rather than strings: `Allow`, `AccessControlAllowMethods`, and `AccessControlRequestMethod` hold `Method`, and `Chunk` is the sequence type throughout.
 
-For deriving header codecs from a `Schema[A]` instead of writing them by hand, see [HTTP model schema](./schema.md), which builds `HeaderCodec` and `QueryCodec` instances from schemas. `ServerSentEvent` uses `Headers` indirectly through `Response`, and is documented in [Server-Sent Events](./server-sent-event.md).
+For deriving header codecs from a `Schema[A]` instead of writing them by hand, see [HTTP model schema](./schema.md), which builds `HeaderCodec` and `QueryCodec` instances from schemas. `ServerSentEvent` does not use `Headers` or `Response`: it renders a `String`, which you put in a `Response` body with a `text/event-stream` content type yourself; see [Server-Sent Events](./server-sent-event.md) and the guide [How to Send Server-Sent Events with http-model](../../guides/send-server-sent-events.md).

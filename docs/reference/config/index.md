@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Config"
-sidebar_label: "Config"
+title: "Configuration & Feature Flags"
+sidebar_label: "Configuration & Feature Flags"
 ---
 
 `zio.blocks.config` loads typed configuration from string-keyed sources, tracks where every resolved value came from, and evaluates feature flags with percentage-based rollouts. The module is synchronous and zero-dependency. Core types: `ConfigSource`, `ConfigDecoder`, `ConfigError`, `Provenance`, `FlagSource`, `StaticFlag`, `DynamicFlag`, `Rollout`. The shapes at the center of the module:
@@ -212,7 +212,7 @@ object Db {
 final class DbService(val config: Db)
 
 val source   = ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "graph")
-val resource = Resource.from[DbService](Wire(source), Config.wire[Db])
+def resource = Resource.from[DbService](Wire(source), Config.wire[Db])
 
 Scope.global.scoped { scope =>
   import scope._
@@ -222,6 +222,8 @@ Scope.global.scoped { scope =>
 ```
 
 `Config.wire[A](prefix)` re-roots the injected source before decoding, which is how you keep several config sections in one graph without giving each its own source.
+
+See also: [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md) for a full walkthrough with several services, layered sources and ordered shutdown.
 
 ### Loading with Provenance
 
@@ -284,3 +286,5 @@ Within the module, the dependency direction is one-way: sources know nothing abo
 ## Next Steps
 
 Start with [Config Source](./config-source.md) to build and compose sources, then [Config Decoder](./config-decoder.md) for the mapping rules from case classes to keys. [Errors](./errors.md) covers the failure model, [Flags](./flags.md) and [Rollout](./rollout.md) cover runtime switches, and [File Formats](./formats.md) covers YAML, JSON, and HOCON.
+
+See also the [Build a Typed Configuration Loader](../../guides/typed-config-loader.md) tutorial, which layers defaults, a YAML file and environment variables into one typed case class, and the [Coming from PureConfig, Typesafe Config or zio-config](../../guides/config-library-migration.md) guide for porting an existing configuration setup. For runtime switches, see [How to Roll Out a Feature Gradually with Flags](../../guides/roll-out-feature-gradually.md). To load HOCON, JSON and YAML files from disk, split with includes, see [How to Load Configuration Files on the JVM and in the Browser](../../guides/load-configuration-files.md).

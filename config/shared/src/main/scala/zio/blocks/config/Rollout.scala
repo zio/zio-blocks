@@ -20,11 +20,14 @@ import scala.util.hashing.MurmurHash3
 import zio.blocks.maybe.Maybe
 
 /**
- * Rollout DSL for selecting values based on path-matching and percentage
- * bucketing.
+ * The rollout expression language of [[DynamicFlag]]: a list of choices that
+ * selects a value for a slash-separated path and a percentage bucket. For
+ * example, `on@beta; off` gives `on` to the path `beta` and `off` to every
+ * other path.
  *
  * Grammar:
  * {{{
+ * // no-check: a grammar, not Scala code
  *   expression = choice { ";" choice }
  *   choice     = value "@" selector | value
  *   selector   = path [ "/" percentage ]
@@ -33,35 +36,93 @@ import zio.blocks.maybe.Maybe
  *   percentage = digits "%"
  * }}}
  *
- * Left-to-right evaluation, first match wins. A bare value (no `@`) is a
- * catch-all and should appear last; later entries are unreachable.
+ * Choices are tried left to right and the first match wins. A bare value (no
+ * `@`) is a catch-all and should appear last; later entries are unreachable.
+ *
+ * A selector matches a path with the same number of segments, where `*` matches
+ * any one segment. A percentage `n%` also requires the bucket to be below `n`.
+ * Spaces around segments are ignored, so `* / eu / 50%` is the selector `*`,
+ * `eu`, `50%`.
+ *
+ * {{{
+ * val bucket  = Rollout.bucketFor("user-42")
+ * // 85
+ * val forBeta = Rollout.select("on@beta; off", "beta", bucket).toOption
+ * // Some(on)
+ * val forProd = Rollout.select("on@beta; off", "prod", bucket).toOption
+ * // Some(off)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/config/rollout/ Rollout]]
  */
 object Rollout {
 
+  /** A parsed expression: its choices in order. */
   final case class Choices(entries: List[Choice])
 
+  /** One choice of an expression. */
   sealed trait Choice
 
+  /** The [[Choice]] cases. */
   object Choice {
+
+    /**
+     * `value@selector`: `value` for the paths and buckets `selector` matches.
+     */
     final case class Targeted(value: String, selector: Selector) extends Choice
-    final case class CatchAll(value: String)                     extends Choice
+
+    /** A bare `value`, which matches every path and bucket. */
+    final case class CatchAll(value: String) extends Choice
   }
 
+  /**
+   * The path pattern of a targeted choice and its percentage, if it has one.
+   */
   final case class Selector(segments: List[Segment], percentage: Maybe[Int])
 
+  /** One segment of a selector's path pattern. */
   sealed trait Segment
 
+  /** The [[Segment]] cases. */
   object Segment {
-    case object Wildcard                    extends Segment
+
+    /** `*`, which matches any one path segment. */
+    case object Wildcard extends Segment
+
+    /** A segment that matches only a path segment equal to `value`. */
     final case class Literal(value: String) extends Segment
   }
 
+  /**
+   * Parses `expression` and evaluates it for `path` and `bucket`. Returns
+   * `Maybe.absent` when no choice matches, and also when the expression does
+   * not parse.
+   */
   def select(expression: String, path: String, bucket: Int): Maybe[String] =
     parseChoices(expression) match {
       case Right(choices) => evaluateIndex(choices, path, bucket)
       case Left(_)        => Maybe.absent
     }
 
+  /**
+   * Parses `expression`, or returns the first error as a
+   * [[ConfigError.InvalidValue]] whose key and source are `rollout`. An empty
+   * expression, an empty choice between two `;` (as in `a;;b`; a trailing `;`
+   * is ignored), a selector that is only a percentage, and a percentage above
+   * 100 are errors. A selector that does not end in `%` is a path, so
+   * `true@x/50` is the two-segment path `x`, `50`, a known bug.
+   *
+   * {{{
+   * val parsed = Rollout.parseChoices("v2@canary; v1").map(_.entries.map {
+   *   case Rollout.Choice.Targeted(value, selector) => value + " for " + selector.segments.mkString("/")
+   *   case Rollout.Choice.CatchAll(value)           => value + " otherwise"
+   * })
+   * // Right(List(v2 for Literal(canary), v1 otherwise))
+   * val failed = Rollout.parseChoices("v2@50%").left.map(_.message)
+   * // Left(Invalid value '50%' for key 'rollout' (expected selector path before /NN%) in source 'rollout')
+   * }}}
+   */
   def parseChoices(expression: String): Either[ConfigError, Choices] = {
     val trimmed = expression.trim
     if (trimmed.isEmpty)
@@ -74,6 +135,11 @@ object Rollout {
     else Right(Choices(parsed.collect { case Right(c) => c }))
   }
 
+  /**
+   * Returns the value of the first choice that matches `path` (split on `/`)
+   * and `bucket`, or `Maybe.absent`. A percentage of 0% never matches, 100%
+   * always does, and `n%` matches when `bucket` is below `n`.
+   */
   def evaluateIndex(choices: Choices, path: String, bucket: Int): Maybe[String] = {
     val pathParts = if (path.isEmpty) Array.empty[String] else path.split("/")
     val entries   = choices.entries
@@ -90,9 +156,25 @@ object Rollout {
     Maybe.absent
   }
 
+  /**
+   * Returns the bucket of `key`, from 0 to 99, computed from the key's
+   * MurmurHash3 hash. A key always gets the same bucket, whatever the flag, so
+   * percentage rollouts of different flags pick the same keys, a known bug.
+   */
   def bucketFor(key: String): Int =
     math.abs(MurmurHash3.stringHash(key) % 100)
 
+  /**
+   * Parses `expression` and returns warnings: choices after a catch-all, and
+   * selector patterns whose percentages add up to more than 100%. Evaluation
+   * treats each percentage as a threshold on the same bucket, not as a share,
+   * so the second warning fires on a valid split, a known bug.
+   *
+   * {{{
+   * val warnings = Rollout.validate("v3; v2@canary")
+   * // Right(List(Choices after index 0 are unreachable (catch-all found)))
+   * }}}
+   */
   def validate(expression: String): Either[ConfigError, List[String]] =
     parseChoices(expression).map { choices =>
       val warnings = List.newBuilder[String]

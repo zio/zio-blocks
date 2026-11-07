@@ -1,6 +1,7 @@
 ---
 id: query-dsl-sql
 title: "Query DSL with Reified Optics — Part 2: SQL Generation"
+description: "Turn query expressions into SQL WHERE clauses, SELECT statements and parameterized queries, then inspect the generated SQL, preview migration SQL and dump SQL at compile time."
 ---
 
 In this guide, we will build a SQL query generator that translates ZIO Blocks' `SchemaExpr` expression trees into SQL WHERE clauses, SELECT statements, and parameterized queries. By the end, you will have an interpreter that takes any `SchemaExpr`-based query and produces executable SQL, covering comparisons, boolean logic, arithmetic, string operations, nested structures, and safe parameterization.
@@ -15,6 +16,7 @@ This is Part 2 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 - Building complete `SELECT ... FROM ... WHERE ...` statements
 - Generating parameterized queries for SQL injection safety
 - Handling nested structures with table-qualified column names
+- Building upserts, inspecting generated SQL, and dumping SQL at compile time
 
 ## The Problem
 
@@ -36,15 +38,19 @@ def findProducts(category: Option[String], maxPrice: Option[Double], inStock: Op
 
 This is fragile, repetitive, and vulnerable to SQL injection. Every new query shape requires new string-building code. The query logic is duplicated -- once as a `SchemaExpr` for in-memory filtering, and again as hand-written SQL for the database.
 
-`SchemaExpr` is the user-facing query API. Internally it wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the full expression AST. That means we can write a single interpreter that accepts `SchemaExpr`, then crosses into the dynamic AST internally to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
+`SchemaExpr` is the user-facing query API. Internally it wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the expression AST. That means we can write a single interpreter that accepts `SchemaExpr`, then crosses into the dynamic AST internally to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
 
 ## Prerequisites
 
 This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md). You should be comfortable building `SchemaExpr` values with optic operators (`===`, `>`, `&&`, etc.).
 
+Add the dependency:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
+
+Then import the schema package:
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -76,11 +82,11 @@ object Product extends CompanionOptics[Product] {
 
 ## The SchemaExpr API
 
-Before we build the interpreter, keep the API boundary in mind: application code builds `SchemaExpr[A, B]` values, while interpreter code may inspect the underlying `DynamicSchemaExpr` through `.dynamic`.
+Before we build the interpreter, keep the API boundary in mind: application code builds `SchemaExpr[A, B]` values, while interpreter code may inspect the underlying `DynamicSchemaExpr` through `SchemaExpr#dynamic`, as the following outline shows:
 
 ```
 SchemaExpr[A, B]                        -- user-facing, typed API
-└── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary
+└── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary (cases used in this guide)
     ├── Select(path: DynamicOptic)      -- field reference
     ├── Literal(value: DynamicValue, schema: Schema[_])  -- constant value
     ├── Relational(left, right, op)     -- comparisons
@@ -96,7 +102,7 @@ Most users never need to construct `DynamicSchemaExpr` directly. The normal work
 
 1. Build a typed `SchemaExpr` with optics and operators.
 2. Pass that `SchemaExpr` to your interpreter.
-3. Let the interpreter read `.dynamic` internally.
+3. Let the interpreter read `SchemaExpr#dynamic` internally.
 
 The dynamic cases are still worth understanding because they are what your interpreter will pattern-match on:
 
@@ -116,8 +122,13 @@ LogicalOperator
 ArithmeticOperator
 ├── Add
 ├── Subtract
-└── Multiply
+├── Multiply
+├── Divide
+├── Pow
+└── Modulo
 ```
+
+The interpreter below handles `Add`, `Subtract` and `Multiply` and emits `?` for every other case.
 
 Each dynamic case carries enough information to produce SQL: `Select` nodes carry field paths, `Literal` nodes carry values, and operator nodes carry the operation type. Our interpreter walks this tree and emits SQL fragments.
 
@@ -136,6 +147,8 @@ def columnName(path: DynamicOptic): String =
 ```
 
 This converts the optic path to a column name. For a simple field like `Product.price`, it produces `"price"`. For a nested path, it joins field names with underscores (we will refine this for table-qualified names later).
+
+Evaluating it on the Part 1 lenses gives:
 
 ```scala mdoc
 columnName(Product.price)
@@ -220,7 +233,7 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
   case DynamicSchemaExpr.StringConcat(left, right) =>
     s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
 
-  // Regex match → column LIKE pattern (simplified)
+  // Regex match → LIKE (simplified: regex semantics are not preserved)
   case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
     s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
 
@@ -234,17 +247,17 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
 
 The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching stays inside the interpreter implementation:
 
-| DynamicSchemaExpr Case | SQL Output                           |
-|------------------------|--------------------------------------|
-| `Select(path)`         | Column name from `DynamicOptic`      |
-| `Literal(value, schema)` | SQL literal (`'text'`, `42`, `TRUE`) |
-| `Relational(_, _, op)` | `=`, `<>`, `<`, `>`, `<=`, `>=`      |
-| `Logical(_, _, op)`    | `AND`, `OR`                          |
-| `Not(expr)`            | `NOT (...)`                          |
-| `Arithmetic(_, _, op, _)` | `+`, `-`, `*`                     |
-| `StringConcat`         | `CONCAT(a, b)`                       |
-| `StringRegexMatch`     | `LIKE` (pattern matching)            |
-| `StringLength`         | `LENGTH(col)`                        |
+| DynamicSchemaExpr Case    | SQL Output                                             |
+| ------------------------- | ------------------------------------------------------ |
+| `Select(path)`            | Column name from `DynamicOptic`                        |
+| `Literal(value, schema)`  | SQL literal (`'text'`, `42`, `TRUE`)                   |
+| `Relational(_, _, op)`    | `=`, `<>`, `<`, `>`, `<=`, `>=`                        |
+| `Logical(_, _, op)`       | `AND`, `OR`                                            |
+| `Not(expr)`               | `NOT (...)`                                            |
+| `Arithmetic(_, _, op, _)` | `+`, `-`, `*`                                          |
+| `StringConcat`            | `CONCAT(a, b)`                                         |
+| `StringRegexMatch`        | `LIKE` (simplified: regex semantics are not preserved) |
+| `StringLength`            | `LENGTH(col)`                                          |
 
 ## Generating SQL from Queries
 
@@ -255,6 +268,8 @@ val isElectronics = Product.category === "Electronics"
 val expensiveItems = Product.price > 100.0
 val highRated = Product.rating >= 4
 ```
+
+Each query translates to a WHERE-clause fragment:
 
 ```scala mdoc
 toSql(isElectronics)
@@ -276,6 +291,8 @@ val goodDeal =
 val outOfStock = !Product.inStock
 ```
 
+Each compound query renders with nested parentheses:
+
 ```scala mdoc
 toSql(affordableElectronics)
 toSql(goodDeal)
@@ -290,6 +307,8 @@ val complexQuery =
   ((Product.category === "Office") && (Product.rating >= 4))
 ```
 
+The nested query renders as one expression:
+
 ```scala mdoc
 toSql(complexQuery)
 ```
@@ -302,6 +321,8 @@ Arithmetic expressions translate directly to SQL math:
 val discountedPrice = Product.price * 0.9
 val priceWithTax = Product.price * 1.08
 ```
+
+Arithmetic expressions render as SQL math:
 
 ```scala mdoc
 toSql(discountedPrice)
@@ -322,6 +343,8 @@ val labeledName = Product.name.concat(" [SALE]")
 // String length → LENGTH()
 val nameLength = Product.name.length
 ```
+
+String operations render as SQL functions:
 
 ```scala mdoc
 toSql(startsWithL)
@@ -359,6 +382,8 @@ def selectWithLimit(
 ```scala mdoc:silent
 val query = (Product.category === "Electronics") && (Product.inStock === true) && (Product.price < 500.0)
 ```
+
+The statement builders render complete queries:
 
 ```scala mdoc
 select("products", query)
@@ -459,6 +484,8 @@ val q = (Product.category === "Electronics") && (Product.price < 500.0) && (Prod
 val paramQuery = toParameterized(q)
 ```
 
+The SQL holds placeholders and the parameter list holds the values:
+
 ```scala mdoc
 paramQuery.sql
 paramQuery.params
@@ -519,6 +546,8 @@ def qualifiedColumnName(optic: zio.blocks.schema.Optic[?, ?]): String = {
   else s"${fields.init.mkString("_")}.${fields.last}"
 }
 ```
+
+The qualified names join nested fields with a dot:
 
 ```scala mdoc
 qualifiedColumnName(Seller.name)
@@ -708,13 +737,13 @@ val query =
 
 // Inline SQL for debugging
 println(select("products", query))
-// SELECT * FROM products WHERE (((category = 'Electronics') AND (inStock = TRUE)) AND (price < 500.0)) AND (rating >= 4))
+// SELECT * FROM products WHERE ((((category = 'Electronics') AND (inStock = TRUE)) AND (price < 500.0)) AND (rating >= 4))
 
 // Parameterized SQL for execution
 val pq = toParameterized(query)
 println(s"SQL:    ${pq.sql}")
 println(s"Params: ${pq.params}")
-// SQL:    (((category = ?) AND (inStock = ?)) AND (price < ?)) AND (rating >= ?))
+// SQL:    ((((category = ?) AND (inStock = ?)) AND (price < ?)) AND (rating >= ?))
 // Params: List(Electronics, true, 500.0, 4)
 
 // String operations in SQL
@@ -737,69 +766,20 @@ All identifiers (table name, column names, conflict column) are validated throug
 `Table.columns`. Invalid or unknown names throw `IllegalArgumentException` at
 build time, not at execution time.
 
-### Table-aware builders
+For a task-oriented walkthrough of the table-aware builders (`Upsert.insertDoNothing`,
+`Upsert.insertDoUpdate` with and without `updateColumns`) and the `Repo#insertOrUpdate`
+and `Repo#insertOrUpdateBatch` wrappers, run against a real SQLite database, see
+[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
+The builders below take column names and `DbValue`s directly, without a `Table`.
 
-The high-level `Upsert` builders accept a `Table[A]` and an entity. The table
-provides column names and a codec that extracts `DbValue` parameters.
-
-`Upsert.insertDoNothing` builds `INSERT ... ON CONFLICT ("id") DO NOTHING`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
-val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
-```
-
-`Upsert.insertDoUpdate` builds `INSERT ... ON CONFLICT ("id") DO UPDATE SET`
-for **all** non-conflict columns:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// INSERT INTO user (id, name, email) VALUES (?, ?, ?)
-//   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
-val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
-```
-
-Pass `updateColumns` to restrict which columns are overwritten on conflict:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-val table: Table[User] = Table.derived[User]
-val user = User(42, "Alice", "alice@example.com")
-
-// Only "name" is updated on conflict; "email" keeps its original value
-val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id", updateColumns = Seq("name"))
-```
-
-### Low-level builders
+### Low-Level Builders
 
 When you need full control over column names and values (e.g. computed or
 transformed data), use the low-level `Upsert.doNothing`, `Upsert.doNothingRaw`,
 and `Upsert.doUpdate` builders:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
+import zio.blocks.sql._
 
 // Low-level DO NOTHING with explicit columns and values
 val frag1: Frag = Upsert.doNothing(
@@ -827,13 +807,13 @@ val frag3: Frag = Upsert.doUpdate(
 )
 ```
 
-### Suffix builders
+### Suffix Builders
 
 To append an `ON CONFLICT` clause to an existing `INSERT` `Frag`, use the suffix
 builders:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.*
+import zio.blocks.sql._
 
 val base: Frag = Frag.literal("INSERT INTO users (id, name) VALUES (?, ?)")
 
@@ -847,126 +827,15 @@ val withUpdate: Frag = base ++ Upsert.doUpdateSuffix(
 )
 ```
 
-### Repository integration
-
-`Repo` provides `insertOrUpdate` and `insertOrUpdateBatch` as convenience
-wrappers that use `Upsert.insertDoUpdate` under the hood. The conflict target is
-the repository's validated ID column, and all non-ID columns are overwritten with
-the entity's values.
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-given DbCon = ???
-
-val table: Table[User] = Table.derived[User]
-val repo: Repo[User, Int] = ???
-
-val user = User(42, "Alice", "alice@example.com")
-
-// Single upsert
-val affected: Int = repo.insertOrUpdate(user)
-
-// Batch upsert
-val users: List[User] = List(user, User(43, "Bob", "bob@example.com"))
-val totalAffected: Int = repo.insertOrUpdateBatch(users)
-```
-
-These generate SQL like:
-
-```sql
-INSERT INTO user (id, name, email) VALUES (?, ?, ?)
-  ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
-```
-
-`insertOrUpdateBatch` uses a JDBC batch for efficiency, mirroring the pattern of
-`insertBatch`. Both return the total affected row count.
-
 ## Keyset Pagination
 
-Keyset (cursor) pagination avoids the cost and drift of `OFFSET` by seeking
-after the last seen key: `WHERE id > ? ORDER BY id ASC LIMIT n`. The row
-identified by the cursor is excluded (`>` not `>=`) so consecutive pages do
-not duplicate the boundary row.
-
-`Repo` exposes this directly for primary-key cursors:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-
-given DbCon = ???
-
-val repo: Repo[User, Int] = ??? // e.g. Repo(table, "id", idCodec, _.id)
-
-val firstPage: List[User]  = repo.pageAfter(cursorId = 0, limit = 20)
-val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit = 20)
-// when cursorId == last id, nextPage is empty
-```
-
-It renders as:
-
-```sql
-SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
-```
-
-where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
-
-For non-ID orderings or ad-hoc queries, `Frag.keysetAfter` builds the
-portable `WHERE col > ? ORDER BY col ASC LIMIT n` fragment without a `Repo`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-
-case class User(id: Int, name: String, email: String)
-import zio.blocks.schema.Schema
-object User { implicit val schema: Schema[User] = Schema.derived }
-val table: Table[User] = Table.derived[User]
-
-// Table-validated: rejects unknown columns
-val frag: Frag = Frag.keysetAfter(table, orderCol = "id", lastValue = DbValue.DbInt(42), limit = 20)
-// frag.sql(dialect) == " WHERE id > ? ORDER BY id ASC LIMIT 20"
-
-// Without a table: identifier-only validation
-val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.DbLong(1000L), limit = 10)
-```
-
-- `Frag.keysetAfter(table, orderCol, lastValue, limit)` validates `orderCol`
-  with `SqlIdentifier.validate` and checks membership in `table.columns`;
-  unknown columns throw `IllegalArgumentException`.
-- `Frag.keysetAfter(orderCol, lastValue, limit)` validates the identifier only.
-- `limit` must be `> 0`; single-column cursors only (composite cursors are v2).
-
-Compose with a base `SELECT`:
-
-```scala mdoc:compile-only
-import zio.blocks.sql.*
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User { implicit val schema: Schema[User] = Schema.derived }
-val table: Table[User] = Table.derived[User]
-
-val base     = Frag.literal("SELECT id, name, email FROM user")
-val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
-// Rendering the SQL does not require a DbCon:
-val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
-// Executing needs givens at the call site:
-// given DbCon = ???
-// given DbCodec[User] = table.codec
-// val rows: List[User] = pageFrag.query[User]
-```
+Keyset (cursor) pagination with `Repo#pageAfter` and `Frag.keysetAfter`, including how
+to page through a filtered query and why it beats `OFFSET`, is covered in
+[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md).
 
 ## Inspecting SQL
 
-The custom interpreter above produces raw strings useful for debugging. When you work with the `sql` module's built-in query builder (`zio.blocks.sql.SqlQuery`) or the query IR (`zio.blocks.sql.query.SqlQuery`), you get richer inspection APIs.
+The custom interpreter above produces raw strings useful for debugging. The `sql` module's query IR (`zio.blocks.sql.query.SqlQuery`) provides richer inspection APIs.
 
 ### explain(dialect): String
 
@@ -974,58 +843,50 @@ The `explain` method renders the full SQL text with numbered parameter placehold
 
 ```scala
 import zio.blocks.sql._
+import zio.blocks.sql.query.{Rel, SqlQuery => Select}
 
 val userTable = Table.derived[User]
 val repoTable = Table.derived[Repo]
 
-val q = SqlQuery
+val q = Select
   .from(userTable)
-  .join(repoTable, "id", "owner_id")
-  .where(userTable, "name", DbValue.DbString("alice"))
+  .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+  .filter(Frag(IndexedSeq("""t0."name" = """, ""), IndexedSeq(DbValue.DbString("alice"))))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 
-`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `SqlQuery.build`). The `?N`
+`explain` renders a single-line SQL string with numbered `?N` placeholders. The `?N`
 placeholders correspond one-to-one with the parameter list you can obtain separately via
-`statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a
+`toFrag(dialect).params`. This makes `explain` useful for logging and visual debugging without touching a
 database.
 
-### statement(dialect): SqlStatement
+### Inspecting the Query IR
 
-The `statement` method returns a structured `SqlStatement` that decomposes the query into its constituent parts:
+The query itself is a case class, so every part is available programmatically:
 
 ```scala
-val st = q.statement(SqlDialect.PostgreSQL)
-
-st.source      // Source(table = "user", alias = "t0")
-st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
-st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
-st.groupBy     // None
-st.orderBy     // Vector.empty
-st.limit       // None
-st.offset      // None
-st.toFrag      // Frag (re-renderable to SQL)
+q.source       // Table[User] for "user"
+q.joins        // Vector(JoinNode(repoTable, "t1", Inner, <on-frag>))
+q.filters      // Vector(Frag(t0."name" = ?, DbString(alice)))
+q.groupBy      // Vector.empty
+q.orderBy      // Vector.empty
+q.limit        // None
+q.offset       // None
+q.toFrag       // Frag (re-renderable to SQL via frag.sql(dialect))
 ```
 
-`SqlStatement` lets you inspect joins, filters, ordering, and limits programmatically. This is useful for building monitoring dashboards, query analyzers, or dynamic query modification layers.
+Inspecting the IR directly lets you examine joins, filters, ordering, and limits programmatically. This is useful for building monitoring dashboards, query analyzers, or dynamic query modification layers.
 
-### sql(dialect): String (Query IR)
+### sql(dialect): String
 
-The newer query IR (`zio.blocks.sql.query.SqlQuery`) provides a simpler `sql` method:
+The query IR also provides a simpler `SqlQuery#sql` method that renders `?` placeholders for execution:
 
 ```scala
-import zio.blocks.sql.query._
-
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(userToRepo)
-  .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
-
 println(q.sql(SqlDialect.PostgreSQL))
-// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t0."id" = t1."owner_id" WHERE t0."name" = $1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?
 ```
 
 ### previewSql() for Migrations
@@ -1058,9 +919,11 @@ val statements: Vector[String] = migrator.previewSql()
 
 This gives you a dry run of the migration SQL before any schema changes are applied.
 
-## Compile-time SQL Dumps
+## Compile-Time SQL Dumps
 
-The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable`, `Dump.dump`, or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
+To run joins against a real database and dump their SQL, see [How to Write Joins and Inspect the Generated SQL](./write-joins-and-inspect-generated-sql.md).
+
+The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable` or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
 
 ### Enabling Dumps
 
@@ -1082,16 +945,13 @@ Both approaches set the property on the sbt process, which is the same JVM that 
 
 ### Entry Points
 
-There are three inline macro entry points, all in `zio.blocks.sql.Dump`:
+There are two inline macro entry points, all in `zio.blocks.sql.Dump`:
 
 ```scala
 import zio.blocks.sql._
 
 // Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
 Dump.dumpTable(userTable)
-
-// Dump a SqlQuery's SELECT (legacy builder)
-Dump.dump(userQuery)
 
 // Dump a query IR's SELECT
 Dump.dumpQuery(queryIr)
@@ -1111,9 +971,9 @@ target/sql-dumps/
   repo-sqlite.sql
 ```
 
-For `dumpTable`, the owner comes from the `Table`'s type name. For `dump` and `dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
+For `Dump.dumpTable`, the owner comes from the `Table`'s type name. For `Dump.dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
 
-### Content-hash Skip
+### Content-Hash Skip
 
 Each dump file is written only when its content differs from the existing file. The macro compares the new bytes against any existing file at the target path. If they match, the write is skipped. This means incremental compilations do not produce noisy diffs or unnecessary filesystem writes.
 
@@ -1128,7 +988,7 @@ Compile-time dumps work well for statically constructed queries, but some SQL pa
 - **Phase 2 note.** A future phase may extend `Dump` to cover `Repo`-level CRUD operations and dynamic fragment composition. For now, treat the dump as a DDL and static-query snapshot, not a complete representation of every SQL statement your application will execute.
 
 :::tip
-Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` captures the schema DDL at compile time, while `previewSql` captures the migration SQL at runtime before execution.
+Pair `Dump.dumpTable` with `SmallMigrator#previewSql` for a fuller picture: `Dump.dumpTable` captures the schema DDL at compile time, while `SmallMigrator#previewSql` captures the migration SQL at runtime before execution.
 :::
 
 ## Going Further
@@ -1139,5 +999,6 @@ Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` capt
 - **[SchemaExpr Reference](../reference/schema/schema-expr.md)** -- Full API coverage of expression types
 - **[Optics Reference](../reference/schema/optics.md)** -- Lens, Prism, Optional, and Traversal
 - **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic field extraction
+- **[How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md)** -- Insert-or-update rows and page through large tables with keyset cursors
 
-The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: access `.dynamic`, pattern match on the AST, map operators, and extract field names from optic paths.
+The interpreter pattern shown here extends naturally to other query targets. Because `SchemaExpr` wraps a `DynamicSchemaExpr` sealed trait and `DynamicOptic` carries full path metadata, you can write interpreters for MongoDB filters, Elasticsearch queries, GraphQL filters, or any other query language using the same approach: access `SchemaExpr#dynamic`, pattern match on the AST, map operators, and extract field names from optic paths.

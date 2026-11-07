@@ -1,7 +1,7 @@
 package stream
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.streams.*
+import zio.blocks.streams._
 
 /**
  * Semi-realistic walkthrough: a sensor-telemetry quality gate.

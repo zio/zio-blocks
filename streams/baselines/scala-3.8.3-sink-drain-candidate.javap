@@ -1,0 +1,500 @@
+Compiled from "Sink.scala"
+public final class zio.blocks.streams.Sink$FoldLeftInt<A> extends zio.blocks.streams.Sink<scala.runtime.Nothing$, A, java.lang.Object> {
+  private final int z;
+
+  private final scala.Function2<java.lang.Object, A, java.lang.Object> f0;
+
+  public zio.blocks.streams.Sink$FoldLeftInt(int, scala.Function2<java.lang.Object, A, java.lang.Object>);
+    Code:
+       0: aload_0
+       1: iload_1
+       2: putfield      #47                 // Field z:I
+       5: aload_0
+       6: aload_2
+       7: putfield      #49                 // Field f0:Lscala/Function2;
+      10: aload_0
+      11: invokespecial #52                 // Method zio/blocks/streams/Sink."<init>":()V
+      14: return
+
+  public java.lang.Object drain(zio.blocks.streams.io.Reader$AsyncReader<?>);
+    Code:
+       0: getstatic     #64                 // Field zio/blocks/streams/Sink$.MODULE$:Lzio/blocks/streams/Sink$;
+       3: aload_1
+       4: aload_0
+       5: getfield      #47                 // Field z:I
+       8: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+      11: aload_0
+      12: invokedynamic #88,  0             // InvokeDynamic #0:apply:(Lzio/blocks/streams/Sink$FoldLeftInt;)Lscala/Function2;
+      17: invokevirtual #92                 // Method zio/blocks/streams/Sink$.foldAsyncReader:(Lzio/blocks/streams/io/Reader$AsyncReader;Ljava/lang/Object;Lscala/Function2;)Ljava/lang/Object;
+      20: areturn
+
+  public int drain(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_1
+       1: invokevirtual #99                 // Method zio/blocks/streams/io/Reader$SyncReader.jvmType:()Lzio/blocks/streams/JvmType;
+       4: astore_2
+       5: aload_2
+       6: getstatic     #102                // Field zio/blocks/streams/JvmType$Int$.MODULE$:Lzio/blocks/streams/JvmType$Int$;
+       9: if_acmpne     18
+      12: aload_0
+      13: aload_1
+      14: invokespecial #105                // Method foldInt:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      17: ireturn
+      18: aload_2
+      19: getstatic     #108                // Field zio/blocks/streams/JvmType$Long$.MODULE$:Lzio/blocks/streams/JvmType$Long$;
+      22: if_acmpne     31
+      25: aload_0
+      26: aload_1
+      27: invokespecial #111                // Method foldLong:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      30: ireturn
+      31: aload_2
+      32: getstatic     #114                // Field zio/blocks/streams/JvmType$Float$.MODULE$:Lzio/blocks/streams/JvmType$Float$;
+      35: if_acmpne     44
+      38: aload_0
+      39: aload_1
+      40: invokespecial #117                // Method foldFloat:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      43: ireturn
+      44: aload_2
+      45: getstatic     #120                // Field zio/blocks/streams/JvmType$Double$.MODULE$:Lzio/blocks/streams/JvmType$Double$;
+      48: if_acmpne     57
+      51: aload_0
+      52: aload_1
+      53: invokespecial #123                // Method foldDouble:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      56: ireturn
+      57: aload_2
+      58: getstatic     #126                // Field zio/blocks/streams/JvmType$Byte$.MODULE$:Lzio/blocks/streams/JvmType$Byte$;
+      61: if_acmpne     70
+      64: aload_0
+      65: aload_1
+      66: invokespecial #129                // Method foldByte:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      69: ireturn
+      70: aload_0
+      71: aload_1
+      72: invokespecial #132                // Method foldGeneric:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+      75: ireturn
+
+  private int foldInt(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field f0:Lscala/Function2;
+       4: astore_2
+       5: aload_0
+       6: getfield      #47                 // Field z:I
+       9: istore_3
+      10: ldc2_w        #138                // long -9223372036854775808l
+      13: lstore        4
+      15: aload_1
+      16: lload         4
+      18: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      21: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      24: invokevirtual #152                // Method zio/blocks/streams/io/Reader$SyncReader.readInt:(JLscala/$less$colon$less;)J
+      27: lstore        6
+      29: lload         6
+      31: lload         4
+      33: lcmp
+      34: ifeq          79
+      37: aload_2
+      38: iload_3
+      39: lload         6
+      41: l2i
+      42: invokeinterface #158,  3          // InterfaceMethod scala/Function2.apply$mcIII$sp:(II)I
+      47: istore_3
+      48: goto          62
+      51: astore        8
+      53: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      56: aload         8
+      58: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      61: athrow
+      62: aload_1
+      63: lload         4
+      65: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      68: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      71: invokevirtual #152                // Method zio/blocks/streams/io/Reader$SyncReader.readInt:(JLscala/$less$colon$less;)J
+      74: lstore        6
+      76: goto          29
+      79: iload_3
+      80: ireturn
+    Exception table:
+       from    to  target type
+          37    48    51   Class zio/blocks/streams/internal/StreamError
+
+  private int foldLong(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field f0:Lscala/Function2;
+       4: astore_2
+       5: aload_0
+       6: getfield      #47                 // Field z:I
+       9: istore_3
+      10: ldc2_w        #138                // long -9223372036854775808l
+      13: lstore        4
+      15: aload_1
+      16: lload         4
+      18: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      21: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      24: invokevirtual #177                // Method zio/blocks/streams/io/Reader$SyncReader.readLong:(JLscala/$less$colon$less;)J
+      27: lstore        6
+      29: lload         6
+      31: lload         4
+      33: lcmp
+      34: ifeq          78
+      37: aload_2
+      38: iload_3
+      39: lload         6
+      41: invokeinterface #181,  4          // InterfaceMethod scala/Function2.apply$mcIIJ$sp:(IJ)I
+      46: istore_3
+      47: goto          61
+      50: astore        8
+      52: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      55: aload         8
+      57: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      60: athrow
+      61: aload_1
+      62: lload         4
+      64: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      67: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      70: invokevirtual #177                // Method zio/blocks/streams/io/Reader$SyncReader.readLong:(JLscala/$less$colon$less;)J
+      73: lstore        6
+      75: goto          29
+      78: iload_3
+      79: ireturn
+    Exception table:
+       from    to  target type
+          37    47    50   Class zio/blocks/streams/internal/StreamError
+
+  private int foldFloat(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field f0:Lscala/Function2;
+       4: astore_2
+       5: aload_0
+       6: getfield      #47                 // Field z:I
+       9: istore_3
+      10: ldc2_w        #183                // double 1.7976931348623157E308d
+      13: dstore        4
+      15: aload_1
+      16: dload         4
+      18: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      21: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      24: invokevirtual #188                // Method zio/blocks/streams/io/Reader$SyncReader.readFloat:(DLscala/$less$colon$less;)D
+      27: dstore        6
+      29: dload         6
+      31: dload         4
+      33: dcmpl
+      34: ifeq          88
+      37: aload_2
+      38: iload_3
+      39: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+      42: dload         6
+      44: d2f
+      45: invokestatic  #192                // Method scala/runtime/BoxesRunTime.boxToFloat:(F)Ljava/lang/Float;
+      48: invokeinterface #194,  3          // InterfaceMethod scala/Function2.apply:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      53: invokestatic  #198                // Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+      56: istore_3
+      57: goto          71
+      60: astore        8
+      62: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      65: aload         8
+      67: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      70: athrow
+      71: aload_1
+      72: dload         4
+      74: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      77: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      80: invokevirtual #188                // Method zio/blocks/streams/io/Reader$SyncReader.readFloat:(DLscala/$less$colon$less;)D
+      83: dstore        6
+      85: goto          29
+      88: iload_3
+      89: ireturn
+    Exception table:
+       from    to  target type
+          37    57    60   Class zio/blocks/streams/internal/StreamError
+
+  private int foldDouble(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field f0:Lscala/Function2;
+       4: astore_2
+       5: aload_0
+       6: getfield      #47                 // Field z:I
+       9: istore_3
+      10: ldc2_w        #183                // double 1.7976931348623157E308d
+      13: dstore        4
+      15: aload_1
+      16: dload         4
+      18: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      21: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      24: invokevirtual #203                // Method zio/blocks/streams/io/Reader$SyncReader.readDouble:(DLscala/$less$colon$less;)D
+      27: dstore        6
+      29: dload         6
+      31: dload         4
+      33: dcmpl
+      34: ifeq          78
+      37: aload_2
+      38: iload_3
+      39: dload         6
+      41: invokeinterface #207,  4          // InterfaceMethod scala/Function2.apply$mcIID$sp:(ID)I
+      46: istore_3
+      47: goto          61
+      50: astore        8
+      52: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      55: aload         8
+      57: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      60: athrow
+      61: aload_1
+      62: dload         4
+      64: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      67: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      70: invokevirtual #203                // Method zio/blocks/streams/io/Reader$SyncReader.readDouble:(DLscala/$less$colon$less;)D
+      73: dstore        6
+      75: goto          29
+      78: iload_3
+      79: ireturn
+    Exception table:
+       from    to  target type
+          37    47    50   Class zio/blocks/streams/internal/StreamError
+
+  private int foldByte(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field f0:Lscala/Function2;
+       4: astore_2
+       5: aload_0
+       6: getfield      #47                 // Field z:I
+       9: istore_3
+      10: ldc2_w        #138                // long -9223372036854775808l
+      13: lstore        4
+      15: aload_1
+      16: lload         4
+      18: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      21: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      24: invokevirtual #152                // Method zio/blocks/streams/io/Reader$SyncReader.readInt:(JLscala/$less$colon$less;)J
+      27: lstore        6
+      29: lload         6
+      31: lload         4
+      33: lcmp
+      34: ifeq          89
+      37: aload_2
+      38: iload_3
+      39: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+      42: lload         6
+      44: l2i
+      45: i2b
+      46: invokestatic  #212                // Method scala/runtime/BoxesRunTime.boxToByte:(B)Ljava/lang/Byte;
+      49: invokeinterface #194,  3          // InterfaceMethod scala/Function2.apply:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      54: invokestatic  #198                // Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+      57: istore_3
+      58: goto          72
+      61: astore        8
+      63: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      66: aload         8
+      68: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      71: athrow
+      72: aload_1
+      73: lload         4
+      75: getstatic     #144                // Field scala/$less$colon$less$.MODULE$:Lscala/$less$colon$less$;
+      78: invokevirtual #148                // Method scala/$less$colon$less$.refl:()Lscala/$eq$colon$eq;
+      81: invokevirtual #152                // Method zio/blocks/streams/io/Reader$SyncReader.readInt:(JLscala/$less$colon$less;)J
+      84: lstore        6
+      86: goto          29
+      89: iload_3
+      90: ireturn
+    Exception table:
+       from    to  target type
+          37    58    61   Class zio/blocks/streams/internal/StreamError
+
+  private int foldGeneric(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #47                 // Field z:I
+       4: istore_2
+       5: aload_1
+       6: getstatic     #218                // Field zio/blocks/streams/internal/package$.MODULE$:Lzio/blocks/streams/internal/package$;
+       9: invokevirtual #222                // Method zio/blocks/streams/internal/package$.EndOfStream:()Ljava/lang/Object;
+      12: invokevirtual #226                // Method zio/blocks/streams/io/Reader$SyncReader.read:(Ljava/lang/Object;)Ljava/lang/Object;
+      15: astore_3
+      16: aload_3
+      17: getstatic     #218                // Field zio/blocks/streams/internal/package$.MODULE$:Lzio/blocks/streams/internal/package$;
+      20: invokevirtual #222                // Method zio/blocks/streams/internal/package$.EndOfStream:()Ljava/lang/Object;
+      23: if_acmpeq     72
+      26: aload_0
+      27: getfield      #49                 // Field f0:Lscala/Function2;
+      30: iload_2
+      31: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+      34: aload_3
+      35: invokeinterface #194,  3          // InterfaceMethod scala/Function2.apply:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      40: invokestatic  #198                // Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+      43: istore_2
+      44: goto          58
+      47: astore        4
+      49: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      52: aload         4
+      54: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      57: athrow
+      58: aload_1
+      59: getstatic     #218                // Field zio/blocks/streams/internal/package$.MODULE$:Lzio/blocks/streams/internal/package$;
+      62: invokevirtual #222                // Method zio/blocks/streams/internal/package$.EndOfStream:()Ljava/lang/Object;
+      65: invokevirtual #226                // Method zio/blocks/streams/io/Reader$SyncReader.read:(Ljava/lang/Object;)Ljava/lang/Object;
+      68: astore_3
+      69: goto          16
+      72: iload_2
+      73: ireturn
+    Exception table:
+       from    to  target type
+          26    44    47   Class zio/blocks/streams/internal/StreamError
+
+  public java.lang.Object drain(zio.blocks.streams.io.Reader$SyncReader);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokevirtual #232                // Method drain:(Lzio/blocks/streams/io/Reader$SyncReader;)I
+       5: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+       8: areturn
+
+  private final java.lang.Object drain$$anonfun$36(int, java.lang.Object);
+    Code:
+       0: getstatic     #240                // Field zio/blocks/async/Async$.MODULE$:Lzio/blocks/async/Async$;
+       3: aload_0
+       4: getfield      #49                 // Field f0:Lscala/Function2;
+       7: iload_1
+       8: invokestatic  #70                 // Method scala/runtime/BoxesRunTime.boxToInteger:(I)Ljava/lang/Integer;
+      11: aload_2
+      12: invokeinterface #194,  3          // InterfaceMethod scala/Function2.apply:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      17: invokevirtual #243                // Method zio/blocks/async/Async$.succeed:(Ljava/lang/Object;)Ljava/lang/Object;
+      20: areturn
+      21: astore_3
+      22: getstatic     #240                // Field zio/blocks/async/Async$.MODULE$:Lzio/blocks/async/Async$;
+      25: getstatic     #163                // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      28: aload_3
+      29: invokevirtual #167                // Method zio/blocks/streams/internal/StreamError$.untrusted:(Lzio/blocks/streams/internal/StreamError;)Lzio/blocks/streams/internal/StreamError;
+      32: invokevirtual #247                // Method zio/blocks/async/Async$.fail:(Ljava/lang/Throwable;)Ljava/lang/Object;
+      35: areturn
+    Exception table:
+       from    to  target type
+           0    20    21   Class zio/blocks/streams/internal/StreamError
+
+  private java.lang.Object drain$$anonfun$adapted$15(java.lang.Object, java.lang.Object);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokestatic  #198                // Method scala/runtime/BoxesRunTime.unboxToInt:(Ljava/lang/Object;)I
+       5: aload_2
+       6: invokespecial #249                // Method drain$$anonfun$36:(ILjava/lang/Object;)Ljava/lang/Object;
+       9: areturn
+
+  private static java.lang.Object $deserializeLambda$(java.lang.invoke.SerializedLambda);
+    Code:
+       0: aload_0
+       1: invokedynamic #261,  0            // InvokeDynamic #1:lambdaDeserialize:(Ljava/lang/invoke/SerializedLambda;)Ljava/lang/Object;
+       6: areturn
+}
+Compiled from "Sink.scala"
+public final class zio.blocks.streams.Sink$Mapped<E, A, Z, Z2> extends zio.blocks.streams.Sink<E, A, Z2> {
+  private final zio.blocks.streams.Sink<E, A, Z> self;
+
+  private final scala.Function1<Z, Z2> f;
+
+  public zio.blocks.streams.Sink$Mapped(zio.blocks.streams.Sink<E, A, Z>, scala.Function1<Z, Z2>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #36                 // Field self:Lzio/blocks/streams/Sink;
+       5: aload_0
+       6: aload_2
+       7: putfield      #38                 // Field f:Lscala/Function1;
+      10: aload_0
+      11: invokespecial #41                 // Method zio/blocks/streams/Sink."<init>":()V
+      14: return
+
+  public Z2 drain(zio.blocks.streams.io.Reader$SyncReader<?>);
+    Code:
+       0: aload_0
+       1: getfield      #36                 // Field self:Lzio/blocks/streams/Sink;
+       4: aload_1
+       5: invokevirtual #49                 // Method zio/blocks/streams/Sink.drain:(Lzio/blocks/streams/io/Reader$SyncReader;)Ljava/lang/Object;
+       8: astore_2
+       9: getstatic     #55                 // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      12: aload_0
+      13: aload_2
+      14: invokedynamic #74,  0             // InvokeDynamic #0:apply:(Lzio/blocks/streams/Sink$Mapped;Ljava/lang/Object;)Lscala/Function0;
+      19: invokevirtual #78                 // Method zio/blocks/streams/internal/StreamError$.callback:(Lscala/Function0;)Ljava/lang/Object;
+      22: areturn
+
+  public java.lang.Object drain(zio.blocks.streams.io.Reader$AsyncReader<?>);
+    Code:
+       0: getstatic     #88                 // Field zio/blocks/async/package$.MODULE$:Lzio/blocks/async/package$;
+       3: astore_2
+       4: aload_0
+       5: getfield      #36                 // Field self:Lzio/blocks/streams/Sink;
+       8: aload_1
+       9: invokevirtual #90                 // Method zio/blocks/streams/Sink.drain:(Lzio/blocks/streams/io/Reader$AsyncReader;)Ljava/lang/Object;
+      12: astore_3
+      13: aload_3
+      14: instanceof    #92                 // class zio/blocks/async/Failure
+      17: ifeq          22
+      20: aload_3
+      21: areturn
+      22: aload_3
+      23: instanceof    #94                 // class zio/blocks/async/Pollable
+      26: ifeq          47
+      29: aload_2
+      30: getstatic     #99                 // Field zio/blocks/async/Async$.MODULE$:Lzio/blocks/async/Async$;
+      33: invokevirtual #103                // Method zio/blocks/async/package$.inline$slowPath$i2:(Lzio/blocks/async/Async$;)Lzio/blocks/async/Async$slowPath$;
+      36: aload_3
+      37: aload_0
+      38: invokedynamic #111,  0            // InvokeDynamic #1:apply:(Lzio/blocks/streams/Sink$Mapped;)Lscala/Function1;
+      43: invokevirtual #115                // Method zio/blocks/async/Async$slowPath$.mapAsync:(Ljava/lang/Object;Lscala/Function1;)Ljava/lang/Object;
+      46: areturn
+      47: getstatic     #99                 // Field zio/blocks/async/Async$.MODULE$:Lzio/blocks/async/Async$;
+      50: aload_2
+      51: invokevirtual #119                // Method zio/blocks/async/package$.zio$blocks$async$AsyncSyntaxVersionSpecific$$inline$AsyncEncoding:()Lzio/blocks/async/AsyncEncoding$;
+      54: aload_3
+      55: invokevirtual #124                // Method zio/blocks/async/AsyncEncoding$.deliverSuccess:(Ljava/lang/Object;)Ljava/lang/Object;
+      58: astore        4
+      60: getstatic     #55                 // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+      63: aload_0
+      64: aload         4
+      66: invokedynamic #129,  0            // InvokeDynamic #2:apply:(Lzio/blocks/streams/Sink$Mapped;Ljava/lang/Object;)Lscala/Function0;
+      71: invokevirtual #78                 // Method zio/blocks/streams/internal/StreamError$.callback:(Lscala/Function0;)Ljava/lang/Object;
+      74: invokevirtual #132                // Method zio/blocks/async/Async$.succeed:(Ljava/lang/Object;)Ljava/lang/Object;
+      77: areturn
+
+  private final java.lang.Object drain$$anonfun$38(java.lang.Object);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field f:Lscala/Function1;
+       4: aload_1
+       5: invokeinterface #142,  2          // InterfaceMethod scala/Function1.apply:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: areturn
+
+  private final java.lang.Object drain$$anonfun$39$$anonfun$1(java.lang.Object);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field f:Lscala/Function1;
+       4: aload_1
+       5: invokeinterface #142,  2          // InterfaceMethod scala/Function1.apply:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: areturn
+
+  private final java.lang.Object drain$$anonfun$39(java.lang.Object);
+    Code:
+       0: getstatic     #55                 // Field zio/blocks/streams/internal/StreamError$.MODULE$:Lzio/blocks/streams/internal/StreamError$;
+       3: aload_0
+       4: aload_1
+       5: invokedynamic #149,  0            // InvokeDynamic #3:apply:(Lzio/blocks/streams/Sink$Mapped;Ljava/lang/Object;)Lscala/Function0;
+      10: invokevirtual #78                 // Method zio/blocks/streams/internal/StreamError$.callback:(Lscala/Function0;)Ljava/lang/Object;
+      13: areturn
+
+  private final java.lang.Object drain$$anonfun$40(java.lang.Object);
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field f:Lscala/Function1;
+       4: aload_1
+       5: invokeinterface #142,  2          // InterfaceMethod scala/Function1.apply:(Ljava/lang/Object;)Ljava/lang/Object;
+      10: areturn
+
+  private static java.lang.Object $deserializeLambda$(java.lang.invoke.SerializedLambda);
+    Code:
+       0: aload_0
+       1: invokedynamic #162,  0            // InvokeDynamic #4:lambdaDeserialize:(Ljava/lang/invoke/SerializedLambda;)Ljava/lang/Object;
+       6: areturn
+}

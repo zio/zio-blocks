@@ -90,6 +90,8 @@ object Shape {
 
 Under the hood, the derivation process includes deriving schemas for cases of enum (i.e. `Circle` and `Rectangle`) and finally creating a schema for the `Shape` trait itself.
 
+On Scala 3.7 and newer, `Schema.derived` also works for named tuples such as `(name: String, age: Int)` (on Scala 3.9 and newer, through the `zio-blocks-next-schema` artifact with `-experimental`). A named tuple is usually named with a type alias, and an `object` with the same name as the alias is not a companion, so a `given Schema` inside it is not found implicitly. Define the schema as a top-level `given`, or import it where you use it (for a named tuple aliased as `Reading`, `import Reading.given`). Two named-tuple features have known bugs in 0.0.56: a `when[...]` step inside `$(...)` after a named-tuple field compiles but throws `Expected a variant` at runtime, and `Into.derived` and `As.derived` reject named tuples (convert through `NamedTuple#toTuple` instead). See [How to Use Scala 3 Named Tuples with Schema](../../guides/use-named-tuples-with-schema.md) for deriving, encoding, optics and conversion to case classes.
+
 ## Built-in Schemas
 
 ZIO Blocks ships with a comprehensive set of pre-defined schemas for standard Scala and Java types, eliminating boilerplate and ensuring consistent behavior across your application.
@@ -196,6 +198,22 @@ import zio.blocks.schema.Schema
 
 Schema[Either[String, Int]]
 Schema[Either[Int, Long]]
+```
+
+### Tuples
+
+Tuples have no implicit `Schema`, unlike `Either`: `Schema[(String, Int)]` does not compile, and neither does a schema for a collection of tuples such as `Schema[List[(String, Int)]]`. A tuple field inside a derived case class needs nothing extra, because derivation handles it. To summon a tuple schema on its own, derive it with `Schema.derived` and make it implicit:
+
+```scala mdoc:silent
+import zio.blocks.schema.Schema
+
+implicit val pairSchema: Schema[(String, Int)] = Schema.derived[(String, Int)]
+```
+
+With that instance in scope, the built-in collection schemas find it, and a list of pairs encodes as a JSON array of two-element arrays:
+
+```scala mdoc
+println(Schema[List[(String, Int)]].jsonCodec.encodeToString(List(("widget", 2), ("gadget", 5))))
 ```
 
 ### Collection Types
@@ -672,3 +690,5 @@ def toJson[A: Schema](doc: A)(using
 When a type does not satisfy the grammar, the user gets a precise compile-time error naming the violating field and suggesting a fix. No runtime surprises.
 
 See the [`Allows` reference](./allows.md) for the full grammar node table, union syntax, `Self` for recursive types, newtypes, and error message examples.
+
+See also the [Your First Schema](../../guides/your-first-schema.md) tutorial for a hands-on introduction to deriving a `Schema` and round-tripping a type through JSON.

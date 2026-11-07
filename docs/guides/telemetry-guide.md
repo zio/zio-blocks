@@ -1,9 +1,12 @@
 ---
 id: telemetry-guide
 title: "Telemetry: Architecture, Patterns, and Real-World Usage"
+description: "Understand how the logging, tracing and metrics pipeline works, then wire it into a production service with sampling, exporters and ordered shutdown."
 ---
 
 `zio-blocks-telemetry` is an effect-free, zero-allocation observability library that gives you structured logging, distributed tracing, and metrics without pulling in the OpenTelemetry SDK or any effect system. This guide explains why it works the way it does, shows what happens inside each operation, and walks through patterns for production systems.
+
+New to telemetry? Start with the tutorial [Instrument a Program with Logs, Traces and Metrics](./instrument-a-program-with-logs-traces-and-metrics.md), which builds up a small batch job one pillar at a time, then come back here for the architecture and trade-offs.
 
 If you're looking for API signatures and quick copy-paste snippets, the [Telemetry Reference](../reference/telemetry/index.md) has those. This guide focuses on the "how" and "why": architecture, design trade-offs, and the kind of understanding that helps when things go wrong at 3 AM.
 
@@ -17,7 +20,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
 ```
 
-The core module also cross-builds for Scala.js:
+On the JVM, the module needs JDK 21 or newer. The core module also cross-builds for Scala.js:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
@@ -26,6 +29,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ---
 
 ## Part 1: Architecture and Design Philosophy
+
+This part explains why the library is effect-free and how a signal travels from a call site to an exporter.
 
 ### Why effect-free?
 
@@ -109,6 +114,8 @@ The global singletons are intentionally not safe to use across threads during `i
 ---
 
 ## Part 2: Logging Deep Dive
+
+This part covers the logging API, from the first call to multiple outputs and testing.
 
 ### Getting started
 
@@ -315,12 +322,12 @@ import zio.blocks.telemetry._
 log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 ```
 
-**TextLogFormatter output:**
+The text formatter writes one line per record:
 ```
 2026-05-14T09:30:00.123Z WARN  [PaymentService.handleRequest:87] slow query {table="orders", duration_ms=450}
 ```
 
-**JsonLogFormatter output:**
+The JSON formatter writes the same record in the OTLP log data model:
 ```json
 {"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
@@ -342,7 +349,7 @@ class CapturingLogProcessor extends LogRecordProcessor {
   val records = new CopyOnWriteArrayList[LogRecord]()
 
   def onEmit(record: LogRecord): Unit = records.add(record)
-  def shutdown(): Unit = records.clear()
+  def shutdown(): Unit = ()
   def forceFlush(): Unit = ()
 }
 
@@ -365,17 +372,13 @@ val warns = capturing.records.toArray.collect {
 assert(warns.exists(_.body.value.contains("payment")))
 ```
 
-Don't forget to restore state between tests:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-log.removeAll()  // drops every writer and processor; log.* becomes a no-op
-```
+Don't clean up the global logger with `log.removeAll()`. It silences logging, and in version 0.0.56 a later `log.addProcessor` or `log.writer` does not bring it back, so every test after it captures nothing (a known bug in that version). Instead, install a fresh capturing logger with `log.install` at the start of each test, and run tests that share the global logger one at a time. Passing a `Logger` to the code under test avoids the shared state altogether. [How to Test Code That Logs, Traces and Records Metrics](./test-telemetry.md) shows both patterns.
 
 ---
 
 ## Part 3: Distributed Tracing Deep Dive
+
+This part covers how spans are created, sampled, propagated and tested.
 
 ### Trace lifecycle
 
@@ -486,8 +489,6 @@ val incomingHeaders = Map(
 val parentCtx: Option[SpanContext] =
   W3CTraceContextPropagator.extract(incomingHeaders, (m, k) => m.get(k))
 
-val tracer = trace.get("api-service")
-
 // Wire the extracted context as the parent by scoping it in ContextStorage
 // A provider's own contextStorage is internal, so create one and pass it in
 val contextStorage = ContextStorage.create[Option[SpanContext]](None)
@@ -498,6 +499,9 @@ val tracerProvider = TracerProvider.builder
   .build()
 
 trace.install(tracerProvider)
+
+// Take the tracer after trace.install: it binds to the provider installed when it runs
+val tracer = trace.get("api-service")
 
 contextStorage.scoped(parentCtx) {
   tracer.span("handle-checkout", SpanKind.Server) { span =>
@@ -576,7 +580,9 @@ At provider creation time:
 // TracerProvider.builder.build() falls back to ContextStorage.defaultSpanContextStorage
 // unless you pass one; here we create an explicit instance to share
 val cs = ContextStorage.create[Option[SpanContext]](None)
-val tracerProvider = new TracerProvider(resource, sampler, processors, cs)
+val tracerProvider = TracerProvider.builder
+  .setContextStorage(cs)
+  .build()
 
 // LoggerProvider can share the same ContextStorage
 val loggerProvider = LoggerProvider.builder
@@ -591,6 +597,8 @@ This works out of the box with the global singletons: a provider built without a
 ---
 
 ## Part 4: Metrics Deep Dive
+
+This part covers choosing, pre-binding and collecting metric instruments.
 
 ### Instrument selection guide
 
@@ -687,25 +695,27 @@ val data = requests.collect()
 // startTimeNanos is always 0 — the instruments do not track a start time.
 ```
 
-Each `SumDataPoint` contains the full attribute set plus the accumulated value. The OTLP exporter's `collectFn` calls `.collect()` on each instrument you register:
+Each `SumDataPoint` contains the full attribute set plus the accumulated value. `MetricData` doesn't carry the instrument's name, so to export a snapshot, pair each one with its name, description and unit in a `NamedMetric` and encode the batch with `OtlpJsonEncoder.encodeMetrics`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
+val requests = metric.counter("http.requests.total")
+val latency  = metric.histogram("http.request.duration_ms")
+val poolSize = metric.gauge("db.pool.size")
 
-
-val metricExporter = new OtlpJsonMetricExporter(
-  config, resource, scope, sender,
-  () => Seq(
-    NamedMetric("http.requests.total",    "Total HTTP requests",   "1",  requests.collect()),
-    NamedMetric("http.request.duration",  "Request duration",      "ms", latency.collect()),
-    NamedMetric("db.pool.size",           "DB pool size",          "1",  poolSize.collect())
-  )
+def snapshot(): Seq[NamedMetric] = Seq(
+  NamedMetric("http.requests.total", "Total HTTP requests", "1", requests.collect()),
+  NamedMetric("http.request.duration_ms", "Request duration", "ms", latency.collect()),
+  NamedMetric("db.pool.size", "DB pool size", "1", poolSize.collect())
 )
+
+val payload: Array[Byte] =
+  OtlpJsonEncoder.encodeMetrics(snapshot(), Resource.empty, InstrumentationScope("my-service"))
 ```
 
-Unlike the trace and log exporters, the metric exporter has no `BatchProcessor` and no background thread: `collectFn` runs only when you ask for a snapshot, via `exportMetrics()` or `collectAllMetrics()`. Schedule those calls yourself — for example on the same `PlatformExecutor` you use for the other signals.
+Nothing collects metrics in the background: a snapshot happens only when you call `collect()`. Part 5 takes the snapshot on the same `PlatformExecutor` schedule that flushes the other signals.
 
 ### Thread safety internals
 
@@ -724,21 +734,147 @@ Unlike the trace and log exporters, the metric exporter has no `BatchProcessor` 
 
 ## Part 5: Production Setup
 
+This part wires an exporter built from the public OTLP pieces into a production service and covers tuning and shutdown.
+
 ### Full production wiring
 
-The OTEL exporters live in `package zio.blocks.telemetry.otel` and are `private[otel]`. Your bootstrap code must be in the same package (or a class in that package):
+The module's built-in OTLP exporters (`OtlpJsonTraceExporter`, `OtlpJsonLogExporter` and `OtlpJsonMetricExporter`) are `private[otel]`, so user code can't construct them. The pieces they are built from are public: `OtlpJsonEncoder` turns spans, log records and metrics into OTLP JSON, `HttpSender` posts the bytes, and `ExportResult` says whether the collector accepted them. [Building an Exporter](../reference/telemetry/otel/custom-exporter.md) covers each piece; this section wires them into a service.
 
-```scala
-import zio.blocks.telemetry.otel._
+:::warning[Don't declare the library's package]
+Scala lets your own file declare `package zio.blocks.telemetry.otel` and call the `private[otel]` exporters directly. That is an unsupported workaround, not API: their constructors can change or disappear in any release, without notice. Build on the public pieces instead.
+:::
 
+`OtlpBuffer` is the exporter. It queues one signal, drops the oldest item once `ExporterConfig#maxQueueSize` is reached, and on each flush sends what it holds in chunks of `ExporterConfig#maxBatchSize`. `Telemetry` creates one buffer per signal, feeds the span and log buffers from a `SpanProcessor` and a `LogRecordProcessor`, installs the providers, and flushes all three buffers every `ExporterConfig#flushIntervalMillis` on a `PlatformExecutor`:
 
-
+```scala mdoc:silent
 import zio.blocks.telemetry._
-import java.util.concurrent.TimeUnit
+import zio.blocks.telemetry.otel._
+import java.util.concurrent.{ArrayBlockingQueue, TimeUnit}
+import scala.jdk.CollectionConverters._
+import scala.util.control.NonFatal
+
+// Queues one signal and posts it as OTLP JSON to `<endpoint><path>`.
+final class OtlpBuffer[A](
+  config: ExporterConfig,
+  sender: HttpSender,
+  path: String,
+  encode: Seq[A] => Array[Byte]
+) {
+  private val url     = config.endpoint + path
+  private val headers = config.headers + ("Content-Type" -> "application/json")
+  private val queue   = new ArrayBlockingQueue[A](config.maxQueueSize)
+
+  def add(item: A): Unit =
+    while (!queue.offer(item)) queue.poll() // full: drop the oldest item
+
+  def flush(): Unit = {
+    val drained = new java.util.ArrayList[A]()
+    queue.drainTo(drained)
+    drained.asScala.toSeq.grouped(config.maxBatchSize).foreach(send)
+  }
+
+  private def send(batch: Seq[A]): Unit = {
+    val result =
+      try ExportResult.fromHttpResponse(sender.send(url, headers, encode(batch)))
+      catch {
+        case NonFatal(e) => ExportResult.Failure(retryable = true, message = String.valueOf(e))
+      }
+    result match {
+      case ExportResult.Success             => ()
+      case ExportResult.Failure(_, message) => System.err.println(s"OTLP export to $url failed: $message")
+    }
+  }
+}
+
+final class Telemetry(config: ExporterConfig, resource: Resource, metrics: () => Seq[NamedMetric]) {
+  private val scope    = InstrumentationScope("my-service")
+  private val sender   = HttpSender.jdk(config.timeout)
+  private val executor = PlatformExecutor.create()
+
+  private val spans =
+    new OtlpBuffer[SpanData](config, sender, "/v1/traces", OtlpJsonEncoder.encodeTraces(_, resource, scope))
+  private val logs =
+    new OtlpBuffer[LogRecord](config, sender, "/v1/logs", OtlpJsonEncoder.encodeLogs(_, resource, scope))
+  private val metricBuffer =
+    new OtlpBuffer[NamedMetric](config, sender, "/v1/metrics", OtlpJsonEncoder.encodeMetrics(_, resource, scope))
+
+  // Shared ContextStorage so log records inside spans get traceId/spanId
+  private val contextStorage = ContextStorage.create[Option[SpanContext]](None)
+
+  // --- Tracing ---
+  private val spanProcessor = new SpanProcessor {
+    def onStart(span: Span): Unit       = ()
+    def onEnd(spanData: SpanData): Unit = spans.add(spanData)
+    def forceFlush(): Unit              = spans.flush()
+    def shutdown(): Unit                = spans.flush()
+  }
+
+  val tracerProvider: TracerProvider = TracerProvider.builder
+    .setSampler(ParentBasedSampler(root = AlwaysOnSampler))
+    .addSpanProcessor(spanProcessor)
+    .setResource(resource)
+    .setContextStorage(contextStorage)
+    .build()
+
+  trace.install(tracerProvider)
+
+  // --- Logging ---
+  private val logProcessor = new LogRecordProcessor {
+    def onEmit(logRecord: LogRecord): Unit = logs.add(logRecord)
+    def forceFlush(): Unit                 = logs.flush()
+    def shutdown(): Unit                   = logs.flush()
+  }
+
+  val loggerProvider: LoggerProvider = LoggerProvider.builder
+    .addLogRecordProcessor(logProcessor)
+    .setContextStorage(contextStorage) // same storage for correlation
+    .setResource(resource)
+    .build()
+
+  log.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
+
+  // Optional: also emit JSON on stderr (a file needs your own LogWriter, see Part 2)
+  log.writer(JsonLogFormatter, StderrWriter)
+
+  // --- Metrics ---
+  val meterProvider: MeterProvider = MeterProvider.builder
+    .setResource(resource)
+    .build()
+
+  metric.install(meterProvider)
+
+  private def flushMetrics(): Unit = {
+    metrics().foreach(metricBuffer.add)
+    metricBuffer.flush()
+  }
+
+  // --- Periodic flush ---
+  private val scheduledFlush = executor.schedule(config.flushIntervalMillis, config.flushIntervalMillis, TimeUnit.MILLISECONDS) { () =>
+    try {
+      spans.flush()
+      logs.flush()
+      flushMetrics()
+    } catch {
+      case NonFatal(e) => System.err.println(s"OTLP flush failed: $e") // an escaping exception stops the schedule
+    }
+  }
+
+  // Call at JVM shutdown, in the order explained under "Graceful shutdown order"
+  def shutdown(): Unit = {
+    scheduledFlush.cancel(false) // no new periodic flushes
+    executor.shutdown()
+    executor.executor.awaitTermination(config.timeout.toMillis, TimeUnit.MILLISECONDS) // let a running flush finish
+    loggerProvider.shutdown()    // final log flush
+    tracerProvider.shutdown()    // final span flush
+    flushMetrics()               // last metric snapshot
+    meterProvider.shutdown()
+    sender.shutdown()
+    log.clearWriters()
+  }
+}
 
 object Telemetry {
-
-  def initialize(): (TracerProvider, LoggerProvider, MeterProvider, PlatformExecutor) = {
+  def fromEnv(metrics: () => Seq[NamedMetric]): Telemetry = {
     val config = ExporterConfig(
       endpoint            = sys.env.getOrElse("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
       headers             = parseHeaders(sys.env.getOrElse("OTEL_EXPORTER_OTLP_HEADERS", "")),
@@ -750,100 +886,55 @@ object Telemetry {
 
     val resource = Resource.create(
       Attributes.builder
-        .put("service.name",    sys.env.getOrElse("OTEL_SERVICE_NAME", "my-service"))
+        .put("service.name", sys.env.getOrElse("OTEL_SERVICE_NAME", "my-service"))
         .put("service.version", sys.env.getOrElse("SERVICE_VERSION", "unknown"))
         .put("deployment.environment", sys.env.getOrElse("ENVIRONMENT", "development"))
         .build
     )
 
-    val scope    = InstrumentationScope("my-service")
-    val sender   = HttpSender.jdk(java.time.Duration.ofSeconds(10))
-    val executor = PlatformExecutor.create()
-
-    // Shared ContextStorage so log records inside spans get traceId/spanId
-    val contextStorage = ContextStorage.create[Option[SpanContext]](None)
-
-    // --- Tracing ---
-    val traceExporter = new OtlpJsonTraceExporter(config, resource, scope, sender, executor)
-
-    val tracerProvider = TracerProvider.builder
-      .setSampler(ParentBasedSampler(root = AlwaysOnSampler))
-      .addSpanProcessor(traceExporter)
-      .setResource(resource)
-      .setContextStorage(contextStorage)
-      .build()
-
-    trace.install(tracerProvider)
-
-    // --- Logging ---
-    val logExporter = new OtlpJsonLogExporter(config, resource, scope, sender, executor)
-
-    val loggerProvider = LoggerProvider.builder
-      .addLogRecordProcessor(logExporter)
-      .setContextStorage(contextStorage)   // same storage for correlation
-      .setResource(resource)
-      .build()
-
-    log.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
-
-    // Optional: also emit JSON on stderr (a file needs your own LogWriter, see Part 2)
-    log.writer(JsonLogFormatter, StderrWriter)
-
-    // --- Metrics ---
-    val meterProvider = MeterProvider.builder
-      .setResource(resource)
-      .build()
-
-    metric.install(meterProvider)
-
-    (tracerProvider, loggerProvider, meterProvider, executor)
-  }
-
-  // Call at JVM shutdown
-  def shutdown(
-    tracerProvider: TracerProvider,
-    loggerProvider: LoggerProvider,
-    meterProvider: MeterProvider,
-    executor: PlatformExecutor
-  ): Unit = {
-    // Flush and close in dependency order:
-    // 1. Stop accepting new data
-    tracerProvider.forceFlush()
-    loggerProvider.shutdown()
-    // 2. Shut down the providers (calls shutdown on each processor/exporter)
-    tracerProvider.shutdown()
-    meterProvider.shutdown()
-    // 3. Stop the scheduler last
-    executor.shutdown()
-    log.clearWriters()
+    new Telemetry(config, resource, metrics)
   }
 
   private def parseHeaders(raw: String): Map[String, String] =
     if (raw.isEmpty) Map.empty
-    else raw.split(',').flatMap { pair =>
-      pair.split('=') match {
-        case Array(k, v) => Some(k.trim -> v.trim)
-        case _           => None
-      }
-    }.toMap
+    else
+      raw
+        .split(',')
+        .flatMap { pair =>
+          pair.split('=') match {
+            case Array(k, v) => Some(k.trim -> v.trim)
+            case _           => None
+          }
+        }
+        .toMap
 }
 ```
 
-Use it from your main entry point:
+`OtlpBuffer` reports a failed batch on standard error and drops it. To retry the failures that `ExportResult` marks retryable, and for the other duties of the internal batch processor, see [What You Are Reimplementing](../reference/telemetry/otel/custom-exporter.md#what-you-are-reimplementing). `MetricData` doesn't carry the instrument's name, so `Telemetry` takes a function that pairs each instrument's snapshot with its name in a `NamedMetric`.
 
-```scala
+The application supplies that function from the instruments it creates, and shuts telemetry down when the JVM stops:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+object AppMetrics {
+  val requests = metric.counter("http.requests.total")
+  val latency  = metric.histogram("http.request.duration_ms")
+
+  def snapshot(): Seq[NamedMetric] = Seq(
+    NamedMetric("http.requests.total", "Total HTTP requests", "1", requests.collect()),
+    NamedMetric("http.request.duration_ms", "Request duration", "ms", latency.collect())
+  )
+}
+
 object Main {
   def main(args: Array[String]): Unit = {
-    val (tracerProvider, loggerProvider, meterProvider, executor) =
-      zio.blocks.telemetry.otel.Telemetry.initialize()
-
-    sys.addShutdownHook {
-      zio.blocks.telemetry.otel.Telemetry.shutdown(
-        tracerProvider, loggerProvider, meterProvider, executor
-      )
-    }
+    val telemetry = Telemetry.fromEnv(() => AppMetrics.snapshot())
+    sys.addShutdownHook(telemetry.shutdown())
 
     log.info("application started")
+    AppMetrics.requests.add(1, "method" -> "GET", "status" -> "200")
     // ... your app
   }
 }
@@ -889,17 +980,19 @@ ExporterConfig(
 )
 ```
 
-The `maxQueueSize` and `maxBatchSize` interact: if records arrive faster than you export, the queue fills. When full, the oldest items are dropped (and a message is written to stderr). `maxQueueSize` should be at least `maxBatchSize * 4` to absorb transient spikes without dropping.
+`ExporterConfig#maxQueueSize` and `ExporterConfig#maxBatchSize` interact: if records arrive faster than you export, the queue fills, and once it is full the oldest items are dropped. Set `ExporterConfig#maxQueueSize` to at least four times `ExporterConfig#maxBatchSize` to absorb transient spikes without dropping.
 
 `timeout` is per HTTP request. If your OTLP collector is slow or flaky, a low timeout means you drop data rather than blocking. 10 seconds is usually right for LAN deployments; 30 seconds for cross-region.
 
 ### BatchProcessor behavior
 
-`BatchProcessor` schedules its flush on the `ScheduledExecutorService` it is handed — `PlatformExecutor.create()` supplies a single-threaded scheduled pool whose threads are virtual (`Executors.newScheduledThreadPool(1, Thread.ofVirtual()…factory())`). This means:
+The built-in exporters run on an internal `BatchProcessor`. `OtlpBuffer` in the wiring above copies its queue, chunking and interval rules but not its retries. The internal processor behaves like this:
 
-- The scheduled flush (every `flushIntervalMillis`) runs on a virtual thread
+It schedules its flush on the `ScheduledExecutorService` it is handed — `PlatformExecutor.create()` supplies a single-threaded scheduled pool whose threads are virtual (`Executors.newScheduledThreadPool(1, Thread.ofVirtual()…factory())`). This means:
+
+- The scheduled flush (every `ExporterConfig#flushIntervalMillis`) runs on a virtual thread
 - Export HTTP calls and their retry sleeps run on that same virtual thread, so backoff doesn't pin a platform thread — but the pool has one thread, so a retrying export delays every other flush sharing the executor. Give a high-volume signal its own `PlatformExecutor` if that matters.
-- A full batch does not trigger a send: `maxBatchSize` only chunks what a flush drains. Data leaves on the interval, on `forceFlush()`, or on `shutdown()`.
+- A full batch does not trigger a send: `ExporterConfig#maxBatchSize` only chunks what a flush drains. Data leaves on the interval, on `forceFlush()`, or on `shutdown()`.
 - Queue overflow drops the oldest item, prints to stderr, and continues
 
 The retry schedule uses exponential backoff: attempt 0 waits 1s, attempt 1 waits 2s, attempt 2 waits 4s... up to 30s maximum. `maxRetries` (default 5) counts retries, so a permanently failing batch is attempted 6 times before it is dropped. Non-retryable failures (e.g., 400 Bad Request from the collector) are dropped immediately.
@@ -908,16 +1001,16 @@ On `shutdown()`, `BatchProcessor` cancels the periodic flush and does a final sy
 
 ### Graceful shutdown order
 
-Shut down in this order:
+Shut down in this order; `Telemetry#shutdown` in the wiring above does steps 2 to 6:
 
 1. **Stop accepting new work.** Close your HTTP listener or message consumer.
-2. **`forceFlush()` on `TracerProvider`.** Ensures all in-flight spans are exported.
-3. **`loggerProvider.shutdown()`.** Flushes the log exporter's batch queue.
-4. **`tracerProvider.shutdown()`.** Shuts down span processors.
-5. **`meterProvider.shutdown()`.** Shuts down metric reader.
-6. **`executor.shutdown()`.** Stops the scheduled executor.
+2. **Stop the periodic flush.** Cancel the scheduled task, shut down the `PlatformExecutor` and wait for a running flush to finish, so it doesn't race the final one.
+3. **`loggerProvider.shutdown()`.** Calls the log processor's `shutdown`, which sends the remaining log records.
+4. **`tracerProvider.shutdown()`.** Calls the span processor's `shutdown`, which sends the remaining spans.
+5. **Take a last metric snapshot, then `meterProvider.shutdown()`.** Sends the final cumulative values.
+6. **`HttpSender#shutdown`.** Releases the sender.
 
-Don't shut down the executor before the providers; the batch processor's retry threads need it.
+The built-in exporters need a different order: their `BatchProcessor` flushes and retries on the executor, so shut the executor down last, after the providers.
 
 ### Environment-based configuration
 
@@ -968,6 +1061,8 @@ log.install(LoggerProvider.builder.build().get("my-service"), minSeverity = minL
 
 ## Part 6: Integration Patterns
 
+This part shows how to connect telemetry to HTTP frameworks, Java logging and Scala.js.
+
 ### With HTTP frameworks
 
 A typical middleware pattern extracts incoming trace context, starts a server span, and injects context into outbound calls. Here's the conceptual shape (adapting to your specific HTTP library):
@@ -977,20 +1072,24 @@ import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
 // Incoming request middleware
+// `storage` is the ContextStorage passed to the installed provider's setContextStorage
 def traceIncoming[Req, Resp](
   request: Req,
   getHeader: (Req, String) => Option[String],
+  storage: ContextStorage[Option[SpanContext]],
   handle: Req => Resp
 ): Resp = {
   val parentCtx = W3CTraceContextPropagator.extract(request, getHeader)
   val tracer    = trace.get("http-server")
 
-  // Use the provider's contextStorage to scope the remote parent
-  // Then start a child span under it
-  tracer.span("http.request", SpanKind.Server) { span =>
-    // Attach standard HTTP attributes
-    // ... then run the handler
-    handle(request)
+  // Scope the remote parent in the tracer's storage,
+  // then start a child span under it
+  storage.scoped(parentCtx) {
+    tracer.span("http.request", SpanKind.Server) { span =>
+      // Attach standard HTTP attributes
+      // ... then run the handler
+      handle(request)
+    }
   }
 }
 
@@ -1011,7 +1110,7 @@ def traceOutgoing[Resp](
 }
 ```
 
-For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`.
+For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`. [How to Correlate Logs and Traces Across Services](./correlate-logs-and-traces.md) builds this pattern end to end with the http-model `Request`, including the log lines of both services.
 
 ### With existing Java logging (SLF4J/JUL)
 
@@ -1029,7 +1128,7 @@ The core telemetry module (`zio-blocks-telemetry`) compiles for JVM and Scala.js
 
 JVM-only:
 - File output: a custom `LogWriter` backed by `java.io` or `FileChannel` works on the JVM only
-- `ContextStorage` using `ScopedValue`: JDK 25+ specific; on Scala.js, a simpler mutable-variable implementation is used
+- `ContextStorage` using `ScopedValue`: final in JDK 25 and a preview API in JDK 21 to 24, which the module calls without needing `--enable-preview`; on Scala.js, a simpler mutable-variable implementation is used
 - `PlatformExecutor`: uses `ScheduledExecutorService` with virtual threads
 - The entire `zio-blocks-telemetry-otel` module (OTLP HTTP export, `BatchProcessor`)
 
@@ -1041,12 +1140,12 @@ If you're writing cross-platform code that uses telemetry, keep your call sites 
 
 **"Why don't I see any log output?"**
 
-Two common causes:
+Three common causes:
 
 1. The global minimum level is filtering it out. The default floor is `Severity.Trace` (severity number 1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)` or `log.setMinSeverity(Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
-```scala
+   ```scala
    LoggerProvider.builder
      .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // don't forget this
      .build()
@@ -1090,7 +1189,7 @@ Yes. The library is effect-free. `log.info(...)` is a plain synchronous call. Ca
 
 **"Why are the OTEL exporter classes private[otel]?"**
 
-To enforce that the only way to construct and wire an `OtlpJsonTraceExporter` is from within the `zio.blocks.telemetry.otel` package. This prevents partial or incorrectly wired configurations from being assembled in arbitrary user code. Your bootstrap object, placed in that package, has full access. Everything downstream uses the installed global providers and never needs to import the exporter types.
+The module doesn't offer them as public API yet, so their constructors can change between releases. Code that declares the `zio.blocks.telemetry.otel` package can still reach them, but that is an unsupported workaround. To export telemetry today, build an exporter from the public `OtlpJsonEncoder`, `HttpSender` and `ExportResult`, as Part 5 does; [Building an Exporter](../reference/telemetry/otel/custom-exporter.md) covers each piece. Everything downstream uses the installed global providers and never needs the exporter types.
 
 **"How do I test my logging and tracing?"**
 
@@ -1100,7 +1199,7 @@ For tracing: use `trace.collectedSpans` and `trace.clearSpans()`. The default in
 
 **"What happens when the export queue fills up?"**
 
-When `queueSize` exceeds `maxQueueSize`, `enqueue` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
+When `queueSize` exceeds `ExporterConfig#maxQueueSize`, `BatchProcessor#enqueue` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
 
 ```
 [zio-blocks-telemetry] BatchProcessor queue full (2048). Dropping oldest item.
@@ -1110,7 +1209,7 @@ The new item is still enqueued. This is a best-effort, head-dropping strategy. Y
 
 **"Is this virtual-thread safe?"**
 
-Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on JDK 25+ uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
+Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on the JVM uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
 
 ---
 
@@ -1119,7 +1218,7 @@ Yes, in the sense that a span's context is bound to the current call stack wheth
 - **Complete API reference:** [Telemetry Reference](../reference/telemetry/index.md) for all types, methods, and parameter documentation
 - **Installation and quick start:** same reference doc, Installation section
 - **Context and dependency injection:** [Context Reference](../reference/context.md) for integrating `OtelContext` with the Context module
-- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
+- **Resource management:** [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
 
 ## See Also
 

@@ -22,6 +22,35 @@ import zio.blocks.projection.{EntityPath, FieldUpdate, ProjectionStore}
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.sql.SqlNameMapper
 
+/**
+ * A [[zio.blocks.projection.ProjectionStore]] kept in memory, for tests.
+ * `TestEngine` creates one for each projection.
+ *
+ * The rows are kept in a map from entity ID to row, and the watermark and the
+ * schema hash in two `Ref`s. Nothing is written to disk, so everything is lost
+ * when the program ends.
+ *
+ * `insert` fails if the ID is already taken. `updateFields` changes the row as
+ * a `DynamicValue`. When there is no row yet, it starts from a default one, in
+ * which the ID field holds `entityId` and the other fields hold empty values,
+ * such as `0`, `""` or `false`. It accepts a field either by its column name,
+ * in snake_case, or by its Scala name, and ignores a name that is neither.
+ * `recreateTable` only removes the rows, and `addColumn` does nothing, because
+ * a map has no columns.
+ *
+ * `Option` fields are a known bug: `updateFields` fails, with
+ * `Expected a variant`, when it has to create the row of a type with an
+ * `Option` field, or when it sets such a field, and `Increment` leaves a `None`
+ * field unchanged. A [[zio.blocks.projection.SQLiteProjectionStore]] handles
+ * all three.
+ *
+ * The constructor is private: create a store with
+ * `InMemoryProjectionStore.make`.
+ *
+ * @tparam A
+ *   the type of a row, with an [[zio.blocks.projection.EntityPath]] that names
+ *   its ID field
+ */
 class InMemoryProjectionStore[A: Schema: EntityPath] private (
   private val mapRef: Ref[Map[String, A]],
   private val seqRef: Ref[Long],
@@ -239,6 +268,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
   // ProjectionStore implementation
   // ---------------------------------------------------------------------------
 
+  /**
+   * Adds `a` under its ID, or fails with a `RuntimeException` (`Entity <id>
+   * already exists`) if the ID is taken.
+   */
   def insert(a: A): Task[Unit] =
     ZIO.attempt(extractId(a)).flatMap { id =>
       mapRef.modify { m =>
@@ -250,6 +283,7 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
       }
     }
 
+  /** Adds `a` under its ID, replacing any row with that ID. */
   def upsert(a: A): Task[Unit] =
     ZIO.attempt(extractId(a)).flatMap { id =>
       mapRef.update(_ + (id -> a))
@@ -319,6 +353,11 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
       case None => Left(zio.blocks.schema.SchemaError(s"Entity $schema is not a record"))
     }
 
+  /**
+   * Applies `updates` in order to the row of `entityId`, starting from a
+   * default row when there is none. Fails with a `RuntimeException` if the
+   * changed row no longer fits the schema, and leaves the row as it was.
+   */
   def updateFields(entityId: String, updates: Chunk[FieldUpdate]): Task[Unit] =
     if (updates.isEmpty) ZIO.unit
     else
@@ -344,30 +383,41 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
         case Left(e)  => ZIO.fail(e)
       }
 
+  /** Removes the row of `entityId`, if there is one. */
   def delete(entityId: String): Task[Unit] =
     mapRef.update(_ - entityId)
 
+  /** Removes every row, and keeps the watermark and the schema hash. */
   def truncate: Task[Unit] =
     mapRef.set(Map.empty)
 
+  /** Reads the row of `entityId`. */
   def findById(entityId: String): Task[Option[A]] =
     mapRef.get.map(_.get(entityId))
 
+  /** Reads the watermark, `0` in a new store. */
   def getLastProcessedSeq: Task[Long] =
     seqRef.get
 
+  /** Sets the watermark to `seq`. */
   def updateLastProcessedSeq(seq: Long): Task[Unit] =
     seqRef.set(seq)
 
+  /** Reads the schema hash, `None` in a new store. */
   def getSchemaHash: Task[Option[String]] =
     hashRef.get
 
+  /** Sets the schema hash to `hash`. */
   def updateSchemaHash(hash: String): Task[Unit] =
     hashRef.set(Some(hash))
 }
 
+/** Creates [[InMemoryProjectionStore]]s. */
 object InMemoryProjectionStore {
 
+  /**
+   * Creates an empty store: no rows, a watermark of `0`, and no schema hash.
+   */
   def make[A: Schema: EntityPath]: Task[InMemoryProjectionStore[A]] =
     for {
       map  <- Ref.make(Map.empty[String, A])
@@ -375,6 +425,17 @@ object InMemoryProjectionStore {
       hash <- Ref.make(Option.empty[String])
     } yield new InMemoryProjectionStore[A](map, seq, hash)
 
+  /**
+   * Creates a store that already holds rows, a watermark and a schema hash, for
+   * a test that starts from a known state.
+   *
+   * @param map
+   *   the rows, keyed by entity ID
+   * @param seq
+   *   the watermark
+   * @param hash
+   *   the schema hash, or `None`
+   */
   def makeWithRefs[A: Schema: EntityPath](
     map: Map[String, A] = Map.empty[String, A],
     seq: Long = 0L,

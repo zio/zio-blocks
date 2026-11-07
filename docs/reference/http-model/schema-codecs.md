@@ -461,3 +461,5 @@ Use a codec when the collection maps onto a type you already have. Use the exten
 On the HTTP side they produce and consume `Headers`, `HeadersBuilder`, `QueryParams`, and `QueryParamsBuilder` from `zio-blocks-http-model`; see [the HTTP model](./model.md) for those collections and [Header](./headers.md) for the typed single-header model, which is a different mechanism from the whole-record codecs here.
 
 Errors are `SchemaError` from the schema module rather than this module's `HeaderError` and `QueryParamError`, which belong to the field-at-a-time API on [the schema page](./schema.md).
+
+For a worked example that decodes a filter object with a derived `QueryCodec` and turns its `SchemaError` into a 400 response, see [How to Validate Query Parameters and Headers and Answer 400](../../guides/validate-query-parameters-and-headers.md).

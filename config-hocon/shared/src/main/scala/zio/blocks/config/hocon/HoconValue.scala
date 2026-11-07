@@ -21,13 +21,40 @@ package zio.blocks.config.hocon
  */
 sealed trait HoconValue
 
+/**
+ * The [[HoconValue]] cases and [[HoconValue.flatten]].
+ */
 object HoconValue {
+
+  /**
+   * A HOCON object, with its fields by key.
+   */
   final case class Obj(fields: Map[String, HoconValue]) extends HoconValue
-  final case class Arr(elements: Seq[HoconValue])       extends HoconValue
-  final case class Str(value: String)                   extends HoconValue
-  final case class Num(value: Double)                   extends HoconValue
-  final case class Bool(value: Boolean)                 extends HoconValue
-  case object Null                                      extends HoconValue
+
+  /**
+   * A HOCON array.
+   */
+  final case class Arr(elements: Seq[HoconValue]) extends HoconValue
+
+  /**
+   * A HOCON string.
+   */
+  final case class Str(value: String) extends HoconValue
+
+  /**
+   * A HOCON number, held as a `Double`.
+   */
+  final case class Num(value: Double) extends HoconValue
+
+  /**
+   * A HOCON boolean.
+   */
+  final case class Bool(value: Boolean) extends HoconValue
+
+  /**
+   * The HOCON `null`; `flatten` leaves it out.
+   */
+  case object Null extends HoconValue
 
   /**
    * Flatten a HoconValue into a map of dot-separated key-value pairs. Objects

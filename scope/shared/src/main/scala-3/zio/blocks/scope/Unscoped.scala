@@ -17,45 +17,65 @@
 package zio.blocks.scope
 
 /**
- * Marker typeclass for types that can escape a scope unscoped.
+ * A typeclass for the types whose values may leave a scope: plain data that
+ * holds no resource.
  *
- * Types with an `Unscoped` instance are considered "safe data" - they don't
- * hold resources and can be freely extracted from a scope without tracking.
+ * `scoped` and `Resource#use` return only a type with an `Unscoped` instance,
+ * and `$` returns a raw `B` instead of `$[B]` when `B` has one. A type without
+ * an instance, such as a connection or a stream, stays inside its scope.
  *
  * ==Default Instances==
  *
- * The following types have `Unscoped` instances by default:
+ * The companion provides instances for:
  *   - Primitives: `Int`, `Long`, `Short`, `Byte`, `Char`, `Boolean`, `Float`,
- *     `Double`, `Unit`
+ *     `Double`, `Unit`, and `Nothing`
  *   - Text: `String`
  *   - Numeric: `BigInt`, `BigDecimal`
  *   - Collections: `Array`, `List`, `Vector`, `Set`, `Seq`, `IndexedSeq`,
- *     `Iterable`, `Map` (when elements are `Unscoped`)
+ *     `Iterable`, `Map` and [[zio.blocks.chunk.Chunk]] (when elements are
+ *     `Unscoped`)
  *   - Containers: `Option`, `Either` (when elements are `Unscoped`)
- *   - Tuples: up to 4-tuples (when elements are `Unscoped`)
- *   - Time: `java.time.*` value types, `scala.concurrent.duration.*`
- *   - Other: `java.util.UUID`, [[zio.blocks.chunk.Chunk]]
+ *   - Tuples: up to 4-tuples (when elements are `Unscoped`); on Scala 3, larger
+ *     tuples get one through `derived`
+ *   - Time: `java.time.Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`,
+ *     `ZonedDateTime`, `OffsetDateTime`, `Duration`, `Period`, `ZoneId` and
+ *     `ZoneOffset`, and `scala.concurrent.duration.Duration` and
+ *     `FiniteDuration`
+ *   - Other: `java.util.UUID`
  *
- * ==Resource Types==
+ * ==Your Own Types==
  *
- * Types representing resources (streams, connections, handles, etc.) should NOT
- * have `Unscoped` instances. This ensures they remain tracked by the scope
- * system and cannot accidentally escape.
+ * On Scala 3, every case class, sealed trait and enum whose fields or cases all
+ * have instances gets one automatically, through the `derived` given. On Scala
+ * 2, define an instance with `Unscoped.derived`, as in the example (this also
+ * compiles on Scala 3). On Scala 3 the automatic instance is also given to a
+ * case class, sealed trait or enum that extends `AutoCloseable`, so a closed
+ * resource can leave its scope (a known bug). Do not define instances for types
+ * that hold resources.
  *
- * @example
- *   {{{
- *   // Primitives escape freely (auto-unwrapped by $)
- *   Scope.global.scoped { s =>
- *     import s._
- *     (s $ stream)(_.read()) // returns Int directly since Int: Unscoped
- *   }
+ * {{{
+ * final case class Report(title: String, rows: Int)
+ * object Report {
+ *   implicit val unscoped: Unscoped[Report] = Unscoped.derived[Report]
+ * }
  *
- *   // Resources stay scoped
- *   val body: $[InputStream] = (scope $ request)(_.body)  // InputStream stays scoped (no Unscoped instance)
- *   }}}
+ * final class Database extends AutoCloseable {
+ *   def count(table: String): Int = table.length
+ *   def close(): Unit             = ()
+ * }
+ *
+ * val report: Report = Scope.global.scoped { scope =>
+ *   import scope._
+ *   val db = allocate(new Database)
+ *   Report("users", $(db)(_.count("users")))
+ * }
+ * // report: Report(users,5)
+ * }}}
  *
  * @tparam A
- *   the type that can escape scopes
+ *   the type whose values may leave a scope
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/unscoped/ Unscoped]]
  */
 trait Unscoped[A]
 
@@ -63,87 +83,191 @@ trait Unscoped[A]
  * Low-priority Unscoped instances to avoid ambiguity.
  */
 private[scope] trait UnscopedLowPriority {
-  // Nothing - can always escape (never actually returned)
-  // Must be low priority since Nothing <: A for all A
+  // Nothing - can always escape (never actually returned); kept in a
+  // lower-priority trait than the instances in `object Unscoped`
+  /**
+   * Marks `Nothing` as safe to leave a scope. It is declared in a
+   * lower-priority trait than the instances in `object Unscoped`. A `scoped`
+   * block that always throws still needs its type written out, as in
+   * `scoped[Nothing] { ... }` (a known bug).
+   */
   given given_Unscoped_Nothing: Unscoped[Nothing] = new Unscoped[Nothing] {}
 }
 
 /**
- * Companion object providing given instances for common types.
+ * Instances of [[Unscoped]] for common data types, and `derived` for your own.
  *
  * ==Adding Custom Instances==
  *
- * To mark your own type as safe to escape scopes, define a given instance:
+ * To mark your own type as safe to leave a scope, derive an instance (see
+ * `derived`) or define one directly; this form compiles on Scala 2 and 3:
  *
  * {{{
- * case class UserId(value: Long)
+ * final case class UserId(value: Long)
  * object UserId {
- *   given Unscoped[UserId] = new Unscoped[UserId] {}
+ *   implicit val unscopedUserId: Unscoped[UserId] = new Unscoped[UserId] {}
  * }
  * }}}
  *
- * Only add `Unscoped` instances for pure data types that don't hold resources.
- * Resource types (streams, connections, handles) should NOT have instances.
+ * Only add `Unscoped` instances for plain data types that hold no resources.
+ * Resource types (streams, connections, handles) should not have instances.
  */
 object Unscoped extends UnscopedVersionSpecific with UnscopedLowPriority {
   // Primitives
-  given Unscoped[Int]        = new Unscoped[Int] {}
-  given Unscoped[Long]       = new Unscoped[Long] {}
-  given Unscoped[Short]      = new Unscoped[Short] {}
-  given Unscoped[Byte]       = new Unscoped[Byte] {}
-  given Unscoped[Char]       = new Unscoped[Char] {}
-  given Unscoped[Boolean]    = new Unscoped[Boolean] {}
-  given Unscoped[Float]      = new Unscoped[Float] {}
-  given Unscoped[Double]     = new Unscoped[Double] {}
-  given Unscoped[Unit]       = new Unscoped[Unit] {}
-  given Unscoped[String]     = new Unscoped[String] {}
-  given Unscoped[BigInt]     = new Unscoped[BigInt] {}
+  /** Marks `Int` values as safe to leave a scope. */
+  given Unscoped[Int] = new Unscoped[Int] {}
+
+  /** Marks `Long` values as safe to leave a scope. */
+  given Unscoped[Long] = new Unscoped[Long] {}
+
+  /** Marks `Short` values as safe to leave a scope. */
+  given Unscoped[Short] = new Unscoped[Short] {}
+
+  /** Marks `Byte` values as safe to leave a scope. */
+  given Unscoped[Byte] = new Unscoped[Byte] {}
+
+  /** Marks `Char` values as safe to leave a scope. */
+  given Unscoped[Char] = new Unscoped[Char] {}
+
+  /** Marks `Boolean` values as safe to leave a scope. */
+  given Unscoped[Boolean] = new Unscoped[Boolean] {}
+
+  /** Marks `Float` values as safe to leave a scope. */
+  given Unscoped[Float] = new Unscoped[Float] {}
+
+  /** Marks `Double` values as safe to leave a scope. */
+  given Unscoped[Double] = new Unscoped[Double] {}
+
+  /** Marks `Unit` values as safe to leave a scope. */
+  given Unscoped[Unit] = new Unscoped[Unit] {}
+
+  /** Marks `String` values as safe to leave a scope. */
+  given Unscoped[String] = new Unscoped[String] {}
+
+  /** Marks `BigInt` values as safe to leave a scope. */
+  given Unscoped[BigInt] = new Unscoped[BigInt] {}
+
+  /** Marks `BigDecimal` values as safe to leave a scope. */
   given Unscoped[BigDecimal] = new Unscoped[BigDecimal] {}
 
   // Collections of unscoped elements
-  given [A: Unscoped]: Unscoped[Array[A]]      = new Unscoped[Array[A]] {}
-  given [A: Unscoped]: Unscoped[List[A]]       = new Unscoped[List[A]] {}
-  given [A: Unscoped]: Unscoped[Vector[A]]     = new Unscoped[Vector[A]] {}
-  given [A: Unscoped]: Unscoped[Set[A]]        = new Unscoped[Set[A]] {}
-  given [A: Unscoped]: Unscoped[Option[A]]     = new Unscoped[Option[A]] {}
-  given [A: Unscoped]: Unscoped[Seq[A]]        = new Unscoped[Seq[A]] {}
+  /** Marks `Array[A]` as safe to leave a scope when its element type `A` is. */
+  given [A: Unscoped]: Unscoped[Array[A]] = new Unscoped[Array[A]] {}
+
+  /** Marks `List[A]` as safe to leave a scope when its element type `A` is. */
+  given [A: Unscoped]: Unscoped[List[A]] = new Unscoped[List[A]] {}
+
+  /**
+   * Marks `Vector[A]` as safe to leave a scope when its element type `A` is.
+   */
+  given [A: Unscoped]: Unscoped[Vector[A]] = new Unscoped[Vector[A]] {}
+
+  /** Marks `Set[A]` as safe to leave a scope when its element type `A` is. */
+  given [A: Unscoped]: Unscoped[Set[A]] = new Unscoped[Set[A]] {}
+
+  /**
+   * Marks `Option[A]` as safe to leave a scope when its element type `A` is.
+   */
+  given [A: Unscoped]: Unscoped[Option[A]] = new Unscoped[Option[A]] {}
+
+  /** Marks `Seq[A]` as safe to leave a scope when its element type `A` is. */
+  given [A: Unscoped]: Unscoped[Seq[A]] = new Unscoped[Seq[A]] {}
+
+  /**
+   * Marks `IndexedSeq[A]` as safe to leave a scope when its element type `A`
+   * is.
+   */
   given [A: Unscoped]: Unscoped[IndexedSeq[A]] = new Unscoped[IndexedSeq[A]] {}
-  given [A: Unscoped]: Unscoped[Iterable[A]]   = new Unscoped[Iterable[A]] {}
+
+  /**
+   * Marks `Iterable[A]` as safe to leave a scope when its element type `A` is.
+   */
+  given [A: Unscoped]: Unscoped[Iterable[A]] = new Unscoped[Iterable[A]] {}
 
   // Either
+  /**
+   * Marks `Either[A, B]` as safe to leave a scope when both `A` and `B` are.
+   */
   given [A: Unscoped, B: Unscoped]: Unscoped[Either[A, B]] = new Unscoped[Either[A, B]] {}
 
   // Tuples of unscoped elements
-  given [A: Unscoped, B: Unscoped]: Unscoped[(A, B)]                                 = new Unscoped[(A, B)] {}
-  given [A: Unscoped, B: Unscoped, C: Unscoped]: Unscoped[(A, B, C)]                 = new Unscoped[(A, B, C)] {}
+  /** Marks the tuple `(A, B)` as safe to leave a scope when `A` and `B` are. */
+  given [A: Unscoped, B: Unscoped]: Unscoped[(A, B)] = new Unscoped[(A, B)] {}
+
+  /**
+   * Marks the tuple `(A, B, C)` as safe to leave a scope when `A`, `B` and `C`
+   * are.
+   */
+  given [A: Unscoped, B: Unscoped, C: Unscoped]: Unscoped[(A, B, C)] = new Unscoped[(A, B, C)] {}
+
+  /**
+   * Marks the tuple `(A, B, C, D)` as safe to leave a scope when `A`, `B`, `C`
+   * and `D` are.
+   */
   given [A: Unscoped, B: Unscoped, C: Unscoped, D: Unscoped]: Unscoped[(A, B, C, D)] =
     new Unscoped[(A, B, C, D)] {}
 
   // Maps with unscoped keys and values
+  /**
+   * Marks `Map[K, V]` as safe to leave a scope when its key type `K` and value
+   * type `V` are.
+   */
   given [K: Unscoped, V: Unscoped]: Unscoped[Map[K, V]] = new Unscoped[Map[K, V]] {}
 
   // Java time types (immutable value types)
-  given Unscoped[java.time.Instant]                        = new Unscoped[java.time.Instant] {}
-  given Unscoped[java.time.LocalDate]                      = new Unscoped[java.time.LocalDate] {}
-  given Unscoped[java.time.LocalTime]                      = new Unscoped[java.time.LocalTime] {}
-  given Unscoped[java.time.LocalDateTime]                  = new Unscoped[java.time.LocalDateTime] {}
-  given Unscoped[java.time.ZonedDateTime]                  = new Unscoped[java.time.ZonedDateTime] {}
-  given Unscoped[java.time.OffsetDateTime]                 = new Unscoped[java.time.OffsetDateTime] {}
+  /** Marks `java.time.Instant` values as safe to leave a scope. */
+  given Unscoped[java.time.Instant] = new Unscoped[java.time.Instant] {}
+
+  /** Marks `java.time.LocalDate` values as safe to leave a scope. */
+  given Unscoped[java.time.LocalDate] = new Unscoped[java.time.LocalDate] {}
+
+  /** Marks `java.time.LocalTime` values as safe to leave a scope. */
+  given Unscoped[java.time.LocalTime] = new Unscoped[java.time.LocalTime] {}
+
+  /** Marks `java.time.LocalDateTime` values as safe to leave a scope. */
+  given Unscoped[java.time.LocalDateTime] = new Unscoped[java.time.LocalDateTime] {}
+
+  /** Marks `java.time.ZonedDateTime` values as safe to leave a scope. */
+  given Unscoped[java.time.ZonedDateTime] = new Unscoped[java.time.ZonedDateTime] {}
+
+  /** Marks `java.time.OffsetDateTime` values as safe to leave a scope. */
+  given Unscoped[java.time.OffsetDateTime] = new Unscoped[java.time.OffsetDateTime] {}
+
+  /** Marks `java.time.Duration` values as safe to leave a scope. */
   given unscopedJavaDuration: Unscoped[java.time.Duration] = new Unscoped[java.time.Duration] {}
-  given Unscoped[java.time.Period]                         = new Unscoped[java.time.Period] {}
-  given Unscoped[java.time.ZoneId]                         = new Unscoped[java.time.ZoneId] {}
-  given Unscoped[java.time.ZoneOffset]                     = new Unscoped[java.time.ZoneOffset] {}
+
+  /** Marks `java.time.Period` values as safe to leave a scope. */
+  given Unscoped[java.time.Period] = new Unscoped[java.time.Period] {}
+
+  /** Marks `java.time.ZoneId` values as safe to leave a scope. */
+  given Unscoped[java.time.ZoneId] = new Unscoped[java.time.ZoneId] {}
+
+  /** Marks `java.time.ZoneOffset` values as safe to leave a scope. */
+  given Unscoped[java.time.ZoneOffset] = new Unscoped[java.time.ZoneOffset] {}
 
   // Common Java types
+  /** Marks `java.util.UUID` values as safe to leave a scope. */
   given Unscoped[java.util.UUID] = new Unscoped[java.util.UUID] {}
 
   // Scala duration
+  /**
+   * Marks `scala.concurrent.duration.Duration` values as safe to leave a scope.
+   */
   given unscopedScalaDuration: Unscoped[scala.concurrent.duration.Duration] =
     new Unscoped[scala.concurrent.duration.Duration] {}
+
+  /**
+   * Marks `scala.concurrent.duration.FiniteDuration` values as safe to leave a
+   * scope.
+   */
   given Unscoped[scala.concurrent.duration.FiniteDuration] =
     new Unscoped[scala.concurrent.duration.FiniteDuration] {}
 
   // zio-blocks types
+  /**
+   * Marks `zio.blocks.chunk.Chunk[A]` as safe to leave a scope when its element
+   * type `A` is.
+   */
   given [A: Unscoped]: Unscoped[zio.blocks.chunk.Chunk[A]] = new Unscoped[zio.blocks.chunk.Chunk[A]] {}
 
 }

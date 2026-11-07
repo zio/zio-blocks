@@ -313,7 +313,7 @@ Flag failures are exceptions rather than values because they occur inside object
 | `FlagNameException`                       | The defining class is not a Scala object, or is a lambda or anonymous class.  |
 | `FlagDuplicateNameException`              | A second flag registers under an existing name.                              |
 
-`FlagValueParseException` and `FlagExpressionParseException` are wrapped in `ExceptionInInitializerError` by the JVM when thrown from an initializer, so catch that and inspect its cause:
+The library creates the `ExceptionInInitializerError` itself, with the `FlagValueParseException` or `FlagExpressionParseException` as its cause, so catch that error and inspect its cause:
 
 ```scala mdoc:compile-only
 import zio.blocks.config._
@@ -339,3 +339,5 @@ try {
 Flags depend on `FlagSource` — and therefore accept any `ConfigSource` — on `Flag.Reader` for parsing, on `Displayable` for rendering, and on `ConfigError` for parse failures. `DynamicFlag` additionally depends on `Rollout` for expression evaluation.
 
 See [Rollout](./rollout.md) for the expression language and reload lifecycle, [ConfigSource](./config-source.md) for sources and `Secret`, and [Errors](./errors.md) for the shared error model.
+
+See also the [How to Roll Out a Feature Gradually with Flags](../../guides/roll-out-feature-gradually.md) guide, which ships a feature to a percentage of readers with a `DynamicFlag` and widens it at runtime.

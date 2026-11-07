@@ -138,6 +138,8 @@ qMixed.sql(SqlDialect.PostgreSQL)
 
 Prefer checked `sql(tables)` for all hand-written queries; reserve `SqlLiteral` for genuinely dynamic or dialect-specific cases.
 
+A query whose `WHERE` clause depends on which search fields a user filled in does not need `SqlLiteral`: build one `Frag` per condition and join them, as [How to Build a Query from Optional Search Filters](./build-a-query-from-optional-search-filters.md) shows.
+
 ## Comparison
 
 | Form | Quote/paren check | Identifier check | Needs `Table` | Use when |

@@ -1,15 +1,15 @@
 package stream
 
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.streams.io.Reader
-import zio.blocks.scope.*
+import zio.blocks.scope._
 
 object ManualPullUsingStart extends App {
   Scope.global.scoped { scope =>
-    import scope.*
+    import scope._
 
     // Open a stream for manual pulling
-    val reader: $[Reader[Int]] = Stream.range(1, 6).start(using scope)
+    val reader: $[Reader.SyncReader[Int]] = Stream.range(1, 6).start(using scope)
 
     $(reader) { r =>
       // Iterate through reader values using the protocol directly

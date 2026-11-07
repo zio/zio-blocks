@@ -18,23 +18,51 @@ package zio.blocks.schema.binding
 
 import zio.blocks.chunk.ChunkMap
 
+/**
+ * Builds a map of type `M[K, V]` entry by entry through a mutable builder: the
+ * construction half of a [[Binding.Map]]. A codec decodes a map by calling
+ * `newObjectBuilder`, `addObject` for each entry, and then `resultObject`.
+ *
+ * @tparam M
+ *   the map type constructor
+ */
 trait MapConstructor[M[_, _]] {
+
+  /** The mutable builder that collects the entries. */
   type ObjectBuilder[_, _]
 
+  /**
+   * Creates an empty builder. `sizeHint` is the expected number of entries;
+   * `chunkMap` passes it to its builder, and `map` ignores it.
+   */
   def newObjectBuilder[K, V](sizeHint: Int = 4): ObjectBuilder[K, V]
 
+  /**
+   * Adds the entry `k -> v` to `builder`. For `chunkMap` and `map`, a later
+   * entry with the same key replaces an earlier one.
+   */
   def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit
 
+  /** Returns the map built from the entries added to `builder`. */
   def resultObject[K, V](builder: ObjectBuilder[K, V]): M[K, V]
 
+  /** Returns an empty map. */
   def emptyObject[K, V]: M[K, V]
 
+  /**
+   * Returns `map` with `key` bound to `value`, replacing an existing binding of
+   * `key`.
+   */
   def updated[K, V](map: M[K, V], key: K, value: V): M[K, V]
 }
 
+/** The map constructors for the standard maps. */
 object MapConstructor {
+
+  /** Returns the implicit `MapConstructor` for `M`. */
   def apply[M[_, _]](implicit mc: MapConstructor[M]): MapConstructor[M] = mc
 
+  /** Builds a `ChunkMap`. */
   implicit val chunkMap: MapConstructor[ChunkMap] = new MapConstructor[ChunkMap] {
     type ObjectBuilder[K, V] = ChunkMap.ChunkMapBuilder[K, V]
 
@@ -49,6 +77,7 @@ object MapConstructor {
     def updated[K, V](map: ChunkMap[K, V], key: K, value: V): ChunkMap[K, V] = map.updated(key, value)
   }
 
+  /** Builds an immutable `Map`. */
   implicit val map: MapConstructor[Map] = new MapConstructor[Map] {
     type ObjectBuilder[K, V] = scala.collection.mutable.Builder[(K, V), Map[K, V]]
 

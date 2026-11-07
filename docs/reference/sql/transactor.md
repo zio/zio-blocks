@@ -54,16 +54,19 @@ object JdbcTransactor {
 The following block demonstrates the complete workflow: create a transactor, open a transactional scope, and execute both `Repo` operations and raw `sql"..."` fragments inside it:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("users", "id", _.id)
-val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
+
+// A file-backed database, so the table created in `transact` is still there in `connect`
+val dbFile     = java.nio.file.Files.createTempFile("users", ".db")
+val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
 
 // transact: auto-commit disabled; commits on success, rolls back on exception
 transactor.transact {
@@ -130,8 +133,6 @@ val sqlite: JdbcTransactor =
 Use the three-argument overload when the database requires a username and password supplied separately:
 
 ```scala mdoc
-import zio.blocks.sql._
-
 // With credentials — typical for PostgreSQL or MySQL
 val postgres: JdbcTransactor =
   JdbcTransactor.fromUrl(
@@ -143,7 +144,7 @@ val postgres: JdbcTransactor =
 ```
 
 :::caution
-`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent workloads, prefer `fromDataSource` backed by a pooling `DataSource`.
+`fromUrl` opens a new physical connection for every `connect` or `transact` call and does no pooling. For applications with concurrent workloads, prefer `fromDataSource` backed by a pooling `DataSource`. Because every call gets a new connection, `jdbc:sqlite::memory:` gives each `Transactor#connect` or `Transactor#transact` block its own empty database: tables and rows created in one block are gone in the next. Use a file URL such as `jdbc:sqlite:/path/to/app.db` when data must outlive a single block.
 :::
 
 ### `JdbcTransactor.postgres` — PostgreSQL convenience factory
@@ -157,6 +158,12 @@ object JdbcTransactor {
 ```
 
 The factory fixes the dialect to `SqlDialect.PostgreSQL` so DDL type names, parameter placeholders, and dialect-specific SQL all render correctly for PostgreSQL:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -203,8 +210,8 @@ trait Transactor {
 Because `DbTx extends DbCon`, a block that compiles under `connect` will also compile under `transact` — so we can promote non-transactional code to transactional scope without changing the body. The following example runs a read query inside `connect` without incurring transaction overhead:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -242,9 +249,9 @@ The no-arg overload preserves driver defaults (e.g. PostgreSQL `READ_COMMITTED`)
 Because `DbTx extends DbCon`, the `DbTx` given satisfies any `DbCon ?=>` requirement inside the block. We can mix `Repo` CRUD calls with raw `sql"..."` fragments freely:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -316,8 +323,8 @@ Choose `JdbcTransactor` when the codebase is synchronous or when ZIO is not on t
 `DbCon` carries three members — `connection`, `dialect`, and `logger` — and is passed implicitly through every SQL operation. This means application-level helper methods can declare `(using DbCon)` and they are automatically satisfied anywhere inside `connect` or `transact` with no explicit argument passing. The same pattern composes across multiple layers:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -343,3 +350,10 @@ transactor.transact {
 ```
 
 Because `DbTx extends DbCon`, `upsertUser` works unchanged inside both `connect` and `transact`. This lets us design helper functions against the minimal context they need and promote them to transactional scope at the call site without modifying their signatures.
+
+## See Also
+
+- **[How to Test Database Code Against SQLite](../../guides/test-database-code-against-sqlite.md)** — Guide to giving each ZIO Test spec its own SQLite database and rolling back writes.
+- **[How to Connect to PostgreSQL with a Connection Pool](../../guides/connect-to-postgresql-with-a-connection-pool.md)** — Builds a HikariCP pool, passes it to `JdbcTransactor.postgres`, sizes the pool and closes it with a `Scope`.
+- **[SQL Transactions](../../guides/sql-transactions.md)** — Isolation levels, read-only transactions and nested transactions with savepoints for `Transactor#transact`.
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Shows how to consume a `queryStream` inside `connect` or `transact`, before the connection closes.

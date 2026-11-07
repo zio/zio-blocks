@@ -23,11 +23,23 @@ import zio.blocks.chunk.Chunk
  *
  * When a scope closes, each registered finalizer runs in LIFO order. Finalizers
  * that throw are caught and their exceptions are collected into a
- * `Finalization`. This type provides convenient methods for inspecting and
- * re-throwing those errors.
+ * `Finalization`, in the order the finalizers ran. `scoped` rethrows them for
+ * you; you get a `Finalization` yourself from the `close()` of a scope created
+ * with `open()`, which returns the errors instead of throwing them.
+ *
+ * {{{
+ * val handle = Scope.global.open()
+ * handle.scope.defer(throw new IllegalStateException("flush failed"))
+ *
+ * val finalization: Finalization = handle.close()
+ * finalization.nonEmpty                  // true
+ * finalization.errors.map(_.getMessage) // Chunk(flush failed)
+ * }}}
  *
  * @param errors
  *   the errors collected from running finalizers
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/finalization/ Finalization]]
  */
 final class Finalization(val errors: Chunk[Throwable]) {
 
@@ -57,7 +69,8 @@ final class Finalization(val errors: Chunk[Throwable]) {
 
   /**
    * Adds all collected errors as suppressed exceptions to `initial` and returns
-   * it. If there are no errors, `initial` is returned unchanged.
+   * it (the same object, modified). If there are no errors, `initial` is
+   * returned unchanged.
    *
    * @param initial
    *   the primary throwable to attach suppressed exceptions to
@@ -70,6 +83,7 @@ final class Finalization(val errors: Chunk[Throwable]) {
   }
 }
 
+/** Constructors for [[Finalization]]. */
 object Finalization {
 
   /**

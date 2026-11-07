@@ -19,65 +19,104 @@ package zio.blocks.schema
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
- * Pure Scala parser for the path interpolator syntax.
- *
- * This parser converts a path string (e.g., ".users[*].email") into a Vector of
- * DynamicOptic.Node elements. All parsing is done at compile time.
+ * Parser for the syntax of the `p"..."` interpolator: turns a path string such
+ * as `.users[*].email` into a `Chunk` of [[DynamicOptic.Node]] steps. The
+ * `p"..."` macros call it at compile time; nothing else uses it.
  */
 private[schema] object PathParser {
   import DynamicOptic.Node
 
+  /**
+   * Why a path string could not be parsed. `position` is a 0-based index into
+   * the string (-1 for `UnexpectedEnd`).
+   */
   sealed trait ParseError {
     def message: String
     def position: Int
   }
 
+  /**
+   * The kinds of [[PathParser.ParseError]].
+   */
   object ParseError {
+
+    /**
+     * A character that cannot start or continue the current step.
+     */
     case class UnexpectedChar(char: Char, position: Int, expected: String) extends ParseError {
       def message: String = s"Unexpected character '$char' at position $position. Expected $expected"
     }
 
+    /**
+     * A backslash escape that string and char keys do not support.
+     */
     case class InvalidEscape(char: Char, position: Int) extends ParseError {
       def message: String = s"Invalid escape sequence '\\$char' at position $position"
     }
 
+    /**
+     * A string key without its closing quote.
+     */
     case class UnterminatedString(position: Int) extends ParseError {
       def message: String = s"Unterminated string literal starting at position $position"
     }
 
+    /**
+     * A char key without its closing quote.
+     */
     case class UnterminatedChar(position: Int) extends ParseError {
       def message: String = s"Unterminated char literal starting at position $position"
     }
 
+    /**
+     * An empty char key, `''`.
+     */
     case class EmptyChar(position: Int) extends ParseError {
       def message: String = s"Empty char literal at position $position"
     }
 
+    /**
+     * A char key with more than one character.
+     */
     case class MultiCharLiteral(position: Int) extends ParseError {
       def message: String = s"Char literal contains multiple characters at position $position"
     }
 
+    /**
+     * A field or case name that does not start with a letter or `_`, including
+     * a `.` with no name after it.
+     */
     case class InvalidIdentifier(position: Int) extends ParseError {
       def message: String = s"Invalid identifier at position $position"
     }
 
+    /**
+     * An index or `Int` key that does not fit in an `Int`.
+     */
     case class IntegerOverflow(position: Int) extends ParseError {
       def message: String = s"Integer overflow at position $position (value exceeds Int.MaxValue)"
     }
 
+    /**
+     * The input ended in the middle of a step.
+     */
     case class UnexpectedEnd(expected: String) extends ParseError {
       def position: Int   = -1
       def message: String = s"Unexpected end of input. Expected $expected"
     }
 
+    /**
+     * Any other error, such as a map key identifier other than `true` or
+     * `false`, or an invalid `#` search pattern.
+     */
     case class InvalidSyntax(msg: String, position: Int) extends ParseError {
       def message: String = s"$msg at position $position"
     }
   }
 
   /**
-   * Parse a path string into a Chunk of Nodes. Returns Left with error if
-   * parsing fails, Right with nodes on success.
+   * Parses `input` into its steps, or returns the first error. The empty string
+   * gives no steps.
    */
   def parse(input: String): Either[ParseError, Chunk[Node]] = parseNodes(new ParseContext(input))
 

@@ -25,20 +25,31 @@ package zio.blocks.smithy
 sealed trait ShapeRef
 
 /**
- * Represents an absolute reference to a Smithy shape.
+ * A reference to a Smithy shape: a namespace and a name, written
+ * `namespace#name`. A reference to a member of a shape is a [[ShapeId.Member]].
+ * Shape references in a parsed model that were written without a namespace
+ * (`city: String`) have an empty namespace, and their `toString` (`#String`) is
+ * not accepted by [[ShapeId.parse]].
  *
- * A ShapeId consists of a namespace and a name. It can optionally reference a
- * specific member of a shape via the Member subtype.
+ * {{{
+ * ShapeId.parse("com.example.weather#Forecast")      // Right(com.example.weather#Forecast)
+ * ShapeId.parse("com.example.weather#Forecast\$city") // Right(com.example.weather#Forecast\$city)
+ * ShapeId.parse("Forecast")                          // Left(ShapeId must contain '#' separator, got: Forecast)
+ * ShapeId("com.example.weather", "Forecast").toString // com.example.weather#Forecast
+ * }}}
  *
  * @param namespace
  *   the namespace part (e.g., "com.example")
  * @param name
  *   the shape name (e.g., "MyShape")
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#shape-references Shape References]]
  */
 final case class ShapeId(namespace: String, name: String) extends ShapeRef {
   override def toString: String = s"$namespace#$name"
 }
 
+/** Parses shape ids and holds the member reference type. */
 object ShapeId {
 
   /**
@@ -58,7 +69,10 @@ object ShapeId {
    *
    * Expected formats:
    *   - "namespace#name" → ShapeId
-   *   - "namespace#name$$memberName" → Member
+   *   - "namespace#name\$memberName" → Member
+   *
+   * A trailing `#` after the name is ignored, so `"a#b#"` parses as `a#b` (a
+   * known bug).
    *
    * @param s
    *   the string to parse

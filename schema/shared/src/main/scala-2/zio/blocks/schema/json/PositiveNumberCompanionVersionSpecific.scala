@@ -19,22 +19,31 @@ package zio.blocks.schema.json
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/** Adds `literal` to the [[PositiveNumber]] companion. */
 trait PositiveNumberCompanionVersionSpecific {
 
   /**
-   * Creates a PositiveNumber from a literal integer value, validated at compile
-   * time. Use this when the value is known at compile time for zero runtime
-   * overhead.
+   * Returns a [[PositiveNumber]] for an `Int` literal, checked at compile time:
+   * a literal below 1, or an argument that is not a literal, does not compile.
+   * Use `PositiveNumber.apply` for runtime values.
+   *
+   * On Scala 2.13, the macro calls the package-private constructor, so it
+   * compiles only inside the `zio.blocks.schema.json` package (a known bug).
    *
    * {{{
-   * val mult = PositiveNumber.literal(5)  // Compiles - returns PositiveNumber directly
-   * val bad = PositiveNumber.literal(0)   // Compile error!
+   * // scala-3-only
+   * import zio.blocks.schema.json.PositiveNumber
+   *
+   * val mult: PositiveNumber = PositiveNumber.literal(5) // compiles
+   * // PositiveNumber.literal(0)                         // does not compile
    * }}}
    */
   def literal(n: Int): PositiveNumber = macro PositiveNumberMacros.literalImpl
 }
 
 private[json] object PositiveNumberMacros {
+
+  /** The macro behind `PositiveNumber.literal`. */
   def literalImpl(c: blackbox.Context)(n: c.Expr[Int]): c.Expr[PositiveNumber] = {
     import c.universe._
 

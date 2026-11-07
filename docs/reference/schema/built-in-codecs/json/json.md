@@ -1,5 +1,6 @@
 ---
 id: json
+slug: /reference/schema/built-in-codecs/json/json
 title: "Json"
 ---
 
@@ -14,20 +15,24 @@ Json
  ├── Json.Object   (key-value pairs, order-preserving)
  ├── Json.Array    (ordered sequence of values)
  ├── Json.String   (text)
- ├── Json.Number   (arbitrary precision via BigDecimal)
+ ├── Json.Number   (a BigDecimal)
  ├── Json.Boolean  (true/false)
  └── Json.Null     (null)
 ```
 
 Key design decisions:
 
-- **Objects use `Vector[(String, Json)]`** to preserve insertion order while providing order-independent equality
-- **Numbers use `BigDecimal`** to preserve precision for financial and scientific data
+- **Objects use `Chunk[(String, Json)]`** to preserve insertion order while providing order-independent equality
+- **Numbers use `BigDecimal`** to keep decimal digits that a `Double` would lose. Parsing rounds a number to 34 significant digits (`MathContext.DECIMAL128`) and rejects one with 308 or more digits, so a longer number does not keep every digit
 - **All navigation returns `JsonSelection`** for fluent, composable chaining
 
 ## Creating JSON Values
 
+A `Json` value comes from one of three sources: the case constructors, `Json.parse` on a string, or the `json"..."` interpolator.
+
 ### Using Constructors
+
+`Json.Object` takes key-value pairs, `Json.Array` takes its elements, and `Json.String`, `Json.Number`, and `Json.Boolean` each wrap one Scala value:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -50,6 +55,8 @@ val nothing = Json.Null
 ```
 
 ### Parsing JSON Strings
+
+`Json.parse` returns a parse failure as a `SchemaError` in a `Left`, while `Json.parseUnsafe` throws it:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -82,14 +89,18 @@ val person2 = json"""{"name": $name, "age": $age}"""
 val path = p".users[0].name"
 ```
 
-The `json"..."` interpolator validates JSON syntax at compile time, catching errors before runtime.
+The `json"..."` interpolator validates JSON syntax at compile time, catching errors before runtime. A known bug in 0.0.56: on Scala 2.13, the interpolator does not compile in user code outside the `zio.blocks.schema` package, so the examples above fail there unless the code is inside that package. Use `Json.parseUnsafe` on Scala 2.13 until the bug is fixed.
 
 ## Type Testing and Access
+
+Once you hold a `Json`, you can check which case it is with `Json#is`, narrow it with `Json#as`, and read an object's fields or an array's elements without pattern matching.
 
 ### Unified Type Operations
 
 The `Json` type provides unified methods for type testing and narrowing with path-dependent return types.
 `JsonType` also implements `Json => Boolean`, so it can be used directly as a predicate for filtering.
+
+The example tests `json` with `Json#is`, narrows it with `Json#as`, extracts Scala values with `Json#unwrap`, and passes `JsonType.String` to `JsonSelection#query` as a predicate:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonType}
@@ -117,6 +128,8 @@ val strings = json.select.query(JsonType.String)  // all string values in the JS
 
 ### Direct Value Access
 
+`Json#fields` returns an object's key-value pairs and `Json#elements` returns an array's values, each as a `Chunk` (empty for any other case):
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
@@ -128,6 +141,8 @@ arr.elements  // Chunk(Json.Number(1), Json.Number(2))
 ```
 
 ## Navigation
+
+Navigation reaches into nested objects and arrays, either one step at a time with `Json#get` and an index, or in one call with a `DynamicOptic` path; both return a `JsonSelection`.
 
 ### Simple Navigation
 
@@ -237,6 +252,8 @@ val asDouble: Either[SchemaError, Double] = selection.as[Double]
 
 ## Modification
 
+`Json` is immutable, so `Json#set`, `Json#modify`, `Json#delete`, and `Json#insert` each return a new `Json` with the change at a `DynamicOptic` path; their `OrFail` variants return a `SchemaError` in a `Left` when the change cannot be made at that path.
+
 ### Setting Values
 
 ```scala mdoc:compile-only
@@ -308,6 +325,8 @@ val withNew = json.insert(p".newField", Json.String("value"))
 
 ## Transformation
 
+The transform methods rewrite the whole tree with a function that receives each value's path; `Json#transformUp` and `Json#transformDown` differ in whether children or parents are visited first, and `Json#transformKeys` rewrites object keys instead of values.
+
 ### Transform Up (Bottom-Up)
 
 Transform children before parents:
@@ -369,9 +388,11 @@ val camelCase = json.transformKeys { (path, key) =>
 
 ## Filtering
 
+Filtering keeps or removes parts of a `Json` by predicate or by path, and returns a new `Json`.
+
 ### Filter Values
 
-Keep only values matching a predicate using `retain`, or remove values using `prune`:
+Keep only values matching a predicate using `Json#retain`, or remove values using `Json#prune`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonType}
@@ -422,6 +443,8 @@ val (numbers, nonNumbers) = json.partition(_.is(JsonType.Number))
 
 ## Folding
 
+Folding walks the whole tree and combines every value, together with its path, into one result; `Json#foldUp` and `Json#foldDown` differ in visit order.
+
 ### Fold Up (Bottom-Up)
 
 Accumulate values from children to parents:
@@ -467,7 +490,7 @@ import zio.blocks.schema.json.{Json, MergeStrategy}
 val base = Json.parseUnsafe("""{"a": 1, "b": {"x": 10}}""")
 val overlay = Json.parseUnsafe("""{"b": {"y": 20}, "c": 3}""")
 
-// Auto strategy (default) - deep merge objects, concat arrays
+// Auto strategy (default) - deep merge objects, merge arrays by index
 val merged = base.merge(overlay)
 // {"a": 1, "b": {"x": 10, "y": 20}, "c": 3}
 
@@ -478,7 +501,7 @@ val shallow = base.merge(overlay, MergeStrategy.Shallow)
 val replaced = base.merge(overlay, MergeStrategy.Replace)
 // {"b": {"y": 20}, "c": 3}
 
-// Concat arrays
+// Concat: deep merge objects, append arrays
 val concat = base.merge(overlay, MergeStrategy.Concat)
 
 // Custom strategy
@@ -490,14 +513,13 @@ val custom = base.merge(overlay, MergeStrategy.Custom { (path, left, right) =>
 
 ### Merge Strategies
 
-| Strategy | Objects | Arrays | Primitives |
-|----------|---------|--------|------------|
-| `Auto` | Deep merge | Concatenate | Replace |
-| `Deep` | Recursive merge | Concatenate | Replace |
-| `Shallow` | Top-level only | Concatenate | Replace |
-| `Replace` | Right wins | Right wins | Right wins |
-| `Concat` | Merge keys | Concatenate | Replace |
-| `Custom(f)` | User-defined | User-defined | User-defined |
+| Strategy       | Objects                           | Arrays                                       | Primitives   |
+|----------------|-----------------------------------|----------------------------------------------|--------------|
+| `Auto`         | Merge by key at every depth       | Merge by index (`[1,2,3]` + `[9]` = `[9,2,3]`) | Right wins   |
+| `Shallow`      | Merge top-level keys; nested right wins | Merge top-level by index; nested right wins | Right wins   |
+| `Replace`      | Right wins                        | Right wins                                   | Right wins   |
+| `Concat`       | Merge by key at every depth       | Append right to left                         | Right wins   |
+| `Custom(f, r)` | `r` decides whether to descend    | `r` decides whether to descend               | `f` decides  |
 
 ## Normalization
 
@@ -532,7 +554,11 @@ val normalized = json.normalize
 
 ## Encoding and Decoding
 
+Any type with a `Schema` can be encoded to and decoded from JSON, either through its `JsonCodec` or through extension methods on the value.
+
 ### Built-in Codecs
+
+The built-in schemas of primitives, standard collections and `java.time`/`java.util` types each give a `JsonCodec` through `Schema#jsonCodec`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.Schema
@@ -597,7 +623,11 @@ These extension methods provide a more ergonomic API compared to explicitly crea
 
 ## Printing JSON
 
+`Json#print` and `Json#printBytes` turn a `Json` into text or bytes, `WriterConfig` controls the output layout, and `ReaderConfig` is the matching setting for parsing.
+
 ### Basic Printing
+
+`Json#print` with no arguments renders `json` as compact text with no whitespace:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -610,6 +640,8 @@ val compact: String = json.print
 ```
 
 ### With Writer Config
+
+Passing a `WriterConfig` to `Json#print` changes the layout; `WriterConfig.withIndentionStep2` gives 2-space indentation:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -636,6 +668,8 @@ val indented4 = json.print(WriterConfig.withIndentionStep(4))
 | `indentionStep` | `0` | Spaces per indentation level (0 = compact) |
 | `escapeUnicode` | `false` | Escape non-ASCII characters as `\uXXXX` |
 | `preferredBufSize` | `32768` | Internal buffer size in bytes |
+
+Each option has a `with` method on `WriterConfig`, and the calls chain to combine options:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.WriterConfig
@@ -668,6 +702,8 @@ val custom = WriterConfig
 | `maxCharBufSize` | `4194304` | Maximum char buffer size (4MB) |
 | `checkForEndOfInput` | `true` | Error on trailing non-whitespace |
 
+`ReaderConfig` has the same kind of `with` methods, for example to allow trailing content or to enlarge the buffers:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.ReaderConfig
 
@@ -685,6 +721,8 @@ val largeDoc = ReaderConfig
 
 ### To Bytes
 
+`Json#printBytes` encodes `json` as a byte array instead of a `String`:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
@@ -695,6 +733,8 @@ val bytes: Array[Byte] = json.printBytes
 ```
 
 ## Query Operations
+
+Query operations search the whole tree for values that match a condition, or flatten it into path-value pairs.
 
 ### Query with Predicate
 
@@ -729,13 +769,12 @@ import zio.blocks.chunk.Chunk
 val json = Json.parseUnsafe("""{"a": {"b": 1, "c": 2}}""")
 
 val pairs: Chunk[(DynamicOptic, Json)] = json.toKV
-// Chunk(
-//   ($.a.b, Json.Number(1)),
-//   ($.a.c, Json.Number(2))
-// )
+// Chunk((.a.b,1),(.a.c,2))
 ```
 
 ## Comparison and Equality
+
+`Json` values compare by content: object equality ignores key order, and `Json#compare` gives a total ordering across all cases.
 
 ### Object Equality
 
@@ -797,7 +836,7 @@ The differ uses optimal operations:
 
 ## JSON Patching
 
-`JsonPatch` represents a sequence of operations that transform a JSON value. Patches are composable and can be applied with different failure modes:
+`JsonPatch` represents a sequence of operations that transform a JSON value. Patches are composable and can be applied with different failure modes.
 
 ### Computing and Applying Patches
 
@@ -831,6 +870,8 @@ val result3 = patch(original, PatchMode.Clobber)
 | `Clobber` | Force changes, overwriting on conflicts |
 
 ### Composing Patches
+
+`JsonPatch#++` joins two patches into one that applies the first and then the second:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonPatch}
@@ -890,6 +931,8 @@ This enables interoperability with other ZIO Blocks formats (Avro, TOON, etc.).
 
 ## Error Handling
 
+Navigation and decoding report failures as a `SchemaError` in a `Left` rather than throwing, and the error records the path where the failure happened.
+
 ### SchemaError
 
 Errors include path information for debugging:
@@ -901,7 +944,7 @@ import zio.blocks.schema.SchemaError
 val json = Json.parseUnsafe("""{"users": [{"name": "Alice"}]}""")
 
 val result = json.get("users")(5).get("name").as[String]
-// Left(SchemaError: Index 5 out of bounds at path $.users[5])
+// Left(zio.blocks.schema.SchemaError: Index 5 out of bounds (size: 1) at: [5])
 ```
 
 ### Error Properties
@@ -930,9 +973,10 @@ result match {
 
 ## Cross-Platform Support
 
-The `Json` type works across 2 platforms:
-
-- **JVM** - Full functionality
-- **Scala.js** - Browser and Node.js
+The `Json` type works on two platforms: the JVM, with full functionality, and Scala.js, in the browser and on Node.js.
 
 String interpolators use compile-time validation that works on both platforms too.
+
+## See Also
+
+- [How to Read and Modify JSON Without Case Classes](../../../../guides/json-without-case-classes.md) - A task-oriented guide to parsing, reading, changing, and printing JSON as a tree

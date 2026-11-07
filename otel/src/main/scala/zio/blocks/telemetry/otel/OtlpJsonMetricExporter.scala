@@ -18,6 +18,11 @@ package zio.blocks.telemetry.otel
 
 import zio.blocks.telemetry._
 
+/**
+ * A `MetricReader` that posts the metrics `collectFn` returns as OTLP JSON to
+ * `<endpoint>/v1/metrics` when `exportMetrics()` is called; it has no schedule
+ * of its own.
+ */
 private[otel] final class OtlpJsonMetricExporter(
   config: ExporterConfig,
   resource: Resource,

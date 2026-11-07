@@ -1,0 +1,17 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-03T09:10:00Z" },
+  "title": "Reference page design",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 240, "w": 1280, "h": 2100, "title": "Directory · light", "expand": "fill", "is_interactive": true },
+    "A-Dark.dc.html": { "x": 1360, "y": 240, "w": 1280, "h": 2100, "title": "Directory · dark", "expand": "fill", "is_interactive": true },
+    "A-Phone.dc.html": { "x": 2720, "y": 240, "w": 390, "h": 6800, "title": "Directory · phone", "expand": "fill", "is_interactive": true }
+  },
+  "order": ["Main.dc.html", "A-Dark.dc.html", "A-Phone.dc.html"],
+  "notes": {
+    "titleA": { "x": 0, "y": 0, "text": "Reference page: dense directory, every block visible, filter box, jump links", "kind": "title1", "maxW": 3110 }
+  },
+  "designSystems": []
+}

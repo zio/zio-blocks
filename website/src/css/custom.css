@@ -1,30 +1,486 @@
-/**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
- */
+/* Tailwind is used only by the Onboard Agent button (src/components/OnboardAgentButton): theme tokens and utilities, no
+   preflight, so Infima and the rules below are untouched. Utilities are `important` (tailwind.config.js) and layered. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
 
-/* You can override the default Infima variables here. */
-:root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+@config '../../tailwind.config.js';
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope-latin-wght-normal.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+:root {
+  /* Brand palette (assets/logo/README.md) */
+  --ultramarine: #2d3f8f;
+  --ink: #141a2e;
+  --lifted: #4b5fc4;
+  --paper-ink: #f3f5fc;
+  --hairline: #e4e7f0;
+  --muted: #7c859e;
+
+  /* Module-square fill of the brand social card */
+  --field: #1e2647;
+
+  /* UI tints derived from the palette (code cards, rules, secondary text, labels, surfaces); not brand marks */
+  --code-bg: #0d1224;
+  --ink-rule: #232b4a;
+  --ink-soft: #a9b1ce;
+
+  /* Semantic tokens, light */
+  --fg: var(--ink);
+  --fg-soft: #4a5470;
+  --label: #5b6580;
+  --rule: var(--hairline);
+  --accent: var(--ultramarine);
+  --surface: var(--paper-ink);
+
+  --seam: 6px;
+  --lp-gutter: clamp(1rem, 4vw, 2.5rem);
+  --lp-measure: 72rem;
+
+  /* Infima */
+  --ifm-font-family-base: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --ifm-heading-font-weight: 800;
+  --ifm-heading-color: var(--ink);
+  --ifm-font-color-base: var(--ink);
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: var(--paper-ink);
+  --ifm-code-font-size: 90%;
+  --ifm-code-background: var(--paper-ink);
+
+  --ifm-color-primary: #2d3f8f;
+  --ifm-color-primary-dark: #293a81;
+  --ifm-color-primary-darker: #273778;
+  --ifm-color-primary-darkest: #202d63;
+  --ifm-color-primary-light: #3144a0;
+  --ifm-color-primary-lighter: #3347a9;
+  --ifm-color-primary-lightest: #3d53c0;
+  --ifm-link-color: var(--ultramarine);
+
+  /* Flat and square */
+  --ifm-global-radius: 0;
+  --ifm-global-shadow-lw: none;
+  --ifm-global-shadow-md: none;
+  --ifm-global-shadow-tl: none;
+
+  --ifm-navbar-background-color: var(--ink);
+  --ifm-navbar-link-color: var(--paper-ink);
+  --ifm-navbar-link-hover-color: #ffffff;
+  --ifm-navbar-link-active-color: #ffffff;
+  --ifm-navbar-shadow: none;
+  --ifm-footer-background-color: var(--ink);
+  --ifm-footer-color: var(--paper-ink);
+  --ifm-footer-link-color: var(--paper-ink);
+  --ifm-footer-title-color: var(--paper-ink);
+  --ifm-footer-link-hover-color: #ffffff;
+
+  --ifm-toc-border-color: var(--hairline);
+  --ifm-table-border-color: var(--hairline);
+  --ifm-hr-border-color: var(--hairline);
+  --docusaurus-highlighted-code-line-bg: rgba(45, 63, 143, 0.12);
+}
+
+/* Infima declares its dark variables on html[data-theme='dark'], so a bare [data-theme='dark'] rule of ours would lose on specificity. */
+html[data-theme='dark'] {
+  --fg: var(--paper-ink);
+  --fg-soft: var(--ink-soft);
+  --label: #9aa3c0;
+  --rule: var(--ink-rule);
+  --accent: var(--lifted);
+  --surface: #1a2140;
+
+  --ifm-heading-color: var(--paper-ink);
+  --ifm-font-color-base: var(--paper-ink);
+  --ifm-background-color: var(--ink);
+  --ifm-background-surface-color: #1a2140;
+  --ifm-code-background: #1a2140;
+
+  --ifm-color-primary: #4b5fc4;
+  --ifm-color-primary-dark: #3e53bf;
+  --ifm-color-primary-darker: #3a4eb5;
+  --ifm-color-primary-darkest: #2f3f93;
+  --ifm-color-primary-light: #5a6dca;
+  --ifm-color-primary-lighter: #6477ce;
+  --ifm-color-primary-lightest: #8393d8;
+  /* Lifted blue is 3:1 on ink: fine for borders and fills, not for link text */
+  --ifm-link-color: var(--paper-ink);
+  --ifm-link-hover-color: #ffffff;
+  --ifm-menu-color-active: var(--paper-ink);
+  /* Text roles that default to the primary colour: keep them readable, lifted blue stays for borders and fills */
+  --ifm-breadcrumb-color-active: var(--paper-ink);
+  --ifm-tabs-color-active: var(--paper-ink);
+  --ifm-pagination-color-active: var(--paper-ink);
+  --ifm-pagination-nav-color-hover: var(--paper-ink);
+  --ifm-pills-color-active: var(--paper-ink);
+
+  --ifm-toc-border-color: var(--ink-rule);
+  --ifm-table-border-color: var(--ink-rule);
+  --ifm-hr-border-color: var(--ink-rule);
+  --docusaurus-highlighted-code-line-bg: rgba(75, 95, 196, 0.25);
+}
+
+[data-theme='dark'] .table-of-contents__link:hover,
+[data-theme='dark'] .table-of-contents__link--active,
+[data-theme='dark'] .text--primary {
+  color: var(--paper-ink);
+}
+
+/* Navbar: ink in both colour modes, hairline underneath */
+.navbar { border-bottom: 1px solid var(--ink-rule); }
+.navbar__link { font-weight: 600; }
+.navbar-sidebar {
+  --ifm-menu-color: var(--paper-ink);
+  --ifm-menu-color-active: #ffffff;
+  --ifm-menu-color-background-hover: var(--ink-rule);
+  --ifm-menu-color-background-active: var(--ink-rule);
+  --ifm-color-emphasis-600: var(--paper-ink);
+}
+.navbar-sidebar__back { color: var(--paper-ink); }
+.navbar__logo img { height: 2.25rem; width: auto; }
+
+/* Docs: editorial links, hairline rules, flat code */
+.markdown a { text-decoration: underline; text-underline-offset: 0.2em; }
+.markdown h1, .markdown h2, .markdown h3 { letter-spacing: -0.01em; }
+.theme-code-block { box-shadow: none; }
+.menu__link--active:not(.menu__link--sublist) { font-weight: 700; }
+:focus-visible { outline: 2px solid var(--lifted); outline-offset: 2px; }
+
+/* Navbar controls sit on ink in both colour modes: Infima draws them in the page text colour, which vanishes on ink in light mode */
+.navbar { --ifm-color-emphasis-600: var(--paper-ink); }
+.navbar__toggle,
+.navbar .clean-btn,
+.navbar .navbar__toggle svg { color: var(--paper-ink); }
+
+/* Squares: Infima hardcodes radii on menus, breadcrumbs and round buttons instead of reading --ifm-global-radius */
+.menu__link,
+.menu__list-item-collapsible,
+.menu__caret,
+.breadcrumbs__link,
+.clean-btn,
+.theme-back-to-top-button,
+.pagination-nav__link,
+.pills__item,
+.tabs__item,
+.table-of-contents__link { border-radius: 0; }
+.menu__caret:before, .menu__link--sublist-caret:after { border-radius: 0; }
+button[class*='toggleButton_'],
+button[class*='backToTopButton_'] { border-radius: 0; }
+/* Authored diagram components under docs/ set inline radii; keep them on the flat system */
+.markdown [style*='border-radius'] { border-radius: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The navbar is ink in both colour modes: the onboard icon button hovers to white, not the (dark) primary. */
+.navbar button[title^='Copy the prompt']:hover { color: #ffffff; }
+
+/* Doc cards (the /guides/ and /reference/ index pages, docs/SidebarCards.jsx): flat and square like the rest of the
+   site, a hairline border that turns to the accent on hover, and none of the docs' link underline. */
+.markdown a[class*='cardContainer_'],
+.markdown a[class*='cardContainer_'] * {
+  text-decoration: none;
+}
+
+.markdown [class*='cardContainer_'] {
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.markdown [class*='cardContainer_']:hover {
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+/* Block directory on /reference/ (docs/ReferenceDirectory.jsx): a filter box, jump links and one row per block, grouped
+   as in the sidebar. Two columns when there is room, one on a phone; every link and chip is at least 44px tall. */
+.zb-ref {
+  --ref-strong: #8791ab;
+  --ref-tint: #e6eafb;
+  --ref-link: var(--ifm-link-color);
+}
+html[data-theme='dark'] .zb-ref {
+  --ref-strong: #7c86ab;
+  --ref-tint: #252f62;
+  --ref-link: #9aa8ea;
+}
+.zb-ref a:focus-visible,
+.zb-ref input:focus-visible { outline: 3px solid var(--ref-link); outline-offset: 2px; }
+.zb-ref-filter { display: flex; flex-direction: column; gap: 0.5rem; max-width: 36rem; margin: 0 0 1.5rem; }
+.zb-ref-filter label { font-size: 0.875rem; font-weight: 800; }
+.zb-ref-filter input {
+  box-sizing: border-box; width: 100%; min-height: 48px; padding: 0 0.875rem;
+  font: inherit; font-size: 1rem; color: var(--fg); background: var(--ifm-background-color);
+  border: 2px solid var(--ref-strong); border-radius: 0;
+}
+.zb-ref-filter input::placeholder { color: var(--label); opacity: 1; }
+.zb-ref-jump { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.25rem; }
+.zb-ref-jump a {
+  display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; box-sizing: border-box; padding: 0 0.875rem;
+  border: 1px solid var(--rule); font-size: 0.875rem; font-weight: 600; color: var(--fg); text-decoration: none;
+}
+.zb-ref-jump a span { color: var(--label); font-weight: 400; }
+.zb-ref-jump a:hover { background: var(--surface); text-decoration: none; }
+.zb-ref-summary { margin: 0 0 1.25rem; font-size: 0.875rem; color: var(--label); }
+.zb-ref-empty { margin: 2rem 0; font-size: 1.0625rem; color: var(--fg-soft); }
+.zb-ref-columns { display: flex; flex-wrap: wrap; gap: 0 3.5rem; align-items: flex-start; }
+.zb-ref-column { flex: 1 1 20rem; min-width: 0; }
+.zb-ref-column:empty { display: none; }
+.zb-ref-group { margin: 0 0 2.5rem; scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem); }
+.zb-ref-group-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem;
+  padding-bottom: 0.625rem; border-bottom: 3px solid var(--fg);
+}
+.zb-ref-group-head h2 { margin: 0; font-size: 1.375rem; line-height: 1.25; }
+.zb-ref-group-head span { font-size: 0.875rem; color: var(--label); white-space: nowrap; }
+.zb-ref-block { display: flex; flex-direction: column; gap: 0.375rem; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.zb-ref-block-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.375rem 1rem; }
+.zb-ref .zb-ref-name {
+  display: inline-flex; align-items: center; min-height: 44px; font-size: 1.125rem; font-weight: 800;
+  color: var(--ref-link); text-decoration: none;
+}
+.zb-ref .zb-ref-name:hover { color: var(--ref-link); text-decoration: underline; }
+.zb-ref-badges { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.zb-ref-badge { padding: 2px 8px; border: 1px solid var(--rule); font-size: 0.8125rem; font-weight: 600; color: var(--label); }
+.zb-ref-badge-accent { border-color: transparent; background: var(--ref-tint); color: var(--ref-link); font-weight: 800; }
+.zb-ref-desc { margin: 0; font-size: 0.9375rem; color: var(--fg-soft); }
+.zb-ref-artifact { align-self: flex-start; padding: 0; border: 0; background: none; font-size: 0.8125rem; color: var(--label); }
+.zb-ref-also { margin: 0; font-size: 0.8125rem; color: var(--label); }
+.zb-ref-related { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.25rem; }
+.zb-ref .zb-ref-chip {
+  display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; padding: 0 0.75rem;
+  border: 1px solid var(--rule); font-size: 0.8125rem; font-weight: 600; color: var(--fg); text-decoration: none;
+}
+.zb-ref .zb-ref-chip:hover { background: var(--surface); color: var(--fg); text-decoration: none; }
+.zb-ref-chip-hit { border-color: var(--ref-link); background: var(--ref-tint); }
+
+/* Footer (src/theme/Footer/Layout), on every page. Ink in light mode; in dark mode the page itself is ink, so the
+   footer goes one step deeper (the code-card tone) and a rule marks its top edge. Its content sits on the landing
+   page's measure and gutter, so its left edge lines up with the sections above. */
+.zb-footer {
+  --zb-footer-bg: var(--ink);
+  padding: clamp(2.5rem, 6vw, 4rem) var(--lp-gutter) 2rem;
+  background: var(--zb-footer-bg);
+  border-top: 1px solid var(--ink-rule);
+  color: var(--ink-soft);
+}
+html[data-theme='dark'] .zb-footer { --zb-footer-bg: var(--code-bg); }
+.zb-footer-main,
+.zb-footer-base {
+  max-width: calc(var(--lp-measure) - 2 * var(--lp-gutter));
+  margin-inline: auto;
+}
+
+/* Logo and tagline on the left, the link columns pushed to the right; stacked on phones. */
+.zb-footer-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2.5rem 4rem;
+  align-items: start;
+}
+.zb-footer-brand a { display: inline-block; opacity: 1; }
+.zb-footer .footer__logo { display: block; margin: 0; max-width: none; width: 160px; height: auto; }
+.zb-footer-brand p { margin: 1rem 0 0; max-width: 24rem; font-size: 0.9375rem; line-height: 1.5; text-wrap: balance; }
+
+.zb-footer .footer__links {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 2rem clamp(2rem, 5vw, 4.5rem);
+  margin: 0;
+}
+.zb-footer .footer__col { flex: none; max-width: none; margin: 0; padding: 0; }
+.zb-footer .footer__title { margin: 0 0 0.875rem; color: var(--paper-ink); font-size: 0.9375rem; font-weight: 800; }
+.zb-footer .footer__item + .footer__item { margin-top: 0.5rem; }
+.zb-footer .footer__link-item { display: inline-block; color: var(--ink-soft); font-size: 0.9375rem; line-height: 1.4; }
+.zb-footer .footer__link-item:hover { color: #ffffff; text-decoration: underline; text-underline-offset: 0.2em; }
+
+.zb-footer-base {
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ink-rule);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.zb-footer-base a { color: var(--ink-soft); text-decoration: underline; text-underline-offset: 0.2em; }
+.zb-footer-base a:hover { color: #ffffff; }
+
+@media (max-width: 52rem) {
+  .zb-footer-main { grid-template-columns: 1fr; }
+}
+@media (max-width: 30rem) {
+  .zb-footer .footer__links { grid-template-columns: repeat(2, auto); justify-content: start; }
+}
+
+/* GitHub and Discord icons in the navbar, as on zio.dev and effect.website. The items have no label, so Docusaurus adds no external-link arrow. */
+.header-github-link:hover { opacity: 0.6; }
+
+.header-github-link::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  display: flex;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E")
+    no-repeat;
+}
+
+[data-theme='dark'] .header-github-link::before {
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E")
+    no-repeat;
+}
+
+/* The mobile menu is a list of labelled rows, so the icon row gets its word there (the desktop navbar stays icon only). */
+.navbar-sidebar .header-github-link { display: flex; align-items: center; gap: 0.5rem; }
+.navbar-sidebar .header-github-link::after { content: 'GitHub'; }
+
+/* Discord icon beside the GitHub one, as on effect.website. Same pattern: icon only, with the mobile menu row labelled. */
+.header-discord-link:hover { opacity: 0.6; }
+
+.header-discord-link::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  display: flex;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z'/%3E%3C/svg%3E")
+    no-repeat;
+}
+
+[data-theme='dark'] .header-discord-link::before {
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z'/%3E%3C/svg%3E")
+    no-repeat;
+}
+
+.navbar-sidebar .header-discord-link { display: flex; align-items: center; gap: 0.5rem; }
+.navbar-sidebar .header-discord-link::after { content: 'Discord'; }
+
+/* Chat assistant (src/theme/Footer/index.js): the ByteBrain widget, restyled to the site's flat, square look.
+   The widget's Tailwind build marks every utility `!important`, and for important declarations an earlier layer wins,
+   so these overrides sit in the `components` layer (declared before `utilities`) and are `!important` too. All of them
+   hang off `.zb-chat`, so nothing leaks to the rest of the page. Colours come from the site tokens, which already
+   switch in dark mode, so one rule serves both. */
+@layer components {
+  /* The widget caps its open window at 100dvh minus this offset, so the window stops below the sticky navbar
+     instead of covering it. The site has no announcement bar, so the navbar height is the whole offset. */
+  .zb-chat { --bytebrain-offset-top: var(--ifm-navbar-height); }
+
+  .zb-chat [class*='rounded'],
+  .zb-chat input,
+  .zb-chat button {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Launcher: a square primary-colour button in the bottom-right corner, the label kept visible. */
+  .zb-chat #chat-button {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    cursor: pointer;
+    margin: 0 1.25rem 1.25rem 0 !important;
+    padding: 0.75rem 1.125rem !important;
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+    border: 0 !important;
+    font-family: var(--ifm-font-family-base) !important;
+    font-size: 0.9375rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    transform: none !important;
+    transition: background-color 0.15s ease !important;
+  }
+  .zb-chat #chat-button:hover { background: var(--ifm-color-primary-dark) !important; }
+  .zb-chat #chat-button:focus-visible { outline: 2px solid var(--ifm-color-primary-lightest); outline-offset: 2px; }
+
+  /* Window: the page background with a hairline border. */
+  .zb-chat #ChatPrompt {
+    background: var(--ifm-background-color) !important;
+    color: var(--fg) !important;
+    border: 1px solid var(--rule) !important;
+    font-family: var(--ifm-font-family-base);
+  }
+  .zb-chat #ChatPrompt h1 {
+    margin-bottom: 1rem !important;
+    color: var(--fg) !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em;
+  }
+
+  /* Bot answers (a header and body segments, bg-blue-600 / bg-blue-500): one surface, one primary accent stripe. */
+  .zb-chat .bg-blue-600,
+  .zb-chat .bg-blue-500 {
+    background: var(--surface) !important;
+    color: var(--fg) !important;
+    border-left: 3px solid var(--ifm-color-primary) !important;
+  }
+  .zb-chat .bg-blue-600 *,
+  .zb-chat .bg-blue-500 * { color: inherit !important; }
+  .zb-chat .bg-blue-600 a,
+  .zb-chat .bg-blue-500 a {
+    color: var(--ifm-link-color) !important;
+    text-decoration: underline;
+  }
+
+  /* The reader's own messages. */
+  .zb-chat .bg-gray-300 {
+    background: var(--rule) !important;
+    color: var(--fg) !important;
+  }
+  .zb-chat .bg-gray-300 *,
+  .zb-chat .text-gray-600 { color: var(--fg) !important; }
+
+  /* Inline code (widget 0.0.12 reads these variables; its default was a fixed blue). A 15% tint of the site's primary,
+     so the highlight follows the theme. The tint is computed from `--ifm-color-primary`, which already switches in dark
+     mode, so one rule covers both. Measured contrast of the text (--fg) on the tint: light 12.4:1 in answers, 11.0:1
+     in questions; dark 12.7:1 in answers, 11.2:1 in questions. Text colour stays inherited. */
+  .zb-chat {
+    --bytebrain-code-bg: color-mix(in srgb, var(--ifm-color-primary) 15%, transparent);
+    --bytebrain-user-code-bg: color-mix(in srgb, var(--ifm-color-primary) 15%, transparent);
+  }
+
+  /* Input and send button. */
+  .zb-chat #promptInput {
+    background: var(--ifm-background-color) !important;
+    color: var(--fg) !important;
+    border: 1px solid var(--rule) !important;
+    font-family: var(--ifm-font-family-base);
+  }
+  .zb-chat #promptInput:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: -1px; }
+  .zb-chat #generateBtn,
+  .zb-chat .bg-black {
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+  }
+  .zb-chat #generateBtn:hover:not(:disabled),
+  .zb-chat .bg-black:hover:not(:disabled) { background: var(--ifm-color-primary-dark) !important; }
+
+  /* "Ask" button over a text selection (askOnSelect): the site's primary colour, like the launcher, so it reads in
+     light and dark mode (the widget's own near-black fill disappears on the dark background). */
+  .zb-chat #bytebrain-ask-button {
+    background: var(--ifm-color-primary) !important;
+    color: #ffffff !important;
+    font-family: var(--ifm-font-family-base) !important;
+  }
+  .zb-chat #bytebrain-ask-button:hover { background: var(--ifm-color-primary-dark) !important; }
+
+  /* Maximized view:
+     - top: the widget starts the maximized view at --bytebrain-offset-top (the navbar height, set above), so it stops
+       below the navbar. Start at 0 instead so the maximized view fills the full window height; the normal window keeps the offset.
+     - z-index: the sticky navbar sits at Docusaurus' --ifm-z-index-fixed (200). Put the maximized view above it so it
+       covers the navbar and its Restore and Close buttons stay clickable. */
+  .zb-chat #container.bytebrain-maximized { top: 0 !important; z-index: 1000; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .zb-chat #chat-button { transition: none !important; }
+  }
 }

@@ -1,0 +1,1038 @@
+# ZIO Blocks: tutorials and how-to guides backlog
+
+Compiled 2026-10-19 on branch `tutorials-and-guides-lists` (HEAD `b5f9fb71`). Status last updated 2026-10-21.
+
+## Status
+
+This table tracks every item that has been written or started. Items not listed here have not been started. Update the row when an item changes state.
+
+| ID   | Title                                                                         | Status                                  | Where                                                                                   |
+|------|-------------------------------------------------------------------------------|-----------------------------------------|-----------------------------------------------------------------------------------------|
+| T-01 | Your first schema: round-trip a type through JSON                             | Done                                    | #1756, `guides/your-first-schema.md`                                                    |
+| T-07 | Build your first database repository on SQLite                                | Done                                    | #1760, `guides/your-first-sqlite-repository.md`, `sql-examples/`                        |
+| T-09 | Render your first server-side HTML page                                       | Done                                    | #1763, `guides/your-first-html-page.md`, `html-examples/`                               |
+| T-05 | Build a typed configuration loader                                            | Done                                    | #1759, `guides/typed-config-loader.md`, `config-examples/`                              |
+| M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using`  | Done                                    | #1769, `guides/resource-and-di-migration.md`                                            |
+| T-03 | Navigate and update nested data with optics                                   | Done                                    | #1770, `guides/nested-data-with-optics.md`                                              |
+| T-04 | One type, many formats                                                        | Done                                    | #1762, `guides/one-type-many-formats.md`                                                |
+| H-05 | How to generate JSON Schema from a type and validate payloads                 | Done                                    | #1772, `guides/generate-json-schema-and-validate-payloads.md`                           |
+| H-02 | How to customize JSON field names, ADT encoding and optional fields           | Done                                    | #1775, `guides/customize-json-encoding.md`                                              |
+| H-03 | How to override the codec for one type everywhere                             | Done                                    | #1781, `guides/override-codec-for-one-type.md`                                          |
+| H-12 | How to send compact data to an LLM with TOON and parse the reply              | Done                                    | #1774, `guides/llm-data-with-toon.md`                                                   |
+| H-31 | How to fix common Scope and Wire compile errors                               | Done                                    | #1783, `guides/fix-scope-and-wire-compile-errors.md`                                    |
+| M-06 | Coming from PureConfig, Typesafe Config or zio-config                         | Done                                    | #1782, `guides/config-library-migration.md`                                             |
+| M-01 | Coming from circe, zio-json or jsoniter-scala                                 | Done                                    | #1785, `guides/json-library-migration.md`                                               |
+| H-47 | How to test database code against SQLite                                      | Done                                    | #1786, `guides/test-database-code-against-sqlite.md`                                    |
+| H-37 | How to issue and verify JWTs (plus `jwt.md` fixes)                            | Done                                    | #1789, `guides/issue-and-verify-jwts.md`, `jwt-examples/`                               |
+| H-17 | How to connect to PostgreSQL with a connection pool                           | Done                                    | #1790, `guides/connect-to-postgresql-with-a-connection-pool.md`                         |
+| H-32 | How to roll out a feature gradually with flags                                | Done                                    | #1788, `guides/roll-out-feature-gradually.md`                                           |
+| H-08 | How to derive your own type class from a Schema                               | Done                                    | #1792, `guides/derive-your-own-type-class.md`                                           |
+| T-06 | Build your first streaming pipeline                                           | Done                                    | #1832, `guides/your-first-streaming-pipeline.md`                                        |
+| H-20 | How to stream large query results                                             | Merged (#1795)                          | `guides/stream-large-query-results.md`                                                  |
+| H-24 | How to stream files and sockets without leaking resources                     | Merged (#1796)                          | `guides/stream-files-and-sockets.md`                                                    |
+| H-11 | How to read and write CSV and TSV files                                       | Done                                    | #1793, `guides/read-and-write-csv-and-tsv-files.md` |
+| H-30 | How to feed configuration into a Wire dependency graph                        | Done                                    | #1794, `guides/feed-config-into-a-wire-graph.md` |
+| M-04 | Coming from fs2, ZIO Streams or Ox                                            | Done                                    | #1801, `guides/streaming-library-migration.md` |
+| H-19 | How to write joins and inspect the generated SQL                              | Done                                    | #1802, `guides/write-joins-and-inspect-generated-sql.md` |
+| H-18 | How to upsert rows and paginate with keyset cursors                           | Merged (#1800)                          | `guides/upsert-and-paginate-with-keyset-cursors.md` |
+| H-21 | How to use the sql module from a ZIO application                             | Done                                    | #1803, `guides/sql-from-zio.md`; `sql-zio` now on the docs classpath (import rule in AGENTS.md) |
+| H-35 | How to serve http-model requests with the JDK HTTP server                     | Done                                    | #1806, `guides/serve-http-model-requests.md`; reusable `JdkHttp` adapter |
+| T-12 | Instrument a program with logs, traces and metrics                            | Done                                    | #1805, `guides/instrument-a-program-with-logs-traces-and-metrics.md`, `telemetry-examples/` |
+| H-38 | How to protect an endpoint with JWT bearer tokens                             | Done                                    | #1804, `guides/protect-endpoints-with-jwt.md`, `jwt-examples/` |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML                | Done                                    | #1807, `guides/write-and-export-openapi.md`, `openapi-examples/` |
+| H-36 | How to validate query parameters and headers and answer 400                   | Done                                    | #1808, `guides/validate-query-parameters-and-headers.md`                                |
+| T-15 | Build a small JSON backend from blocks (capstone)                             | Done                                    | #1809, `guides/small-json-backend-from-blocks.md`, `capstone-examples/`                  |
+| H-04 | How to define validated newtypes and collect every validation error   | Done                                    | #1811, `guides/validated-newtypes.md`                                                   |
+| H-06 | How to read and modify JSON without case classes                            | Done                                    | #1812, `guides/json-without-case-classes.md`                                            |
+| H-34 | How to load configuration files on the JVM and in the browser                | Done                                    | #1816, `guides/load-configuration-files.md`                                             |
+| H-22 | How to map custom column types                                                | Done                                    | #1814, `guides/map-custom-column-types.md`                                              |
+| H-07 | How to compute, store and replay changes with diff and Patch                  | Done                                    | #1815, `guides/diff-and-patch.md`; follow-up #1828 (`patch.md` to mdoc) merged |
+| H-48 | How to test code that logs, traces and records metrics                       | Done                                    | #1823, `guides/test-telemetry.md`; zio-test added to `telemetry-examples` (user approved) |
+| H-50 | How to tune JSON encoding and decoding for throughput                        | Done                                    | #1824, `guides/tune-json-throughput.md`                                                 |
+| H-15 | How to read and write YAML documents                                         | Done                                    | #1822, `guides/read-and-write-yaml.md`                                                  |
+| H-09 | How to build a schema registry with DynamicSchema                            | Done                                    | #1825, `guides/build-a-schema-registry.md` (JVM only; stores Avro) |
+| M-07 | Coming from chimney or ducktape                                              | Skipped (maintainer decision)           | —                                                                                       |
+| M-10 | Coming from jwt-scala                                                        | Skipped (maintainer decision)           | —                                                                                       |
+| T-10 | Add interactivity to a page with HTMX                                        | Done                                    | #1839 (Opus run; #1837 Haiku and #1838 Sonnet runs closed), `guides/add-interactivity-with-htmx.md` |
+| H-41 | How to send Server-Sent Events with http-model                               | Done                                    | #1842, `guides/send-server-sent-events.md`; also fixed `headers.md:660`, the H-35 streaming note, the Zionomicon three-author sweep and the AGENTS.md scaladoc-check command; unblocks T-11 |
+| H-52 | How to store and search vector embeddings in PostgreSQL (pgvector)            | Done                                    | #1848, `guides/store-and-search-vector-embeddings.md`; requested by the user, not in the original backlog |
+| H-53 | How to use ZIO Blocks in a ZIO or cats-effect application                    | Merged (#1880)                          | `guides/use-zio-blocks-in-zio-or-cats-effect.md`; examples in `zio-blocks-examples/effect-integration/` (12 mains, ZIO and cats-effect); absorbs H-46; requested by the user after a public question; no `sidebars.js` entry yet (held for the guides reorganisation) |
+| H-26 | How to run streams without blocking (async terminals and Scala.js)           | Done                                    | #1849, `guides/run-streams-without-blocking.md` (coffee-order domain) |
+| T-11 | Build a live dashboard with Datastar (published title)                       | Done                                    | #1852, `guides/build-a-live-dashboard-with-datastar.md`; new standalone `datastar-examples/` build (user approved); weather-station domain (user's choice) |
+| H-43 | How to correlate logs and traces across services                             | Done                                    | #1853, `guides/correlate-logs-and-traces.md`; telemetry-otel + http-model added to `telemetry-examples` (user approved); also fixes two `telemetry-guide.md` propagation snippets that silently start a new trace |
+| H-10 | How to use Scala 3 named tuples with Schema                                  | Done                                    | #1857, `guides/use-named-tuples-with-schema.md`; minimum Scala 3.7.0 (works with plain `zio-blocks-schema_3:0.0.56` on 3.7-3.9) |
+| H-40 | How to return HTMX fragments, full pages and response headers               | Done                                    | #1856, `guides/return-htmx-fragments-and-response-headers.md` |
+| T-13 | Generate Scala code from a Smithy model                                      | Done                                    | #1858, `guides/generate-scala-code-from-smithy.md`; codegen + schema deps and an `orders-app` sbt source-generator subproject added to `smithy-examples` (user approved); unblocks H-44 |
+| H-44 | How to generate Scala types from an OpenAPI spec at build time               | Done                                    | #1863, bookstore spec (user's choice); `codegen` + a `bookstore-app` generator subproject added to `openapi-examples` (user approved); `guides/generate-scala-types-from-openapi.md` |
+| M-02 | Coming from ZIO Schema 1.x (fix the existing guide: compile all 53 snippets) | Done                                    | #1864, all After blocks compiled; `guides/zio-schema-migration.md` |
+| H-51 | How to avoid allocation on hot paths                                         | Done                                    | #1866 (also fixed the `docs/index.md` Maybe row); examples split over schema-examples (Maybe), telemetry-examples (LabeledInstruments) and streams-examples, no new deps (user's choice); `guides/avoid-allocation-on-hot-paths.md` |
+| H-23 | How to migrate table rows to a new version online                            | Done                                    | #1865, `guides/migrate-table-rows-online.md`; `dataMigration.jvm` added to the docs classpath (unblocks X-05) and `data-migration` to `sql-examples` (user approved) |
+| H-14 | How to store case classes in MongoDB with schema-bson                        | Done                                    | #1867 ( also fixes `schema-bson/README.md` bson version and `bson.md` Pattern 4 / `BsonTrace.render` examples), `guides/store-case-classes-in-mongodb.md`; `mongodb-driver-sync` added to `schema-examples` (user approved, option A) |
+| H-29 | How to run a mux over a real socket                                          | Done                                    | #1870; Scala 3 only (union returns); JDK threads instead of `Async.start` (long blocking loops would starve the common pool); fixes `mux.mdx` lock/threading wording, `guides/run-a-mux-over-a-socket.md` |
+| H-27 | How to process binary data without boxing                                    | Done                                    | #1869, `guides/process-binary-data-without-boxing.md`; reframed for the post-#1672 count-based end detection |
+| H-13 | How to encode and decode records with Avro                                   | Done                                    | #1861 (redone with Opus at the user's request), `guides/encode-and-decode-records-with-avro.md` |
+| M-03 | Coming from Magnum or doobie                                                  | Done                                    | #1830, `guides/migrate-from-magnum-or-doobie.md`                                        |
+| H-28 | How to wrap callback and Future-based APIs in Async                           | Done                                    | #1834, `guides/wrap-callback-and-future-apis.md`                                        |
+| H-01 | How to add ZIO Blocks to your build                                           | Merged (#1810)                          | `getting-started/installation.md` (moved from `guides/add-zio-blocks-to-your-build.md` by #1900); fixed the 3.9+ rule across docs               |
+| T-02 | Evolve your data from V1 to V2 with `Into`, `As` and `Migration`              | Done                                    | #1831, `guides/evolve-your-data.md` ("Evolve Your Data: Change Your Types with Into, As and Migration") |
+| H-25 | How to process a stream in parallel with bounded concurrency                  | Skipped (maintainer decision)           | —                                                                                       |
+| H-45 | How to convert between Chunk and other collections                            | Skipped (maintainer decision)           | —                                                                                       |
+| M-08 | Coming from monocle or quicklens                                              | Skipped (maintainer decision)           | —                                                                                       |
+| M-09 | Coming from Scalatags                                                         | Skipped (maintainer decision)           | —                                                                                       |
+| H-16 | How to exchange data with non-Scala services over MessagePack or Thrift       | Skipped (maintainer decision)           | —                                                                                       |
+| M-11 | Coming from avro4s, the MongoDB driver macros or phobos                       | Skipped (maintainer decision)           | —                                                                                       |
+| H-46 | How to connect zio-blocks streams to ZIO Streams or fs2                       | Skipped; absorbed into H-53             | its streams bridge is H-53's last section                                               |
+| H-42 | How to configure log output                                                   | Skipped (maintainer decision)           | —                                                                                       |
+| H-49 | How to test HTTP handlers as pure functions                                   | Skipped (maintainer decision)           | —                                                                                       |
+| H-33 | How to keep secrets out of logs and config dumps                              | Skipped (maintainer decision)           | —                                                                                       |
+| T-08 | Describe a typed HTTP API with Endpoint                                       | Skipped (maintainer decision)           | —                                                                                       |
+
+**Related doc-fix PRs:** #1771 (config parse-error and `EnvSource` contradictions, merged), #1784 (`codec.md` overrides, merged), #1773 (codec reference pages, merged), #1787 (`type-class-derivation.md` snippets, merged). #1761 (`loadOrThrow` error count) was closed without merging.
+
+**Unblocked since this backlog was compiled:**
+
+- T-07 merged, so the sql items can start: H-17 (written, unpushed), H-18 (partly covered by the `repo.md` upsert and `pageAfter` docs added in #1760), H-20 and H-47.
+- T-05 merged, so H-30 (config into a `Wire` graph) and H-32 (feature-flag rollouts) can start.
+- T-09 merged, so T-10 (HTMX) and T-11 (Datastar) have their prerequisite, but both still need an HTTP adapter (H-35).
+- PR #1742 (projection docs) merged on 2026-10-20. T-14 now waits only on issue #1744, which has grown to sixteen engine problems.
+
+**T-06 merged (#1832).** H-20, H-24 and M-04 were written and merged before it; H-25 was skipped.
+
+**Unblocked by T-12 (merged #1805):** H-48 and H-43 (H-42 was skipped). For H-42, don't call `log.removeAll()` before adding writers (writers never resume output afterwards).
+
+**Unblocked by H-35 (merged #1806):** H-36, H-38, H-49, H-40, H-41, T-10, T-11 and the T-15 capstone can reuse its `JdkHttp` adapter (`http-model-examples/src/main/scala/servehttpmodelrequests/JdkHttp.scala`).
+
+**Links to add when PRs merge:** `small-json-backend-from-blocks.md` (T-15) names H-35 (#1806, section 9 and Background), H-36 (#1808, end of section 6), T-12 (#1805, end of section 8 and the log source-location caution) and H-38 (#1804, Where to Go Next) without links. Each of those PRs should turn its mention into a link. Done: #1804 (merged), #1806. Also `protect-endpoints-with-jwt.md` (H-38) names H-35 unlinked in Prerequisites and Running the Examples; #1806 should link it.
+
+**Install-rule pass after the next release:** #1743 (merged 2026-10-22) moves `zio-blocks-*_3` to Scala 3.9 and `zio-blocks-next-*` to Scala 3.10, and drops 3.3. Published 0.0.56 still follows the old rule (3.3–3.8 → `zio-blocks-*`, 3.9+ → `zio-blocks-next-*`), which is what about 42 docs pages say. When the release that includes #1743 ships, do one docs-wide pass (H-01's page first) and make every example build consistent: on main some use `minor >= 10` for the `-next` prefix, some `>= 9` (capstone, config, html, http-model, jwt, openapi, sql, telemetry), and the `-experimental` switch is `>= 8` in some and `>= 9` in others.
+
+**Doc-fix sweep:** streams batch (stream.md, reader.md, writer.md, sink.md, platform-differences.md, zero-boxing.md, the migration guide's sentinel paragraph, the `SinkSentinel*` examples and a `NioStreamsSinksSpec` test): merged in #1881 (`c8c65babe`); its fixed entries moved to Resolved in `issues.md`. Batch 2a, schema core and data types: merged in #1877 (`edd42b4a2`, three review rounds); its fixed entries moved to Resolved in `issues.md`. Batch 2b, codec pages: merged in #1878 (`13423e664`); its fixed entries moved to Resolved in `issues.md` (only one read-only review round ran before merge; the post-merge review in session `codec-review` found about 62 valid findings, 13 of them wrong facts, fixed in #1883, merged `0f2b31d5d`). Batch 3, web pages: merged in #1879 (`1a5561f65`); its fixed entries moved to Resolved in `issues.md`. The stale `docs/reference/datastar.md` that shadows the Datastar overview (so #1879's Datastar fix isn't live) was removed in #1886 (`6462ef6e9`), with a guard test against any `X.md` next to `X/index.md`; needs a redeploy to go live. After it merges, `docs/undocumented-report.md:329` and `:447` ("Expand `datastar.md`") should point at the split pages under `reference/datastar/` (small cleanup). Batch 4a, config/scope/telemetry/otel/async and the `docs/index.md` Guides list: merged in #1885 (`ac8a1d76a`, three review rounds); its fixed entries moved to Resolved in `issues.md`. It changed `docs/index.md` but skipped `yarn test`/`yarn check:landing` and the README regeneration: run them before the next release (CI's `update-readme` job also regenerates the README after a release). Pages linked from `docs/index.md` that still have no frontmatter `description:` (done in #1890, the docs-cleanup PR, merged `0959c8abb` on 2026-10-29, together with the `undocumented-report.md` datastar lines, the object-hash outputs in `db-codec.md`, `db-codec-deriver.md`, `toon.md`, `ddl.md` and `repo.md`, the `PRIMARY KEY` known-bug wording, the `transactor-zio.md` table and the README regeneration; its review also fixed `repo.md` presenting `Repo` as a concrete class and saying SQL is built once. Left: `query-dsl-extending.md` and `query-dsl-fluent-builder.md` use `Optic[_, _]`, which warns as deprecated on Scala 3.4+): `guides/query-dsl-sql.md`, `guides/query-dsl-extending.md`, `guides/query-dsl-fluent-builder.md`, `guides/query-dsl-reified-optics.md`, `guides/compile-time-resource-safety-with-scope.md`, `guides/telemetry-guide.md`, `guides/zio-schema-migration.md` (`reference/sql-zio.md` gets one in batch 4b). Batch 4b, sql pages (`db-codec.md`, `sql-zio.md`, `transactor-zio.md`, `table.md`, `db-codec-deriver.md`, the `Frag#queryChunked` Scaladoc), schema optics/paths, `toon.md` and `stream-files-and-sockets.md:80`, merged in #1887 (`5779e440d`, three review rounds; merged before Build Docs and the test jobs finished); its fixed entries moved to Resolved in `issues.md`. Left for a later cleanup: unstable object-hash outputs in older mdoc blocks of `db-codec.md` (11), `db-codec-deriver.md` (3) and `toon.md` (1); `ddl.md:62` and `repo.md:536` state the missing `PRIMARY KEY` without calling it a known bug; `transactor-zio.md` comparison-table padding.
+
+**Guides sidebar reorganised (#1882, merge `248fd9da6`, 2026-10-29):** the guides sidebar now has four sections: Tutorials (17), How-to guides (9 topics, including Interop, where H-53 now sits), Migration guides (6) and Deep dives. Every section and topic has a generated landing page under `/guides/...`, and `docs/index.md` lists 6 curated guides and links to `/guides/`. **New rule for every guide PR:** add the page to a section or topic in `docs/sidebars.js`; `website/test/unit/guides-sidebar.test.mjs` fails `yarn test` if a guide page is missing from the sidebar or listed twice. Follow-ups from #1882, not started: (1) exclude `docs/superpowers/` from the website in `website/docusaurus.config.js`: spec and plan files are currently published; (2) `docs/dev/research.md` ~126-129 still describes the old flat guides list; (3) maybe collapse Tutorials by default and polish the `/guides` intro.
+
+**Issue files split (#1903, `9d8bb9d70`, 2026-10-29):** `docs/dev/issues.md` is now an index; library bugs, usability traps and library test/CI problems are in `library-issues.md`, documentation errors and docs tooling in `docs-issues.md`. AGENTS.md's reporting rule names both.
+
+**Internal files off the website:** #1894 (`630823a42`) removed their HTML pages, and #1902 (`a8c88b19c`) removed their raw `.md` copies and `llms.txt`/`llms-full.txt` entries: the llms plugin's `ignoreFiles` now matches the Docusaurus `exclude` list, and `internal-docs-excluded.test.mjs` checks both lists separately. The CI-built site for #1902 had no `superpowers/` directory, no `undocumented-report` file, and 0 mentions in the llms files. Live after the next deploy.
+
+**Getting Started section (#1900, merged `4d774b674` on 2026-10-29):** 10 pages under `docs/getting-started/`: What Is ZIO Blocks?, Installation, Your First Five Minutes (with a `zio-blocks-examples/getting-started` subproject), How ZIO Blocks Thinks, Core Concepts (Schema, Scope, Wire and Context, Streams), Use with ZIO, cats-effect or Plain Scala, and Where Next. **Installation moves:** `guides/add-zio-blocks-to-your-build.md` (H-01) becomes `getting-started/installation.md`, with Netlify redirects for both slash forms. Rows here now name the new path, and the post-0.0.57 install-rule pass starts from the new page. Final navigation: Getting Started, Reference, Guides, API and Blocks on the left of the navbar, GitHub and Discord on the right (mirrored in the Scaladoc navbar); the Getting Started sidebar categories are not collapsible. `use-zio-blocks-in-zio-or-cats-effect.md` (H-53) stays under How-to > Interop; Getting Started links to it. Tutorials now start with `your-first-schema`; `website/test/unit/getting-started-sidebar.test.mjs` is new. It adds a navbar item and a footer link, #1898 (license in the footer, `7e5dd8da0`) and #1899 (Discord icon in the navbar, `2b38958fd`) merged first; #1900 merges main into its branch to resolve the overlap. #1900 then merged main cleanly (`944893ddb`) and, at Milad's request, changed the site navigation (`d1078ba51`): Getting Started has its own `gettingStarted` sidebar (Overview, then the Getting Started category); the main sidebar is reference-only; the navbar's "Docs" item is renamed "Reference" (→ `/reference/`); "Getting Started" opens `/overview`; and the footer's Docs link becomes Getting Started → `/overview`. CI green on `d1078ba51`.
+
+**Website changes (2026-10-30 to 2026-11-03), all deployed** (Deploy Website run 41682485313, live `version.txt` = `7b51118b7`, 2026-11-03): redirects moved to `website/static/_redirects` (#1912); the docs sidebar is collapsible (#1918: categories start folded except Getting Started, plus the hide-sidebar button); the Reference page is a filterable block directory (#1920: `docs/ReferenceDirectory.jsx`, `reference` data generated into `site.json` by build-catalog, 7 new group index pages under `docs/reference/`, the navbar's "Blocks" link removed). Open questions for Milad: intro pages for the nested categories (Schema sections, SQL, Projection stores); whether the "«" button should hide less than the whole sidebar.
+
+**Backlog refresh:** all 95 items are done, skipped or blocked (T-14, M-12, M-13, M-14). A research pass for new candidates (coverage gaps against the #1882 sidebar sections, recent issues and peer-library docs, scored on §2) started 2026-10-29 in session `backlog-refresh` (Opus); Milad chose its Top 10, added as H-54 to H-63 in §5.13.
+
+**Doc-fix follow-ups:** Zionomicon three-author sweep: done in #1842 (H-41; 59 lines across 9 guides, their examples and two Scaladoc examples). The remaining single-author lines (39 in 18 guides, about 35 in examples) were done in PR #1892 (session `zionomicon-authors`, Haiku), which Milad closed unmerged on 2026-10-28; the lines are still single-author on `main`. Plan used: `author` strings, author lists, CSV cells and SQL literals get all three names; `firstAuthor` fields stay; one-person `Author(...)` values stay and are listed for the user's call. For the install pass: `http-model-examples/build.sbt`'s `zioBlocks` helper switches to `next-*` at `minor >= 10`, while `zio-blocks-htmx-examples` and `datastar-examples` switch at `>= 9`. For the install pass: `schema-examples/build.sbt`'s helper uses `next-*` only from `minor >= 10` but adds `-experimental` from `>= 8` (the H-10 example headers therefore say plain `zio-blocks-schema`). The AGENTS.md sentinel policy and its JDK sentence were rewritten in #1895 (merge `457e8c4d3`, 2026-10-29): count-based end detection for `Long`/`Double`, widened sentinels for the other lanes, the same performance rule; and the JDK sentence now says mdoc runs on JDK 25 only and that the `streams`, `telemetry` and `otel` jars are built for Java 21. 
+
+**Unblocked by H-41 (merged #1842):** T-11 (Datastar) now has every prerequisite (T-09, H-35, H-41). Reuse the guide's `StreamingJdkHttp` (`http-model-examples/src/main/scala/sendserversentevents/StreamingJdkHttp.scala`), not the buffering H-35 `JdkHttp`.
+
+**Unblocked by T-02 (merged #1831):** M-07 (coming from chimney or ducktape) can start and link T-02.
+
+**Library follow-ups found while writing** (full write-ups, ready to file, are in `docs/dev/library-issues.md`):
+
+- config: `ProvenanceMap#dump` over an unprefixed `EnvSource` prints the whole process environment. Only names that match `Sensitive` markers are redacted.
+- sql: `Table.createTable` emits no `PRIMARY KEY`, so `Repo.insertOrUpdate` fails on tables it creates. #1760 documents this; the code is unchanged.
+- html: `selector"..."` never matches in `Dom#select` (#1765). `html"..."` escapes interpolated attribute values twice (#1764). `html.md` drift (#1766). On Scala 3, `import zio.blocks.html._` with `import zio.blocks.schema._` makes `p(...)` ambiguous (not filed).
+- scope: a `val r = Resource.from[T](...)` can be used only once; the second use throws "Cannot allocate from a destroyed shared resource". On Scala 3, `Unscoped` is derived for case classes that extend `AutoCloseable`, so a closed resource can escape `use`. `Wire(new Db(...))` builds eagerly. `Wire.Shared.fromFunction` does not register `close()` for an `AutoCloseable` result.
+- schema / JSON Schema: `Schema.fromJsonSchema` treats every property as required and ignores `"required"` (`JsonSchemaToReflect.scala:311`): issue #1776. `JsonSchema#check` enforces `pattern` only when it is anchored with `^...$`, while JSON Schema matches patterns anywhere in the string.
+- schema-toon: `ArrayFormat.Tabular` with a non-primitive field writes output that cannot be decoded (#1778). A top-level tabular list cannot be decoded, even when the codec wrote it (#1779). `ArrayFormat.Auto` never picks the tabular layout for record lists. `withFieldNameMapper` is ignored in tabular headers (#1780).
+- config: `loadOrThrow` reports the wrong error count when the single error is a `Composite`. #1761 was closed without merging, so this is still open.
+
+## 1. Introduction
+
+**Purpose.** This page lists candidate **tutorials** and **how-to guides** for the ZIO Blocks documentation site, in priority order. It is a planning document for documentation authors, not user-facing documentation.
+
+**How the list was compiled.**
+
+1. **Library capabilities** come from `docs/dev/research.md`, a code-grounded survey of all 41 published modules. Every topic below cites the section or module of that file it depends on. No topic relies on an API that the research did not find in the source.
+2. **Existing guides** come from `docs/guides/*.md` and `docs/sidebars.js`. A topic that an existing guide already covers is left out, or kept only with a clearly different angle, which the row states.
+3. **User demand** comes from about 35 web searches and fetches (October 2026): the doc sites of comparable libraries (tapir, doobie, ZIO, Pekko Projection, otel4s, chimney, the Typelevel toolkit), library issue trackers (zio-blocks, zio-schema, zio-json, MongoDB JIRA), and community posts. The sources are listed in [§10](#10-sources).
+4. **Open work** was checked on GitHub. Two open PRs already cover some topics: #1742 (projection docs split, migration page, 12 runnable examples; merged 2026-10-20) and #1666 (config `Secret` docs). Issue #1744 lists seven projection rebuild bugs (sixteen engine problems as of 2026-10-20).
+
+**Limits of the demand evidence.** The searches surfaced mostly official docs and blog posts, and very few Reddit or Stack Overflow threads. No independent community discussion of ZIO Blocks itself turned up. Demand ratings therefore measure "how much do users of comparable libraries need this task", not "how often do ZIO Blocks users ask for it". Treat them as informed judgments.
+
+**Diátaxis definitions used** ([diataxis.fr](https://diataxis.fr/tutorials-how-to/)):
+
+- **Tutorial:** a learning-oriented lesson for someone who is *studying*. It takes a newcomer by the hand through building something small but complete, with minimal choices and a guaranteed result. Titles read "Build …", "Your first …".
+- **How-to guide:** a goal-oriented recipe for someone who is *at work* and already knows the basics. It addresses one real task and may branch on options. Titles start with "How to …", as Diátaxis recommends ([how-to guides](https://diataxis.fr/how-to-guides/)).
+
+**How to read the tables.** Each row has an ID (`T-` for tutorials, `H-` for how-tos, `M-` for migration guides, `X-` for blocked topics), a priority with its score, a feasibility note and a demand link. "§" references point to sections of `docs/dev/research.md`.
+
+## 2. Prioritization method
+
+Each topic is scored from 1 (low) to 3 (high) on five criteria. The score is shown as `total (D/C/G/F/O)`.
+
+| Code | Criterion | 3 means | 1 means |
+|---|---|---|---|
+| D | **User demand** | Comparable libraries lead their docs with this task, or users ask for it repeatedly | Little or no evidence of demand |
+| C | **Module centrality** | Core module that many others depend on: schema, streams, sql, scope, config, HTTP | Leaf module with few users or no dependents |
+| G | **Coverage gap** | No guide, and the reference does not answer the task | A guide or a task-oriented reference section already exists |
+| F | **Feasibility today** | Writable now, with compiled mdoc snippets and existing examples | Needs a library change first |
+| O | **Onboarding value** | Part of the "start here" path for newcomers | Only useful to experienced users |
+
+**Feasibility 2** means "writable with caveats": the guide must include user-written glue code (and say so), targets Scala 3 only, needs a small docs-build change, or can use only APIs from the published 0.0.56 release in example projects (§9.5).
+
+**Priority bands.**
+
+| Priority | Rule | Meaning |
+|---|---|---|
+| **P0** | Score 13 or more | Write next |
+| **P1** | Score 11 to 12 | Write soon |
+| **P2** | Score 9 to 10 | Write later |
+| **P3** | Score 8 or less, **or** F = 1 | Nice to have, or blocked until the library changes |
+
+**Constraints that apply to every item** (§1.2, §9.5):
+
+- Every install step must show both `zio-blocks-*` and the Scala 3.9+ name `zio-blocks-next-*` (plus `-experimental`). The earlier "3.7+" rule was wrong; see `docs/dev/issues.md`.
+- sql, sql-zio, dataMigration, projection, datastar and htmx are Scala 3 only.
+- `*-examples/` projects pin the published 0.0.56. A newer API can appear only in mdoc snippets until the next release.
+- Telemetry needs JDK 21 or later on the JVM (the guide says 25 for `ScopedValue`). State it in the install step.
+- New guides need a `docs/sidebars.js` entry in the `guides` sidebar, under their section (Tutorials, How-to guides, Migration guides or Deep dives) and, for a how-to guide, its topic. The `## Guides` list in `docs/index.md` holds only six start-here picks; add a guide there only to replace one of them.
+
+## 3. Recommended learning path
+
+The ordered "start here" path below takes a newcomer from installing the library to a small working backend. Items marked *(exists)* are already published guides.
+
+**Stage 1: Foundations (all Scala versions)**
+
+1. **H-01** How to add ZIO Blocks to your build. It is a short how-to, but every tutorial links to it for the install step.
+2. **T-01** Your first schema: describe a type once and round-trip it through JSON.
+3. **T-02** Evolve your data from V1 to V2 with `Into`, `As` and `Migration`.
+
+**Stage 2: The runtime blocks (all Scala versions)**
+
+4. *(exists)* Compile-time resource safety with Scope (`guides/compile-time-resource-safety-with-scope`).
+5. **T-05** Build a typed configuration loader.
+6. *(exists)* Getting started with Async (`guides/async-getting-started`).
+7. **T-06** Build your first streaming pipeline.
+
+**Stage 3: Building applications**
+
+8. **T-07** Build your first database repository on SQLite *(Scala 3)*.
+9. **T-08** Describe a typed HTTP API with Endpoint.
+10. **T-09** Render your first server-side HTML page.
+11. **T-12** Instrument a program with logs, traces and metrics.
+
+**Stage 4: Capstone**
+
+12. **T-15** Build a small JSON backend from blocks *(Scala 3)*. It combines config, scope, sql, an HTTP adapter and telemetry.
+
+**Electives** (any time after stage 1):
+
+- Data: **T-03** optics, **T-04** many formats, *(exists)* the four-part Query DSL series (advanced).
+- Web UI: **T-10** HTMX or **T-11** Datastar, after T-09.
+- Concurrency: *(exists)* Getting started with Mux.
+- Tooling: **T-13** Smithy to Scala with codegen.
+- Event sourcing: **T-14** projection read models, after PR #1742 and issue #1744.
+
+**Scala 2.13 readers** can follow the whole path except T-07, T-10, T-11, T-14 and T-15, which need Scala 3.
+
+## 4. Tutorials backlog
+
+Fifteen tutorials. Each one builds one small, complete thing.
+
+| ID | Title | Module(s) | What the reader builds | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| T-01 | Your first schema: describe a type once and round-trip it through JSON | schema (+ chunk) | A `Book` catalog: `derives Schema`, `jsonCodec` encode and decode, a decode error read and fixed, a peek at `toDynamicValue` and `toJsonSchema` (the newcomer's eight operations, §3.2) | H-01 | **P0** · 15 (3/3/3/3/3) | Feasible; schema is on the mdoc classpath, all Scala versions. §9.3 notes the missing whole-library getting started | ZIO's own tutorial list leads with "How to Encode and Decode JSON Data" ([zio.dev/guides](https://zio.dev/guides/)); tapir tutorial 3 is "Using JSON bodies" ([tapir](https://tapir.softwaremill.com/en/latest/tutorials/02_openapi_docs.html)) | `docs/index.md:185-199`; `reference/schema/schema.md`; `built-in-codecs/json/json.md` |
+| T-02 | Evolve your data: from V1 to V2 with `Into`, `As` and `Migration` | schema | A versioned user profile: a DTO mapped to a validated domain type with accumulated errors (`Into`), a reversible V1/V2 conversion (`As`), then a `Migration.newBuilder` with compile-time completeness checks (§3.2, scenario A8) | T-01 | **P0** · 14 (3/3/3/3/2) | Feasible. No typed `Migration` example exists yet (§3.7), so write one | The zio-schema migration system was a large bounty (zio-blocks [#519](https://github.com/zio/zio-blocks/issues/519)); chimney's docs center on DTO-to-domain "partial transformers" ([chimney](https://chimney.readthedocs.io/supported-transformations/)) | 10 unreferenced files in `schema-examples/.../as/` and `into/`; `MigrationBuildValidationSpec`; `schema-evolution/*.md` |
+| T-03 | Navigate and update nested data with optics | schema | An inventory updater: `$(_.a.b)`, `.each`, `.when[B]`, `.atKey`, the `p"..."` path interpolator, `modify` and `modifyOrFail` | T-01 | **P1** · 11 (2/2/2/3/2) | Feasible. No standalone optics example exists (§3.7) | zio-blocks [#94](https://github.com/zio/zio-blocks/issues/94) "how do I integrate with Optics?" and [#111](https://github.com/zio/zio-blocks/issues/111); optics are benchmarked against monocle and quicklens (§3.9) | `optics.md` (1617 lines); `path-interpolator.md` |
+| T-04 | One type, many formats: export a catalog as JSON, YAML, CSV, XML, MessagePack, TOON and Avro | schema + schema-yaml, -csv, -xml, -messagepack, -toon, -avro | A small exporter that writes the same records in seven formats with `derive(Format)` and reads them back, showing which formats need flat records (CSV) or the JVM (Avro) | T-01 | **P1** · 12 (2/2/3/3/2) | Feasible. Do not copy `format.md:59`: YAML and TOON are `BinaryFormat`. CSV supports flat records only | "One type, many formats" is the front-page pitch (scenario A1), yet no example uses a non-JSON format (§4) | `schema-examples/build.sbt` already declares the format dependencies; `built-in-codecs/*.md` |
+| T-05 | Build a typed configuration loader | config, config-yaml (+ schema, maybe) | An app config read from defaults, a YAML file and environment variables, with every error reported at once, a provenance dump and redacted secrets (scenario B1) | T-01 | **P0** · 15 (3/3/3/3/3) | Feasible on JVM and JS. `fromYaml` takes a string, so the reader loads the file. Confirm config is in the 0.0.56 release before adding a `config-examples` project; otherwise use mdoc only | ZIO's tutorial list includes "How to Make a ZIO Application Configurable?" ([zio.dev/guides](https://zio.dev/guides/)); Scala 3 users still report PureConfig derivation pain ([Scala Users](https://users.scala-lang.org/t/scala-3-migration-pureconfig/12096), [alexn.org](https://alexn.org/blog/2025/10/30/scala-3-hocon-parsing/)) | `reference/config/*` (7 pages); `ConfigSourceCompositionSpec` "four-level chain" |
+| T-06 | Build your first streaming pipeline | streams (+ scope, chunk) | A log analyser: read a file safely, parse lines, filter, window with `grouped`, aggregate into a `Sink`, recover from a bad line with `catchAll`, then run the same pipeline with an `*Async` terminal | Scope tutorial (optional) | **P0** · 15 (3/3/3/3/3) | Feasible, all Scala versions. Keep primitive-lane loops free of per-element sentinel checks (`AGENTS.md` sentinel policy) | fs2's getting-started example is exactly "read a file line by line, transform, write" ([fs2](https://git.rossabaker.com/typelevel/fs2/blame/branch/main/site/getstarted/example.md)); multi-part blog series on large-file streaming ([Livongo](https://techblog.livongo.com/using-scala-to-read-really-really-large-files-part-5-fs2-with-io-helpers/)) | 38 files in `streams-examples/` (`StreamBasicUsageExample`, `StreamResourceExample`, `StreamWindowingExample`, `StreamErrorHandlingExample`) |
+| T-07 | Build your first database repository on SQLite | sql (+ schema, maybe) | A bookshelf: `Table.derived`, `createTable` DDL, `Repo.derived` CRUD, a hand-written `sql"..."` query, a transaction with rollback, `queryOne` returning `Maybe` (scenario D1) | T-01 | **P0** · 14 (3/3/3/2/3) | Scala 3 only. The sql core also builds for Scala.js, but `JdbcTransactor` is JVM-only, so the tutorial runs on the JVM. Verify `sqlite-jdbc` is on the docs classpath, else use `mdoc:compile-only`. No sql examples project exists | doobie's book starts "Connecting to a Database", "Selecting Data", "Parameterized Queries" ([doobie](https://typelevel.org/doobie/docs/03-Connecting.html)); Magnum, the closest API, leads with the same flow ([Magnum](https://index-dev.scala-lang.org/augustnagro/magnum)) | `docs/index.md:404-467`; `RepoIntegrationSpec`, `JdbcTransactorSQLiteSpec`; `reference/sql/*` |
+| T-08 | Describe a typed HTTP API with Endpoint | endpoint, http-model (+ schema, mediatype) | A bookstore API: route patterns with typed path codecs, query and header inputs, JSON bodies, typed errors, bearer auth, a versioned prefix, and `RouteTree` lookups that resolve sample requests in-process | T-01 | **P1** · 12 (3/2/3/2/2) | Writable, but it must say that zio-blocks has no server, client or OpenAPI interpreter (§8, §9.5 #2-3). Do not repeat the false OpenAPI claims (§9.6) | tapir's tutorial track covers endpoints, JSON, errors and multiple inputs and outputs ([tapir](https://tapir.softwaremill.com/en/latest/tutorials/02_openapi_docs.html)); zio-http's Endpoint API uses the same vocabulary ([zio-http](https://zio.dev/zio-http/reference/endpoint)) | `endpoint-examples/.../CompleteApiDefinition.scala`; `reference/endpoint/*` |
+| T-09 | Render your first server-side HTML page | html (+ schema) | A product page written to a file and opened in a browser: typed elements, context-aware escaping of user input, typed CSS, JSON state embedded with `ToJs`, and a `select(...)` check on the result | T-01 (for `ToJs`) | **P1** · 12 (2/2/3/3/2) | Feasible without a server. Use the typed content-model factories (three breaking changes, §8.4) | html is the #1 gap in `undocumented-report.md`; users find Scala SSR with Scalatags hard to start ([Frontend Mentor](https://frontendmentor.io/solutions/tailwind-scala-ssr-scalatags-and-cask-deployed-with-docker-image-UPzyFXyf_L)) | `reference/html.md` dashboard example |
+| T-10 | Add interactivity to a page with HTMX | htmx, html, http-model | A debounced live search with category filters: full page on first load, a fragment when `HxRequest` is present | T-09, H-35 | **P2** · 9 (2/1/3/2/1) | Scala 3 only. Needs the JDK-server glue from H-35. The htmx examples pin 0.0.56, which may predate html's typed content models (unverified). Check which htmx version (2 or 4) the attributes target | Scala HTMX guides exist only for other stacks ([Tyrian SSR](https://tyrian.indigoengine.io/02-guides/ssr/)); htmx 4.0 shipped August 2026 ([flaviocopes](https://flaviocopes.com/htmx-introduction/)) | `zio-blocks-htmx-examples/.../CompleteExample.scala`; `reference/htmx/*` |
+| T-11 | Build a live counter and dashboard with Datastar | datastar, html, http-model, streams | A counter and a polling dashboard: signals, `dataOn`, `patchElements` and `patchSignals` sent as Server-Sent Events | T-09, H-35, H-41 | **P2** · 9 (2/1/3/2/1) | Scala 3 only. There is no `readSignals` or script helper (§8.5), so the tutorial decodes signals with the schema JSON codec and adds the script tag by hand. It must label this as glue | Every official Datastar SDK leads with reading signals and streaming patches ([data-star.dev](https://data-star.dev/guide/backend_requests), [Stario](https://stario.dev/docs/how-tos/datastar-sdk)) | `reference/datastar/index.md` "A Counter, End to End". Do not use the orphan `reference/datastar.md` |
+| T-12 | Instrument a program with logs, traces and metrics | telemetry | A batch job with structured logs, nested spans, a request counter and a latency histogram, switched to JSON logs, plus a test that asserts on `trace.collectedSpans` | H-01 | **P1** · 11 (3/2/2/2/2) | JDK 21+ (`-release 21`). Export is out of scope (blocked, X-01). The existing telemetry guide is a deep dive; this is the beginner lesson it lacks (§9.3) | ZIO's tutorial list includes "How to Enable Logging" and "How to Monitor … Using ZIO's Built-in Metric System" ([zio.dev/guides](https://zio.dev/guides/)); otel4s leads with a runnable Jaeger example ([otel4s](https://typelevel.org/otel4s/examples/jaeger-docker/)) | `guides/telemetry-guide.md` Parts 2-4; `reference/telemetry/*` |
+| T-13 | Generate Scala code from a Smithy model | smithy, codegen | A small generator: parse a `.smithy` file, map structures and unions to `CaseClass` and `SealedTrait` IR, and emit both Scala 3 and Scala 2 sources | none | **P2** · 9 (2/1/3/2/1) | Glue code: no production code connects smithy and codegen (§4.10, §4.11; scenario A6). The current example builds strings with `println` | smithy4s's whole onboarding is model-to-code via its sbt plugin ([smithy4s](https://index.scala-lang.org/disneystreaming/smithy4s/artifacts/smithy4s-sbt-codegen/0.18.4)) | `smithy-examples/` (4 files; stale run commands); `reference/codegen/examples.md:485-516` pseudocode |
+| T-14 | Build an event-sourced read model with projections | projection (+ schema, sql, ZIO) | A per-user profile view fed from an event store, queried by ID, then tested with `TestEngine` | T-01, ZIO basics | **P3** · 8 (2/1/2/2/1) | Scala 3, JVM, ZIO. Wait for PR #1742 (quick-start example, migration page) and avoid rebuild flows until issue [#1744](https://github.com/zio/zio-blocks/issues/1744) is fixed | Pekko Projection's getting-started guide is its main entry point ([Pekko](https://pekko.apache.org/docs/pekko-projection/1.1/getting-started/index.html)) | `projection-examples/` (in-memory only today; PR #1742 adds 12 examples) |
+| T-15 | Build a small JSON backend from blocks | config, scope, sql, http-model, endpoint, telemetry | A notes service: config loaded at startup, dependencies wired with `Wire`, a SQLite repository, routes served through the H-35 JDK adapter, and request logging | T-01, T-05, T-07, T-08, H-35 | **P1** · 12 (2/3/3/2/2) | Scala 3 (sql). The HTTP layer is user glue (§9.5 #2). Write it last, after the module tutorials exist | The "building blocks for any stack" pitch on the public site ([zio.dev/zio-blocks](https://zio.dev/zio-blocks/)); ZIO's quickstart list leads with "Building a RESTful Web Service" ([zio.dev/guides](https://zio.dev/guides/)) | `scope-examples/.../LayeredWebServiceExample.scala`; `ConfigSpec` `Config.wire` tests |
+
+## 5. How-to guides backlog
+
+Fifty-one how-to guides, grouped by area. Within each group, rows are ordered by priority.
+
+### 5.1 Getting set up
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-01 | How to add ZIO Blocks to your build | all | Choose modules; write sbt and scala-cli coordinates for Scala 2.13, 3.3 LTS and 3.7+ (`zio-blocks-next-*`); JVM vs Scala.js; JDK 21+ for telemetry; which modules have third-party deps | none | **P0** · 15 (3/3/3/3/3) | Feasible. Only `endpoint/index.md` mentions the `-next` names today (§1.2) | ZIO's guides open with "Hello World" and "Run Our First ZIO Project" pages ([zio.dev/guides](https://zio.dev/guides/)); Scaladex lists both artifact families ([Scaladex](https://index-dev.scala-lang.org/zio/zio-blocks)) | `project/BuildHelper.scala:169-176`; `docs/index.md:24-52` |
+
+### 5.2 Schema and formats
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-02 | How to customize JSON field names, ADT encoding and optional fields | schema | Snake-case names, a discriminator field instead of a wrapper key, transient fields, aliases, how `Option` and defaults are written | T-01 | **P0** · 13 (3/3/2/3/2) | Feasible. Uses `NameMapper`, `DiscriminatorKind` and the `rename`/`transient`/`alias`/`discriminator`/`fieldNaming` modifiers (§3.2) | Recurring questions: zio-json [#1301](https://github.com/zio/zio-json/issues/1301) (ADT encoding), zio-schema [#523](https://github.com/zio/zio-schema/issues/523) (ADT decoding) and [#447](https://github.com/zio/zio-schema/issues/447) (maps); circe "serialize without class name" ([SO mirror](https://dev.library.kiwix.org/content/stackoverflow_en_nopic_2021-08/questions/52594416/scala-circe-case-class-serialization-without-class-name)) | `json/json-config.md`; `modifier.md` |
+| H-03 | How to override the codec for one type everywhere | schema (+ any format) | Encode `LocalDate` as `dd/MM/yyyy` (or a money type as a string) in every derived codec, for JSON and other formats | T-01 | **P0** · 13 (3/3/3/3/1) | Feasible. `Deriver.withInstance` / `DerivationBuilder.instance` work for every format (#1348) | "Custom `LocalDate` format" is a classic circe question ([CoddyKit](https://www.coddykit.com/fr/courses/scala/custom-codecs-9564213)); zio-json "Better ISO-8601 support" [#1036](https://github.com/zio/zio-json/issues/1036) | Unreferenced `customcodec/CustomCodecOverrideExample.scala`, `deriveroverrides/CompleteExample.scala`; `DeriverWithInstanceCsvSpec` |
+| H-04 | How to define validated newtypes and collect every validation error | schema | Wrap primitives in validated types with `Schema.transform`, attach `Validation` constraints, report all failures through `SchemaError` | T-01 | **P1** · 12 (2/3/3/3/1) | Feasible. `validation.md` has 0 mdoc blocks; write compiled snippets | chimney recommends "parse, don't validate" with newtypes and partial transformers ([chimney troubleshooting](https://chimney.readthedocs.io/en/stable/troubleshooting/)); zio-blocks [#193](https://github.com/zio/zio-blocks/issues/193) newtypes | `schemaerror/SchemaErrorExample.scala`; `into/IntoErrorAccumulationExample.scala` |
+| H-05 | How to generate JSON Schema from a type and validate payloads against it | schema | Emit draft 2020-12 JSON Schema for an API contract; load an external schema with `Schema.fromJsonSchema`; validate an untyped payload | T-01 | **P1** · 11 (2/2/3/3/1) | Feasible. No JSON Schema example exists (§3.7). The official test suite passes (§3.4) | Several Scala libraries exist only for this ([scala-jsonschema](https://index-dev.scala-lang.org/andyglow/scala-jsonschema)); tapir documents it as a separate how-to ([tapir](https://tapir.softwaremill.com/en/latest/docs/json-schema.html)) | `json/json-schema.md`; `dynamicschema/DynamicSchemaValidationExample.scala` |
+| H-06 | How to read and modify JSON without case classes | schema | Parse into the `Json` ADT, build with `json"..."`, navigate with `JsonSelection`, convert to and from `DynamicValue` | T-01 | **P2** · 10 (2/2/2/3/1) | Feasible | circe `Json` cursors and ujson are standard tools (§3.9) | `json/json.md`; `json/json-selection.md`; `dynamic-value.md` |
+| H-07 | How to compute, store and replay changes with diff, Patch and JSON Patch | schema | Diff two values, serialize the patch, apply it later, choose a `PatchMode`; produce JSON Patches (zio-blocks' own format, not RFC 6902; the guide adds an outbound RFC 6902 helper) | T-01 | **P2** · 10 (1/2/3/3/1) | Feasible. `patch.md` has 0 mdoc blocks | zio-schema [#81](https://github.com/zio/zio-schema/issues/81) "Patch value with Diff"; diffson is the comparable library (§3.9) | `jsonpatch/CompleteJsonPatchExample.scala` (310 lines); `json-patch.md`, `json-differ.md` |
+| H-08 | How to derive your own type class from a Schema | schema (+ markdown) | Write a `Deriver` for a `Show` or test-data generator; add per-type overrides | T-01 | **P1** · 11 (2/3/2/3/1) | Feasible. Different angle from the 2005-line reference: one task, start to finish | zio-blocks [#94](https://github.com/zio/zio-blocks/issues/94) "as a library developer, how do I integrate…", [#836](https://github.com/zio/zio-blocks/issues/836) derivation docs | `typeclassderivation/DeriveShowExample.scala`, `DeriveGenExample.scala`; `type-class-derivation.md` |
+| H-09 | How to build a schema registry with DynamicSchema | schema (+ typeid) | Store a `DynamicSchema` as JSON, load it later, check data against it, rebind it to a Scala type with a `BindingResolver` | T-01 | **P2** · 10 (2/1/3/3/1) | Feasible | Scala users build registry glue for Avro and Kafka ([registravka4s](https://index-dev.scala-lang.org/maxstreese/registravka4s), [kaa](https://scaladex.scala-lang.org/davideicardi/kaa)) | Unreferenced `bindingresolvers/BindingResolverSchemaRegistryExample.scala`; `dynamicschema/*` |
+| H-10 | How to use Scala 3 named tuples with Schema | schema | Derive schemas, codecs and optics for named tuples, including more than 22 fields | T-01, T-03 | **P2** · 9 (2/1/3/2/1) | Scala 3.7+ only. Evidence is tests only (§4.12); confirm against a release | zio-blocks [#213](https://github.com/zio/zio-blocks/issues/213); few JSON libraries support named tuples ([tupson](https://index-dev.scala-lang.org/sake92/tupson)) | `scalaNextTests/.../SchemaVersionSpecificScalaNextSpec.scala` |
+| H-11 | How to read and write CSV and TSV files | schema-csv (+ streams) | Read a file with a header into records, report row and column errors, write CSV back; handle TSV and large files | T-01 | **P1** · 11 (3/2/3/2/1) | Flat records only. Derived codecs ignore `CsvConfig`, so TSV needs the low-level `CsvReader` and `CsvWriter` (§9.5 #9). No streams integration: large files need user glue. Do not copy `csv.md:130-147` | Two of the five Typelevel toolkit recipes are CSV read and write ([toolkit](https://typelevel.org/toolkit/examples.html)) | `built-in-codecs/csv.md`; `CsvWeatherDataSpec`, `CsvIntegrationSpec` |
+| H-12 | How to send compact data to an LLM with TOON and parse the reply | schema-toon | Encode records as tabular TOON for a prompt, tune `ArrayFormat` and delimiter, decode model output back into case classes | T-01 | **P1** · 11 (3/1/3/3/1) | Feasible. This is the module's headline use case, and no guide covers it (§4.6) | TOON's token savings are widely covered, with caveats on data shape ([InfoQ](https://www.infoq.com/news/2025/11/toon-reduce-llm-cost-tokens), [Analytics Vidhya](https://www.analyticsvidhya.com/blog/2025/11/toon-token-oriented-object-notation/)) | `built-in-codecs/toon.md` (1050 lines); `schema-toon/README.md` |
+| H-13 | How to encode and decode records with Avro (renamed 2026-10-27 from "How to encode Kafka event payloads with Avro": zio-blocks has no Kafka integration, so Kafka is only the motivating example in the intro) | schema-avro | Emit `.avsc`, encode and decode records, and know the interop caveats: `Instant` as a record, `UUID` as `fixed(16)` | T-01 | **P2** · 9 (2/1/3/2/1) | JVM only. No container files, reader/writer schema resolution or Schema Registry (§4.1); registry framing is user glue (see X-09) | Many Scala libraries exist just to join case-class Avro with a registry ([registravka4s](https://index-dev.scala-lang.org/maxstreese/registravka4s), [kaa](https://scaladex.scala-lang.org/davideicardi/kaa)) | `built-in-codecs/avro.md` Patterns 1-4 |
+| H-14 | How to store case classes in MongoDB with schema-bson | schema-bson | Choose the ADT encoding, use native `ObjectId` ids, convert to `BsonDocument` for the Java driver | T-01 | **P2** · 9 (2/1/3/2/1) | JVM only. No `CodecProvider` bridge: the driver step is user glue (§4.2). README cites the wrong bson version | The official Scala driver macros fail on some sealed traits ([JAVA-3545](https://jira.mongodb.org/browse/JAVA-3545), [JAVA-4966](https://jira.mongodb.com/browse/JAVA-4966)) (unverified, per H-14); note: zio-blocks #1334 is about `BsonSchemaCodec` serializing `Json` as an internal ADT (closed by #1340), not Mongo sealed traits | `built-in-codecs/bson.md`; `BsonCodecObjectIdSpec`, `BsonCodecJsonSpec` |
+| H-15 | How to read and write YAML documents | schema-yaml | Decode typed YAML, generate YAML (Kubernetes or CI files), use the `yaml"..."` interpolator, convert YAML to and from JSON | T-01 | **P2** · 10 (2/2/3/2/1) | `yaml.md` has 0 mdoc blocks and never mentions the interpolator or `YamlReader`/`YamlWriter`. Anchors and multi-document streams are probably unsupported (unverified, §4.8): test before writing | scala-yaml and circe-yaml are popular comparables (§4.8) | `YamlJsonInteropSpec`; `built-in-codecs/yaml.md` |
+| H-16 | How to exchange data with non-Scala services over MessagePack or Thrift | schema-messagepack, schema-thrift | Match another language's MessagePack conventions; keep Thrift field IDs stable when case-class fields move | T-01 | **P3** · 8 (1/1/3/2/1) | Thrift field IDs are positional, with no annotation (§4.5). Interop conventions exist only in the MessagePack README | Scrooge and msgpack-java are the comparables (§9.7); no direct demand evidence found | `messagepack.md`, `thrift.md`, module READMEs |
+
+### 5.3 Data: SQL, migration and projections
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-17 | How to connect to PostgreSQL with a connection pool | sql | Build a `JdbcTransactor.postgres` from a HikariCP `DataSource`, run on virtual threads, choose isolation levels | T-07 | **P1** · 12 (3/3/2/2/2) | Scala 3. Needs PostgreSQL; use `mdoc:compile-only`. `sql-transactions.md` has the Hikari recipe as prose with 0 mdoc blocks; this how-to is the setup angle | Magnum's setup is "driver + HikariCP + transactor" ([Magnum](https://index-dev.scala-lang.org/augustnagro/magnum)); doobie's "Connecting to a Database" chapter ([doobie](https://typelevel.org/doobie/docs/03-Connecting.html)) | `guides/sql-transactions.md:189-268`; `reference/sql/transactor.md` |
+| H-18 | How to upsert rows and paginate with keyset cursors | sql | `insertOrUpdate`, `Upsert.insertDoNothing` and `insertDoUpdate`; walk a large table with `pageAfter` and `keysetAfter` | T-07 | **P1** · 12 (2/3/3/3/1) | Scala 3. Single-column cursors only (composite deferred, `Frag.scala:156`). Moves the misplaced reference out of the Query DSL Part 2 tail | Magnum documents seek pagination as a core feature ([Magnum](https://index-dev.scala-lang.org/augustnagro/magnum)) | `RepoUpsertSpec`, `RepoKeysetSpec`; `guides/query-dsl-sql.md:729-1121` |
+| H-19 | How to write joins and inspect the generated SQL | sql | `SqlQuery` with `Rel.manyToOne`/`oneToMany`, `explain(dialect)`, and compile-time `Dump` files via `-Dzib.sql.dumpDir` | T-07 | **P1** · 11 (2/2/3/3/1) | Scala 3. No reference page exists for `SqlQuery`, `Rel` or `Dump` (§7.1); reference pages `reference/sql/sql-query.md`, `rel.md` and `dump.md` added in #1889 (merge `bafc31bef`, 2026-10-29) | Joins are a core chapter in doobie, Quill and Slick docs; see the library comparison ([pistack](https://www.pistack.xyz/posts/2026-09-19-scala-database-libraries-doobie-slick-quill-skunk-comparison/)) | `sql/shared/.../JoinsDumpExample.scala`; `ExplainDumpGoldenSpec` |
+| H-20 | How to stream large query results | sql, streams, chunk | Export a big table with `queryStream`/`queryChunked` into a zio-blocks `Stream`, then into a file or CSV | T-07, T-06 | **P1** · 12 (2/3/3/3/1) | Scala 3. The sql index page does not mention the streams integration (§7.1) | Streamed export is a benchmarked scenario (`sql-benchmarks`); doobie and Skunk stream results through fs2 ([Rock the JVM](https://blog.rockthejvm.com/skunk-complete-guide/)) | `reference/sql/frag.md:182-215`; `Frag.scala:355-399` |
+| H-21 | How to use the sql module from a ZIO application | sql, sql-zio | Provide a `Transactor` as a ZLayer, run effectful bodies with `transactZIO`, choose between `transact` and `transactZIO` | T-07, ZIO basics | **P1** · 11 (3/2/3/2/1) | Scala 3, JVM. **Add sql-zio to the docs mdoc classpath first** (§9.5 #4). No `ZStream` bridge exists | magnum-zio, zio-jdbc and Quill-ZIO all provide this (§7.2); ZIO's own guides cover framework integration ([zio.dev/guides](https://zio.dev/guides/)) | `reference/sql-zio.md`, `sql/transactor-zio.md` (0 mdoc); `JdbcTransactorLayersSpec`, `TransactorZIOSpec` |
+| H-22 | How to map custom column types | sql | Opaque types via `As`, Scala 3 enums, `DbCodec.jsonb` columns, PostgreSQL arrays with `PgCodec`, time zones for `Instant` | T-07 | **P2** · 10 (2/2/2/3/1) | Scala 3. `PgCodec` is undocumented (§7.1) | Magnum documents enum and custom-type mapping up front ([Magnum](https://index-dev.scala-lang.org/augustnagro/magnum)) | `DbCodecOpaqueSpec`, `DbCodecSpec`, `PgCodecSpec`, `JdbcInstantTimezoneSpec`; `reference/sql/db-codec.md` |
+| H-23 | How to migrate table rows to a new version online | dataMigration (+ sql, schema) | Backfill a new column with `SmallMigrator`; for a large PostgreSQL table, use `LargeMigrator` with a shadow table, capture triggers, fence, drain and swap; preview SQL first | T-02, T-07 | **P2** · 9 (2/1/3/2/1) | Scala 3, JVM. **Needs dataMigration on the mdoc classpath** (§9.5 #4). Do not copy the "Full Example" in `data-migration.md` (§9.6). SQLite cannot use shadow tables | Online shadow-table migrations are a well-known pain ([pg-osc](https://www.shayon.dev/post/2022/47/pg-osc-zero-downtime-schema-changes-in-postgres), [InfoQ](https://www.infoq.com/articles/shadow-table-strategy-data-migration)) | `PostgresMigrationIntegrationSpec.scala:145-231`, `MigrationIntegrationSpec`, `MigrationPreviewSpec`; ADR `2026-07-18-data-migration.md` |
+
+Production projections on SQLite are listed as blocked (X-07). Projection rebuilds, renames and testing are covered by the open PR #1742 (`reference/projection/migration.md`, `testing.md`), so they get no separate how-to.
+
+### 5.4 Streams and async
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-24 | How to stream files and sockets without leaking resources | streams, scope | Choose between `fromAcquireRelease` and `fromResource`; read NIO channels; pull by hand with JVM `start(implicit scope)` | T-06 | **P1** · 12 (2/3/2/3/2) | Feasible. No example uses `Stream.fromResource` yet (§6.7) | Resource-safe file reading is fs2's headline example ([fs2](https://git.rossabaker.com/typelevel/fs2/blame/branch/main/site/getstarted/example.md)) | `StreamResourceExample`, `ManualPullUsingStart`, `reader/ReaderCompositionExample`; `Stream.scala:3158` |
+| H-25 | How to process a stream in parallel with bounded concurrency | streams (+ ringbuffer) | `mapPar`, `flatMapPar`, `mergeAll`, `buffer`: pick a parallelism level, keep or drop ordering, merge several sources | T-06 | **P1** · 12 (3/3/2/3/1) | Feasible | Concurrency combinators are a selling point of Ox Flow and fs2 ([SoftwareMill](https://softwaremill.com/direct-style-concurrent-streaming/)) | `SegmentedLedgerIngestWalkthrough`, `MapParAsyncExample`, `FlatMapParAsyncChildrenExample` |
+| H-26 | How to run streams without blocking (async terminals and Scala.js) | streams, async | Use the `*Async` terminals that return `Async[Either[E, Z]]`; never block on Scala.js; read browser `ReadableStream`s | T-06, Async tutorial | **P2** · 10 (2/2/2/3/1) | Feasible | ZIO's integration guides include "Build and Run … on Scala.js" ([zio.dev/guides](https://zio.dev/guides/)) | `execution-and-compatibility/async-execution.md`, `platform-differences.md`; `StreamAsync*Example` |
+| H-27 | How to process binary data without boxing | streams (JVM NIO) | Read `ByteBuffer`s and channels on primitive lanes; guard against sentinel-valued data | T-06 | **P2** · 9 (1/2/2/3/1) | Feasible. Must follow the sentinel performance policy (`AGENTS.md`), but that policy is stale: #1672 (v0.0.52) removed `lastReadWasEOF` and the `NioSinks` post-loop throw; the `Long`/`Double` lanes now end on the bulk-read count, so the typed NIO sinks are lossless for `Long.MaxValue`/`Double.MaxValue` (H-51 finding, 2026-10-27). Only custom sinks using scalar `readLong(sentinel)` can collide. Rewrite the premise before starting, and don't reuse the stale `SinkSentinel*Example` files (replaced by `sink/SinkSentinelExample.scala` in #1881) | Niche; the scodec and NIO crowd (§2.1) | `NioBinaryTelemetryWalkthrough`, `SinkSentinelGuardExample`, `SinkSentinelLimitation`; `zero-boxing.md` |
+| H-28 | How to wrap callback and Future-based APIs in Async | async | Bridge callbacks with `Async.promise`/`Completer`, convert `Future`, `CompletionStage` and JS `Promise`, cancel running work, write a custom `Pollable` | Async tutorial | **P1** · 12 (3/2/3/3/1) | Feasible. The existing async tutorial skips interop (§9.3). Also serves as the "coming from `Future`" guide | ZIO publishes "How to Interop with Future", "… with Java", "… with JavaScript" ([zio.dev/guides](https://zio.dev/guides/)) | `async-examples/.../AsyncShowcaseExample.scala`, `gettingstarted/CallbackBridge.scala`; `AsyncInterop.scala` |
+| H-29 | How to run a mux over a real socket | mux (+ ringbuffer) | Frame several logical streams over one TCP connection: `offerInbound`/`takeOutbound`, half-close, `QueueFull` back-pressure | Mux tutorial | **P3** · 8 (1/1/3/2/1) | User glue: no transport exists (§6.6). Resolve the "lock-based" contradiction in `mux.mdx` first (§9.6) | Analogies only (yamux, Netty HTTP/2) | `mux-examples/*`; `guides/getting-started-with-mux.md` |
+
+### 5.5 Resources, configuration and context
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-30 | How to feed configuration into a Wire dependency graph | config, scope, context | Use `Config.wire[A]` with `Resource.from[App](...)` inside `Scope.global.scoped`, so services receive typed config (scenario B2) | T-05, Scope tutorial | **P1** · 12 (2/3/2/3/2) | Feasible. Do not copy `Wire.make[...]` from `context.md:484` (§9.6) | ZIO's DI docs point out that DI is optional and list macwire-style alternatives ([zio.dev DI](https://zio.dev/reference/di/index.md)) | `ConfigSpec.scala:22,81-92`; `wire.md:507`; `config/index.md` "Wiring Config into a Dependency Graph" |
+| H-31 | How to fix common Scope and Wire compile errors | scope, context | A catalog of the E1-E17 macro errors: what each means and the usual fix (missing `Unscoped`, escaping `$[A]`, missing or ambiguous wires, cycles) | Scope tutorial | **P1** · 12 (2/3/3/3/1) | Feasible. No error catalog exists (§6.1) | Macro-heavy libraries draw "how do I silence or understand this diagnostic" questions (zio-blocks [#316](https://github.com/zio/zio-blocks/issues/316)) | `WireMacroErrorSpec`, `ErrorMessagesSpec`; `CircularDependencyDemoExample` |
+| H-32 | How to roll out a feature gradually with flags | config (flags, rollout) | Declare `StaticFlag` and `DynamicFlag`, write a percentage or region `Rollout`, reload on a timer, catch typos with near-miss warnings, reset flags in tests with `Registry.clear` | T-05 | **P1** · 11 (2/2/3/3/1) | Feasible. Reload is manual (no polling); register flags before first touch | No Scala feature-flag library or OpenFeature Scala SDK turned up in searches; sticky percentage bucketing is the standard pattern ([FeatBit](https://home.featbit.co/blogs/Conception-Percentage-Rollout-Modern-Software-Development)) | `reference/config/flags.md`, `rollout.md`; `DynamicFlagSpec`, `RolloutSpec`, `FlagDumpSpec` |
+| H-33 | How to keep secrets out of logs and config dumps | config | Mark fields `Secret` or `Sensitive`, print a redacted `ProvenanceMap.dump`, make sure error messages don't leak values | T-05 | **P2** · 10 (2/2/2/3/1) | Feasible. Coordinate with open PR #1666 (Secret docs). Secrets-dir sources are planned, not built (X-12) | ciris is built around `Secret` handling ([Typelevel blog](https://typelevel.org/blog/ciris.html)) | `reference/config/errors.md`; `FlagDumpSpec` |
+| H-34 | How to load configuration files on the JVM and in the browser | config-hocon, config-json, config-yaml | HOCON files with includes, substitutions and sandboxing (`allowedBase`, `maxFileBytes`); JSON and YAML from strings; what works on Scala.js | T-05 | **P2** · 10 (2/2/2/3/1) | Feasible. File loading is JVM-only for HOCON; the JSON and YAML adapters have no file loader. Call out the lenient "malformed YAML as scalar" behaviour (§5.4) | Users moving off Typesafe Config look for HOCON parsers ([sconfig](https://index-dev.scala-lang.org/ekrich/sconfig), [alexn.org](https://alexn.org/blog/2025/10/30/scala-3-hocon-parsing/)) | `reference/config/formats.md`; `HoconConfigSourceSpec`, `JsonConfigSourceSpec`, `YamlConfigSourceSpec` |
+
+### 5.6 HTTP, endpoint and web UI
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-35 | How to serve http-model requests with the JDK HTTP server | http-model, endpoint, mediatype | Write a small adapter from `com.sun.net.httpserver` to `Request`/`Response`, route with `RouteTree.get` and `RoutePattern.decode`, set `ContentType` | T-08 | **P1** · 12 (2/3/3/2/2) | User glue: no server or adapter exists (§9.5 #2). Many later items depend on it | Users write plain JDK or minimal servers to learn Scala web basics ([dev.to](https://dev.to/yet_anotherdev/how-to-write-a-basic-web-server-with-scala-3-90j)) | `http-model-examples/*`; `RouteTree.scala:56`, `RoutePattern.scala:50` (scenarios E2, E3) |
+| H-36 | How to validate query parameters and headers and answer 400 | http-model-schema (+ schema) | Read typed params with `query[T]` and `header[T]`, derive `QueryCodec` for paging and filter objects, turn `Missing` and `Malformed` into a 400 response | T-01, H-35 | **P1** · 11 (2/2/3/3/1) | Feasible. The module builds for 2.13 too, despite `schema.md:68` (§9.6) | tapir and http4s give query and header decoding their own docs pages (§8.2) | `http-model/schema.md`, `schema-codecs.md`; `QueryCodecSpec`, `HeaderCodecSpec` |
+| H-37 | How to issue and verify JWTs | jwt | Sign and verify with HMAC and with RSA, EC or EdDSA keys (PKCS8 and X.509 DER), check `iss`, `aud`, `exp` with clock skew, fix the clock in tests, set hostile-token limits | none | **P1** · 12 (3/2/3/3/1) | Feasible. PEM must be converted to DER by hand; no JWK/JWKS (X-13). Fix `jwt.md` first (§9.6). The module is new and has no MiMa baseline | RS256-with-PEM verification guides are everywhere ([SSOJet](https://ssojet.com/jwt-validation/validate-jwt-using-rs256-in-scala)); providers point users at JWKS ([Auth0 community](https://community.auth0.com/t/where-is-the-auth0-public-key-to-be-used-in-jwt-io-to-verify-the-signature-of-a-rs256-token/8455/2)) | `JwtJvmSpec`, `JwtJsSecuritySpec`; `reference/jwt.md` (partial) |
+| H-38 | How to protect an endpoint with JWT bearer tokens | endpoint, jwt, http-model (+ config) | Declare `AuthType.Bearer`, extract the token in the H-35 adapter, verify it with `Jwt.decode`, choose 401 or 404, load keys from config | H-35, H-37 | **P1** · 11 (3/2/3/2/1) | Glue: `AuthType.Bearer` never verifies a JWT (§5.7, scenario E5) | Auth is a core chapter in tapir and zio-http docs ([zio-http](https://zio.dev/zio-http/concepts/endpoint)) | `endpoint-examples/.../AuthTypePatterns.scala`; `reference/endpoint/auth-type.md` |
+| H-39 | How to write an OpenAPI document and export it as JSON or YAML | openapi, schema, schema-yaml (+ markdown) | Author an `OpenAPI` value in Scala, generate component schemas with `toOpenAPISchema` and `OpenAPIGen`, export through `encodeValue(api)` to `Json` and then YAML, serve it to Swagger UI | T-01 | **P1** · 11 (3/2/3/2/1) | Byte and string encoding throw (`???`, §9.5 #10): use `encodeValue` to `Json`. YAML export is glue (scenario A5). Generating from Endpoints is blocked (X-02) | tapir's tutorial #2 is "Auto-generating OpenAPI docs" ([tapir](https://tapir.softwaremill.com/en/latest/tutorials/02_openapi_docs.html)); zio-http shows `OpenAPIGen` with Swagger UI ([zio-http](https://zio.dev/zio-http/reference/endpoint)) | `reference/openapi.md` (stale intro signature); `SchemaToOpenAPISpec`; petstore fixtures |
+| H-40 | How to return HTMX fragments, full pages and response headers | htmx, html, http-model | Branch on `HxRequest`, send out-of-band swaps, redirect or trigger client events with `HxRedirect`, `HxTriggerHeader` | T-10 | **P2** · 9 (2/1/3/2/1) | Scala 3. Needs the H-35 adapter | django-htmx's header helpers are the analogue; htmx has no Scala server guide (§8.6) | `reference/htmx/response-headers.md:208-221` |
+| H-41 | How to send Server-Sent Events with http-model | http-model, streams | Build a `text/event-stream` `Response` from `Body.fromStream` and `ServerSentEvent` | H-35, T-06 | **P2** · 10 (2/2/3/2/1) | Needs the H-35 adapter. Fix the wrong `zio-http-model` artifact name in the source pages (§9.6) | SSE streaming is what every Datastar SDK does on the server ([data-star.dev](https://data-star.dev/guide/backend_requests)) | `reference/http-model/server-sent-event.md`; `ServerSentEventSpec`; `Body.scala:153` |
+
+### 5.7 Observability
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-42 | How to configure log output | telemetry | JSON logs on stderr, per-package levels with `setMinSeverity`, rate-limited logging (`xxxEvery`, `xxxAtMost`), a custom or rotating file `LogWriter` | T-12 | **P1** · 11 (3/2/2/3/1) | Feasible on JDK 21+. `FileLogWriter` is private, so the file writer is user code (§5.5) | ZIO's guides include "How to Enable Logging" and "How to Create a Custom Logger" ([zio.dev/guides](https://zio.dev/guides/)) | `guides/telemetry-guide.md` Part 2; `reference/telemetry/logging/*` |
+| H-43 | How to correlate logs and traces across services | telemetry, otel, context, http-model | Share `ContextStorage` so logs carry span IDs; inject and extract W3C or B3 headers through http-model `Headers`; carry span context in `Context` with `OtelContext` | T-12, H-35 | **P2** · 9 (2/2/2/2/1) | JVM only for otel. Header glue for http-model (scenario F2). Do not link the missing ADR (§9.6) | Distributed tracing walkthroughs are standard in otel4s docs ([otel4s OTLP](https://typelevel.org/otel4s-sdk/guides/otlp.html)) | `telemetry-guide.md:569`, `:971-1012`; `W3CTraceContextSpec`, `B3PropagatorSpec`, `OtelContextSpec` |
+
+Exporting to a collector is blocked (X-01).
+
+### 5.8 Codegen, OpenAPI and Smithy
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-44 | How to generate Scala types from an OpenAPI spec at build time | openapi, codegen | Parse a spec with the openapi codecs, map component schemas to codegen IR, emit sources from an sbt `sourceGenerators` task | T-13 | **P2** · 9 (2/1/3/2/1) | Glue (scenario A7). Spec parsing has weak test evidence (§4.9): verify on petstore first | guardrail and OpenAPI Generator serve this need; guardrail reportedly lacks Scala 3 support ([Zuplo](https://zuplo.com/blog/2025/04/11/api-first-development-in-scala), [guardrail](https://github.com/twilio/guardrail/)) | `reference/codegen/examples.md:497-512` pseudocode; openapi petstore fixture |
+
+### 5.9 Interop with other libraries
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-45 | How to convert between Chunk and other collections | chunk | Convert to and from `zio.Chunk`, `fs2.Chunk`, `Array`, `ByteBuffer` and `Iterable` without needless copies | none | **P2** · 10 (1/2/3/3/1) | Conversions to ZIO and fs2 types are user code | `zio.Chunk` and `fs2.Chunk` users are the target audience (§2.1) | `reference/chunk.md`; `Chunk.fromArray`, `fromByteBuffer` |
+| H-46 | How to connect zio-blocks streams to ZIO Streams or fs2 | streams (+ sql) | Turn a `Stream` (for example `queryStream`) into a `ZStream` or fs2 stream and back, keeping resource safety | T-06 | **P1** · 11 (2/3/3/2/1) | Glue (scenario D7). Must handle blocking pulls on the right thread pool | ZIO's guides include "How to Interop with Cats Effect" ([zio.dev/guides](https://zio.dev/guides/)) | `Stream` `start` and `Reader` APIs (§6.7) |
+| H-53 | How to use ZIO Blocks in a ZIO or cats-effect application | schema, scope, async, streams, sql (+ zio, zio-streams, cats-effect, fs2 in examples) | Call pure parts directly; run blocking calls (sql, `Stream#runCollect`, file I/O) with `ZIO.attemptBlocking` / `IO.blocking`; lift `Scope` resources into `ZIO.acquireRelease`/`ZLayer` and `Resource.make`; bridge `Async` both ways with cancellation; bridge `Stream` to ZStream and fs2 and back (absorbs H-46) | H-21, H-28, M-05 | **P1** · 12 (3/3/3/2/1) | Added 2026-10-27 on request. ZIO has the `sql-zio` helpers (link H-21); cats-effect has no zio-blocks module, so every cats-effect bridge is labelled user glue | A public question on Twitter (2026-10-27): "how does zio-blocks handle interop with existing cats effect codebases given the claim of no effect dependencies"; ZIO's own guides include "How to Interop with Cats Effect" | `guides/sql-from-zio.md`, `guides/wrap-callback-and-future-apis.md`, `guides/resource-and-di-migration.md`, `guides/streaming-library-migration.md` |
+
+### 5.10 Testing
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-47 | How to test database code against SQLite | sql | In-memory or temp-file SQLite per test, schema from `createTable`, rollback-only transactions, fixtures | T-07 | **P1** · 11 (3/2/3/2/1) | Scala 3. PostgreSQL-only features (shadow tables, `PgCodec`) cannot be tested this way | doobie's book has a dedicated "Unit Testing" chapter ([doobie](https://typelevel.org/doobie/docs/index.html)) | `JdbcTransactorSQLiteSpec`, `RepoIntegrationSpec` |
+| H-48 | How to test code that logs, traces and records metrics | telemetry | Assert on `trace.collectedSpans`, an `InMemorySpanProcessor` and captured log records; reset state between tests | T-12 | **P2** · 10 (2/2/2/3/1) | Feasible | Testing with in-memory telemetry is a listed gap (§5.5) | `telemetry-guide.md:332`, `:537` |
+| H-49 | How to test HTTP handlers as pure functions | http-model, endpoint | Test a `Request => Response` function in-process: build requests, assert on status, headers and the full body | H-35 | **P1** · 11 (2/2/3/3/1) | Feasible without a server. Assert full rendered bodies with `==` (`AGENTS.md`) | http4s and zio-http both document in-process route testing (§9.7) | `http-model-examples/CompleteHttpExchange.scala` |
+
+### 5.11 Performance
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-50 | How to tune JSON encoding and decoding for throughput | schema | Encode to and decode from `ByteBuffer`, byte arrays and streams instead of `String`; tune `ReaderConfig` and `WriterConfig` | T-01 | **P2** · 10 (2/2/2/3/1) | Feasible. Publish numbers only from the repo's own benchmarks | zio-json [#1651](https://github.com/zio/zio-json/issues/1651) (decoder allocation vs jsoniter-scala) shows users care | `benchmarks/` (JSON vs jsoniter-scala and zio-json) |
+| H-51 | How to avoid allocation on hot paths | streams, chunk, maybe, telemetry | Primitive stream lanes, unboxed `Chunk` accessors, `Maybe` instead of `Option`, pre-bound `LabeledInstruments` | T-06 | **P2** · 9 (1/2/2/3/1) | Feasible. Do not copy "backed by `null`" from `docs/index.md:125` | Niche; performance-minded users (§2.1, §2.2) | `zero-boxing.md`; `MaybeBoxingBenchmark`; `labeled-instruments.md` |
+
+### 5.12 Modules kept reference-only
+
+These published modules get no dedicated guide. The reference already answers their tasks, or the module is plumbing:
+
+| Module | Why no guide | Where it still appears |
+|---|---|---|
+| combinators | Plumbing for other modules' type signatures. Fix the stale reference page (non-existent `Choices`) instead (§6.3) | Mentioned in T-06 (`++` and `&&` result types) |
+| ringbuffer | Six reference pages with interactive diagrams and four examples already cover the tasks (§6.5) | H-25 (it backs parallel streams) |
+| typeid | Thorough reference with a comparison section and five examples (§2.3) | H-09 (rebinding), H-30 (`Context` keys) |
+| markdown | Thorough reference; the `md"..."` interpolator is self-explanatory (§2.4) | H-08, H-39 (descriptions are `Doc` values) |
+| mediatype | Thorough reference for the type itself (§5.8) | H-35 (content types), T-08 (`Endpoint.in`/`out`) |
+| schema-xml | Reference already includes RSS, Atom and sitemap recipes (§4.7) | T-04 |
+| context | Covered as part of Wire DI | H-30, H-43 |
+
+Every one of the 41 modules is covered somewhere: the table above lists the reference-only ones, and every other module appears in at least one `T-` or `H-` row.
+
+### 5.13 Added by the 2026-10-29 backlog refresh
+
+The Top 10 of the backlog-refresh research (session `backlog-refresh`, Opus), added on Milad's choice. The proposal's other 20 candidates, its two proposed sidebar topics (Troubleshooting, Testing) and its 4 new blocked topics (custom histogram buckets, text/line streams, `Async` retry/timeout/race, HTTP middleware/multipart/static files) are not in the backlog; they are in [`backlog-refresh-2026-10-29.md`](backlog-refresh-2026-10-29.md) (the full proposal, kept in `docs/dev/`), for later. Mapping: H-new-4 → H-54, H-new-20 → H-55, H-new-21 → H-56, H-new-10 → H-57, H-new-1 → H-58, H-new-5 → H-59, H-new-2 → H-60, H-new-25 → H-61, H-new-22 → H-62, H-new-26 → H-63. Its demand evidence is thinner than the first backlog's (no outside-user issues in the last 60 days; Reddit, X and the Discords were unreachable), so scores lean on peer libraries' docs and on projects that build on zio-blocks. H-58 (Iron) and H-61 (property tests) need a dependency approval before writing. Every new guide must be added to a section or topic in `docs/sidebars.js` (enforced by `guides-sidebar.test.mjs`, #1882).
+
+| ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
+|---|---|---|---|---|---|---|---|---|
+| H-54 | How to log SQL, flag slow queries and trace queries with telemetry | sql, telemetry | Pass a `SqlLogger` to `JdbcTransactor`, print each statement with its parameters, duration and row count, warn above a threshold, and turn each `SuccessEvent`/`ErrorEvent` into a span and a latency histogram | T-07, T-12 | **Skipped** (Milad, 2026-10-29) · was P0 · 13 | Feasible: `SqlLogger` with `onSuccess`/`onError` (`sql/shared/.../SqlLogger.scala:21-24`); events carry `sql`, `params`, `duration`, `rowCount`/`error` (:28-40). Scala 3 (sql) and JDK 21+ (telemetry). Spans are recorded after the fact, so build them from the event's duration, not around the call; state that | Every SQL peer leads with it: doobie [Logging](https://typelevel.org/doobie/docs/10-Logging.html) and "Tracing with otel4s", [magnum](https://github.com/AugustNagro/magnum) "Logging SQL queries" and "Logging slow queries", [skunk](https://typelevel.org/skunk/) Tracing, [Quill](https://zio.dev/zio-quill/) Logging | `reference/sql/sql-logger.md`; only links today: `write-joins-and-inspect-generated-sql.md:521`, `migrate-from-magnum-or-doobie.md:264` |
+| H-55 | How to fix common Schema derivation and codec errors | schema (+ json) | Missing `Schema` for tuples (11946) and `Array` (Golem's caveat); prisms for Scala 3 `enum` (#1358); recursive types; deprecation warnings from derivation (#316, `-Wconf`); a custom codec silently ignored (9537, 9446, 9489); `Validation` not enforced by codecs (9329); misleading number errors (4138, 4175); error paths with `.wrapped` (1600); `Into` errors at the root (2967, 10779) | T-01 | **Skipped** (Milad, 2026-10-29) · was P1 · 12 | Feasible: every entry has a known workaround on 0.0.56. Check `Array` derivation on 0.0.56 before stating Golem's caveat. (`Schema[Either]` is not an error any more: #1456 was fixed by PR #1542, `Schema.scala:757`) | tapir Troubleshooting, circe "Warnings and known issues", jsoniter-scala "Known issues" (§1); outside users: [#316](https://github.com/zio/zio-blocks/issues/316), [#1358](https://github.com/zio/zio-blocks/issues/1358), [Golem Scala how-tos](https://learn.golem.cloud/v1.6/how-to-guides/scala/golem-add-agent-scala) | H-31 page shape; `override-codec-for-one-type.md:183,259`; `validated-newtypes.md`; `reference/schema/schema.md` "Tuples" |
+| H-56 | How to fix common sql errors: DDL, NULL columns and column mapping | sql | `ON CONFLICT ...` without a key (2367); `Option[BigDecimal]`/`Option[Char]` NULL (8933); `Option` newtype or enum NULL (5612); "Option[A] where A has N columns is not supported" (10497); "Typed DDL does not support reflect node" (5552); "No DbParam/Frag/SqlLiteral/DbValue instance found" for a newtype parameter (10458, no guide covers it); `jsonb` `stringtype` (10390); SQLite `Instant` (5671); `OFFSET` without `LIMIT` (9069); keyword column in `keysetAfter` (2526); `value blocks is not a member of zio.blocks.sql.zio` (2486) | T-07 | **Skipped** (Milad, 2026-10-29) · was P1 · 12 | Scala 3. Feasible; each workaround is known | doobie FAQ and Error Handling ([doobie](https://typelevel.org/doobie/docs/index.html)); magnum FAQ ([README](https://github.com/AugustNagro/magnum)); no zio-blocks user report (the entries come from writing guides) | `map-custom-column-types.md:727`; `upsert-and-paginate-with-keyset-cursors.md` (primary key); `sql-from-zio.md` |
+| H-57 | How to protect pages with Basic auth or a session cookie | http-model, endpoint, jwt | Check an `Authorization: Basic` header and answer 401 with `WWW-Authenticate`; log in with a form, set an `HttpOnly`, `SameSite` session cookie (`ResponseCookie`, `Cookie.scala:35,49`; `Response#addCookie`, `Response.scala:79`), read it back with `Request#cookies` (`Request.scala:52`), optionally carry a JWT in it | H-35, H-37 | **P1** · 11 (3/2/3/2/1) · **Done** · #1904 (merged 2026-10-29), `guides/protect-pages-with-basic-auth-or-a-session-cookie.md` | Glue: `AuthType.Basic` (`AuthType.scala:76`) only declares the scheme, like `Bearer` in H-38; decoding and checking is user code in the H-35 adapter | zio-http guides: basic auth, cookie auth, opaque bearer tokens ([tree](https://github.com/zio/zio-http/tree/main/docs)); http4s Authentication ([http4s](https://http4s.org/v0.23/docs/quickstart.html)); tapir Security ([tapir](https://tapir.softwaremill.com/en/latest/)) | `protect-endpoints-with-jwt.md` (Bearer only; already teaches the 401 + `WWW-Authenticate` answer, :20, :435-441, so reuse it); H-35 `JdkHttp` adapter; `reference/http-model/` cookie section |
+| H-58 | How to use Iron refined types and typed IDs with Schema | schema (+ third-party `iron-zio-blocks-schema`) | Derive `Schema` and JSON codecs for case classes with Iron types (`Int :\| Positive`), see constraint failures as `SchemaError`, carry the constraints into JSON Schema; write a parameterized `opaque type Id[+A]` with one generic `Schema` | T-01, H-04 | **P1** · 11 (2/3/3/2/1) · **Done** · #1906 (merged 2026-10-29), `guides/use-iron-refined-types-and-typed-ids.md`; session `iron-refined-types` (Opus); Iron dependency approved by Milad. Iron 3.4.1 works with 0.0.56 (`zio-blocks-next-schema` + exclude `zio-blocks-schema_3`) except numeric refined fields in case classes (a zio-blocks opaque-type register bug, reported, not fixed here: Milad's call); the guide covers `String`/`BigDecimal` refinements, warns about numeric ones, and adds typed IDs. Iron's module page wrongly says constraints reach `toJsonSchema` (Iron docs, not ours) | Scala 3. Adds a third-party dependency to an examples build (ask first). Iron's page uses zio-blocks 0.0.51 in its examples: verify the current Iron release against 0.0.56 before writing. The `Id[A]` half needs no new dependency | Iron ships an official module page ([Iron](https://github.com/Iltotore/iron/blob/main/docs/_docs/modules/zio-blocks-schema.md), [iron#378](https://github.com/Iltotore/iron/pull/378), [iron#381](https://github.com/Iltotore/iron/pull/381)); [#1072](https://github.com/zio/zio-blocks/issues/1072) and open [PR #1097](https://github.com/zio/zio-blocks/pull/1097) (`schema-iron`, same author: one signal); [PR #1517](https://github.com/zio/zio-blocks/pull/1517) (a library author's `opaque type Id[+A]` in `Set[Id[Foo]]`) for the typed-ID half. No docs page mentions Iron (`rg -i iron docs/` finds nothing) | `guides/validated-newtypes.md`; `reference/schema/allows.md:117` (neotype detection) |
+| H-59 | How to build a query from optional search filters | sql | Turn a search form with optional fields into one `WHERE` clause: combine `Frag`s with `++`, skip empty ones, join with `AND`, add paging; compare with building the same query through the Query DSL | T-07 | **P1** · 11 (2/3/3/2/1) · **Done** · #1905 (merged 2026-10-29), `guides/build-a-query-from-optional-search-filters.md` | Glue: `Frag` has `++` (`Frag.scala:47`), `Frag.empty` (:134), `Frag.sequence` (:146) and `isEmpty` (:95), but no `whereAnd`/`whereAndOpt` helper, so the guide writes a five-line helper and says so | doobie [Fragments](https://typelevel.org/doobie/docs/08-Fragments.html) (`whereAndOpt`); magnum "Specifications" ([README](https://github.com/AugustNagro/magnum)) | `reference/sql/frag.md:32-39` (`Frag.empty` "for optional clauses", one line); `sql-checked-interpolation.md:114` (dynamic SQL escape hatch) |
+| H-60 | How to write a codec for a new wire format | schema | Implement a `BinaryCodec[A]` (`schema/.../codec/BinaryCodec.scala:29`) through a `Deriver`, report decode errors with paths, and package it as a `BinaryFormat` (`codec/Format.scala:91`) so `derive(MyFormat)` works like the built-in formats | T-01, H-08 | **P1** · 11 (2/3/2/3/1) · **Done** · #1907 (merged 2026-10-30), `guides/write-a-codec-for-a-new-wire-format.md` | Feasible on 0.0.56 and all Scala versions. Use the Avro module as the model (`AvroFormat.scala:21`). Keep the format small (for example a length-prefixed binary format) | Libraries built this way: [proteus](https://github.com/ghostdogpr/proteus) (Protobuf, [blog](https://blog.pierre-ricadat.com/protobuf-goes-scala-first/)), [zio-dynamodb-codec](https://github.com/EtaCassiopeia/zio-dynamodb-codec), [zio-nats](https://github.com/pietersp/zio-nats), [fields#39](https://github.com/jap-company/fields/pull/39); old [#94](https://github.com/zio/zio-blocks/issues/94) "as a library developer, how do I integrate" | `derive-your-own-type-class.md` (a `Show` type class, not a codec); `reference/schema/type-class-derivation.md`; `schema-avro` sources |
+| H-61 | How to test codecs with round-trip property tests and golden files | schema (+ zio-test or ScalaCheck in examples) | Derive a generator from a `Schema` with a small `Deriver`, check `decode(encode(a)) == a` for JSON, Avro and CSV, and freeze the wire format in golden files that fail when a field rename changes the output | T-01, H-08 | **P1** · 11 (2/3/3/2/1) | Glue: no built-in `Gen` derivation; the reference shows one (`reference/schema/type-class-derivation.md:961`). Needs a test dependency in an examples build (ask first; `telemetry-examples` already has zio-test) | circe codec testing and [circe-golden](https://circe.github.io/circe/); zio-schema Gen derivation ([tree](https://github.com/zio/zio-schema/tree/main/docs)); munit and weaver ScalaCheck pages | `DeriveGenExample.scala` (schema-examples); `type-class-derivation.md` |
+| H-62 | How to fix common configuration-loading errors | config, config-hocon, config-yaml | Read the startup error report (wrong count 616, keys without the prefix 662, 722); HOCON parse errors without a position (902); includes skipped silently (765, 5044, 5009, 10230); `${VAR}` not falling back to the environment (815) and `${?x}` becoming "null" (4973); YAML that loads silently wrong (10274, 5081). Leaves out secrets in `dump` output (608, 5121): that is the skipped H-33 | T-05 | **Skipped** (Milad, 2026-10-29) · was P1 · 11 | Feasible on JVM and JS; the HOCON file loader is JVM-only | zio-config [#1682](https://github.com/zio/zio-config/issues/1682) (unreadable layered config errors); Typesafe Config migrants (backlog M-06 evidence) | `load-configuration-files.md:256,303`; `feed-config-into-a-wire-graph.md:278`; `config-library-migration.md` |
+| H-63 | How to set up an AI coding assistant for ZIO Blocks | all (docs site) | Point an agent at `zioblocks.com/start.md`, install the zio-blocks-knowledge skill and the docs MCP server, use `llms.txt` and the per-page `.md` files | none | **P2** · 10 (2/2/1/3/2) | Feasible: the site builds `llms.txt`, `llms-full.txt` and per-page markdown (`website/docusaurus.config.js:79-96`); `website/static/start.md` holds the agent steps, and the landing hero and every page's navbar already have an "Onboard your agent to ZIO Blocks" button that copies a prompt to fetch `/start.md` (`website/src/lib/prompt.mjs:5`, `website/README.md:159-173`). A page would only explain what the button does and list `llms.txt`; small value | Ox ["Using Ox with AI coding assistants"](https://ox.softwaremill.com/latest/info/ai.html) | `website/static/start.md`; PR #1731 |
+
+## 6. Migration ("coming from X") guides
+
+Each migration guide is a how-to for readers who know another library: a mapping table of concepts and names, then the changes to make in order.
+
+| ID | Title | Coming from | Module(s) | Priority | Feasibility / notes | Demand evidence |
+|---|---|---|---|---|---|---|
+| M-01 | Coming from circe, zio-json or jsoniter-scala | JSON codec libraries | schema | **P0** · 14 (3/3/3/3/2) | Feasible. Maps `deriveCodec`/`DeriveJsonCodec`/`JsonCodecMaker` and their configuration onto `Schema` + modifiers; links H-02, H-03 | Most-used Scala JSON stack; discriminator and custom-codec questions recur ([kindlings circe docs](https://kindlings.readthedocs.io/en/stable/circe-derivation/), [zio-json config](https://zio.dev/zio-json/configuration)) |
+| M-02 | Coming from ZIO Schema 1.x | zio-schema | schema | **Exists** (`guides/zio-schema-migration.md`) | Improve, don't rewrite: it has 0 mdoc blocks | — |
+| M-03 | Coming from Magnum or doobie | SQL libraries | sql | **P1** · 12 (3/3/3/2/1) | Scala 3. Magnum's names are near-identical (`DbCodec`, `Repo`, `DbCon`, `Transactor`, `Frag`), so the mapping is cheap; doobie maps `Fragment`, `Read`/`Write`, `Transactor` | doobie and Magnum are the two closest comparables ([doobie](https://typelevel.org/doobie/docs/index.html), [Magnum talk](https://scaladays.org/seattle-2023/magnum-a-new-look-for-scala-3-database-clients)) |
+| M-04 | Coming from fs2, ZIO Streams or Ox | Streaming libraries | streams | **P1** · 12 (2/3/3/3/1) | Feasible. `ZStream`/`ZSink`/`ZPipeline` map almost 1:1. Fix stale Kyo and Ox versions in `streams/index.md:78` | Ox shows the demand for direct-style streaming without an effect system ([SoftwareMill](https://softwaremill.com/direct-style-concurrent-streaming/), [Ox](https://ox.softwaremill.com/)) |
+| M-05 | Coming from cats-effect `Resource`, ZIO `Scope`/`ZLayer`, macwire or `Using` | Resource and DI libraries | scope, context | **P1** · 12 (2/3/3/3/1) | Feasible. One page, one section per source library | The ZIO docs list macwire-style DI as an alternative to ZLayer ([zio.dev DI](https://zio.dev/reference/di/index.md), [macwire](https://index-dev.scala-lang.org/softwaremill/macwire)) |
+| M-06 | Coming from PureConfig, Typesafe Config or zio-config | Config libraries | config, config-hocon | **P0** · 13 (3/3/3/3/1) | Feasible. Covers reading existing `application.conf` files with config-hocon and kebab-case key mapping | Scala 3 PureConfig derivation pain ([Scala Users](https://users.scala-lang.org/t/scala-3-migration-pureconfig/12096)); teams replacing Typesafe Config ([alexn.org](https://alexn.org/blog/2025/10/30/scala-3-hocon-parsing/)) |
+| M-07 | Coming from chimney or ducktape | Data transformation | schema (`Into`, `As`) | **P1** · 11 (2/2/3/3/1) | Feasible. `Into` covers total and error-accumulating transforms; `As` covers reversible ones | chimney's docs show the demand for DTO-to-domain mapping ([chimney](https://chimney.readthedocs.io/supported-transformations/), [Baeldung](https://www.baeldung.com/scala/chimney-data-transformation-library)) |
+| M-08 | Coming from monocle or quicklens | Optics | schema | **P2** · 10 (1/2/3/3/1) | Feasible. Both are benchmarked against zio-blocks optics (§3.9) | No direct evidence found |
+| M-09 | Coming from Scalatags | HTML templating | html | **P2** · 10 (1/2/3/3/1) | Feasible | No direct evidence found |
+| M-10 | Coming from jwt-scala | JWT | jwt | **P2** · 10 (2/1/3/3/1) | Feasible once `jwt.md` is fixed; no JWKS | RS256 verification guides target jwt-scala ([SSOJet](https://ssojet.com/jwt-validation/validate-jwt-using-rs256-in-scala)) |
+| M-11 | Coming from avro4s, the MongoDB driver macros or phobos | Format codecs | schema-avro, schema-bson, schema-xml | **P3** · 8 (1/1/2/3/1) | Feasible but small audiences | [phobos](https://index-dev.scala-lang.org/tinkoff/phobos), [Mongo macros](https://mongodb.com/docs/languages/scala/scala-driver/v5.0/bson/macros) |
+| M-12 | Coming from tapir or the zio-http Endpoint API | HTTP endpoints | endpoint | **P3** · blocked | F = 1: without server, client or OpenAPI interpreters, a tapir user cannot reach parity (X-02, X-03) | tapir's tutorials lead with serving and OpenAPI ([tapir](https://tapir.softwaremill.com/en/latest/tutorials/02_openapi_docs.html)) |
+| M-13 | Coming from OpenTelemetry Java or otel4s | Telemetry | telemetry, otel | **P3** · blocked | F = 1: exporters are private (X-01) | [otel4s Jaeger example](https://typelevel.org/otel4s/examples/jaeger-docker/) |
+| M-14 | Coming from the zio-http Datastar SDK | Datastar | datastar | **P3** · blocked | F = 1: no `readSignals` or script helper (X-10) | Every Datastar SDK leads with `read_signals` ([Stario](https://stario.dev/docs/how-tos/datastar-sdk)) |
+
+The `Future` migration is covered by H-28, and the zio-schema migration already exists (M-02).
+
+## 7. Blocked topics
+
+High-value topics that need library or build work before a supported guide can be written. "§9.5 #n" refers to the blockers list in `research.md`.
+
+| ID | Topic | Blocker | What would unblock it | Backlog items waiting |
+|---|---|---|---|---|
+| X-01 | Export telemetry to an OpenTelemetry Collector, Jaeger or Tempo | §9.5 #1: `OtlpJson*Exporter` and `BatchProcessor` are `private[otel]`; the metric exporter has no background thread | Public exporter constructors and a scheduled metric export. Then write "How to export telemetry to an OpenTelemetry Collector" (demand: [otel4s OTLP guide](https://typelevel.org/otel4s-sdk/guides/otlp.html)) | M-13; extends T-12, H-43 |
+| X-02 | Generate an OpenAPI document from `Endpoint` values | §9.5 #3: no interpreter exists, although the docs claim one does | An endpoint-to-OpenAPI interpreter. Until then, H-39 can show hand assembly from `RoutePattern.render` + `toOpenAPISchema`, labelled as glue | M-12, H-39 |
+| X-03 | Serve an `Endpoint` with typed request and response decoding | §9.5 #2: `HttpCodec` has no decode or encode, only path decoding | `HttpCodec` decode/encode plus a server adapter (JDK or zio-http) | M-12, T-15, H-38 |
+| X-04 | Call an API through a typed client built from an `Endpoint` | §9.5 #2 | A client interpreter | M-12 |
+| X-05 | ~~Compiled snippets for sql-zio and dataMigration~~ **Done:** sql-zio added in #1803, `dataMigration.jvm` in #1865 (H-23) | §9.5 #4: neither is on the docs mdoc classpath | Add `sql-zio` and `dataMigration` to `lazy val docs` (`build.sbt:1698-1735`). A docs-build change, not library work | H-21, H-23 |
+| X-06 | CSV with a custom delimiter (TSV) through derived codecs | §9.5 #9: `CsvCodecDeriver` hardcodes `CsvConfig.default` | Let the deriver take a `CsvConfig` | H-11 (works around it today) |
+| X-07 | Run projections on SQLite in production (multiple sources, rebuilds, shards) | Issue [#1744](https://github.com/zio/zio-blocks/issues/1744): seven rebuild and migration bugs | Fix #1744; merge PR #1742 | T-14 |
+| X-08 | Expose mux channels as streams with async receive | §6.6: `receive` is poll-based; no Async API (scenario C7) | An `Async`-returning receive or a `Stream` adapter | H-29 |
+| X-09 | Avro with a schema registry, container files and logical types | §4.1: no registry, `DataFileWriter` or reader/writer schema resolution; `Instant` is not a logical type | Registry framing helpers and logical-type support | H-13 |
+| X-10 | A typed Datastar round trip | §8.5: no `readSignals`, `datastarScript` or typed actions | Add the request-side helpers | T-11, M-14 |
+| X-11 | New APIs in example projects | §9.5 #5: examples pin 0.0.56 | The next release. Until then, use mdoc-only snippets for newer APIs | All items whose examples use post-0.0.56 APIs |
+| X-12 | Secrets from files and environment-only sources (`ConfigSource.fromEnv`, secrets dir, `_FILE`) | Planned in `docs/plans/config-follow-up-prs.md`, not built | Implement the planned sources | H-33, T-05 (uses the existing `EnvSource` meanwhile) |
+| X-13 | Verify tokens from an OpenID provider (JWKS, `kid` lookup, PEM) | §5.7: no JWK/JWKS, PEM parsing or `kid` key resolution | JWK/JWKS support, or a documented PEM-to-DER helper | H-37, H-38, M-10 |
+| X-14 | Typed PostgreSQL `vector(n)` (pgvector) and `jsonb` columns: bind, read and declare them in typed DDL without casts | Feature request (2026-10-27, from the H-52 follow-up session; not filed on GitHub). A `String` parameter binds as `varchar`, so Postgres rejects it (`column "embedding" is of type vector but expression is of type character varying`) unless every statement adds `::vector` or the URL sets `stringtype=unspecified`; `Repo.derived`/`Table.derived` throw `Typed DDL does not support reflect node IndexedSeq[Float]` and `Table#createTable` cannot declare `vector(n)`; `sql"..."` rejects an `org.postgresql.util.PGobject` (`No DbParam/Frag/SqlLiteral/DbValue instance found`). Related issues.md entries: the `jsonb` `stringtype` entry and the derived-flatten entry (both have "Also seen" notes for vector) | A PostgreSQL module (tentatively `zio-blocks-sql-postgres`; the name and the `org.postgresql` dependency need maintainer approval) with typed binding, typed reads and typed DDL for `vector(n)` and `jsonb`; the sql core stays driver-free. pgvector operators (`<->`, `<=>`) stay in the SQL string. Open: wrap `PGobject` (driver dependency) or use plain JDBC calls; ship `vector` alone first or with `jsonb` | H-52 (works around it with a `::vector` `DbCodec` or `stringtype=unspecified`) |
+
+## 8. Doc fixes to do alongside
+
+These inaccuracies from §9.6 will mislead a guide author who copies from the existing pages. Fix each before, or in the same PR as, the backlog items it affects.
+
+| Inaccuracy (§9.6) | Affects |
+|---|---|
+| `endpoint/index.md:33,210` and `endpoint.md:298` claim OpenAPI generation from endpoints | T-08, H-39, X-02 |
+| `combinators.md` documents a non-existent `Choices`, calls `Concat` "Scala 2 only", uses `Concat.Concat.WithOut` | T-06 (if it explains `++` result types) |
+| `context.md:484` calls a non-existent `Wire.make[...]` companion method | H-30, M-05 |
+| `jwt.md`: audience mismatch is `InvalidClaim`, not `InvalidToken`; `InvalidKey` missing; no key formats; no frontmatter | H-37, H-38, M-10 |
+| `sql-transactions.md:39` says the default isolation is Serializable (it is the driver default) | T-07, H-17, H-21 |
+| `data-migration.md` "Full Example" omits `ID1 =:= ID2`, the `Dialect` given and the transactor | H-23 |
+| `projection.md`: wrong `.update` signature, duplicated artifact, unexplained `sql-zio` (PR #1742 rewrites this page) | T-14 |
+| `docs/index.md:153,155` advertise sql and data-migration on JS | H-01, T-07 |
+| `docs/index.md:125` says `Maybe` is backed by `null` | H-51 |
+| `docs/index.md:492-502` guides list omits the two sql guides | Integration step of every new guide |
+| ~~Wrong artifact `zio-http-model` in `http-model/model.md`, `index.md`, `datastar/sse.md`, `datastar/index.md`~~ Fixed on main (confirmed by H-41, 2026-10-23) | H-01, H-35, H-41, T-10, T-11 |
+| `http-model/schema.md:59,65,68`: wrong artifact; "Scala 3.x only" is false | H-36 |
+| `schema/format.md:59` calls YAML and TOON `TextFormat` | T-04, H-12, H-15 |
+| `csv.md:130-147` claims derivation accepts a custom `CsvConfig` | H-11 |
+| `messagepack.md:162` "Stream Large Datasets" shows no streaming | T-04, H-16 |
+| `openapi.md:10-17` stale signature; the `???` streaming codecs are undocumented | H-39, H-44 |
+| `streams/index.md:78` stale Kyo and Ox versions | M-04 |
+| `mux.mdx:37` vs `:818-822` lock-based contradiction | H-29 |
+| Orphan `docs/reference/datastar.md` | T-11 (link only the split pages) |
+| bson and thrift READMEs cite old dependency versions | H-14, H-16 |
+| Stale run commands in `smithy-examples`, `projection-examples` and `async-examples` headers (the examples are standalone builds now) | T-13, T-14, H-28 |
+| `ContextStorage.scala:31` references a missing ADR | T-12, H-43 (do not link it) |
+
+## 9. Top 10 next
+
+The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done, in review or in progress; see [Status](#status).
+
+1. **H-01 How to add ZIO Blocks to your build.** Every tutorial needs an install step, and today only one page mentions the Scala 3.7+ `zio-blocks-next-*` artifacts.
+2. **T-01 Your first schema: round-trip a type through JSON.** Schema is the hub that 22 modules build on, and the library has no getting-started lesson.
+3. **H-02 How to customize JSON field names, ADT encoding and optional fields.** These are the most-asked questions across circe, zio-json and zio-schema.
+4. **M-01 Coming from circe, zio-json or jsoniter-scala.** JSON users are the largest audience that would switch, and the mapping reuses H-02 and H-03.
+5. **T-06 Build your first streaming pipeline.** Streams has 8,400 lines of reference and 38 examples but no lesson. Most of the examples can be reused.
+6. **T-05 Build a typed configuration loader.** Every application needs config. The module has seven reference pages, zero examples, and a real Scala 3 demand gap.
+7. **T-07 Build your first database repository on SQLite.** doobie and Magnum both lead with this lesson, and sql has no examples project.
+8. **T-02 Evolve your data from V1 to V2.** Ten ready `Into`/`As` examples are unreferenced, and migration was a heavily funded feature.
+9. **H-03 How to override the codec for one type everywhere.** Its example already exists, and it answers a classic "custom date format" question for every format at once.
+10. **M-06 Coming from PureConfig, Typesafe Config or zio-config.** Scala 3 users are still stuck on PureConfig derivation, and config-hocon reads their existing files.
+
+**Next 10 (2026-10-29 backlog refresh), in order:** 1. H-54 (skipped); 2. H-55 (skipped); 3. H-56 (skipped); 4. H-57; 5. H-58; 6. H-59; 7. H-60; 8. H-61; 9. H-62 (skipped); 10. H-63 (see §5.13). The list above is the original, finished Top 10.
+
+## 10. Sources
+
+**Diátaxis**
+
+- [The difference between a tutorial and how-to guide](https://diataxis.fr/tutorials-how-to/)
+- [How-to guides](https://diataxis.fr/how-to-guides/)
+
+**ZIO and ZIO Blocks**
+
+- [ZIO guides index](https://zio.dev/guides/)
+- [ZIO tutorial: Encode and Decode JSON Data](https://zio.dev/guides/tutorials/encode-and-decode-json-data)
+- [ZIO dependency injection](https://zio.dev/reference/di/index.md)
+- [ZIO Blocks site](https://zio.dev/zio-blocks/)
+- [ZIO Blocks on Scaladex](https://index-dev.scala-lang.org/zio/zio-blocks)
+- [zio-json configuration](https://zio.dev/zio-json/configuration)
+- [zio-http Endpoint reference](https://zio.dev/zio-http/reference/endpoint) and [concepts](https://zio.dev/zio-http/concepts/endpoint)
+- zio-blocks issues and PRs: [#94](https://github.com/zio/zio-blocks/issues/94), [#111](https://github.com/zio/zio-blocks/issues/111), [#193](https://github.com/zio/zio-blocks/issues/193), [#213](https://github.com/zio/zio-blocks/issues/213), [#316](https://github.com/zio/zio-blocks/issues/316), [#519](https://github.com/zio/zio-blocks/issues/519), [#836](https://github.com/zio/zio-blocks/issues/836), [#1334](https://github.com/zio/zio-blocks/issues/1334), [#1744](https://github.com/zio/zio-blocks/issues/1744), [PR #1742](https://github.com/zio/zio-blocks/pull/1742), [PR #1666](https://github.com/zio/zio-blocks/pull/1666)
+- zio-schema issues: [#81](https://github.com/zio/zio-schema/issues/81), [#447](https://github.com/zio/zio-schema/issues/447), [#523](https://github.com/zio/zio-schema/issues/523)
+- zio-json issues: [#1036](https://github.com/zio/zio-json/issues/1036), [#1301](https://github.com/zio/zio-json/issues/1301), [#1651](https://github.com/zio/zio-json/issues/1651)
+
+**JSON, schema and data transformation**
+
+- [Kindlings circe derivation](https://kindlings.readthedocs.io/en/stable/circe-derivation/)
+- [Stack Overflow mirror: circe serialization without class name](https://dev.library.kiwix.org/content/stackoverflow_en_nopic_2021-08/questions/52594416/scala-circe-case-class-serialization-without-class-name)
+- [CoddyKit: custom codecs in circe](https://www.coddykit.com/fr/courses/scala/custom-codecs-9564213)
+- [chimney: supported transformations](https://chimney.readthedocs.io/supported-transformations/) and [troubleshooting](https://chimney.readthedocs.io/en/stable/troubleshooting/)
+- [Baeldung: chimney](https://www.baeldung.com/scala/chimney-data-transformation-library)
+- [scala-jsonschema](https://index-dev.scala-lang.org/andyglow/scala-jsonschema)
+- [tapir: Generating JSON Schema](https://tapir.softwaremill.com/en/latest/docs/json-schema.html)
+- [tupson (named tuples)](https://index-dev.scala-lang.org/sake92/tupson)
+
+**Formats**
+
+- [Typelevel toolkit examples](https://typelevel.org/toolkit/examples.html)
+- [InfoQ: TOON](https://www.infoq.com/news/2025/11/toon-reduce-llm-cost-tokens)
+- [Analytics Vidhya: TOON](https://www.analyticsvidhya.com/blog/2025/11/toon-token-oriented-object-notation/)
+- [registravka4s](https://index-dev.scala-lang.org/maxstreese/registravka4s)
+- [kaa](https://scaladex.scala-lang.org/davideicardi/kaa)
+- [MongoDB Scala driver macros](https://mongodb.com/docs/languages/scala/scala-driver/v5.0/bson/macros), [JAVA-3545](https://jira.mongodb.org/browse/JAVA-3545), [JAVA-4966](https://jira.mongodb.com/browse/JAVA-4966)
+- [phobos](https://index-dev.scala-lang.org/tinkoff/phobos)
+
+**SQL and data migration**
+
+- [Book of doobie](https://typelevel.org/doobie/docs/index.html), [Connecting](https://typelevel.org/doobie/docs/03-Connecting.html)
+- [Magnum on Scaladex](https://index-dev.scala-lang.org/augustnagro/magnum)
+- [Magnum talk, Scala Days 2023](https://scaladays.org/seattle-2023/magnum-a-new-look-for-scala-3-database-clients)
+- [Scala database libraries comparison (2026)](https://www.pistack.xyz/posts/2026-09-19-scala-database-libraries-doobie-slick-quill-skunk-comparison/)
+- [Rock the JVM: Skunk guide](https://blog.rockthejvm.com/skunk-complete-guide/)
+- [pg-osc: zero-downtime schema changes](https://www.shayon.dev/post/2022/47/pg-osc-zero-downtime-schema-changes-in-postgres)
+- [InfoQ: shadow table strategy](https://www.infoq.com/articles/shadow-table-strategy-data-migration)
+- [Pekko Projection getting started](https://pekko.apache.org/docs/pekko-projection/1.1/getting-started/index.html)
+
+**Streams, config and DI**
+
+- [fs2 getting-started example (mirror)](https://git.rossabaker.com/typelevel/fs2/blame/branch/main/site/getstarted/example.md)
+- [Livongo: reading large files with fs2](https://techblog.livongo.com/using-scala-to-read-really-really-large-files-part-5-fs2-with-io-helpers/)
+- [SoftwareMill: direct-style concurrent streaming](https://softwaremill.com/direct-style-concurrent-streaming/)
+- [Ox](https://ox.softwaremill.com/)
+- [Scala Users: Scala 3 migration and PureConfig](https://users.scala-lang.org/t/scala-3-migration-pureconfig/12096)
+- [alexn.org: Scala 3 HOCON parsing](https://alexn.org/blog/2025/10/30/scala-3-hocon-parsing/)
+- [Typelevel blog: Validated Configurations with Ciris](https://typelevel.org/blog/ciris.html)
+- [sconfig](https://index-dev.scala-lang.org/ekrich/sconfig)
+- [macwire](https://index-dev.scala-lang.org/softwaremill/macwire)
+- [FeatBit: percentage rollouts](https://home.featbit.co/blogs/Conception-Percentage-Rollout-Modern-Software-Development)
+
+**HTTP, web UI, security, observability and codegen**
+
+- [tapir: Auto-generating OpenAPI docs tutorial](https://tapir.softwaremill.com/en/latest/tutorials/02_openapi_docs.html)
+- [dev.to: basic web server with Scala 3](https://dev.to/yet_anotherdev/how-to-write-a-basic-web-server-with-scala-3-90j)
+- [Tyrian SSR guide](https://tyrian.indigoengine.io/02-guides/ssr/)
+- [Frontend Mentor: Scalatags + Cask SSR](https://frontendmentor.io/solutions/tailwind-scala-ssr-scalatags-and-cask-deployed-with-docker-image-UPzyFXyf_L)
+- [flaviocopes: HTMX introduction](https://flaviocopes.com/htmx-introduction/)
+- [Datastar: backend requests](https://data-star.dev/guide/backend_requests)
+- [Stario Datastar SDK](https://stario.dev/docs/how-tos/datastar-sdk)
+- [SSOJet: validate RS256 JWT in Scala](https://ssojet.com/jwt-validation/validate-jwt-using-rs256-in-scala)
+- [Auth0 community: RS256 public key](https://community.auth0.com/t/where-is-the-auth0-public-key-to-be-used-in-jwt-io-to-verify-the-signature-of-a-rs256-token/8455/2)
+- [otel4s: Jaeger example](https://typelevel.org/otel4s/examples/jaeger-docker/)
+- [otel4s SDK: OTLP export](https://typelevel.org/otel4s-sdk/guides/otlp.html)
+- [smithy4s sbt codegen](https://index.scala-lang.org/disneystreaming/smithy4s/artifacts/smithy4s-sbt-codegen/0.18.4)
+- [guardrail](https://github.com/twilio/guardrail/)
+- [Zuplo: API-first development in Scala](https://zuplo.com/blog/2025/04/11/api-first-development-in-scala)
+
+## 11. Scaladoc: schema module
+
+Plan: `docs/superpowers/plans/2026-10-21-schema-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 .claude/scripts/scaladoc-coverage.py schema` (TOTAL row, documented / declarations).
+
+| Wave                     | Status      | PR    | Coverage before   | Coverage after    |
+|--------------------------|-------------|-------|-------------------|-------------------|
+| 0. Tooling               | Done        | #1813 | 1208 / 6917 (17%) | 1208 / 6917 (17%) |
+| 1. Entry point           | Done        | #1818 | 1208 / 6917 (17%) | 1402 / 6917 (20%) |
+| 2. Structure             | Done        | #1819 | 1403 / 6919 (20%) | 1743 / 6919 (25%) |
+| 3. Binding               | Done        | #1820 | 1985 / 6919 (28%) | 2345 / 6919 (33%) |
+| 4. Optics                | Done        | #1827 | 1743 / 6919 (25%) | 1985 / 6919 (28%) |
+| 5. Dynamic               | Done        | #1829 | 2345 / 6919 (33%) | 2587 / 6919 (37%) |
+| 6. Derivation and codecs | Done        | #1833 | 2587 / 6919 (37%) | 2729 / 6919 (39%) |
+| 7. Transform and evolve  | Done        | #1836 | 2729 / 6919 (39%) | 2972 / 6919 (43%) |
+| 8a. JSON model           | Done        | #1841 | 2972 / 6919 (43%) | 3206 / 6919 (46%) |
+| 8b. JSON I/O             | Done        | #1843 | 3206 / 6919 (46%) | 3230 / 6919 (47%) |
+
+Completed 2026-10-26: coverage 1208 / 6917 → 3334 / 6919 (old heuristic, which also counted locals); with the scope-aware count from this PR, 3232 of 3775 API members are documented (85%), and every undocumented one inherits its doc or is tier 3.
+
+## 12. Scaladoc: streams module
+
+Plan: `docs/superpowers/plans/2026-10-26-streams-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 -I .claude/scripts/scaladoc-coverage.py streams` (TOTAL row, documented / declarations).
+
+| Wave                       | Status      | PR | Coverage before | Coverage after |
+|----------------------------|-------------|----|-----------------|----------------|
+| 0. Tooling                 | Done        | #1850 | 361 / 561 (64%) | 361 / 561 (64%) |
+| 1. Stream, Sink, Pipeline  | Done        | #1855 | 361 / 561 (64%) | 388 / 561 (69%) |
+| 2. io (Reader, Writer)     | Done        | #1862 | 388 / 561 (69%) | 431 / 561 (76%) |
+| 3. Platform and internals  | Done        | #1868 | 431 / 561 (76%) | 561 / 561 (100%) |
+| 4. Close-out               | Done        | #1871 | 561 / 561 (100%) | 561 / 561 (100%) |
+
+Completed 2026-10-27: coverage 361 / 561 (64%) → 561 / 561 (100%) with the scope-aware count. No member is left undocumented, so the close-out audit found no real gaps. Every wave fact-checked its Scaladoc against the code, and the reviews found and fixed false claims in existing comments. The bugs and reference-page errors the waves found are tracked in `docs/dev/issues.md`.
+
+## 13a. Scaladoc: chunk module
+
+Plan: `docs/superpowers/plans/2026-10-29-chunk-scaladoc.md`. Style: `docs/dev/scaladoc-style.md`. Coverage: `python3 -I .claude/scripts/scaladoc-coverage.py chunk` (TOTAL row, documented / declarations).
+
+| Wave | Status | PR | Coverage before | Coverage after |
+|---|---|---|---|---|
+| 0+1. Tooling, Chunk, NonEmptyChunk, ChunkBuilder, ChunkMap (one PR) | Done (merged 2026-10-30, `ed2185ebe`) | #1908 | 153 / 205 (74%) | 205 / 205 (100%) |
+
+Pilot of §13 (2026-10-29/30), session `scaladoc-chunk` (Opus controller): one PR, because chunk had no existing `{{{` blocks. Opus wrote tier 1 and fact-checked all 247 existing comments; 37 were false or imprecise (29 of the 153 counted ones, 19%), mostly wrong behaviour claims inherited from ZIO 2 ("backed by" where the code copies, `dropUntil`, `split`, "does not box" on Scala.js, `ChunkMap` "O(1)", `sizeHint`, `hashCode`). Opus's first pass caught 31 of the 37; the fresh-context reviewer found the other 6. Sonnet wrote the 48 tier-2/3 gaps and drew 1 Minor finding. Review: 13 findings (5 Important, 8 Minor) applied; Sonnet re-review APPROVE with 3 Minor applied; 16 / 16 in total. CI green on the first run. About 2 hours of wall-clock (23:02 to 00:58). Six library bugs and four `chunk.md` errors were filed (the "chunk: ..." entries in library-issues.md and the `docs/reference/chunk.md` entries in docs-issues.md); the four `chunk.md` errors are still open and need a small docs PR. The `scaladoc-rollout` skill gained "Lessons from chunk" (`references/lessons.md`) and `scripts/comments-only.py`.
+
+**Follow-up: Done, #1913** (merged 2026-10-30, `c5cc1ec96`; session `chunk-docs-followup`, Sonnet): Zionomicon 23 → 0 in the chunk Scaladoc, the new sample-data rule in `scaladoc-style.md`, the four `chunk.md` errors fixed; Opus review 7 found, 6 applied.
+1. Rework the chunk Scaladoc examples: #1908 added 23 lines that use Zionomicon as sample data. New rule from Milad: "Do not excessively use Book example with Zionomicon". Sample data must fit the API (numbers, bytes and strings for collections), with Zionomicon at most once or twice per file. Re-run `scaladoc-check` on all three Scala versions afterwards.
+2. Change `docs/dev/scaladoc-style.md:58` ("Sample data uses real Scala books, such as Zionomicon") to the new rule. The `scaladoc-rollout` skill already has it.
+3. Fix the four `docs/reference/chunk.md` errors in docs-issues.md → Documentation errors (`ChunkBuilder` described as a tree buffer; `dropUntil` keeping the matching element; one-element `reduceMapLeft`/`reduceMapRight` examples; "Bitwise Operations" documenting private methods), then move them to Resolved.
+
+## 13b. Scaladoc: scope module
+
+Plan and spec in `docs/superpowers/plans/` and `docs/superpowers/specs/` (2026-10-30 scope Scaladoc). Session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review).
+
+| Item | Result |
+|---|---|
+| PR | #1916 (one PR, 15 commits), **merged 2026-10-30** (`8d6216d7a`); CI green after one re-run of two known flakes |
+| Coverage | 125 / 223 (56%) → 223 / 223 (100%); scala-2/scala-3 drift 12 → 0 |
+| Examples | 23 uncompiled `{{{` blocks (18 under `@example`) → 32 compiled blocks on 2.13.18, 3.9.0 and 3.10.0 via `scaladoc-check` |
+| Tier 1 | `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; macros tier 3 |
+| Existing comments | 189 checked: 26 false and 32 imprecise (58, 31%), all fixed; the Opus first pass caught 57, the reviewer 1 more |
+| Review 1 (Opus, fresh) | 5 Important + 9 Minor, all fixed (13 of the 14 in the Opus implementer's new text) |
+| Re-review (Sonnet) | approve, 3 Minor applied |
+| Sonnet tier 2 | 93 members, 1 finding (a rationale copied from a wrong line comment) |
+| Bugs | 2 new library bugs, 6 additions to existing `scope:` entries, 3 docs-issues entries (`resource.md`, `wire.md` incl. `Context.empty[Any]` not compiling, `scope.md`) |
+| Time | about 4 h 40 min from start to PR (about 3 h of it waiting on decisions and agent runs), plus about 1 h 25 min of CI |
+
+Lesson (also in the skill's `references/lessons.md`): scope's sharing and closing behaviour differs by Scala version and by a wire's static type, so most Important findings needed per-version probes; the first pass had written "Scala 3 only" or "both" from reading alone. The three scope reference-page errors are still open and need a small docs PR.
+
+## 13c. Scaladoc: config family (config, config-hocon, config-json, config-yaml)
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-10-30 config Scaladoc). Session `scaladoc-config` (Sonnet controller, Opus subagents), interrupted on 2026-10-30 after Phase 2 by a machine restart and resumed on 2026-11-03 from its saved spec and plan.
+
+| Item | Result |
+|---|---|
+| PR | #1919 (one PR), **merged 2026-11-03**; CI green after one re-run (coverage step failed after all tests passed) |
+| Coverage | 90 / 230 → 230 / 230 (config 79 → 202 / 202, hocon 9 → 22 / 22, json 0 → 2 / 2, yaml 2 → 4 / 4); `EnvSource`/`SysPropSource` jvm/js drift unified, probed on Scala.js 1.22 |
+| Examples | 6 existing `{{{` blocks made to compile (3 used `derives` and failed on 3.9.0; the `DynamicFlag` rollout example could never match a call with attributes; the `Rollout` grammar marked no-check); 28 compiled examples, outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
+| Tooling | the four projects in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
+| Tier 1 | `Config`, `ConfigSource`, decoders, `ConfigError`, `Provenance`, `Secret`, flags, `Rollout`, HOCON/JSON/YAML sources (`HoconConfigSource`/`JsonConfigSource` are private, so their text sits on `fromHocon`/`fromFile`/`fromJson`) |
+| Existing comments | 157 checked: 9 false and 47 imprecise (56, 36%), all fixed |
+| Review (Opus, fresh) | 5 Important + 16 Minor; 20 applied (the 21st, an AGENTS.md note, was already covered by the `config*` glob); re-review (Sonnet) 0 findings |
+| Sonnet tier 2 | 84 comments, 1 Important finding (the decoder default/`Option` rule, shared with Task 1 text) |
+| Bugs | 4 library bugs + 1 docs error (see library-issues.md "config:" / "config-hocon:" entries of 2026-11-03 and docs-issues.md `config-source.md`) |
+| Time | about 3 h from resume to green CI (Task 1 65 min, Task 2 19 min, review 12 min, fix round 8 min, CI about 1 h) |
+
+Open question, not filed: a missing sequence or map field decodes to an empty collection instead of a missing-key error. The Scaladoc describes it; it may be intended (candidate usability trap).
+
+**config started 2026-10-30:** session `scaladoc-config` (Sonnet controller, Opus subagents per §13.4), all four config modules. Phase 0: 90 / 230 documented (config 79/202, config-hocon 9/22, config-json 0/2, config-yaml 2/4); 6 existing `{{{` blocks, none compiled; 2 jvm/js drift items (`EnvSource`, `SysPropSource`). Milad's Phase 1 decisions: one PR for all four modules; tier 1 = `Config`, `ConfigSource`, `ConfigDecoder`/`ConfigDecoderDeriver`, `ConfigError`, `Provenance`/`ProvenanceMap`, `Secret`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `Rollout`, `HoconConfigSource`, `JsonConfigSource`, `YamlConfigSource`; flag examples compile-only with distinct names; the AGENTS.md edit approved.
+
+**scope started 2026-10-30:** session `scaladoc-scope` (Sonnet controller, Opus subagents for tier 1, the existing-comment fact-check and the review, per §13.4). Phase 0: 125 / 223 (56%); 12 members differ between the scala-2 and scala-3 copies; 23 `{{{` blocks (inside 18 `@example` tags), none compiled; scope has its own `scope/AGENTS.md` example-style rules. Milad's Phase 1 decisions: tier 1 = `Scope`, `Resource`, `Wire`, `Finalizer`, `Unscoped`, `Finalization`, `DeferHandle`; one PR (tooling + wave); macros tier 3 one-liners; the `@example` tags are dropped and the plain `{{{` blocks kept; the AGENTS.md edit (lines 113 and 178) approved. **PR #1916** (2026-10-30): 125 / 223 → 223 / 223, 32 compiled examples, no drift; fact-check of 189 existing comments found 26 false and 32 imprecise (about 14% wrong), all fixed; Opus review 5 Important + 9 Minor fixed; Sonnet re-review approve with 3 Minor applied. 2 new library bugs and 6 additions to existing `scope:` entries recorded.
+
+## 13d. Scaladoc: typeid module
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 typeid Scaladoc). Session `scaladoc-typeid` (Opus controller, Opus subagents for tier 1, the existing-comment fact-check and the review, Sonnet for tier 2/3 and the re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = `TypeId` (scala-2/3 pair), `TypeRepr`, `TypeDefKind`, `Owner`, `IsNominalType`, `IsNominalIntersection`; Scala 2/3 differences stated in identical text in both copies ("On Scala 3, ..."), probed on both versions; the AGENTS.md edit (scaladoc-check bullet, `typeid*` downstream line) approved. Phase 0 on `main` `7b51118b7`: `main` differs from `v0.0.56` only in `IsNominal*VersionSpecific` (the #1826 fix), so claims about `IsNominalType`/`IsNominalIntersection` were probed against a local SNAPSHOT publish of `main`, everything else against 0.0.56.
+
+| Item | Result |
+|---|---|
+| PR | #1924 (one PR), **merged 2026-11-04** (`a1d158f95`); CI green on the first run (23 pass, 10 skipping) |
+| Coverage | 162 / 390 → 390 / 390; the 13 scala-2/scala-3 drift items unified (`--drift` empty), jvm/js `TypeIdPlatformMethods` probed on Scala.js 1.22 |
+| Examples | 3 existing `{{{` blocks made to compile; 58 compiled blocks (counting both copies of the scala-2/3 pair), 2 `// scala-2-only` + 2 `// scala-3-only` (Scala 3.10 rejects `with` as a type operator); outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56 |
+| Tooling | `typeid.jvm` in `scaladocCheckedModules`, one extractor test, the style-guide module list, two AGENTS.md lines (Milad approved) |
+| Existing comments | 171 checked: 13 false and 28 imprecise (41, 24%), all fixed; most were claims about what the macros record (parents, type params, kinds, annotation args, enum ordinals) |
+| Review (2 Opus, fresh, in parallel on disjoint files) | 7 Important + 12 Minor, all applied (3 were comments Task 1 had marked true); re-review (Sonnet) round 1: 1 Important (a reviewer-suggested sentence, half false) + 2 Minor, applied; round 2: APPROVE with 1 Minor, applied |
+| Sonnet tier 2/3 | 113 comments (predefined ids, extractors, Scala 3 `ToExpr` instances, companions, constants); 0 findings against them |
+| Bugs | 13 new entries: 10 Library bugs, 2 Usability traps (`library-issues.md`), 1 Documentation error (`typeid.md`, `docs-issues.md`) |
+| Time | about 2 h 20 min from survey to PR (Task 1 47 min, Task 2 13 min, parallel review 13 min, fix rounds 14 + 11 min, re-reviews 7 + 1 min), plus about 1 h of CI |
+
+Skill update: "Lessons from typeid" in the `scaladoc-rollout` skill's `references/lessons.md` (probe macro claims on both versions; the wrapper-owner trap for `fullName`; 3.10 rejects `with` types; overloaded `[[links]]` break only the 2.13 doc tool; a local SNAPSHOT publish when `main` is ahead of the release in some files; parallel split review; re-probe reviewer-suggested text).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%.
+
+## 13e. Scaladoc: http-model module
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 http-model Scaladoc). Session `http-model-scaladoc` (Opus controller; an Opus subagent for tier 1, the existing-comment fact-check and the bug triage; Opus reviewers; Sonnet for tier 2 and the re-review). Milad's Phase 1 decisions:
+- one PR (tooling plus all 1,113 members), not waves;
+- tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie` and `ServerSentEvent`; everything else is tier 2;
+- the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with unit tests;
+- the AGENTS.md edit is approved.
+
+Phase 0 ran on `main` `5eb809c8f`. The module's main sources were byte-identical to `v0.0.56`, so every probe ran against the release.
+
+| Item | Result |
+|---|---|
+| PR | #1943 (one PR), merged 2026-11-05 as `4e916c642`. CI green: 23 passed, 0 failed (10 skipped bot jobs), after one rerun of flakes on each head: 6 jobs on the first head (GitHub release downloads of JDK 17 and sbt 2.0.12 timed out with HTTP 504; Landing Lighthouse 0.94), 1 on the merge head (`Docker start fail`). |
+| Coverage | 57 / 1113 (5%) → 1113 / 1113. `Header.scala` 2 → 648; the `Status` scala-2/scala-3 pair 0 → 133 (identical text). `--drift` empty. |
+| Examples | 65 compiled `{{{` blocks (0 before), in the 12 tier-1 types and their key methods; outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56; no `scala-2-only`, `scala-3-only` or `no-check` markers needed |
+| Tooling | `packageOverrides` and `modulePackage` in `ScaladocSnippets`, so existing modules keep their wrapper names; 2 extractor tests; `http-model.jvm` in `scaladocCheckedModules`; `build.sbt` comment; style guide (module list, tier-1 list, `@throws` needs the full name); 2 AGENTS.md lines (Milad approved) |
+| Existing comments | 57 checked: 1 false, 12 imprecise (13, 23%), all fixed. Example: `Method`'s "unique ordinal", but `ANY` and every `Methods` value have -1. |
+| Parallel writing | Task 2 Opus: tier 1 + their files + fact-check, 38 min. Task 3b Sonnet: helper types, 92 members, 3 min. Task 3a Sonnet: typed headers, 635 members, 6 min, written by script. Only Task 2 ran sbt. |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A (headers, cookies): 4 Important + 5 Minor. B (everything else and tooling): 3 Important + 13 Minor. A separate Opus bug-writer turned 9 Sonnet suspects into entries and 6 comment corrections. All applied. The Sonnet re-review found 2 Important + 3 Minor (stray ` / ` and lost `"` from 3a's scripted fix round), applied by the controller. |
+| Bugs | 16 new entries: 12 Library bugs and 3 Usability traps (`library-issues.md`), 1 Documentation error covering 11 statements on `model.md`, `headers.md` and `server-sent-event.md` (`docs-issues.md`). Worst: `URL.parse` searches the whole string for `://`, so `/login?next=https://...` loses `next`. Also: lone-`"` throws in 6 header parsers, which escape through `Headers#get`; locale-dependent case conversion (a Turkish locale breaks `charset=iso-8859-1`, `BASIC` and `X-Frame-Options: SAMEORIGIN`). |
+| Time | about 1 h 50 min from survey to a pushed, gate-green branch: Phase 0+1 20 min, Task 2 38 min (3a/3b and the bug-writer in parallel), parallel review 21 min, fix rounds 2 + 12 min, re-review 7 min, controller fixes + merge + final gates 6 min. Auto mode blocked `gh pr create` twice; it went through once Milad told the session to run it itself. `sql-scaladoc` (#1942) merged first and touched the same tooling lines: three conflicts (AGENTS.md, `scaladoc-style.md`, `ScaladocSnippets.scala`) resolved by keeping both sides (`packageOverrides` plus `sql`'s import case), gates re-run (`scaladoc-check` x3, `scaladoc-check-scala3` x2, lint x2). CI about 50 min per head including the reruns. |
+
+Skill update: "Lessons from http-model" in `references/lessons.md`:
+- `sbt --client` returned exit 0 on a failed `doc` run, so read gates from the logs;
+- `@throws` needs the full name for the 2.13 doc tool;
+- `packageOverrides` for odd packages;
+- a parallel split by file with one sbt owner;
+- Sonnet suspects go to an Opus bug-writer;
+- `/*` inside Scaladoc opens a nested comment.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%.
+
+## 13f. Scaladoc: sql and sql-zio modules
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 sql Scaladoc). Session `sql-scaladoc` (Opus controller; two Opus implementers in parallel on disjoint halves of the module in one worktree, only one running sbt; two fresh Opus reviewers; Sonnet re-reviews). Milad's Phase 1 decisions: one PR; a generic Scala-3-only checker `scaladoc-check-scala3` (3.9 + 3.10; `scaladocCheckedScala3Modules` = `sql.jvm`, `sql-zio`; settings shared with `scaladoc-check` through `scaladocCheckSettings`); `sql` examples get the wrapper import `zio.blocks.sql.{zio => _, _}` (the `sql-zio` package-shadowing bug); tier 1 = `Frag` + `sql"..."`, `Transactor`, `JdbcTransactor`, `DbCon`, `DbTx`, `DbCodec`, `Table`, `Repo`, `SqlQuery`, `Rel`, `TransactorZIO`; AGENTS.md diff approved. Phase 0 on `main` `0c0021d61`: `main` differs from `v0.0.56` only in two comment lines of `Frag.scala`, so every probe ran against 0.0.56; `sql/js` has no main sources.
+
+| Item | Result |
+|---|---|
+| PR | #1942 (one PR), merged 2026-11-05 as `fb2996da4`; CI green: 23 pass, 10 skipping, after Landing (Lighthouse performance, min 0.95) failed at 0.94 and 0.93 and passed on a second rerun Milad asked for; the PR changes no website file |
+| Coverage | sql 127 / 405 → 405 / 405 (`sql` 119/369, `sql.query` 8/36 before); sql-zio 7 / 14 → 14 / 14; `--drift` empty |
+| Examples | 13 existing `{{{` blocks (none compiled on its own) rewritten; 80 compiled blocks, no markers, no `// no-check`; shop domain on SQLite; outputs and rendered SQL from real runs against 0.0.56; PostgreSQL claims probed on `postgres:16` in Docker |
+| Tooling | `scaladoc-check-scala3` + shared settings function, in `testJVMScala3Command` and the root aggregate; `moduleImport` case for `sql`; the extractor reads `\$` as `$` (as Scaladoc renders it); 2 extractor tests; style guide and AGENTS.md (approved) |
+| Existing comments | 163 checked (incl. private): 11 false and 41 imprecise (52, 32%), all fixed (Task 1 files 42%, Task 2 files 26%); typical: version notes, invented generality (`PgCodec`), "selected automatically" for givens never picked, rollback claims contradicted by a filed bug |
+| Review (2 Opus, fresh, in parallel on disjoint halves) | 11 Important + 18 Minor; 28 applied, 1 deferred (R11: `scaladoc-check-scala3` in the streams*/scope*/schema* downstream rows of AGENTS.md, beyond the approved diff; follow-up); Sonnet re-reviews of both fix diffs: APPROVE, 0 findings |
+| Sonnet tier 2/3 | not needed: the two Opus implementers reached 405/405 and 14/14 themselves |
+| Bugs | 13 entries: 6 Library bugs + 1 Usability trap (`library-issues.md`), 1 AMEND (schema `NameMapper.SnakeCase` → also `SqlNameMapper.SnakeCase`), 7 reference-page statements in 5 Documentation-error entries (`docs-issues.md`); pasted at `backlog-status` 82bc5b689 and 9167b972e |
+| Time | about 2 h 30 min active from survey to PR (tooling 20 min, Tasks 1 and 2 in parallel 39 / 35 min, parallel reviews 22 / 20 min, fix rounds 10 / 8 min, re-reviews 3–5 min, final gates 10 min); the machine slept ~10 h mid-run; plus about 40 min of CI |
+
+Skill update: "Lessons from sql and sql-zio" in the `scaladoc-rollout` skill's `references/lessons.md` (the Scala-3-only checker; package shadowing on a shared classpath; `$`/`${expr}` warn in comments, write `\$`, extractor unescapes; two implementers in one worktree with one sbt owner; DB probing: SQLite in-memory per connection, Docker Postgres, ZIO effects deadlock in wrapper initializers; machine suspend), and `references/pr0-tooling.md` (Scala-versions and classpath bullets).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%.
+
+## 13g. Scaladoc: schema-avro, schema-bson, schema-csv and schema-thrift
+
+**Merged** 2026-11-05 as `bc5d4fa5a` (#1949).
+
+Session `schema-formats-scaladoc` (Opus), started 2026-11-05 on `main` `ff63582e5`. Phase 0: 44 / 233 (avro 0/53, bson 17/110, csv 20/22, thrift 7/48); `--drift` empty; one copy per file (csv is `CrossType.Pure`); no `{{{` blocks; cross versions match `scaladoc-check`; the third-party jars (avro, bson, libthrift) reach the checker through `dependsOn`, so the build change is four list entries; 11 known entries. Milad's Phase 1 decisions: one PR for all four modules; tier 1 (13 types) = `AvroFormat`, `AvroCodec`, `BsonSchemaCodec` (with `Config`), `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `CsvFormat`, `CsvCodec`, `CsvConfig`, `CsvError`, `ThriftFormat`, `ThriftCodec`; schema-csv JS: only the `schema-csvJS/doc` gate (3.9.0 and 2.13.18), claims probed on the JVM; sample domains: Avro sensor readings, BSON orders, CSV a readings export, Thrift an event log.
+
+- **Coverage:** 44/233 → 233/233 (avro 0/53 → 53/53, bson 17/110 → 110/110, csv 20/22 → 22/22, thrift 7/48 → 48/48). `--drift` empty before and after (one copy of every file). 27 compiled examples (avro 7, thrift 6, bson 7, csv 7) on 2.13.18, 3.9.0 and 3.10.0. Tooling: four `scaladocCheckedModules` entries, no override (packages follow the folder); `AGENTS.md` bullet + downstream line; style-guide module list.
+- **Decisions (Milad):** 13 tier-1 types (`AvroFormat`, `AvroCodec`, `BsonSchemaCodec`+`Config`, `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `CsvFormat`, `CsvCodec`, `CsvConfig`, `CsvError`, `ThriftFormat`, `ThriftCodec`); schema-csv JS = doc build gate only; one PR; sample domain per format (Avro sensor readings, BSON orders, CSV a readings export, Thrift an event log).
+- **Process:** two Opus implementers in parallel on disjoint modules in one worktree (A avro+thrift, the only sbt runner; B bson+csv, scala-cli only, handed back READY_FOR_GATES); two fresh Opus fact-checkers in parallel (one per half, scala-cli only, so three jobs fit in ~7 GB); authors resumed for fix rounds; Sonnet scoped re-reviews. A login/rate-limit outage (~1 h 50 min) killed both implementers mid-write; the controller committed their partial work, merged main, and resumed them with `SendMessage` with no lost work.
+- **Inherited comments:** 20 of 57 wrong or imprecise (35%): bson 6/17, csv 10/22, avro+thrift 4/18 (2 of 9 Scaladoc, 2 of 9 line comments). Typical: config flags documented as working that are never read (`useNativeObjectId`, `CsvConfig.nullValue`, `lineTerminator` on read, `hasHeader` in `writeAll`), wrong counts ("27 primitive types", really 30), `CsvError#column` described as a cell number (it is a character offset in the line), a "fewer allocations" performance claim.
+- **Review:** 33 findings (10 Important, 23 Minor) over two reviews and two re-reviews; 30 applied, 1 rejected with evidence (cross-module `[[zio.blocks.schema...]]` links: the reviewer's `scala-cli doc` on 2.13 warned, the sbt 2.13 `doc` gate did not), 1 optional skipped, 1 info only. Reviewer replacement text was half-right once (M-3: `DateTimeParseException`/`ZoneRulesException`, subclasses of the suggested `DateTimeException`) and narrowed once by the author (I-4: a wrapper of a record really is a `struct`). One boundary claim (libthrift's "Message size exceeds limit") passed the first review and fell to the re-review's off-by-one probe.
+- **Bugs:** 16 new entries (11 library: 6 Thrift, 1 Avro+Thrift `ByteBuffer` slice, 2 BSON, 2 CSV; 1 Test and CI: missing `&&` in `AvroFormatSpec`; 4 docs: `avro.md`, `thrift.md`, `bson.md`, `csv.md`) + 4 AMENDs. Ruling: Avro cross-type decoding is a limitation of Avro binary (no type tags), not a bug; the Thrift equivalent (field type byte ignored) is a codec bug.
+- **Cost:** about 2 h 55 min active (survey to PR, outage excluded): survey + decisions + spec/plan 32 min; implementers ~1 h 15 min active in parallel; parallel reviews ~20 min each; fix rounds 5-8 min; re-reviews ~12 min; gates incl. a post-merge rebuild ~25 min.
+- **Lessons:** (1) codec modules have the highest inherited-error rate so far (bson/csv 41%): probe every config flag's effect, not only its default; (2) gate the sbt 2.13 `doc`, not `scala-cli doc`, for link warnings; (3) a session killed mid-sbt can leave `project/target` truncated (`ClassFormatError: Truncated class file`): `rm -rf .bsp project/target project/project/target` for that worktree only, never `pkill -f sbt` with other sessions running.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%.
+
+## 13h. Scaladoc: schema-toon, schema-xml, schema-yaml
+
+**Merged** 2026-11-06 as `04b56bc92` (#1948).
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 schema-text-formats Scaladoc). Session `schema-text-formats-scaladoc` (Opus controller; three Opus writers in parallel, one per module, for tier 1 and the existing-comment fact-check; Sonnet for tier 2/3 gaps; three fresh Opus reviewers, one per module; Sonnet scoped re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = toon `ToonFormat`, `ToonCodec`, `ToonCodecDeriver`, `ReaderConfig`, `WriterConfig`; xml `Xml`, `XmlCodec`, `XmlFormat`, `syntax`, `XmlSelection`, `XmlPatch`; yaml `Yaml`, `YamlCodec`, `YamlFormat`, `YamlOptions`, the `yaml"..."` interpolator; Scala.js = `JS/doc` gate plus Scala.js probes for number-format claims; AGENTS.md diff and style-guide sentence approved.
+
+| Item | Result |
+|---|---|
+| PR | #1948 (one PR); CI green on the first run (23 pass, 10 skipping); awaiting Milad's merge |
+| Coverage | 184 / 542 → 542 / 542 (toon 37/202, xml 120/223, yaml 27/117 → 100% each); `--drift` empty (xml `syntax.scala` and yaml `package.scala` copies identical) |
+| Examples | 94 compiled `{{{` blocks (xml 46 incl. the 2 existing ones, one of which did not compile; yaml 23, one `// scala-3-only` for `yaml"..."`; toon 17 plus later edits); outputs from real runs on 2.13.18, 3.9.0 and 3.10.0 against 0.0.56 |
+| Tooling | three `scaladocCheckedModules` entries, one extractor test (version dirs `scala-2.12-2.13`/`scala-3` keep the `syntax.scala` wrappers apart), style-guide module list, two AGENTS.md lines (bullet + downstream row) |
+| Existing comments | 199 checked: 11 false and 48 imprecise (59, 30%), all fixed (xml 128: 6 + 18; toon 44: 3 + 19; yaml 27: 2 + 11); typical: span order in `XmlCodecError`/`YamlCodecError` reversed, `@xmlAttribute`/`@xmlNamespace` "work", `ArrayFormat.List` "forces list format", TOON config said to reach every codec |
+| Review (3 Opus, fresh, one per module, in parallel) | 10 Important + 27 Minor, all applied (xml 2 + 6, toon 7 + 10, yaml 1 + 11); 5 new bugs found by reviewers (toon N1–N4, xml attribute-only records) plus 1 xml and 1 yaml AMEND; Sonnet re-reviews of the fix diffs: 2 Important + 4 Minor more (xml 1 + 1, toon 1 + 1, yaml 0 + 2), applied; xml/toon round-2 diffs (3–5 sentences) approved by the controller |
+| Sonnet tier 2/3 | 166 comments (yaml 47, toon 119 in two parallel agents by file); few probes, and they drew most of the toon findings (5 of 7 Important: number output, header parsing, quoted keys, map keys, type members) plus 3 yaml Minor |
+| Bugs | 31 entries: 19 new Library bugs, 4 AMENDs, 3 Usability traps (`library-issues.md`), 5 Documentation errors (`toon.md`, `xml.md`, `yaml.md`; `docs-issues.md`) |
+| Time | about 4 h 05 min of active work from survey to PR (two stops: a login error 13:35–15:55 and a machine shutdown), plus about 30 min of CI. Phase 0/1 + spec 45 min; parallel Opus writers 20–23 min; Sonnet gaps 2 min each; reviews 19–20 min; fix rounds 3–8 min; re-reviews 2–4 min; gates about 45 min of sbt in memory-gated chunks |
+
+## 13i. Scaladoc: html module
+
+Session `html-scaladoc` (Opus), started 2026-11-05 on `main` `a7014433f`. Phase 0: 161 / 1001 (16%); html's main sources are byte-identical to `v0.0.56`; shared sources only (`jvm/` and `js/` hold just `.gitkeep`); the version split is `HtmlElements` (scala-2 302 items, scala-3 262: Scala 2 adds `ScriptArg`/`StyleArg`/`ListArg`/`CellArg` ADTs where Scala 3 uses union types) and `TemplateInterpolators` (9 / 5); `--drift` lists 10 tag helpers in `HtmlElements` (`ol`, `optgroup`, `option` x2, `script`, `select`, `style`, `table`, `tr`, `ul`); one `{{{` block (`DomSelection`); `Escape` is `private[html]`. Milad's Phase 1 decisions: one PR including the tooling (`html.jvm` in `scaladocCheckedModules`); tier 1 = `Dom` and its node types, `DomModifier`, `HtmlElements` as a group, `AttributeKey`/`MultiAttributeKey`, `Css`, `CssSelector`, `DomSelection`, `Js`, and the `html`/`css`/`js`/`selector` interpolators; `Escape` tier 3; Opus for tier 1, the fact-check of all 161 existing comments, bug entries and review, Sonnet for the tag/attribute helpers and the `To*` instances; AGENTS.md edits approved (`html` in the scaladoc-check bullet; downstream row `html*` → `scaladoc-check`, `datastar*`, `htmx*`, `docs`).
+
+| Item | Result |
+|---|---|
+| PR | #1944 (one PR), merged 2026-11-05 as `aa8164217`; CI green: 23 pass, 10 skipping; main merged in twice during the PR (#1942, #1943), both sides kept, gates re-run each time |
+| Coverage | 161 / 1001 → 1001 / 1001; `--drift` 10 → 0 |
+| Examples | 33 compiled blocks on 2.13.18, 3.9.0 and 3.10.0 (`html.jvm` in `scaladocCheckedModules`) |
+| Writing | Opus Task 1: tier 1, the fact-check of all inherited comments, bug entries. In parallel, Sonnet Task 2 wrote the 479 `HtmlElements` one-liners from one table into both copies, and Sonnet Task 3 the 182 `To*`/`CssSelectable` comments |
+| Existing comments | 49 of 161 (30%) false or imprecise (55 of 168 counting 7 the coverage script misses); clustered in escaping, void and boolean rendering, selector matching, and `Double` formatting that holds only on the JVM |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A 4 Important + 6 Minor; B 8 Important + 10 Minor + 5 bug-entry fixes; all applied, each replacement re-probed (JVM, Scala.js 1.22, Chromium); Sonnet re-review APPROVE, 4 Minor (2 applied, 2 no change) |
+| Bugs | 18 entries: 8 Library bugs, 3 Usability traps, 1 amendment (#1764 double escaping), 6 Documentation errors on `html.md` |
+| Time | about 4 h 10 min from brief to PR, including about 1 h lost to an auth failure mid-gate |
+
+Skill update: lessons in the `scaladoc-rollout` skill (`<h1>` breaks the 2.13 doc tool; `\$` before and after #1942; `^` is superscript in Scaladoc; reference-page `compile-only` examples hide run-time failures; stale peer sockets after a restart; cost).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%.
+
+## 13j. Scaladoc: async module
+
+Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 105 / 144 (`async` 91/123, `async.internal` 14/21); 39 gaps, mostly `private[blocks]` StepFold helpers, internal `Parker` members, the dca `AsyncCpsMonad` and implicit-class wrappers, so the main work is the fact-check of the 105 existing comments; `--drift` lists 7 members (`toFuture`, `fromFuture`, `attempt`, `flatten`, `orElse`, `unit`), all reconcilable; one `async.jvm` list entry is enough (the checker compiles each module's own per-version sources; JS-only files are not compiled, so JS-only examples need `// no-check`); 3 existing `{{{` blocks; main equals `v0.0.56` except a 3-line import change in Scala 3 `AsyncSyntaxVersionSpecific`. Milad's Phase 1 decisions: one PR (build entry, AGENTS.md lines, all docs); tier 1 = `Async` and its companion, `Async.Running`, `Completer`, `Cancelable`, `Failure`, `AsyncSelector`, `AsyncInterop`, `Pollable`; drift: one identical text per member, with real differences stated inline (target: empty `--drift`); the fact-check of all 105 existing comments is kept.
+
+| Item | Result |
+|---|---|
+| PR | #1946 (one PR), merged 2026-11-05 as `380e19bdf`; CI green on `be75cd226`: 23 pass, 10 skipping, no reruns; main merged in three times (#1942, #1943, #1944), both sides kept |
+| Coverage | 105 / 144 (72%; `async` 91/123, `async.internal` 14/21) → 144 / 144; `--drift` 7 → 0; comments-only: 31 files, 0 code changes |
+| Examples | 47 compiled per Scala version (2.13.18, 3.9.0, 3.10.0); none of the 3 old ones had ever compiled. `Async.promise` shows both the `// scala-2-only` `implicit c =>` form and the `// scala-3-only` context-function form |
+| Writing | Task 1a (Opus: shared files and tooling, the only sbt runner) and Task 1b (Opus: jvm/js, macros, internals; scala-cli only) in parallel; Task 2 (Sonnet) wrote 22 tier-3 one-liners |
+| Existing comments | 67 of 311 (22%): 19 false, 48 imprecise; mostly where work runs (JVM `toFuture` runs on `ForkJoinPool.commonPool()`, not `ec`), strict vs lazy inputs (`collectAll`), ready vs pending values (`ensuring`, Scala.js `block`), and `List.map` vs `Vector.map` inside `Async.async`; also 11 inline `//` comments corrected |
+| Review (2 Opus, fresh, in parallel) | A 4 Important + 13 Minor; B 3 Important + 18 Minor; Sonnet scoped re-review 1 Important + 4 Minor; 42 of 43 applied, 1 accepted as is |
+| Bugs | 4 library (`fromCompletionStage` `ExecutionException` unwrapping; Scala 3 `asyncRuntimeAwait` never found; Scala 2 `Tuples` nests a right-hand tuple; a quadratic `flatMap` chain over pending wrappers), 3 docs (`async.md` "Direct Style", "Depth Limits", "Completer"), the cause of the `AsyncInteropSpec` flake, status lines on the "two consumers" and "cancel never reaches" entries |
+| Time | about 4 h 20 min from survey to PR, including a ~20 min login outage and two main merges; green CI about 1 h later after a third main merge |
+
+Skill update: "Lessons from async" in the `scaladoc-rollout` skill's `references/lessons.md`.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%.
+
+## 13k. Scaladoc: jwt module
+
+Session `jwt-scaladoc` (Opus controller), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 62 / 146 (42%); jwt's main sources are byte-identical to `v0.0.56`; shared sources (9 files, `Jwt.scala` holds 33 of 146 members) plus one backend each in `jvm/` and `js/`; no scala-2/scala-3 splits; cross versions equal `scaladoc-check`'s, so one list entry. Milad's Phase 1 decisions: one PR; tier 1 = `Jwt` (with `JwtSignOptions`, `JwtDecodeOptions`, `JwtLimits`), `JwtClaims`, `JwtHeader`, `Algorithm`, `JwtError`, `JwtAudience`.
+
+| Item | Result |
+|---|---|
+| PR | #1947 (one PR), merged 2026-11-06 as `07f71de18`. CI on `de55fd3ae`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt@v1.5.7`'s AMPEL verify step ("compiling policy: unable to parse a policy, group or policySet from data") on every open PR and on main, not in jwt. Main merged in three times (#1942–#1944, #1946, #1949), both sides kept, scaladoc-check re-run each time |
+| Coverage | 62 / 146 → 146 / 146; `--drift` 0; comments-only: 10 files, 0 code changes |
+| Examples | 13 compiled blocks per Scala version (2.13.18, 3.9.0, 3.10.0; `jwt.jvm` in `scaladocCheckedModules`); the one old `...` block now compiles |
+| Writing | Task 1 (Opus, the only sbt runner): tooling, tier 1, fact-check of all inherited comments, bug entries. In parallel Task 2 (Sonnet, no sbt): the 20 gaps in `JwtValue`, `Base64Url` and both backends; its 5 suspected bugs triaged by Task 1 |
+| Existing comments | 25 of 83 (30%) false or imprecise (4 false, 21 imprecise); Task 2's 19 new comments: 1 false, 2 imprecise. False ones: audience mismatch as `InvalidToken` (it is `InvalidClaim("aud", ...)`), `JwtSignOptions.limits` "header JSON validation", "no values are dropped" (a repeated field keeps the last), a nonexistent `Num.toLong` |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A 5 Important + 8 Minor; B 3 Important + 11 Minor; all applied but one style-guide reorder (already resolved in a merge); each replacement re-probed (JVM, Scala.js 1.22). Sonnet scoped re-review (re-running every bug reproducer): 1 Important + 2 Minor, all applied |
+| Bugs | 10 entries plus amendments: `crit` ignored, a token accepted at the second its `exp` names, `maxDepth` object-vs-array off by one, the `alg` field holding a backend message, the Scala.js backend lacking key-type, size and curve checks, a Scala.js unreadable key reported as `InvalidToken`, `Num` accepting any text, the JSON parser accepting RFC-forbidden input, and 2 errors on `jwt.md` |
+| Time | about 5 h 45 min from brief to PR, including a login outage and a reboot; CI took about a day longer because of runner and setup failures |
+
+Skill lessons: probing the "who verifies what" boundary (`decode` vs `decodeWithoutVerification`, sign vs decode) found most Important findings.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, jwt 30%.
+
+## 13l. Scaladoc: maybe, combinators and context
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 maybe-combinators-context Scaladoc). Session `maybe-combinators-context-scaladoc` (Opus controller; one Opus writer for all three modules, Milad's choice; two fresh Opus reviewers in parallel on disjoint files; Sonnet re-review). Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; AGENTS.md diff approved (module list and downstream rows for `maybe*`, `combinators*`, `context*`). Phase 0 on `main` `c2e4a39fd`: module sources identical to `v0.0.56`, so every probe ran against 0.0.56; drift 3 (`Present`, `present`, `Absent`); 2 `{{{` blocks (`ContextHas`), neither compiled.
+
+| Item | Result |
+|---|---|
+| PR | #1953 (one PR); CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
+| Coverage | maybe 5 / 135 → 135 / 135; combinators 7 / 79 → 79 / 79; context 13 / 37 → 37 / 37 (the script prints 36 / 37 because `ContextHas`'s comment sits above a 3-line `@implicitNotFound`); `--drift` prints one false positive (`def apply`: Scala 3 `Present.apply` paired with Scala 2 `Maybe.apply` by name order) |
+| Examples | 67 `{{{` blocks counting each Scala-version copy (`Unions` marked `// scala-3-only`); the 2 old `ContextHas` blocks now compile; every result comment from a real scala-cli run on 2.13.18 and 3.9.0; `Context` also probed on Scala.js |
+| Tooling | 3 `scaladocCheckedModules` entries; style-guide and AGENTS.md lists (approved); two merges of `main` (list-line conflicts only, both sides kept) |
+| Existing comments | 25 counted by the script: 1 false (`Context#prune`) and 9 imprecise (10, 40%), all fixed; plus uncounted ones (the Scala 3 `unsafeGet` cost claim; `ContextEntries` load factor; "used by schema codecs"); typical: claims true on one Scala version only ("zero allocation" for `Present` while primitives box; `Concat` on Scala 3 is always `L \| R`) |
+| Review (2 Opus, fresh, in parallel) | 7 Important + 13 Minor (A maybe+context 4 + 7; B combinators+tooling 3 + 6), nearly all per-Scala-version overclaims; 20 / 20 applied, each suggested sentence re-probed first; Sonnet re-review of the fix diff: APPROVE, 2 Minor (1 fixed, 1 cosmetic left) |
+| Bugs | 11 entries: 5 Library bugs and 1 amendment to the Scala 2 `Tuples` entry, 2 Usability traps (`library-issues.md`), 2 Documentation errors (`combinators.md`, `maybe.md`) and 1 Docs tooling entry (coverage-script blind spots) (`docs-issues.md`) |
+| Time | about 1 h 50 min active, across two machine reboots and a usage-limit stop; plus CI |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%.
+
+## 13m. Scaladoc: schema-messagepack and http-model-schema
+
+Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `aa8164217`. Phase 0: 11 / 189 (schema-messagepack 5/134, http-model-schema 6/55); `--drift` empty; no `{{{` blocks; packages `zio.blocks.schema.msgpack` and `zio.http.schema` need `packageOverrides` entries (from #1943); `moduleOf` already tells `http-model-schema` apart from `http-model`; 5 known entries (4 http-model-schema, 1 msgpack `DynamicSchema`). Milad's Phase 1 decisions: one PR for both modules; tier 1 = `MessagePackFormat`, `MessagePackCodec`, `QueryCodec`, `HeaderCodec`, the `Request`/`Response`/`Headers`/`QueryParams` schema extension methods, `StringDecoder`; the AGENTS.md diff approved.
+
+| Module | Members before | After | Inherited comments wrong or imprecise | Examples (2.13.18/3.9.0/3.10.0) | Bug entries |
+|---|---|---|---|---|---|
+| schema-messagepack | 5/134 (3%) | 134/134 | 2 of 7 | 7 | 5 Library bugs, 1 Usability trap, 1 amendment, 1 docs error |
+| http-model-schema | 6/55 (10%) | 55/55 | 2 of 6 | 7 | 3 Library bugs, 1 Usability trap, 1 docs error, 4 amendments |
+| Total | 11/189 | 189/189 | 4 of 13 (31%) | 14 | |
+
+PR #1950 (one PR), merged 2026-11-06 as `20f4c3131`; CI green on `0dfbf8261`: 23 pass, 10 skipping. Tooling: `packageOverrides` entries `schema-messagepack` → `zio.blocks.schema.msgpack` and `http-model-schema` → `zio.http.schema`; both modules in `scaladocCheckedModules`; AGENTS.md Scaladoc bullet and two downstream rows (approved). Comments only. Gates: scaladoc-check 32 tests on 3 versions; 8 doc runs; `check`, `headerCheckAll`, `scalafmtAll`. Reviews (fresh Opus): 3 false + 15 imprecise claims + 1 style note; 18 of 19 applied; Sonnet re-review APPROVE. Every reproducer re-run by a reviewer. Time: about 2.5 h of working time over two reboots. Skill lessons: re-run scaladoc-check after merging main into the tooling lists; fsync the bug-entries file (a reboot truncated it once).
+
+## 13n. Scaladoc: endpoint module
+
+Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit).
+
+| Item | Result |
+|---|---|
+| PR | #1957 (one PR), merged 2026-11-06 as `9c04ebf63`; main with #1950 and #1956 merged in; the PR's CI was 14 pass / 9 pending (no failure) at the merge |
+| Coverage | 65 / 314 (20%) → 314 / 314; `--drift` 1 → 0; 19 files, comments only |
+| Examples | 36 compiled (2 `// scala-3-only`); one `scaladocCheckedModules` entry |
+| Existing comments | Task 1 (Opus) checked 83 claims: 55 true, 18 imprecise, 9 false, 1 stale (34% needed a fix); Task 2 (Sonnet) corrected 4 more (the Scala 2 `ErrorBuilder` drift, "never allocates", a roadmap sentence, "ever") |
+| Review | 2 Opus fact-checks in parallel (7 Important + 18 Minor) and a Sonnet re-review (3 Minor), all applied; Task 2's comments drew 3 Important-class findings |
+| Bugs | 8 Library bugs, 5 Usability traps, 3 Documentation errors, amendments to the `Unions.separate` and `Method.ANY` entries |
+| Time | about 2 h 40 min from brief to PR |
+
+Lessons: macro group examples (`endpoints { val x = ... }`) always give non-fatal "unused local definition" warnings in the snippet checker; split sbt gate chains and check `free -g` between rounds; endpoint `main` is not byte-identical to the release even where behaviour is, so cite lines at the base commit.
+
+## 13o. Scaladoc: schema core, remaining members
+
+Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 3232 / 3775; the 543 gaps are 521 implementations of documented parents, whose doc the doc tool already inherits (checked in `schemaJVM/doc` HTML on 3.9.0 and 2.13.18, e.g. `PrimitiveValue.Unit#primitiveType`, `Register.Boolean#set`), and 22 macro `*Impl` methods in `schema.migration`; no real gaps, confirming the waves' judgement (§11). By file: `PrimitiveValue` 118, `Reflect` 110, `DynamicSchemaExpr` 89, `PrimitiveType` 77, `SchemaExpr` 43, `Register` 30, `DynamicValue` 18, others small. Milad's Phase 1 decision: document all 543 in one PR (no tier-1 types, no new examples); per-case text only where an implementation adds something (order, `typeIndex`, `toJsonString` values), never a copy of the parent doc.
+
+| Item | Result |
+|---|---|
+| PR | #1956 (one PR), merged 2026-11-06 as `121cb1024` |
+| Coverage | 3232 / 3775 (85%) → 3775 / 3775: `schema` 1478 → 1948 / 1948, `binding` 429 → 471, `migration` 154 → 176, `json` 865 → 872, `codec` 19 → 21; comments only (18 files); `--drift` empty; no new examples |
+| Inheritance check | the doc tool shows the parent's text on 2.13.18 and 3.9.0 (generated HTML), so the new comments add only per-case facts |
+| Reviews | data model: 0 Important, 2 Minor, 167 probe checks; expressions and bindings: 2 Important, 6 Minor, all fixed or answered; scoped re-review APPROVE |
+| False existing comments fixed | `OpticCheck` message paths; `eval`/`convert` `Left` vs throw on NaN; `Float`/`DoubleToInt`/`Long` out of range; the Scala 2 `MigrationBuilder` completeness claim |
+| `docs/dev` mentions in Scaladoc | 13 replaced by "a known bug"; 8 other schema files still point to `docs/dev/issues.md` (Docs tooling entry) |
+| Bugs | 4 new entries and 2 amendments |
+| Gates | scaladoc-check on 2.13.18, 3.9.0 and 3.10.0 (33 tests each, after the main merge); doc JVM/JS on 3.9.0 and 2.13.18; `check`, `headerCheckAll`. The session's CI watcher died under memory pressure, so it did not see the final CI result before the merge |
+| Time | about 2 h 45 min active |
+
+## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer
+
+Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only.
+
+| Item | Result |
+|---|---|
+| PR | #1960 (one PR); CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
+| Coverage | openapi 43/130 → 130/130; codegen 73/107 → 107/107; smithy 55/64 → 64/64; mux 43/46 → 46/46; ringbuffer 82/122 → 122/122; total 296/469 (63%) → 469/469; `--drift` mux 5 and ringbuffer 30 → empty |
+| Examples | 44 compiled on 2.13.18, 3.9.0 and 3.10.0 (27 old ones in codegen and smithy, none compiled before, plus 17 new) |
+| Existing comments | openapi/codegen/smithy 43 of 177 wrong or imprecise (24%; 7 false); mux/ringbuffer 28 of 98 (29%; 8 false) |
+| Review | 2 fresh Opus fact-checks (mux+ringbuffer 2 Important + 6 Minor; openapi+codegen+smithy 2 Important + 10 Minor), a fix round each, 2 scoped Sonnet re-reviews APPROVE; 1 finding not applied (a JS `Thread` example) |
+| Bugs | 13: mux 1, ringbuffer 2 (1 trap), 2 docs errors, codegen 4, smithy 1, openapi 2, and an amendment to the codegen "accepted but never emitted" entry |
+| Machine | 3 sbt rounds plus 1 post-merge round, each capped at 6 GB |
+
+## 13q. Scaladoc: projection, dataMigration, htmx and datastar
+
+Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
+
+PR #1959 (one PR), opened 2026-11-06 with main `121cb1024` merged in (two conflicts, both sides kept). Gates after the merge: `scaladoc-check-scala3` on 3.9.0 and 3.10.0, `scaladoc-check/test` on 3.9.0 (35 tests), 7 `doc` builds on 3.9.0, `check`, `headerCheckAll`.
+
+| Module | Documented before → after | Inherited comments wrong or imprecise | Examples | Review (Important / Minor) | Bugs filed |
+|---|---|---|---|---|---|
+| projection | 167/256 → 256/256 | 44/167 (26%) | 11 compiled | 0 / 8 (review A, with dataMigration) | 5 library + 1 docs |
+| dataMigration | 50/61 → 61/61 | 18/55 (33%) | 8 compiled | (in review A) | 1 library |
+| htmx | 96/418 → 418/418 | 19/96 (20%) | 13 compiled | 0 / 5 (review B) | 4 library + 2 docs |
+| datastar | 77/252 → 251/252 (the script misses a doc above a multi-line `@implicitNotFound`) | 20/92 (22%) | 29 (15 compiled; 14 `// no-check` on Scala 3.10, a known bug) | 3 / 3 (review B) | 3 library + 1 usability trap + 3 docs, and the Scala 3.10 `ToDatastarExpr`/`NotString` bug |
+| Total | 390/987 → 986/987 | 101/410 (25%) | 61 | 3 / 16, all fixed; Sonnet re-review APPROVE | 21 entries |
+
+Time: about 3.3 h active from brief to PR (2 h of writers and reviews in parallel, about 25 min of sbt).
+
+## 13r. Scaladoc: markdown module
+
+Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks: 6 in 5 files (`Parser`, `Doc`, `package` ×2, `ToMarkdown`, `Renderer`), all flattened into run-on lines by an earlier scalafmt pass, so none can compile; only `MdInterpolator` has scala-2/scala-3 copies; sources byte-identical to `v0.0.56`. Milad's Phase 1 decisions: one PR (tooling and all Scaladoc); tier 1 = `Doc`, `Block`, `Inline`, `Parser`, `HtmlRenderer`, `TerminalRenderer`, `ToMarkdown`, `Renderer`, the `md"..."` interpolator, each with an overview, one compiled example and `@see` to `docs/reference/docs.md`; AGENTS.md: markdown in the scaladoc-check list and a `markdown*` downstream row (dependents checked in build.sbt).
+
+| Item | Result |
+|---|---|
+| PR | #1958 (one PR), opened 2026-11-06; two merges of main |
+| Coverage | 91 / 107 (85%) → 107 / 107; 16 files, comments only; `packageOverrides` `markdown` → `zio.blocks.docs` |
+| Examples | 14 compiled (checker on 2.13.18, 3.9.0, 3.10.0); the 6 old blocks rewritten on their own lines, which survive scalafmt |
+| Existing comments | 91 fact-checked; e.g. "output can be re-parsed to an equal AST" was false in three ways (unescaped text, backtick code, centred table columns); normalisation claims hold per class only |
+| Review | Opus fact-check 5 Important + 10 Minor, all fixed; Sonnet re-review APPROVE with 3 optional notes, applied |
+| Bugs | 11 entries (5 Library bugs, 6 Usability traps) and an addition to the openapi `md"..."` round-trip entry (its root cause, `Doc#normalize`) |
+| Time | about 2 h 45 min active |
+
+Lessons: single-line `{{{ x }}}` blocks get flattened by scalafmt; `md"..."` parts are raw, so `"\n"` in a single-line literal stays two characters; check every bug entry's test-gap sentence against the spec assertions, not the test names.
+
+## 13s. Scaladoc: telemetry and otel
+
+Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage: telemetry 203/567, otel 17/33; otel's package is `zio.blocks.telemetry.otel` (needs a `packageOverrides` entry). telemetry needs JDK 21+ even to compile (its jar is class file 65 and its `log.*` macros run in the compiler), and CI runs telemetry/otel tests and docs only via `whenJdkAtLeast(25, ...)`, so the examples need a JDK-gated checker; options for Milad: a separate `scaladoc-check-jdk21` project (recommended), a JDK-dependent `scaladoc-check`, or `// no-check`. Phase 0: `--drift` 1 (`ContextStorage`, jvm vs js; one shared text will state the difference). Milad's Phase 1 decisions: (a) a new project `scaladoc-check-jdk21` sharing `scaladocCheckSettings`, listing `telemetry.jvm` and `otel`, run via `whenJdkAtLeast(25, ...)` in the testJVM aliases like telemetry's tests (`scaladoc-check` and the JDK 17 jobs untouched); one PR; tier 1 = `log`, `trace`, `metric`, `Span`, `Tracer`, `Meter`, `Counter`, `Histogram`, `Resource`, `Attributes`, `Severity`, `LogWriter`, and otel `OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, `OtlpJsonMetricExporter`, `ExporterConfig`, `W3CTraceContextPropagator`, `B3Propagator`, `BatchProcessor`; AGENTS.md: one sentence in the Scaladoc bullet naming `scaladoc-check-jdk21`, its JDK 21+ requirement and the check command.
+
+| Item | Result |
+|---|---|
+| PR | #1961 (one PR); CI green, including testJVM on JDK 17 and 25, no reruns |
+| Coverage | telemetry 203/567 (35%) → 567/567; otel 17/33 → 33/33; total 220/600 → 600/600; `--drift` empty |
+| Tooling | new checker `scaladoc-check-jdk21` (run only via `whenJdkAtLeast(25, ...)`, like telemetry's tests; `scaladoc-check` and the JDK 17 jobs untouched); otel `packageOverrides` entry with a unit test |
+| Examples | most `log.*` examples are `// scala-3-only` (the known 2.13 `log.*` bug); the OTLP exporters and `BatchProcessor` are `private[otel]`, so tier 3 |
+| Existing comments | about 252 checked: 14 wrong, 2 stale, 69 imprecise (about 34%) |
+| Review | fresh fact-check: 5 Important + 12 Minor, all Important and factual Minor fixed; scoped re-review APPROVE |
+| Bugs | 21: 11 Library bugs, 5 Usability traps, 4 Documentation errors, and an addition to the `fromHex` entry |
+| Gates | `scaladoc-check` (35) and `scaladoc-check-jdk21` on 3.9.0, 3.10.0 and 2.13.18; `check`, `headerCheckAll`; `telemetryJVM/test` 222 and `otel/test` 199 pass |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%, endpoint 34%, projection/dataMigration/htmx/datastar 25%, openapi/codegen/smithy/mux/ringbuffer 24–29%, telemetry/otel 34%.
+
+## 13t. Scaladoc: mediatype (skipped)
+
+Skipped by Milad's decision on 2026-11-06 ("I would rather skip adding Scaladoc for this module"): mediatype stays at 0 / 2634. Notes for a later attempt, from the Phase 0 of session `mediatype-scaladoc` (on `main` `121cb1024`): 2,622 items are `lazy val`s in the generated `MediaTypes.scala`, so the comments would come from `project/GenerateMediaTypes.scala`; the committed file matches mime-db commit `6abfe5f81` (2026-02-01) exactly (2,595 types), while mime-db `master` has 6 more (`application/aas+zip`, `explicit-registration-response+jwt`, `measured-component+cbor`, `measured-component+json`, `trust-mark-status-response+jwt`, `audio/soundfont`), and the generator fetches `master`, so plain regeneration is not comments-only; pin the fetch to a commit first. The generator also drops multi-line `extensions` arrays (see the library entry).
+
+## 13. Scaladoc: next modules
+
+Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
+
+### 13.1 Method (unchanged from §11 and §12)
+
+Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md`) and `docs/dev/scaladoc-style.md`.
+
+- **PR 0 for each module:**
+  - add the module to `scaladocCheckedModules` (`build.sbt:1410`, today `Seq(schema.jvm, streams.jvm)`);
+  - make its existing `{{{ }}}` examples compile under `scaladoc-check` on 2.13.18, 3.9.0 and 3.10.0;
+  - add its backlog table.
+- **If PR 0 has no existing examples to seed, ship it with the wave as one PR** (chunk, #1908).
+- **Then comment-only waves,** under about 3,000 changed lines each (the streams waves were about +900 to +1,130 lines). Then a close-out.
+- **Tiers:**
+  - Tier 1, core types: an overview, a compiled example and `@see` to the reference page.
+  - Tier 2, every other public member: one to three sentences.
+  - Tier 3, internals: one line or nothing.
+- **Rules:**
+  - Describe what the code does, and call bugs "a known bug".
+  - Identical text in `scala-2`/`scala-3` and jvm/js copies, checked with `--drift`.
+  - No `docs/dev/` links.
+- **Roles and gates:**
+  - an Opus implementer, an Opus fact-check reviewer with fresh context, and a Sonnet re-reviewer for each fix round;
+  - only one sbt-running implementer on the machine;
+  - gates: `scaladoc-check` on all three Scala versions, `<proj>JVM/doc` with no new warnings, the comments-only diff check, and `check; headerCheckAll`.
+- **Bugs:** found bugs go to the coordinator as complete entries; the coordinator alone edits `library-issues.md` and `docs-issues.md`. The schema and streams waves produced about 72 `issues.md` entries, 60 of them library bugs.
+- **Adding a module to `scaladoc-check`:** its sources must live under `<module-dir>/`, and its package must be `zio.blocks.<module-dir>`. Modules that break this rule need a `moduleImport` override first (`build.sbt:1399-1405`): `http-model`, `http-model-schema`, `datastar`, `htmx`, `markdown`, `otel`, `dataMigration` and `schema-messagepack`. Scala-3-only modules (`sql`, `htmx`, `datastar`, `projection`, `dataMigration`) need their own handling. `telemetry` and `otel` need JDK 21, which the checker doesn't have while it runs on JDK 17.
+
+### 13.2 Coverage of the other modules, in recommended order
+
+| # | Module | Documented / items | % | Files / LOC | Blocker for `scaladoc-check` |
+|---|---|---|---|---|---|
+| 1 | chunk | 153 / 205 → 205 / 205, #1908 | 74 → 100 | 6 / 5,069 | none |
+| 2 | scope | 125 / 223 → 223 / 223, #1916 | 56 → 100 | 36 / 7,085 | none (23 existing `{{{` blocks to fix first) |
+| 3 | typeid | 162 / 390 → 390 / 390, #1924 | 41 → 100 | 28 / 6,496 | none |
+| 4 | config / -hocon / -json / -yaml | 90 / 230 → 230 / 230, #1919 | 39 → 100 | 35 / 4,150 | none |
+| 5 | sql / sql-zio | 127/405, 7/14 | 31 / 50 | 41 / 8,207 | Scala 3 only; sql-zio has the `zio` package clash |
+| 6 | http-model / -schema | 57/1113, 6/55 | 5 / 10 | 38 / 5,967 | `moduleImport` override (`zio.http`) |
+| 7 | schema-avro / bson / csv / thrift | 0/53, 17/110, 20/22, 7/48 | 0 / 15 / 90 / 14 | 18 / 5,972 | none |
+| 7 | schema-toon / xml / yaml | 37/202, 120/223, 27/117 | 18 / 53 / 23 | 44 / 10,788 | none |
+| 7 | schema-messagepack | 5 / 134 | 3 | 5 / 1,933 | override (`zio.blocks.schema.msgpack`) |
+| 8 | html | 161 / 1001 | 16 | 23 / 5,591 | none |
+| 9 | endpoint | 65 / 314 | 20 | 19 / 3,655 | none |
+| 10 | telemetry / otel | 203/567, 17/33 | 35 / 51 | 80 / 8,835 | JDK 21; otel also needs an override |
+| 11 | async | 105 / 144 | 72 | 34 / 10,719 | none |
+| 12 | jwt | 62 / 146 | 42 | 11 / 2,482 | none |
+| 13 | maybe / combinators / context | 5/135, 7/79, 13/37 | 3 / 8 / 35 | 22 / 2,608 | none |
+| 14 | htmx / datastar | 96/418, 77/252 | 22 / 30 | 38 / 3,429 | override + Scala 3 only |
+| 15 | projection / dataMigration | 167/256, 50/61 | 65 / 81 | 32 / 6,198 | Scala 3 only; dataMigration needs an override |
+| 16 | openapi / codegen / smithy | 43/130, 73/107, 55/64 | 33 / 68 / 85 | 27 / 7,116 | none |
+| 16 | markdown / mux / ringbuffer | 91/107, 43/46, 82/122 | 85 / 93 / 67 | 35 / 6,160 | markdown needs an override (`zio.blocks.docs`) |
+| 17 | mediatype | 0 / 2634 | 0 | 5 / 12,676 | 2,622 items are in the generated `MediaTypes.scala`: document through the generator |
+| 18 | schema (core, rest) | 3232 / 3775 (`schema` package 1478/1948, `schema.json` 865/872, `schema.binding` 429/471, `schema.migration` 154/176) | 85 | — | none; already in `scaladoc-check` |
+
+All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 31% without mediatype.
+
+### 13.3 Top 6: proposed waves
+
+| Order | Module | Prerequisites | Waves | Expected gain |
+|---|---|---|---|---|
+| 1 | **chunk** (pilot: 9 modules depend on it, 13 guides import it, no open bugs) | PR 0 adds it to `scaladocCheckedModules` | W1: `Chunk.scala` (185 items), `ChunkMap`, the four platform files. Optional W2: maybe + combinators (+202) | +52 → 205 / 205 | +52 → 205 / 205. **Done in one PR (#1908)**; W2 (maybe + combinators) deferred as a separate task 
+| 2 | **scope** (sql, streams, config and projection depend on it; 8 reference pages, 8 guides) | PR 0; fix the 23 existing `{{{` blocks | W1: `Scope`, `Resource`, `Wire`, `Finalization`, `Finalizer`, `DeferHandle`, `InStack`, `*VersionSpecific`. W2: the `Unscoped` scala-2/3 pair (66 missing), `internal/ErrorMessages`, the macros (tier 3) | about +98; its 13 open bugs (macro crashes, E-codes) are named as known bugs |. **Done in one PR (#1916)** 
+| 3 | **typeid** (maybe, context and schema depend on it) | PR 0 | W1: the `TypeId` scala-2/3 pair (127 items, 17 documented), `TypeIdInstances`, `IsNominal*`. W2: `TypeRepr`, `TypeDefKind`, `Owner`, `TypeBounds`, `TypeParam`, `TermPath`, `Annotation`, `Kind`, `Variance`, `Member`, `TypeIdPrinter`, the macros (tier 3) | about +228 |
+| 4 | **config family** (7 reference pages, 7 guides) | PR 0 | W1: `Config`, `ConfigSource`, `ConfigError`, `ConfigDecoderDeriver`, `Provenance`, `Displayable`, `PlatformConfigSource`. W2: the flags (`FlagReader`, `DynamicFlag`, `StaticFlag`, `FlagSource`, `FlagException`, `Rollout`). W3: hocon, json, yaml | about +140; about 30 open config and hocon entries |
+| 5 | **sql** (the most exposure outside the core: 15 guides, 23 reference pages) | `scaladoc-check` handling for Scala-3-only modules. **A build change: ask Milad first.** sql-zio later (the `zio` package clash) | W1: `DbCodec` (91 items, 13 documented), `DbValue`, `PgCodec`. W2: `SqlInterpolator`, `Frag`, `Dialect`, `SqlDialect`, `DbConnection`, `DbTx`. W3: `Repo`, `TableMetadata`, `Upsert`, `query/*` | about +278; about 20 open sql bugs |
+| 6 | **http-model + -schema** (endpoint, htmx and datastar build on it; 9 guides; the largest gap, at 5%) | a `moduleImport` override for `zio.http`; confirm it compiles on 2.13, since it's missing from `testJVMScala2Command` (`build.sbt:164-167`) | W1: `Request`, `Response`, `Body`, `Method`, the `Status` pair, `Scheme`, `URL`, `Path`, `QueryParams`. W2/W3: `Headers` and `Header.scala` (648 items, mostly tier 2, split in half), then `Cookie` and `ServerSentEvent`. W4: http-model-schema | up to about +1,100 |
+
+### 13.4 Risks and open questions
+
+- **API churn from open PRs:**
+  - http-model: #1669 (+911/-326) and #1667;
+  - config, scope, telemetry, otel and projection: #1662 (+3,547);
+  - html, datastar, htmx, mux and ringbuffer: #1661;
+  - codegen, markdown, maybe, mediatype, csv, xml and yaml: #1663;
+  - #1660 (http-model-schema), #1701 and #1648 (sql, +6,772), #1747 (schema-yaml), #1647 (endpoint).
+
+  Most were last touched between September and mid-October. Decide whether #1648 is superseded, since `query/SqlQuery` is already on main, before scheduling sql. Check a module's open PRs before its PR 0.
+- **Counts:**
+  - `scala-2`/`scala-3` and jvm/js copies each count (`Unscoped`, `Status`, `TypeId`, `HtmlElements`).
+  - sql's count includes the fixture `JoinsDumpExample`, which shouldn't ship (see the Test and CI entry).
+  - async shows only 144 items in 10.7k lines; nobody has checked why.
+- **Sonnet implementers: answered by the chunk pilot.** Sonnet wrote 48 mechanical tier-2/3 comments with 1 Minor finding (Opus: 15 findings on tier 1 and existing-comment corrections), at about a third of the tokens and a quarter of the time. Use Sonnet for mechanical tier-2/3 member lists (the `Header` case classes, the `HtmlElements` tags), and keep Opus for tier 1, the fact-check of existing comments, bug entries and the review. Caveat: Sonnet's items were the easy ones, and it was not tried on fact-checking or bug write-ups.
+
+**Next step:** Milad picks the first module. The recommendation is chunk as a one-wave pilot, then scope.
+
+**Started 2026-10-29:** chunk pilot, session `scaladoc-chunk` (Opus), on Milad's choice. Phase 0: 153 / 205 (74%), no drift; the 52 missing items are all in `Chunk.scala` (51) and `ChunkMap.scala` (1); chunk has no `{{{` examples, so PR 0 is only the `scaladocCheckedModules` entry and an extractor test; about 220 overrides keep the docs inherited from the Scala collections; most of the work is fact-checking the 153 existing comments (inherited from ZIO 2). Milad's decisions: tier 1 = `Chunk`, `NonEmptyChunk`, `ChunkBuilder`, `ChunkMap`; one PR (tooling + wave); Opus writes tier 1 and fact-checks, Sonnet writes tier 2/3 (answers the §13.4 question for the pilot); W2 (maybe + combinators) is a later task. **PR #1908** (2026-10-30): tooling + the whole wave, 153 / 205 → 205 / 205; review 1 (Opus) 13 findings applied, re-review (Sonnet) approve + 3 minor applied; 6 library bugs and 4 `chunk.md` errors recorded.

@@ -124,6 +124,52 @@ object FragSpec extends ZIOSpecDefault {
           )
         )
       }
+    ),
+    suite("writeParams")(
+      test("DbNull with nonzero startIndex lands at offset positions") {
+        val slots  = scala.collection.mutable.Map.empty[Int, DbValue]
+        val writer = new DbParamWriter {
+          private def record(index: Int, value: DbValue): Unit             = slots(index) = value
+          def setInt(index: Int, value: Int): Unit                         = record(index, DbValue.DbInt(value))
+          def setLong(index: Int, value: Long): Unit                       = record(index, DbValue.DbLong(value))
+          def setDouble(index: Int, value: Double): Unit                   = record(index, DbValue.DbDouble(value))
+          def setFloat(index: Int, value: Float): Unit                     = record(index, DbValue.DbFloat(value))
+          def setBoolean(index: Int, value: Boolean): Unit                 = record(index, DbValue.DbBoolean(value))
+          def setString(index: Int, value: String): Unit                   = record(index, DbValue.DbString(value))
+          def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit =
+            record(index, DbValue.DbBigDecimal(scala.BigDecimal(value)))
+          def setBytes(index: Int, value: Array[Byte]): Unit             = record(index, DbValue.DbBytes(value))
+          def setShort(index: Int, value: Short): Unit                   = record(index, DbValue.DbShort(value))
+          def setByte(index: Int, value: Byte): Unit                     = record(index, DbValue.DbByte(value))
+          def setLocalDate(index: Int, value: java.time.LocalDate): Unit =
+            record(index, DbValue.DbLocalDate(value))
+          def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit =
+            record(index, DbValue.DbLocalDateTime(value))
+          def setLocalTime(index: Int, value: java.time.LocalTime): Unit =
+            record(index, DbValue.DbLocalTime(value))
+          def setInstant(index: Int, value: java.time.Instant): Unit =
+            record(index, DbValue.DbInstant(value))
+          def setDuration(index: Int, value: java.time.Duration): Unit =
+            record(index, DbValue.DbDuration(value))
+          def setUUID(index: Int, value: java.util.UUID): Unit                           = record(index, DbValue.DbUUID(value))
+          def setNull(index: Int, sqlType: Int): Unit                                    = record(index, DbValue.DbNull)
+          def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit =
+            record(index, DbValue.DbArray(elementType, elements))
+        }
+        // Batch upsert assignment half: written right after 4 INSERT values.
+        Frag.writeParams(
+          writer,
+          IndexedSeq(DbValue.DbNull, DbValue.DbString("x"), DbValue.DbNull),
+          5
+        )
+        val offset = slots.toIndexedSeq.sortBy(_._1).map(_._2)
+        // Two-arg overload starts at JDBC position 1.
+        Frag.writeParams(writer, IndexedSeq(DbValue.DbInt(1)))
+        assertTrue(
+          offset == IndexedSeq(DbValue.DbNull, DbValue.DbString("x"), DbValue.DbNull),
+          slots(1) == DbValue.DbInt(1)
+        )
+      }
     )
   )
 }

@@ -23,18 +23,16 @@ import java.util.concurrent.TimeUnit
 import scala.compiletime.uninitialized
 
 // ---- fs2 ----
-import cats.effect.IO
-import fs2.{Stream => Fs2Stream}
+import fs2.{Pure, Stream => Fs2Stream}
 
 // ---- Pekko Streams ----
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.stream.scaladsl.{Flow => PekkoFlow, Source}
-import org.apache.pekko.stream.{Materializer, SystemMaterializer}
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration as ScalaDuration
+import org.apache.pekko.stream.scaladsl.Source
 
 // ---- Kyo ----
 import kyo.{Scope as _, Stream => KyoStream, *}
+
+// ---- Ox ----
+import ox.flow.Flow
 
 /**
  * Benchmark: Stream pipeline construction cost — no evaluation.
@@ -45,12 +43,11 @@ import kyo.{Scope as _, Stream => KyoStream, *}
  * pipeline description from the cost of executing it.
  *
  * ==What's measured==
- *   - ZB: `Stream.range(0, N).map(_ + 1).map(_ + 1)...` — the Stream wrapper
- *     chain
- *   - fs2: `Fs2Stream.emits(seq).covary[IO].map(_ + 1)...` — stream object
- *     chain
- *   - Kyo: `KyoStream.init(seq).map(_ + 1)...` — stream object chain
- *   - Pekko: `Source(seq).via(Flow[Int].map(_ + 1)...)` — source + flow graph
+ *   - ZB: `Stream.fromIterable(seq).map(_ + 1).map(_ + 1)...` — the Stream
+ *     wrapper chain
+ *   - fs2: `Fs2Stream.emits(seq).map(_ + 1)...` — pure stream object chain
+ *   - Kyo: `KyoStream.init(seq).mapPure(_ + 1)...` — pure stream object chain
+ *   - Pekko: `Source(seq).map(_ + 1)...` — source graph
  *
  * ==What's NOT measured==
  *   - Any element processing or sink execution
@@ -76,28 +73,15 @@ class StreamSetupBench {
 
   private var seq: Vector[Int] = uninitialized
 
-  // Pekko needs an ActorSystem even for Source construction
-  implicit var pekkoSystem: ActorSystem = uninitialized
-  implicit var pekkoMat: Materializer   = uninitialized
-
   @Setup(Level.Trial)
-  def setup(): Unit = {
-    seq = (0 until N).toVector
-    pekkoSystem = ActorSystem("setup-bench")
-    pekkoMat = SystemMaterializer(pekkoSystem).materializer
-  }
-
-  @TearDown(Level.Trial)
-  def teardown(): Unit =
-    if (pekkoSystem != null)
-      Await.result(pekkoSystem.terminate(), ScalaDuration(30, "s"))
+  def setup(): Unit = seq = (0 until N).toVector
 
   // ===========================================================================
   // ZB setup — Stream object construction (no evaluation)
   // ===========================================================================
 
   private def zbChainMaps(n: Int): Stream[Nothing, Int] = {
-    var s: Stream[Nothing, Int] = Stream.range(0, N)
+    var s: Stream[Nothing, Int] = Stream.fromIterable(seq)
     var i                       = 0
     while (i < n) { s = s.map(_ + 1); i += 1 }
     s
@@ -109,14 +93,14 @@ class StreamSetupBench {
   @Benchmark def zb_map100(): Stream[Nothing, Int] = zbChainMaps(100)
 
   @Benchmark def zb_filter(): Stream[Nothing, Int] =
-    Stream.range(0, N).filter(_ % 2 == 0)
+    Stream.fromIterable(seq).filter(_ % 2 == 0)
 
   @Benchmark def zb_filterMap(): Stream[Nothing, Int] =
-    Stream.range(0, N).filter(_ % 2 == 0).map(_ + 1)
+    Stream.fromIterable(seq).filter(_ % 2 == 0).map(_ + 1)
 
   @Benchmark def zb_filterMapChain(): Stream[Nothing, Int] =
     Stream
-      .range(0, N)
+      .fromIterable(seq)
       .filter(_ % 2 == 0)
       .map(_ + 1)
       .filter(_ % 3 == 0)
@@ -129,37 +113,36 @@ class StreamSetupBench {
       .map(_ + 7)
 
   @Benchmark def zb_takeDrop(): Stream[Nothing, Int] =
-    Stream.range(0, N).drop(N / 2).take((N / 2).toLong)
+    Stream.fromIterable(seq).drop(N / 2).take((N / 2).toLong)
 
   @Benchmark def zb_drain(): Stream[Nothing, Int] =
-    Stream.range(0, N)
+    Stream.fromIterable(seq)
 
   // ===========================================================================
   // fs2 setup — Stream object construction (no evaluation)
   // ===========================================================================
 
-  private def fs2ChainMaps(n: Int): Fs2Stream[IO, Int] = {
-    var s: Fs2Stream[IO, Int] = Fs2Stream.emits(seq).covary[IO]
-    var i                     = 0
+  private def fs2ChainMaps(n: Int): Fs2Stream[Pure, Int] = {
+    var s: Fs2Stream[Pure, Int] = Fs2Stream.emits(seq)
+    var i                       = 0
     while (i < n) { s = s.map(_ + 1); i += 1 }
     s
   }
 
-  @Benchmark def fs2_map1(): Fs2Stream[IO, Int]   = fs2ChainMaps(1)
-  @Benchmark def fs2_map5(): Fs2Stream[IO, Int]   = fs2ChainMaps(5)
-  @Benchmark def fs2_map10(): Fs2Stream[IO, Int]  = fs2ChainMaps(10)
-  @Benchmark def fs2_map100(): Fs2Stream[IO, Int] = fs2ChainMaps(100)
+  @Benchmark def fs2_map1(): Fs2Stream[Pure, Int]   = fs2ChainMaps(1)
+  @Benchmark def fs2_map5(): Fs2Stream[Pure, Int]   = fs2ChainMaps(5)
+  @Benchmark def fs2_map10(): Fs2Stream[Pure, Int]  = fs2ChainMaps(10)
+  @Benchmark def fs2_map100(): Fs2Stream[Pure, Int] = fs2ChainMaps(100)
 
-  @Benchmark def fs2_filter(): Fs2Stream[IO, Int] =
-    Fs2Stream.emits(seq).covary[IO].filter(_ % 2 == 0)
+  @Benchmark def fs2_filter(): Fs2Stream[Pure, Int] =
+    Fs2Stream.emits(seq).filter(_ % 2 == 0)
 
-  @Benchmark def fs2_filterMap(): Fs2Stream[IO, Int] =
-    Fs2Stream.emits(seq).covary[IO].filter(_ % 2 == 0).map(_ + 1)
+  @Benchmark def fs2_filterMap(): Fs2Stream[Pure, Int] =
+    Fs2Stream.emits(seq).filter(_ % 2 == 0).map(_ + 1)
 
-  @Benchmark def fs2_filterMapChain(): Fs2Stream[IO, Int] =
+  @Benchmark def fs2_filterMapChain(): Fs2Stream[Pure, Int] =
     Fs2Stream
       .emits(seq)
-      .covary[IO]
       .filter(_ % 2 == 0)
       .map(_ + 1)
       .filter(_ % 3 == 0)
@@ -171,11 +154,11 @@ class StreamSetupBench {
       .filter(_ < 100000)
       .map(_ + 7)
 
-  @Benchmark def fs2_takeDrop(): Fs2Stream[IO, Int] =
-    Fs2Stream.emits(seq).covary[IO].drop(N / 2).take((N / 2).toLong)
+  @Benchmark def fs2_takeDrop(): Fs2Stream[Pure, Int] =
+    Fs2Stream.emits(seq).drop(N / 2).take((N / 2).toLong)
 
-  @Benchmark def fs2_drain(): Fs2Stream[IO, Int] =
-    Fs2Stream.emits(seq).covary[IO]
+  @Benchmark def fs2_drain(): Fs2Stream[Pure, Int] =
+    Fs2Stream.emits(seq)
 
   // ===========================================================================
   // Kyo setup — Stream object construction (no evaluation)
@@ -184,7 +167,7 @@ class StreamSetupBench {
   private def kyoChainMaps(n: Int): KyoStream[Int, Any] = {
     var s: KyoStream[Int, Any] = KyoStream.init(seq)
     var i                      = 0
-    while (i < n) { s = s.map(_ + 1); i += 1 }
+    while (i < n) { s = s.mapPure(_ + 1); i += 1 }
     s
   }
 
@@ -194,24 +177,24 @@ class StreamSetupBench {
   @Benchmark def kyo_map100(): KyoStream[Int, Any] = kyoChainMaps(100)
 
   @Benchmark def kyo_filter(): KyoStream[Int, Any] =
-    KyoStream.init(seq).filter(_ % 2 == 0)
+    KyoStream.init(seq).filterPure(_ % 2 == 0)
 
   @Benchmark def kyo_filterMap(): KyoStream[Int, Any] =
-    KyoStream.init(seq).filter(_ % 2 == 0).map(_ + 1)
+    KyoStream.init(seq).filterPure(_ % 2 == 0).mapPure(_ + 1)
 
   @Benchmark def kyo_filterMapChain(): KyoStream[Int, Any] =
     KyoStream
       .init(seq)
-      .filter(_ % 2 == 0)
-      .map(_ + 1)
-      .filter(_ % 3 == 0)
-      .map(_ * 2)
-      .filter(_ % 5 == 0)
-      .map(_ + 3)
-      .filter(_ > 0)
-      .map(_ - 1)
-      .filter(_ < 100000)
-      .map(_ + 7)
+      .filterPure(_ % 2 == 0)
+      .mapPure(_ + 1)
+      .filterPure(_ % 3 == 0)
+      .mapPure(_ * 2)
+      .filterPure(_ % 5 == 0)
+      .mapPure(_ + 3)
+      .filterPure(_ > 0)
+      .mapPure(_ - 1)
+      .filterPure(_ < 100000)
+      .mapPure(_ + 7)
 
   @Benchmark def kyo_takeDrop(): KyoStream[Int, Any] =
     KyoStream.init(seq).drop(N / 2).take(N / 2)
@@ -224,10 +207,10 @@ class StreamSetupBench {
   // ===========================================================================
 
   private def pekkoChainMaps(n: Int): Source[Int, ?] = {
-    var flow = PekkoFlow[Int].map(_ + 1)
-    var i    = 1
-    while (i < n) { flow = flow.map(_ + 1); i += 1 }
-    Source(seq).via(flow)
+    var source = Source(seq)
+    var i      = 0
+    while (i < n) { source = source.map(_ + 1); i += 1 }
+    source
   }
 
   @Benchmark def pekko_map1(): Source[Int, ?]   = pekkoChainMaps(1)
@@ -259,4 +242,46 @@ class StreamSetupBench {
 
   @Benchmark def pekko_drain(): Source[Int, ?] =
     Source(seq)
+
+  // ===========================================================================
+  // Ox setup — Flow object construction (no evaluation)
+  // ===========================================================================
+
+  private def oxChainMaps(n: Int): Flow[Int] = {
+    var f: Flow[Int] = Flow.fromIterable(seq)
+    var i            = 0
+    while (i < n) { f = f.map(_ + 1); i += 1 }
+    f
+  }
+
+  @Benchmark def ox_map1(): Flow[Int]   = oxChainMaps(1)
+  @Benchmark def ox_map5(): Flow[Int]   = oxChainMaps(5)
+  @Benchmark def ox_map10(): Flow[Int]  = oxChainMaps(10)
+  @Benchmark def ox_map100(): Flow[Int] = oxChainMaps(100)
+
+  @Benchmark def ox_filter(): Flow[Int] =
+    Flow.fromIterable(seq).filter(_ % 2 == 0)
+
+  @Benchmark def ox_filterMap(): Flow[Int] =
+    Flow.fromIterable(seq).filter(_ % 2 == 0).map(_ + 1)
+
+  @Benchmark def ox_filterMapChain(): Flow[Int] =
+    Flow
+      .fromIterable(seq)
+      .filter(_ % 2 == 0)
+      .map(_ + 1)
+      .filter(_ % 3 == 0)
+      .map(_ * 2)
+      .filter(_ % 5 == 0)
+      .map(_ + 3)
+      .filter(_ > 0)
+      .map(_ - 1)
+      .filter(_ < 100000)
+      .map(_ + 7)
+
+  @Benchmark def ox_takeDrop(): Flow[Int] =
+    Flow.fromIterable(seq).drop(N / 2).take(N / 2)
+
+  @Benchmark def ox_drain(): Flow[Int] =
+    Flow.fromIterable(seq)
 }

@@ -17,27 +17,42 @@
 package zio.blocks.typeid
 
 /**
- * Represents type expressions in the Scala type system.
+ * A type expression, as stored inside [[TypeId]] values: the type arguments of
+ * an applied type ([[TypeId#typeArgs]]), the type an alias stands for
+ * ([[TypeId#aliasedTo]]) and the parents of a definition ([[TypeId#parents]]).
+ * A named type is a [[TypeRepr.Ref]] to its id, and an applied type is an
+ * [[TypeRepr.Applied]] of a constructor to arguments. Other cases cover type
+ * parameters, unions and intersections, tuples, functions, structural types,
+ * singleton and literal types, wildcards and type lambdas.
  *
- * TypeRepr can represent:
- *   - Simple type references (`Int`, `String`)
- *   - Applied types (`List[Int]`, `Map[String, Int]`)
- *   - Type parameter references (`A`, `F[_]`)
- *   - Structural/refinement types (`{ def foo: Int }`)
- *   - Intersection types (`A & B & C`)
- *   - Union types (`A | B | C`)
- *   - Tuple types (`(A, B, C)`)
- *   - Function types (`A => B`, `(A, B) ?=> C`)
- *   - Singleton types (`x.type`)
- *   - Literal/constant types (`42`, `"foo"`)
- *   - Type lambdas (`[X] =>> F[X]`)
- *   - Wildcards (`? <: Upper`, `? >: Lower`)
- *   - And more...
+ * The two macros do not produce the same cases. The Scala 2 macro writes named
+ * and applied types, and writes `A with B` as a [[TypeRepr.Structural]] type
+ * and a tuple or function type as an applied `TupleN` or `FunctionN`. The Scala
+ * 3 macro also writes [[TypeRepr.Union]], [[TypeRepr.Intersection]],
+ * [[TypeRepr.Tuple]], [[TypeRepr.Function]], [[TypeRepr.TypeLambda]],
+ * [[TypeRepr.Wildcard]] and literal types. [[TypeIdPrinter]] renders any case
+ * as Scala source.
+ *
+ * {{{
+ * val args = TypeId.of[Map[String, List[Int]]].typeArgs
+ * args.map(arg => TypeIdPrinter.render(arg)) // List(String, List[Int])
+ *
+ * args(1) match {
+ *   case TypeRepr.Applied(TypeRepr.Ref(list), List(TypeRepr.Ref(int))) => list.name + " of " + int.name
+ *   case other                                                          => other.toString
+ * }
+ * // "List of Int"
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/ TypeId]]
  */
 sealed trait TypeRepr {
 
   /**
-   * Returns true if this type expression references the given type parameter.
+   * Returns `true` if this type expression contains a [[TypeRepr.ParamRef]] to
+   * `param`, at any depth except inside the members of a
+   * [[TypeRepr.Structural]] type. A [[TypeRepr.Ref]] to an id is not searched.
    */
   def containsParam(param: TypeParam): Boolean = this match {
     case TypeRepr.Ref(_)                          => false
@@ -69,6 +84,10 @@ sealed trait TypeRepr {
   }
 }
 
+/**
+ * The cases of [[TypeRepr]], and the constructors `intersection`, `union`,
+ * `tuple` and `function`.
+ */
 object TypeRepr {
 
   // ============================================================================
@@ -85,15 +104,17 @@ object TypeRepr {
   final case class Ref(id: TypeId[_]) extends TypeRepr
 
   /**
-   * Reference to a type parameter.
-   *
-   * Used within type expressions to refer to type parameters. For example, in
-   * `List[A]`, the `A` is a `ParamRef(TypeParam("A", 0))`.
+   * A reference to a type parameter by its [[TypeParam]], as in the body of a
+   * [[TypeLambda]]: the Scala 3 macro writes the alias
+   * `type StrMap[V] = Map[String, V]` with `ParamRef(V, 0)` for `V`. The type
+   * parameter of an enclosing method, as in `TypeId.of[List[A]]` inside
+   * `def f[A]`, is a [[Ref]] to an id named `A` instead.
    *
    * @param param
-   *   The type parameter being referenced
+   *   the type parameter being referenced
    * @param binderDepth
-   *   De Bruijn index for nested type lambdas (0 = innermost binder)
+   *   the De Bruijn index of the binding type lambda (0 for the innermost); the
+   *   macros write 0
    */
   final case class ParamRef(param: TypeParam, binderDepth: Int = 0) extends TypeRepr
 
@@ -117,13 +138,15 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Structural (refinement) type.
+   * A structural (refinement) type, such as `AnyRef { def name: String }`: its
+   * parents and the members it declares. The Scala 2 macro also writes an
+   * intersection `A with B` this way, with `A` and `B` as parents and no
+   * members.
    *
-   * Examples:
-   *   - `{ def foo: Int }` →
-   *     `Structural(Nil, List(Def("foo", Nil, Nil, Ref(intId))))`
-   *   - `AnyRef { type T; val x: T }` →
-   *     `Structural(List(Ref(anyRefId)), List(...))`
+   * The macros do not record method parameters: Scala 2 keeps only
+   * parameterless members, as [[Member.Val]], and drops methods with
+   * parameters; Scala 3 writes a method with parameters as a [[Member.Def]]
+   * with no parameter lists.
    */
   final case class Structural(parents: List[TypeRepr], members: List[Member]) extends TypeRepr
 
@@ -132,12 +155,12 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Intersection type: `A & B & C` (Scala 3) or `A with B with C` (Scala 2).
+   * An intersection type, `A & B` on Scala 3. Equality ignores the order of the
+   * types, so `A & B` equals `B & A`. The Scala 3 macro produces it; the Scala
+   * 2 macro writes `A with B` as a [[Structural]] type instead.
    *
-   * The list contains at least 2 types. For single types, use the type
-   * directly.
-   *
-   * Note: Equality is order-independent, so `A & B` equals `B & A`.
+   * The constructor accepts any list. [[TypeRepr.intersection]] returns the
+   * type itself for a one-element list and [[AnyType]] for an empty one.
    */
   final class Intersection private (val types: List[TypeRepr]) extends TypeRepr {
     override def equals(other: Any): Boolean = other match {
@@ -150,19 +173,31 @@ object TypeRepr {
     override def toString: String = TypeIdPrinter.render(this)
   }
 
+  /**
+   * Creates and matches an [[Intersection]].
+   */
   object Intersection {
+
+    /**
+     * Creates an [[Intersection]] that holds `types` as given: it does not
+     * flatten nested intersections, remove duplicates or check the length.
+     * [[TypeRepr.intersection]] handles an empty list and a one-element list.
+     */
     def apply(types: List[TypeRepr]): Intersection = new Intersection(types)
 
+    /**
+     * Gives the types of the [[Intersection]], in the order it was created
+     * with.
+     */
     def unapply(i: Intersection): Some[List[TypeRepr]] = Some(i.types)
   }
 
   /**
-   * Union type: `A | B | C` (Scala 3 only).
+   * A union type, `A | B` on Scala 3, where only the Scala 3 macro produces it.
+   * Equality ignores the order of the types, so `A | B` equals `B | A`.
    *
-   * The list contains at least 2 types. For single types, use the type
-   * directly.
-   *
-   * Note: Equality is order-independent, so `A | B` equals `B | A`.
+   * The constructor accepts any list. [[TypeRepr.union]] returns the type
+   * itself for a one-element list and [[NothingType]] for an empty one.
    */
   final class Union private (val types: List[TypeRepr]) extends TypeRepr {
     override def equals(other: Any): Boolean = other match {
@@ -175,9 +210,21 @@ object TypeRepr {
     override def toString: String = TypeIdPrinter.render(this)
   }
 
+  /**
+   * Creates and matches a [[Union]].
+   */
   object Union {
+
+    /**
+     * Creates a [[Union]] that holds `types` as given: it does not flatten
+     * nested unions, remove duplicates or check the length. [[TypeRepr.union]]
+     * handles an empty list and a one-element list.
+     */
     def apply(types: List[TypeRepr]): Union = new Union(types)
 
+    /**
+     * Gives the types of the [[Union]], in the order it was created with.
+     */
     def unapply(u: Union): Some[List[TypeRepr]] = Some(u.types)
   }
 
@@ -186,11 +233,16 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Tuple type: `(A, B, C)` or named tuples `(name: String, age: Int)` (Scala
-   * 3.5+).
+   * A tuple type `(A, B, C)`, as the Scala 3 macro writes it inside a type,
+   * with one element per position. Two ids are equal when their type arguments
+   * differ only between this form and the applied `TupleN` form that the Scala
+   * 2 macro writes, although the two `TypeRepr` values are not equal. A Scala 3
+   * named tuple is not written this way: it is an applied `NamedTuple` whose
+   * two arguments are tuples of the names (as string constants) and of the
+   * types.
    *
    * @param elems
-   *   The tuple elements, each with an optional label
+   *   the elements, in order; the macros leave their labels empty
    */
   final case class Tuple(elems: List[TupleElement]) extends TypeRepr
 
@@ -199,26 +251,28 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Function type: `(A, B) => C`.
+   * A function type `(A, B) => C`, as the Scala 3 macro writes it inside a
+   * type. The Scala 2 macro writes an applied `FunctionN` instead, and
+   * `TypeId.of` on a function type gives the id of `FunctionN` on both
+   * versions.
    *
    * @param params
-   *   Parameter types
+   *   the parameter types
    * @param result
-   *   Result type
+   *   the result type
    */
   final case class Function(params: List[TypeRepr], result: TypeRepr) extends TypeRepr
 
   /**
-   * Context function type: `(A, B) ?=> C` (Scala 3).
-   *
-   * Context functions provide their arguments implicitly.
+   * A context function type `(A, B) ?=> C` (Scala 3), whose arguments are
+   * passed implicitly.
    */
   final case class ContextFunction(params: List[TypeRepr], result: TypeRepr) extends TypeRepr
 
   /**
-   * Type lambda: `[X, Y] =>> F[X, Y]` (Scala 3).
-   *
-   * Represents an anonymous type-level function.
+   * A type lambda `[X, Y] =>> F[X, Y]` (Scala 3), an anonymous type-level
+   * function. The Scala 3 macro writes the target of an alias with type
+   * parameters this way.
    */
   final case class TypeLambda(params: List[TypeParam], body: TypeRepr) extends TypeRepr
 
@@ -245,9 +299,8 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Wildcard type with bounds: `?`, `? <: Upper`, `? >: Lower`.
-   *
-   * Used in type arguments when the exact type is not specified.
+   * A wildcard type argument with bounds: `?`, `? <: Upper` or `? >: Lower`.
+   * The Scala 3 macro writes `List[?]` with one `Wildcard` argument.
    */
   final case class Wildcard(bounds: TypeBounds = TypeBounds.Unbounded) extends TypeRepr
 
@@ -288,9 +341,9 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Annotated type: `A @annotation`.
-   *
-   * A type with one or more annotations attached.
+   * A type with annotations attached: `A @annotation`. The macros drop
+   * annotations on types inside a type expression, so derived ids do not
+   * contain it.
    */
   final case class Annotated(underlying: TypeRepr, annotations: List[Annotation]) extends TypeRepr
 
@@ -299,23 +352,69 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Constant/literal type: `42`, `"foo"`, `true`.
-   *
-   * Scala 3 supports literal types natively; Scala 2.13 with -Xliteral-types.
+   * A literal (constant) type, such as `42`, `"foo"` or `true`. The Scala 3
+   * macro writes a literal type found inside a type this way, such as the names
+   * of a named tuple. `TypeId.of` on a literal type itself gives the id of the
+   * widened type, such as `Int` for `1`.
    */
   sealed trait Constant extends TypeRepr
 
+  /**
+   * The literal types: `IntConst`, `LongConst`, `FloatConst`, `DoubleConst`,
+   * `BooleanConst`, `CharConst`, `StringConst`, `NullConst`, `UnitConst` and
+   * `ClassOfConst`.
+   */
   object Constant {
-    final case class IntConst(value: Int)         extends Constant
-    final case class LongConst(value: Long)       extends Constant
-    final case class FloatConst(value: Float)     extends Constant
-    final case class DoubleConst(value: Double)   extends Constant
+
+    /**
+     * An `Int` literal type, such as `42`.
+     */
+    final case class IntConst(value: Int) extends Constant
+
+    /**
+     * A `Long` literal type, such as `42L`.
+     */
+    final case class LongConst(value: Long) extends Constant
+
+    /**
+     * A `Float` literal type, such as `1.5f`.
+     */
+    final case class FloatConst(value: Float) extends Constant
+
+    /**
+     * A `Double` literal type, such as `1.5`.
+     */
+    final case class DoubleConst(value: Double) extends Constant
+
+    /**
+     * A `Boolean` literal type, `true` or `false`.
+     */
     final case class BooleanConst(value: Boolean) extends Constant
-    final case class CharConst(value: Char)       extends Constant
-    final case class StringConst(value: String)   extends Constant
-    case object NullConst                         extends Constant
-    case object UnitConst                         extends Constant
-    final case class ClassOfConst(tpe: TypeRepr)  extends Constant
+
+    /**
+     * A `Char` literal type, such as `'a'`.
+     */
+    final case class CharConst(value: Char) extends Constant
+
+    /**
+     * A `String` literal type, such as `"foo"`.
+     */
+    final case class StringConst(value: String) extends Constant
+
+    /**
+     * The type of the `null` literal.
+     */
+    case object NullConst extends Constant
+
+    /**
+     * The type of the unit literal `()`.
+     */
+    case object UnitConst extends Constant
+
+    /**
+     * A class literal type, `classOf[T]`, where `tpe` is `T`.
+     */
+    final case class ClassOfConst(tpe: TypeRepr) extends Constant
   }
 
   // ============================================================================
@@ -342,7 +441,8 @@ object TypeRepr {
   // ============================================================================
 
   /**
-   * Creates an intersection of multiple types.
+   * Creates the intersection of `types`: [[AnyType]] for an empty list, the
+   * type itself for one type, and an [[Intersection]] otherwise.
    */
   def intersection(types: List[TypeRepr]): TypeRepr = types match {
     case Nil      => AnyType
@@ -351,7 +451,8 @@ object TypeRepr {
   }
 
   /**
-   * Creates a union of multiple types.
+   * Creates the union of `types`: [[NothingType]] for an empty list, the type
+   * itself for one type, and a [[Union]] otherwise.
    */
   def union(types: List[TypeRepr]): TypeRepr = types match {
     case Nil      => NothingType
@@ -360,27 +461,25 @@ object TypeRepr {
   }
 
   /**
-   * Creates a simple tuple (unlabeled elements).
+   * Creates a [[Tuple]] of `types`, with no labels.
    */
   def tuple(types: List[TypeRepr]): TypeRepr =
     Tuple(types.map(t => TupleElement(None, t)))
 
   /**
-   * Creates a simple function type.
+   * Creates the [[Function]] type from `params` to `result`.
    */
   def function(params: List[TypeRepr], result: TypeRepr): TypeRepr =
     Function(params, result)
 }
 
 /**
- * An element of a tuple type.
- *
- * In Scala 3.5+, tuple elements can have labels (named tuples):
- * `(name: String, age: Int)`
+ * One element of a [[TypeRepr.Tuple]].
  *
  * @param label
- *   Optional label for named tuples
+ *   an optional label; the macros leave it `None`, since a Scala 3 named tuple
+ *   is an applied `NamedTuple`
  * @param tpe
- *   The type of this element
+ *   the type of the element
  */
 final case class TupleElement(label: Option[String], tpe: TypeRepr)

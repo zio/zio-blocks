@@ -21,44 +21,20 @@ import zio.blocks.ringbuffer.MpmcRingBuffer
 import java.util.concurrent.locks.LockSupport
 
 /**
- * A blocking MPMC (multi-producer, multi-consumer) queue.
+ * A bounded, blocking queue for many producer and many consumer threads (JVM
+ * only), on top of a lock-free ring buffer. Any number of threads may call
+ * [[offer]] and [[take]] at once.
  *
- * Backed by [[MpmcRingBuffer]] for the fast path; uses
- * [[LockSupport.parkNanos]] for blocking when the buffer is full or empty.
- *
- * Multiple threads may call [[offer]] and [[take]] concurrently.
- *
- * ==Single-Waiter Design==
- *
- * Only one producer and one consumer can be fast-path woken at a time. The
- * queue maintains a single `producerWaiter` and `consumerWaiter` volatile slot.
- * When a thread blocks, it registers itself in the appropriate slot and calls
- * `LockSupport.parkNanos(this, 1000L)` (1 microsecond timeout). When the
- * opposite side has data/space, it unparks the registered waiter. Other waiting
- * threads wake up within 1 microsecond via the timeout and retry.
- *
- * This design is virtual-thread friendly: `parkNanos` does not OS-block on
- * virtual threads, allowing bounded re-checks without risk of permanent
- * parking.
- *
- * ==Happens-Before Guarantee==
- *
- * The pattern `producerWaiter = Thread.currentThread()` (volatile write)
- * followed by `if (closed) return false` (volatile read) ensures that a
- * `close()` call setting `closed = true` is always visible before the thread
- * parks. This prevents the race where a thread parks after close() has already
- * been called.
- *
- * ==close() Behavior==
- *
- * `close()` unparks only the registered `producerWaiter` and `consumerWaiter`.
- * Other waiting threads wake up within 1 microsecond via `parkNanos` timeout
- * and detect the closed flag on retry. This is intentional and documented.
- *
- * Null elements are not permitted.
+ * A blocked thread parks for about a microsecond at a time and then retries.
+ * The other side, and [[close]], can wake one waiting producer and one waiting
+ * consumer early; the other waiting threads notice on their next retry.
+ * Elements must not be `null`, because [[take]] uses `null` to report a closed,
+ * empty queue.
  *
  * @param capacity
- *   The logical capacity. Rounded up to the next power of two >= 2 internally.
+ *   The number of elements the queue holds, rounded up to a power of two of at
+ *   least 2 (`1` holds 2, `3` holds 4). Throws `IllegalArgumentException` when
+ *   it is below 1.
  */
 final class BlockingMpmcQueue[A <: AnyRef](capacity: Int) {
   require(capacity >= 1, s"BlockingMpmcQueue requires capacity >= 1, got: $capacity")
@@ -71,9 +47,9 @@ final class BlockingMpmcQueue[A <: AnyRef](capacity: Int) {
   @volatile private var closed: Boolean        = false
 
   /**
-   * Offers an element to the queue, blocking until space is available or the
-   * queue is closed. Returns `true` on success, `false` if the queue was
-   * closed.
+   * Adds `a`, blocking while the queue is full. Returns `true` once `a` is in
+   * the queue, or `false`, without adding it, when the queue is closed. Throws
+   * `NullPointerException` for a `null` element.
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("BlockingMpmcQueue.offer(null) is not permitted")
@@ -101,8 +77,9 @@ final class BlockingMpmcQueue[A <: AnyRef](capacity: Int) {
   }
 
   /**
-   * Takes an element from the queue, blocking until one is available or the
-   * queue is closed. Returns the element, or `null` if closed and empty.
+   * Removes and returns the oldest element, blocking while the queue is empty.
+   * After [[close]], it still returns the elements left in the queue, and then
+   * `null`.
    */
   def take(): A = {
     while (true) {
@@ -130,7 +107,10 @@ final class BlockingMpmcQueue[A <: AnyRef](capacity: Int) {
     null.asInstanceOf[A]
   }
 
-  /** Closes the queue, unblocking any waiting thread on either side. */
+  /**
+   * Closes the queue: later offers return `false`, and threads blocked in
+   * [[offer]] or [[take]] wake up and see it.
+   */
   def close(): Unit = {
     closed = true
     val cw = consumerWaiter
@@ -139,10 +119,13 @@ final class BlockingMpmcQueue[A <: AnyRef](capacity: Int) {
     if (pw ne null) LockSupport.unpark(pw)
   }
 
-  /** Whether the queue has been closed. */
+  /** Returns `true` once [[close]] has been called. */
   def isClosed: Boolean = closed
 
-  /** Whether the ring buffer contains no elements. */
+  /**
+   * Returns `true` when the queue holds no elements; with other threads
+   * offering or taking, the answer may be stale by the time it returns.
+   */
   def isEmpty: Boolean = ringBuffer.isEmpty
 
   private def nextPowerOfTwo(n: Int): Int =

@@ -144,3 +144,8 @@ val endpoint = Endpoint(Method.GET / "me")
 ```
 
 `Or` composition preserves `AuthType#unauthorizedStatus` — it uses the left auth type's status.
+
+## See Also
+
+- [How to Protect an Endpoint with JWT Bearer Tokens](../../guides/protect-endpoints-with-jwt.md): `AuthType.Bearer` only describes the requirement; this guide verifies the JWT in the handler and answers 401 or 403.
+- [How to Protect Pages with Basic Auth or a Session Cookie](../../guides/protect-pages-with-basic-auth-or-a-session-cookie.md): `AuthType.Basic` only describes the requirement; this guide checks the Basic credentials in the handler and answers 401 with a `WWW-Authenticate` challenge.

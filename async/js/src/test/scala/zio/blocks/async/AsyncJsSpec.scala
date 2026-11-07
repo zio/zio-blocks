@@ -21,6 +21,7 @@ import zio.test._
 
 import scala.concurrent.{Future, Promise => SPromise}
 import scala.scalajs.js
+import scala.scalajs.js.timers.setTimeout
 import scala.util.Try
 
 import AsyncJsTestSupport._
@@ -34,6 +35,55 @@ object AsyncJsSpec extends ZIOSpecDefault {
   private val Boom = AsyncTestSupport.boom
 
   def spec = suite("AsyncJsSpec")(
+    test("interpreter scheduler can force a macrotask after queued microtasks") {
+      val promise = SPromise[List[String]]()
+      var events  = List.empty[String]
+      Async.schedule(
+        new Runnable {
+          def run(): Unit = {
+            events = events :+ "macro"
+            promise.success(events)
+          }
+        },
+        forceMacrotask = true
+      )
+      Async.schedule(
+        new Runnable { def run(): Unit = events = events :+ "micro" },
+        forceMacrotask = false
+      )
+      ZIO.fromFuture(_ => promise.future).map(result => assertTrue(result == List("micro", "macro")))
+    },
+    test("start forces a macrotask during an unbounded ready-resumption chain") {
+      final class ReadyChain(remaining: Int) extends Pollable[Int] {
+        def poll(onComplete: Runnable): Async[Int] =
+          if (remaining == 0) Async.succeed(1)
+          else { onComplete.run(); new ReadyChain(remaining - 1) }
+      }
+      val completed              = SPromise[Boolean]()
+      var timerRan               = false
+      val running                = (new ReadyChain(5000): Async[Int]).start
+      lazy val observe: Runnable = new Runnable {
+        def run(): Unit =
+          running.poll(observe) match {
+            case _: Pollable[?] => ()
+            case _              => completed.success(timerRan)
+          }
+      }
+      observe.run()
+      setTimeout(0.0) { timerRan = true }
+      ZIO.fromFuture(_ => completed.future).map(yielded => assertTrue(yielded))
+    },
+    test("toFuture forces a macrotask during an unbounded ready-resumption chain") {
+      final class ReadyChain(remaining: Int) extends Pollable[Int] {
+        def poll(onComplete: Runnable): Async[Int] =
+          if (remaining == 0) Async.succeed(1)
+          else { onComplete.run(); new ReadyChain(remaining - 1) }
+      }
+      var timerRan = false
+      val result   = AsyncInterop.toFuture(new ReadyChain(5000)).map(_ => timerRan)
+      setTimeout(0.0) { timerRan = true }
+      ZIO.fromFuture(_ => result).map(yielded => assertTrue(yielded))
+    },
     suite("cannot block")(
       test("await on a truly async pollable throws IllegalStateException") {
         val async  = new NeverReady: Async[Int]

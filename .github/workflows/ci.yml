@@ -25,7 +25,7 @@ jobs:
   buildDocs:
     name: Build Docs
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     continue-on-error: false
     steps:
     - name: Git Checkout
@@ -33,13 +33,13 @@ jobs:
       with:
         fetch-depth: '0'
     - name: Setup Scala
-      uses: actions/setup-java@v5.7.0
+      uses: actions/setup-java@v6.0.1
       with:
         distribution: corretto
         java-version: '25'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v8.1.1
     - name: Setup Node.js
@@ -53,10 +53,16 @@ jobs:
       run: yarn install --cwd website
     - name: Generate documentation with mdoc
       if: ${{ hashFiles('website/yarn.lock') != '' }}
-      run: sbt docs/mdoc
+      run: sbt docs/mdoc docs/generateApiDocs
     - name: Check website build process
       if: ${{ hashFiles('website/yarn.lock') != '' }}
       run: yarn --cwd website build
+      env:
+        SITE_URL: ${{ vars.SITE_URL }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check docs build on a fresh ZIO website
+      if: ${{ hashFiles('website/yarn.lock') != '' }}
+      run: sbt docs/checkDocsOnFreshWebsite
     - name: Upload website build artifact
       uses: actions/upload-artifact@v7
       if: ${{ (hashFiles('website/yarn.lock') != '') && (github.event_name == 'pull_request') }}
@@ -77,6 +83,36 @@ jobs:
         overwrite: true
     - name: Print All Generated Files
       run: find ./website/build -print
+  landing:
+    name: Landing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: false
+    permissions:
+      contents: read
+    steps:
+    - name: Git Checkout
+      uses: actions/checkout@v7.0.1
+      with:
+        fetch-depth: '0'
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: 24.12.0
+    - name: Install yarn
+      run: npm install -g yarn
+    - name: Install website dependencies
+      run: yarn install --cwd website --frozen-lockfile
+    - name: Website unit tests
+      run: yarn --cwd website test
+    - name: Build the landing page and check the static output
+      run: yarn --cwd website check:landing
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Check external links
+      run: yarn --cwd website check:links || echo "::warning::External link check failed (outside links may be down)"
+    - name: Landing Lighthouse (95+)
+      run: cd website && npx --yes @lhci/cli@0.15.1 autorun
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -102,7 +138,7 @@ jobs:
     - name: Check if the workflows are up to date
       run: sbt ciCheckGithubWorkflow
     - name: Lint code
-      run: sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"
+      run: sbt "++2.13; check; headerCheckAll; ++3.9; check; headerCheckAll"
   testJVM:
     name: testJVM
     runs-on: ubuntu-latest
@@ -118,8 +154,8 @@ jobs:
         - JVM
         scala:
         - 2.13.x
-        - 3.3.x
-        - 3.8.x
+        - 3.9.x
+        - 3.10.x
     services:
       postgres:
         image: postgres:16
@@ -156,24 +192,27 @@ jobs:
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
       run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
     - name: Run Scala 3 config adapter coverage (JDK 25, scoped)
-      if: ${{ (matrix.scala == '3.8.x') && (matrix.java >= 25) }}
-      run: sbt "++3.8.3; configCoverage"
-    - name: Run JWT scoped coverage (JDK 25, Scala 3.8.x)
-      if: ${{ (matrix.scala == '3.8.x') && (matrix.java >= 25) }}
-      run: sbt "++3.8.3; jwtCoverage"
+      if: ${{ (matrix.scala == '3.9.x') && (matrix.java >= 25) }}
+      run: sbt "++3.9.0; configCoverage"
+    - name: Run JWT scoped coverage (JDK 25, Scala 3.9.x)
+      if: ${{ (matrix.scala == '3.9.x') && (matrix.java >= 25) }}
+      run: sbt "++3.9.0; jwtCoverage"
     - name: Verify SQL dump macro emission (dumpDir)
-      if: ${{ (matrix.scala == '3.8.x') && (matrix.java == '17') }}
+      if: ${{ (matrix.scala == '3.9.x') && (matrix.java == '17') }}
       run: |-
         rm -rf target/sql-dumps
-        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/Test/clean; sqlJVM/Test/compile"
+        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/Test/clean; sqlJVM/Test/compile"
         test -d target/sql-dumps && ls -R target/sql-dumps
-        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"
+        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"
     - name: Run Scala Next tests
-      if: ${{ matrix.scala == '3.8.x' }}
-      run: sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test
-    - name: Compile example project
-      if: ${{ matrix.scala == '3.8.x' }}
-      run: sbt ++${{ matrix.scala }} schema-examples/compile
+      if: ${{ matrix.scala == '3.10.x' }}
+      run: sbt ++3.10.0 scalaNextTests${{ matrix.platform }}/test
+    - name: Run benchmarks tests
+      if: ${{ matrix.scala == '3.9.x' }}
+      run: sbt ++3.9.0 benchmarks/test
+    - name: Compile example projects
+      if: ${{ matrix.scala == '3.9.x' }}
+      run: for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt compile) || exit 1; done
   testJS:
     name: testJS
     runs-on: ubuntu-latest
@@ -188,8 +227,8 @@ jobs:
         - JS
         scala:
         - 2.13.x
-        - 3.3.x
-        - 3.8.x
+        - 3.9.x
+        - 3.10.x
     steps:
     - name: Checkout current branch
       uses: actions/checkout@v7
@@ -205,37 +244,68 @@ jobs:
       uses: coursier/cache-action@v8
     - name: Run Scala JS tests and compile docs
       run: sbt ++${{ matrix.scala }} testJS docJS
-  testGolem:
-    name: Test Golem (Scala 3.8.x / 2.13.x)
+  update-readme:
+    name: Update README
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     continue-on-error: false
-    strategy:
-      fail-fast: false
-      matrix:
-        java:
-        - '17'
+    permissions:
+      contents: read
+      pull-requests: write
+    if: ${{ (github.event_name == 'release') && (github.event.action == 'published') }}
     steps:
-    - name: Checkout current branch
-      uses: actions/checkout@v7
+    - name: Git Checkout
+      uses: actions/checkout@v7.0.1
       with:
-        fetch-depth: 0
-    - name: Setup Action
-      uses: coursier/setup-action@v3
+        fetch-depth: '0'
+    - name: Install libuv
+      run: sudo apt-get update && sudo apt-get install -y libuv1-dev
+    - name: Setup Scala
+      uses: actions/setup-java@v6.0.1
       with:
-        jvm: temurin:${{ matrix.java }}
-        jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
-        apps: sbt
-    - name: Cache scala dependencies
-      uses: coursier/cache-action@v8
-    - name: Run Golem tests (Scala 3.8)
-      run: sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
-    - name: Run Golem tests (Scala 2.13)
-      run: sbt "++2.13.18; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
-    - name: Test Golem build codegen (Scala 3.3)
-      run: sbt "++3.3.7; zioGolemBuildCodegen/test"
-    - name: Compile Golem sbt plugin (Scala 2.12)
-      run: sbt "++2.12.21!; zioGolemSbt/compile"
+        distribution: corretto
+        java-version: '17'
+        check-latest: true
+    - name: Setup SBT
+      uses: sbt/setup-sbt@v1.5.7
+    - name: Cache Dependencies
+      uses: coursier/cache-action@v8.1.1
+    - name: Generate Readme
+      run: sbt --no-colors docs/generateReadme
+    - name: Generate Token
+      id: generate-token
+      uses: zio/generate-github-app-token@v1.0.0
+      with:
+        app_id: ${{ secrets.APP_ID }}
+        app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+    - name: Create Pull Request
+      id: cpr
+      uses: peter-evans/create-pull-request@v8.1.1
+      with:
+        body: |-
+          Autogenerated changes after running the `sbt docs/generateReadme` command of the [zio-sbt-website](https://zio.dev/zio-sbt) plugin.
+
+          I will automatically update the README.md file whenever there is new change for README.md, e.g.
+            - After each release, I will update the version in the installation section.
+            - After any changes to the "docs/index.md" file, I will update the README.md file accordingly.
+        branch: zio-sbt-website/update-readme
+        base: ${{ github.event.repository.default_branch }}
+        commit-message: Update README.md
+        token: ${{ steps.generate-token.outputs.token }}
+        delete-branch: true
+        title: Update README.md
+        add-paths: README.md
+    - name: Approve PR
+      if: ${{ steps.cpr.outputs.pull-request-number }}
+      run: gh pr review "$PR_URL" --approve
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+    - name: Enable Auto-Merge
+      if: ${{ steps.cpr.outputs.pull-request-number }}
+      run: gh pr merge --auto --squash "$PR_URL" || gh pr merge --squash "$PR_URL"
+      env:
+        GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+        PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
   ci:
     name: ci
     runs-on: ubuntu-latest
@@ -244,7 +314,6 @@ jobs:
     - lint
     - testJVM
     - testJS
-    - testGolem
     - buildDocs
     if: always()
     steps:
@@ -304,13 +373,13 @@ jobs:
       with:
         fetch-depth: '0'
     - name: Setup Scala
-      uses: actions/setup-java@v5.7.0
+      uses: actions/setup-java@v6.0.1
       with:
         distribution: corretto
         java-version: '25'
         check-latest: true
     - name: Setup SBT
-      uses: sbt/setup-sbt@v1.5.7
+      uses: sbt/setup-sbt@v1.5.14
     - name: Cache Dependencies
       uses: coursier/cache-action@v8.1.1
     - name: Setup NodeJs

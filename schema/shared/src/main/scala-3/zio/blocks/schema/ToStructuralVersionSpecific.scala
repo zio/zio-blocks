@@ -108,11 +108,18 @@ private[schema] class ReflectiveMatcher[S](
     }
 }
 
+/** The implicit macro that derives [[ToStructural]] instances. */
 trait ToStructuralVersionSpecific {
   transparent inline given [A]: ToStructural[A] = ${ ToStructuralMacro.derived[A] }
 }
 
 private[schema] object ToStructuralMacro {
+
+  /**
+   * Derives the `ToStructural[A]` instance, failing at compile time for a
+   * recursive type, a type it does not support, or a platform without
+   * reflection.
+   */
   def derived[A: Type](using Quotes): Expr[ToStructural[A]] = {
     import quotes.reflect.*
 
@@ -300,8 +307,10 @@ private[schema] object ToStructuralMacro {
   }
 
   /**
-   * Transform a product schema (case class) to its structural equivalent. Uses
-   * reflection-based deconstruction to support anonymous structural instances.
+   * Converts a record schema to the schema of its structural type. The code
+   * that `ToStructural` derivation generates calls it at run time. Values are
+   * encoded by reflection on Scala 3 and through a cast to `A` on Scala 2.
+   * Throws `IllegalArgumentException` when `schema` is not a record.
    */
   def transformProductSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {
@@ -333,6 +342,12 @@ private[schema] object ToStructuralMacro {
       case _ => throw new IllegalArgumentException("Cannot transform non-record schema to structural type")
     }
 
+  /**
+   * Converts the schema of a sealed trait or enum to the schema of its
+   * structural union type. The code that `ToStructural` derivation generates
+   * calls it at run time. Throws `IllegalArgumentException` when `schema` is
+   * not a variant.
+   */
   def transformSumTypeSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {
       case variant: Reflect.Variant[Binding, A] @unchecked =>

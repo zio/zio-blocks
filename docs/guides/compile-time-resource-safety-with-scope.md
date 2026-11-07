@@ -1,6 +1,7 @@
 ---
 id: compile-time-resource-safety-with-scope
 title: "Compile-Time Resource Safety with Scope"
+description: "Manage resources with Scope so the compiler rejects leaked or misused ones, then share them through dependency injection with Wire."
 ---
 
 Welcome to ZIO Blocks Scope—a library that makes resource management safe, composable, and verifiable at compile time. If you've ever struggled with `try/finally` chains, wondered when to close a database connection, or worried about resources outliving their owners, this tutorial is for you. You don't need any prior experience with Scope or advanced type system concepts to follow along.
@@ -24,7 +25,7 @@ Nested resources make this worse. If you're reading a config file and then openi
 
 Consider a typical `try/finally` pattern in Scala:
 
-```scala mdoc:compile-only mdoc:silent:reset
+```scala mdoc:compile-only
 trait Connection extends AutoCloseable {
   def createStatement(): Statement
 }
@@ -308,12 +309,12 @@ case class Config(host: String, port: Int)
 Scope.global.scoped { scope =>
   import scope._
 
-  // Config is a case class—it has Unscoped by default
+  // Config is a case class: on Scala 3 it has Unscoped automatically
   Config("localhost", 5432)
 }
 ```
 
-Built-in `Unscoped` instances include primitives (`Int`, `String`, `Boolean`), collections (`List[A]`, `Map[K, V]`), and common library types (`UUID`, `java.time.LocalDate`). If you define a case class with no resource fields, it automatically gets an `Unscoped` instance:
+Built-in `Unscoped` instances include primitives (`Int`, `String`, `Boolean`), collections (`List[A]`, `Map[K, V]`), and common library types (`UUID`, `java.time.LocalDate`). On Scala 3, a case class whose fields are all `Unscoped` gets an `Unscoped` instance automatically:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -329,7 +330,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-If you define a custom class and want to return it from `scoped`, you need to either derive or provide an `Unscoped` instance. In Scala 3, case classes support automatic derivation via `derives`:
+On Scala 2, a custom class needs an `Unscoped` instance before you can return it from `scoped`: derive one with `Unscoped.derived` or write it by hand. On Scala 3 you can also say so in the declaration with `derives`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -375,6 +376,10 @@ class Connection extends AutoCloseable {
 
 This compile-time barrier prevents entire classes of resource-lifetime bugs—you cannot accidentally return a resource reference from a scoped block.
 
+:::warning[Automatic derivation can let a closed resource escape]
+A known bug in 0.0.56: the Scala 3 automatic derivation does not check whether a case class extends `AutoCloseable`. A class such as `case class Conn(url: String) extends AutoCloseable` is `Unscoped`, so `Resource.fromAutoCloseable(Conn("x")).use(c => c)` compiles and returns a closed resource. Return computed values only. See [`Unscoped`](../reference/resource-management/unscoped.md).
+:::
+
 ## 6. Finalizers and Error Handling
 
 Sometimes you need to register cleanup that is not a simple resource `close()`. The `defer` operator lets you register arbitrary cleanup actions:
@@ -399,7 +404,7 @@ Scope.global.scoped { scope =>
     txn.rollback()
   }
 
-  // If we commit, cancel the rollback
+  // The rollback still runs when the scope exits, even after commit
   txn.commit()
 }
 ```
@@ -436,7 +441,7 @@ Scope.global.scoped { scope =>
 
 Finalizers run in **LIFO order** (last registered, first executed) and are guaranteed to run even if the scoped block throws an exception. If multiple finalizers throw, they are collected:
 
-```scala mdoc:compile-only mdoc
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 Scope.global.scoped { scope =>
@@ -574,7 +579,7 @@ Scope.global.scoped { scope =>
 The standard pattern for managing resource lifetimes in your application is to use `scoped { }` with careful nesting. The `open()` method is reserved for low-level integration points (like application startup/shutdown boundaries) and is not typically needed in application code.
 
 :::note
-Thread ownership is enforced for child scopes created with `scoped { }` but not for unowned scopes from `open()`. This difference allows Scope to prevent thread-related bugs in structured code while still supporting integration with callback-driven or asynchronous frameworks that require explicit lifetime management.
+Thread ownership is checked when `scoped { }` runs on a child scope, and never for unowned scopes from `open()`. This difference allows Scope to prevent thread-related bugs in structured code while still supporting integration with callback-driven or asynchronous frameworks that require explicit lifetime management.
 :::
 
 ## 9. Shared Resources and Reference Counting
@@ -649,7 +654,7 @@ val authWire = Wire.shared[AuthService]
 val appWire = Wire.shared[AppService]
 
 // Resource.from resolves all wires and returns the root app service
-val appResource = Resource.from[AppService](
+def appResource = Resource.from[AppService](
   configWire,
   dbWire,
   cacheWire,
@@ -664,14 +669,14 @@ appResource.use { app =>
 
 The compiler verifies that:
 - Every dependency can be satisfied.
-- No unsatisfiable circular dependencies exist.
+- No dependency is missing or provided twice. (A circular dependency is not reported yet: in 0.0.56 it crashes the macro, a known bug, #1767.)
 - Types match correctly.
 
 If you violate any of these rules, you get a clear compile error before runtime.
 
 ## 11. Thread Ownership
 
-On the JVM, Scope enforces a structured concurrency guarantee: each `Scope.Child` (any scope created with `scoped { }` or as a child of another scope) is owned by the thread that created it. This prevents a subtle class of bugs where a scope reference escapes to another thread and resources are used or closed on the wrong thread.
+On the JVM, each `Scope.Child` (any scope created with `scoped { }` or as a child of another scope) is owned by the thread that created it. Opening a child with `scoped` from another thread is rejected, which stops a scope reference that escaped to another thread from creating nested scopes there. The check covers `scoped` only; see the note below.
 
 You can check ownership with `Scope#isOwner`:
 
@@ -687,7 +692,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-If you try to use a child scope from a different thread, operations like `allocate`, `defer`, and `$(value)()` throw an `IllegalStateException`:
+Only `scoped` checks the owner thread. Calling `scoped` on a child scope from a different thread throws an `IllegalStateException`. `allocate`, `open`, `defer` and `$` do not check the owner, so keeping them on the owning thread is a rule you must follow yourself:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -701,15 +706,15 @@ Scope.global.scoped { scope =>
 
   val db = allocate(Resource(new Database()))
 
-  // Attempting to use the scope from another thread will throw:
+  // Calling scoped on this scope from another thread throws:
   // val thread = new Thread(() => {
-  //   $(db) { _ => }  // throws IllegalStateException: ownership violation
+  //   scope.scoped { _ => }  // throws IllegalStateException: current thread does not own this scope
   // })
   // thread.start()
 }
 ```
 
-To pass a resource to another thread safely, use `Scope.global.open()` to create an unowned scope, or redesign to keep all operations on the creating thread.
+To pass a resource to another thread safely, use `Scope.global.open()` to create an unowned scope, or redesign to keep all operations on the creating thread. Unowned scopes are not checked either way, so the choice is yours to get right.
 
 For platforms like Scala.js (single-threaded), thread ownership checks are disabled—ownership is always considered valid.
 
@@ -719,13 +724,13 @@ Thread ownership enforcement is not about thread safety in the traditional sense
 
 ## 12. Common Errors and Troubleshooting
 
-This section lists the most common runtime and compile errors, explains what caused them, and how to fix them.
+This section lists the most common runtime and compile errors, explains what caused them, and how to fix them. For every error the Scope and Wire macros report, see [How to Fix Common Scope and Wire Compile Errors](fix-scope-and-wire-compile-errors.md).
 
 ### Runtime Errors
 
-**`IllegalStateException: Scope is closed`** when calling `allocate`, `defer`, `$`, or `open` on a closed scope:
+**`IllegalStateException`** when calling `allocate`, `$`, or `open` on a closed scope. The message is one of `Cannot allocate resource: scope is already closed.`, `Cannot access scoped value: scope is already closed.` or `Cannot open child scope: scope is already closed.`. `defer` does not throw: on a closed scope it returns a no-op handle and the finalizer never runs. The most common way to reach a closed scope is to let a resource escape the scoped block and use it afterwards:
 
-```scala mdoc:compile-only mdoc:silent:reset
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.scope.Resource
 
@@ -746,7 +751,7 @@ Scope.global.scoped { scope =>
 
 **Fix:** Ensure all resource usage happens before the scoped block exits. If you need to return a resource reference, return only the underlying value (wrapped in an `Unscoped` type).
 
-**`IllegalStateException: Thread ownership violation`** when calling operations on a child scope from a different thread:
+**`IllegalStateException: Cannot create child scope: current thread '...' does not own this scope`** when calling `scoped` on a child scope from a different thread:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -807,7 +812,7 @@ class Logger extends AutoCloseable {
 
 **Fix:** Use the `$` operator to unwrap: `$(logger)(_.log("test"))`.
 
-**`Wire` cannot resolve dependency** when wiring fails due to missing constructor arguments:
+**`Cannot auto-create java.lang.String`** when a constructor argument has no wire:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -816,9 +821,13 @@ case class Database(url: String) extends AutoCloseable {
   override def close(): Unit = ()
 }
 
-// If Database constructor is not satisfied by wires, compilation fails:
-// val dbWire: Wire[Database] = Wire.shared[Database]  // ERROR: no Wire[String] for url
+// Wire.shared[Database] compiles, even though no wire provides the String url.
+// The error appears later, when the Resource is built:
+val dbWire = Wire.shared[Database]
+// Resource.from[Database](dbWire)  // ERROR: Cannot auto-create java.lang.String
 ```
+
+The error names the type that has no wire (`java.lang.String`), and it is reported when the `Resource` is built, not when the `Wire` is declared.
 
 **Fix:** Provide a wire for every required dependency:
 
@@ -839,6 +848,8 @@ Scope.global.scoped { scope =>
   $(db) { d => println("Connected to " + d.toString()) }
 }
 ```
+
+For every error the Scope and Wire macros report, with the real compiler output and a fix for each, see [How to Fix Common Scope and Wire Compile Errors](./fix-scope-and-wire-compile-errors.md).
 
 ---
 
@@ -958,15 +969,15 @@ sbt "docs/mdoc --in docs/guides/compile-time-resource-safety-with-scope.md"
 The repository also includes additional companion examples in `scope-examples/`. For example:
 
 ```bash
-sbt "scope-examples/runMain runDatabaseExample"
-sbt "scope-examples/runMain runCachingExample"
-sbt "scope-examples/runMain runThreadOwnershipExample"
+cd scope-examples && sbt "runMain runDatabaseExample"
+cd scope-examples && sbt "runMain runCachingExample"
+cd scope-examples && sbt "runMain runThreadOwnershipExample"
 ```
 
 To compile all examples:
 
 ```bash
-sbt "scope-examples/compile"
+cd scope-examples && sbt "compile"
 ```
 
 ---
@@ -997,6 +1008,7 @@ For complete API documentation, see the [Scope Reference](../reference/resource-
 
 ## See Also
 
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](./resource-and-di-migration.md) — migrate existing resource handling and dependency wiring to Scope
 - [Telemetry Reference](../reference/telemetry/index.md) — `TracerProvider`, `LoggerProvider`, and `MeterProvider` are `AutoCloseable`, so the ownership rules here carry over to their lifetimes
 - [Telemetry Guide](./telemetry-guide.md) — Provider startup and shutdown ordering, done with plain `AutoCloseable` shutdown rather than `Scope`
 - [Async Reference](../reference/async.md) — `Async.Running` extends `AutoCloseable` and integrates with `scala.util.Using` for scoped cancellation; the same resource-ownership mental model used by Scope applies to in-flight async computations

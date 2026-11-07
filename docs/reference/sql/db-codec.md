@@ -19,7 +19,7 @@ Key properties:
 - **Multi-column** — a single codec spans any number of database columns; a case class codec produces one column per field.
 - **Label-based and positional** — `readValue` supports order-independent decoding by column label or fast 1-based positional access per the JDBC convention.
 - **Schema-driven** — `DbCodec.derived` and `DbCodecDeriver` produce codecs automatically from a `Schema[A]` at compile time, with no runtime reflection.
-- **Null-safe** — `Option[A]` and `Maybe[A]` codecs handle SQL `NULL` transparently; non-optional types throw `IllegalStateException` on unexpected `NULL`, surfacing schema mismatches immediately rather than silently coercing.
+- **Explicit about `NULL`** — `Option[A]` and `Maybe[A]` codecs read SQL `NULL` as `None` and `Maybe.absent`. Non-optional types do not all reject it: `BigDecimal` and a derived `Char` field throw `IllegalStateException`, but in 0.0.56 a `String` or `Instant` reads `NULL` as `null` and the numeric types and `Boolean` read it as `0` and `false`, a known bug (see [Reading SQL `NULL`](#reading-sql-null)). Map every nullable column to `Option`, except a decimal one: in 0.0.56, `Option[BigDecimal]` also throws on `NULL`.
 
 ## Core API
 
@@ -71,14 +71,18 @@ Codecs for JSON/JSONB columns, type conversions, and specialized encoding strate
 The following example shows the core lifecycle of a `DbCodec`: deriving one automatically, inspecting its column metadata, encoding a value, handling nullable columns, and adapting the codec to a newtype:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 // Derive a codec automatically — field names map to snake_case columns by default
 case class User(id: Int, name: String, email: Option[String]) derives DbCodec
+```
 
+```scala mdoc:silent
 val codec = DbCodec[User]
+```
 
+```scala mdoc
 codec.columns
 codec.columnCount
 
@@ -90,8 +94,13 @@ val nullParams = codec.toDbValues(User(2, "Bob", None))
 
 // Adapt any codec to a newtype with transform — no full Schema needed
 case class UserId(value: Int)
-val userIdCodec: DbCodec[UserId] = DbCodec[Int].transform(UserId(_))(_.value)
+```
 
+```scala mdoc:silent
+val userIdCodec: DbCodec[UserId] = DbCodec[Int].transform(UserId(_))(_.value)
+```
+
+```scala mdoc
 userIdCodec.columns
 userIdCodec.toDbValues(UserId(42))
 ```
@@ -111,6 +120,12 @@ object DbCodec {
 ```
 
 The two most common spellings are the `derives` clause on the case class and explicit summoning:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -148,16 +163,18 @@ object DbCodec {
 The configure function receives a `DerivationBuilder[DbCodec, A]` and returns a modified one. We call `DerivationBuilder#instance` to attach a custom `DbCodec` for a specific field, identified by the enclosing type's `TypeId` and the field name:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
 
 case class Tags(values: List[String])
 object Tags { implicit val schema: Schema[Tags] = Schema.derived }
 
 case class Product(id: Int, tags: Tags)
 object Product { implicit val schema: Schema[Product] = Schema.derived }
+```
 
+```scala mdoc:silent
 // tags is stored as a JSON string in the "tags" column
 val tagsCodec: DbCodec[Tags] =
   DbCodec[String].transform(json => Tags(json.split(",").toList))(_.values.mkString(","))
@@ -166,78 +183,85 @@ val productCodec: DbCodec[Product] =
   DbCodec.derivedWith[Product](
     _.instance(TypeId.of[Product], "tags", tagsCodec)
   )
+```
 
+```scala mdoc
 productCodec.columns
 productCodec.columnCount
 ```
 
 ### `DbCodec.jsonb` — JSONB column codec
 
-`DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonSchemaCodec[A]` for the encode/decode pair, and one accepting explicit functions.
+`DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonCodec[A]` for the encode/decode pair, and one accepting explicit functions.
 
 ```scala
 object DbCodec {
-  def jsonb[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[A]
+  def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A]
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A]
 }
 ```
 
-The first overload requires a `JsonSchemaCodec[A]` (aliased from `zio.blocks.schema.json.JsonCodec`) in implicit scope:
+The first overload requires a `JsonCodec[A]` (`zio.blocks.schema.json.JsonCodec`) in implicit scope:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec, JsonCodecDeriver}
+import zio.blocks.schema.json.{JsonCodec, JsonCodecDeriver}
+import zio.blocks.sql._
 
 case class Address(street: String, city: String)
 object Address {
-  implicit val schema: Schema[Address]             = Schema.derived
-  implicit val jsonCodec: JsonSchemaCodec[Address] = schema.deriving(JsonCodecDeriver).derive
+  implicit val schema: Schema[Address]         = Schema.derived
+  implicit val jsonCodec: JsonCodec[Address] = schema.deriving(JsonCodecDeriver).derive
 }
+```
 
+```scala mdoc:silent
 // Address is stored as a JSON string in a single TEXT/JSONB column
 val codec: DbCodec[Address] = DbCodec.jsonb[Address]
+```
 
+```scala mdoc
 codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
 ```
 
-Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonSchemaCodec`:
+Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonCodec`:
 
 ```scala mdoc
-import zio.blocks.sql._
-
 case class Point(x: Double, y: Double)
+```
 
+```scala mdoc:silent
 // Custom JSON encoding using a hand-rolled format
 val pointCodec: DbCodec[Point] = DbCodec.jsonb[Point](
   p => s"${p.x},${p.y}",
   s => { val parts = s.split(","); Point(parts(0).toDouble, parts(1).toDouble) }
 )
+```
 
+```scala mdoc
 pointCodec.toDbValues(Point(1.0, 2.0))
 ```
 
 ### `DbCodec.jsonbOption` — Nullable JSONB column codec
 
-`DbCodec.jsonbOption` creates a `DbCodec[Option[A]]` that stores `Some(a)` as a JSON string and `None` as SQL `NULL`. Like `jsonb`, it has an implicit `JsonSchemaCodec[A]` overload and a two-argument overload:
+`DbCodec.jsonbOption` creates a `DbCodec[Option[A]]` that stores `Some(a)` as a JSON string and `None` as SQL `NULL`. Like `jsonb`, it has an implicit `JsonCodec[A]` overload and a two-argument overload:
 
 ```scala
 object DbCodec {
-  def jsonbOption[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[Option[A]]
+  def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]]
   def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]]
 }
 ```
 
 The codec delegates to `DbCodec[Option[String]]` and applies the JSON encode/decode on the inner `String`, so `NULL` detection uses the underlying `Option[String]` codec's standard null handling:
 
-```scala mdoc
-import zio.blocks.sql._
-import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
-
-// Assume JsonSchemaCodec[Address] is in scope from the previous example
+```scala mdoc:silent
+// Assume JsonCodec[Address] is in scope from the previous example
 val nullableCodec: DbCodec[Option[Address]] = DbCodec.jsonbOption[Address]
+```
 
+```scala mdoc
 nullableCodec.toDbValues(Some(Address("Elm St", "LA")))
 
 nullableCodec.toDbValues(None)
@@ -262,9 +286,14 @@ opaque type ProductId <: String = String
 object ProductId {
   def apply(value: String): ProductId = value
 }
+```
 
+```scala mdoc:silent
 // DbCodec[ProductId] is resolved automatically — no explicit given needed
 val codec = DbCodec[ProductId]
+```
+
+```scala mdoc
 codec.columns
 ```
 
@@ -284,9 +313,15 @@ object DbCodec {
 
 `As[A, B]` (from `zio.blocks.schema`) represents a validated conversion from `A` to `B` and from `B` back to `A`. The derived codec applies `As#into` on decode and `As#from` on encode; if either conversion returns a `Left`, an `IllegalStateException` is thrown at runtime:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.As
+import zio.blocks.sql._
 
 // Suppose As[String, EmailAddress] is defined and EmailAddress wraps String
 // DbCodec[EmailAddress] is then resolved automatically — no explicit given needed
@@ -311,9 +346,14 @@ We use `DbCodec.apply` whenever we need a codec value without knowing its deriva
 import zio.blocks.sql._
 
 case class Order(id: Long, status: String) derives DbCodec
+```
 
+```scala mdoc:silent
 // Summon the derived codec
 val codec: DbCodec[Order] = DbCodec[Order]
+```
+
+```scala mdoc
 codec.columns
 ```
 
@@ -329,9 +369,15 @@ object DbCodec {
 
 `DerivationBuilder` exposes `instance` to attach custom codecs for individual fields and `derive` to produce the final codec. `DbCodec.derivedWith` is a one-liner wrapper around `builder`:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
 
 case class Order(id: Long, tags: List[String], metadata: Map[String, String])
 
@@ -357,12 +403,12 @@ val codec: DbCodec[Order] =
 | `Float`                | `floatCodec`       | `DbValue.DbFloat`            |                                                    |
 | `Short`                | `shortCodec`       | `DbValue.DbShort`            |                                                    |
 | `Byte`                 | `byteCodec`        | `DbValue.DbByte`             |                                                    |
-| `BigDecimal`           | `bigDecimalCodec`  | `DbValue.DbBigDecimal`       | Throws on SQL `NULL`; use `Option[BigDecimal]` for nullable columns. |
+| `BigDecimal`           | `bigDecimalCodec`  | `DbValue.DbBigDecimal`       | Throws on SQL `NULL`; in 0.0.56 `Option[BigDecimal]` throws too (see [Reading SQL `NULL`](#reading-sql-null)). |
 | `java.time.Instant`    | `instantCodec`     | `DbValue.DbInstant`          |                                                    |
 | `Option[A]`            | `optionCodec`      | inner or `DbValue.DbNull`    | Requires a `DbCodec[A]`; single-column inner only. |
 | `Maybe[A]`             | `maybeCodec`       | inner or `DbValue.DbNull`    | Requires a `DbCodec[A]`; single-column inner only. |
 
-All primitive codecs set their single column name to `"value"`. When a primitive codec is used as part of a record derivation, `DbCodecDeriver` replaces the column name with the field name (after applying the `SqlNameMapper`).
+Of these, only `BigDecimal` throws on SQL `NULL`; [Reading SQL `NULL`](#reading-sql-null) shows what the others return. All primitive codecs set their single column name to `"value"`. When a primitive codec is used as part of a record derivation, `DbCodecDeriver` replaces the column name with the field name (after applying the `SqlNameMapper`).
 
 ## Core Operations
 
@@ -385,8 +431,8 @@ trait DbCodec[A] {
 For a case class codec produced by `DbCodec.derived`, each field maps to one column name after the `SqlNameMapper` (default: `SnakeCase`). Annotating a field with `@Modifier.rename("custom_name")` overrides the mapped name:
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
+import zio.blocks.sql._
 
 case class BlogPost(
   @Modifier.rename("post_id") id: Int,
@@ -409,8 +455,8 @@ trait DbCodec[A] {
 We use `columnCount` to validate multi-column usage and to calculate offsets when composing codecs. For all primitive codecs, `columnCount` is `1`. For a case class, it equals the number of non-transient fields (fields annotated with `@Modifier.transient()` are excluded):
 
 ```scala mdoc:reset
-import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
+import zio.blocks.sql._
 
 case class Event(name: String, @Modifier.transient() internalFlag: Boolean = false) derives DbCodec
 
@@ -432,6 +478,12 @@ trait DbCodec[A] {
 ```
 
 The default implementation converts positional access to label-based access automatically, so implementing only the label-based overload is sufficient when writing a custom `DbCodec`:
+
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -476,6 +528,52 @@ val codec = DbCodec[User]
 
 // Calling with explicit labels — useful for custom result processing
 // codec.readValue(reader, IndexedSeq("id", "name")) → User(...)
+```
+
+#### Reading SQL `NULL`
+
+A column that may hold `NULL` belongs in an `Option` (or `Maybe`) field. The `Option` codec reads the inner value, then checks `DbResultReader#wasNull` and returns `None` for a `NULL`.
+
+A non-optional field does not reliably reject a `NULL`. Only the `BigDecimal` codec and the `Char` codec that `DbCodecDeriver` uses throw `IllegalStateException`. In 0.0.56, the other primitive codecs return whatever the JDBC getter returns, a known bug: a `String` or `java.time.Instant` field holds `null`, and an `Int`, `Long`, `Double` or other numeric field holds `0` (`false` for a `Boolean`). `Frag#query`, `Frag#queryStream` and `Repo` all decode through these codecs, so a nullable column mapped to a non-`Option` field passes silently.
+
+The two codecs that do throw have the opposite problem. The JDBC reader only learns that a column is `NULL` after the inner codec has read it, and the `BigDecimal` and `Char` codecs throw during that read, so in 0.0.56 `Option[BigDecimal]`, `Option[Char]` and their `Maybe` forms throw on `NULL` too, another known bug. Until it is fixed, read a nullable decimal column as `Option[String]` and convert it with `BigDecimal(_)`.
+
+To see all of this, we read a table with one row of `NULL`s and one complete row into records with plain fields, with `Option` fields, and with a `BigDecimal` price in each form:
+
+```scala mdoc:reset
+import scala.util.Try
+import zio.blocks.schema.Schema
+import zio.blocks.sql._
+
+case class Sale(id: Long, title: String, quantity: Int) derives DbCodec
+case class NullableSale(id: Long, title: Option[String], quantity: Option[Int]) derives DbCodec
+case class Price(id: Long, price: BigDecimal) derives DbCodec
+case class NullablePrice(id: Long, price: Option[BigDecimal]) derives DbCodec
+case class PriceText(id: Long, price: Option[String]) derives DbCodec
+
+def errorOf[A](read: => A): Either[String, A] = Try(read).toEither.left.map(_.getMessage)
+
+val (plain, nullable, price, nullablePrice, priceFromText) =
+  JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite).transact {
+    sql"CREATE TABLE sale (id INTEGER NOT NULL, title TEXT, quantity INTEGER, price NUMERIC)".update
+    sql"INSERT INTO sale (id) VALUES (1)".update
+    sql"INSERT INTO sale VALUES (2, 'Zionomicon', 3, 49.99)".update
+
+    (
+      sql"SELECT id, title, quantity FROM sale ORDER BY id".query[Sale],
+      sql"SELECT id, title, quantity FROM sale ORDER BY id".query[NullableSale],
+      errorOf(sql"SELECT id, price FROM sale ORDER BY id".query[Price]),
+      errorOf(sql"SELECT id, price FROM sale ORDER BY id".query[NullablePrice]),
+      sql"SELECT id, price FROM sale ORDER BY id".query[PriceText].map(_.price.map(BigDecimal(_)))
+    )
+  }
+```
+
+The plain record reads the first row as `Sale(1, null, 0)`, which looks like a sale of zero copies with no title, while the `Option` record reports both columns as missing. Both `BigDecimal` forms fail on the `NULL` price, and reading the price as text gives `None` for the first row and the decimal for the second.
+
+```scala mdoc:invisible
+// restore the root `zio` package that `import zio.blocks.sql._` above shadows
+import _root_.zio
 ```
 
 ### Writing / Encoding
@@ -524,9 +622,13 @@ trait DbCodec[A] {
 import zio.blocks.sql._
 
 case class Item(id: Int, name: String, price: Option[BigDecimal]) derives DbCodec
+```
 
+```scala mdoc:silent
 val codec = DbCodec[Item]
+```
 
+```scala mdoc
 codec.toDbValues(Item(1, "Widget", Some(BigDecimal("9.99"))))
 
 codec.toDbValues(Item(2, "Gadget", None))
@@ -550,11 +652,15 @@ Both `read` and `write` must be total functions; any exception they throw propag
 import zio.blocks.sql._
 
 case class ProductId(value: String)
+```
 
+```scala mdoc:silent
 // Adapt the String codec to ProductId without a Schema
 val productIdCodec: DbCodec[ProductId] =
   DbCodec[String].transform(ProductId(_))(_.value)
+```
 
+```scala mdoc
 productIdCodec.columns
 productIdCodec.toDbValues(ProductId("abc-1"))
 ```
@@ -641,3 +747,5 @@ DbCodec[A] ◄──────────────────────
   DbResultReader   DbParamWriter ────────────┘
   (readValue)      (writeValue)
 ```
+
+See also the [How to Store and Search Vector Embeddings in PostgreSQL](../../guides/store-and-search-vector-embeddings.md) guide, which builds a `DbCodec` on `String` for a pgvector column and binds it as a parameter with the `sql` interpolator.

@@ -19,6 +19,11 @@ package zio.blocks.endpoint
 import scala.quoted.*
 import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
+/**
+ * The macros behind `endpoints { ... }` and the prefix syntax `codec /
+ * endpoints { ... }`: they read the block's statements, name the members, put
+ * prefixes in front of each route and build the named tuple.
+ */
 private[endpoint] object EndpointGroupMacro {
   def build(body: Expr[Any])(using Quotes): Expr[Any] =
     buildGroupTree(body, Nil)
@@ -373,9 +378,6 @@ private[endpoint] object EndpointGroupMacro {
         case Apply(Select(Ident(givenName), "apply"), List(lit)) if givenName.startsWith("given_Conversion") =>
           pathRender0(lit)
         case Apply(conversion, List(lit)) if conversion.tpe.toString.contains("Conversion") => pathRender0(lit)
-        case Apply(Select(inner, "unused"), _)                                              => pathRender0(inner)
-        case Apply(TypeApply(Select(inner, "unused"), _), _)                                => pathRender0(inner)
-        case Select(inner, "unused")                                                        => pathRender0(inner)
         case Literal(StringConstant(s))                                                     => s
         case Apply(TypeApply(Select(Select(_, "PathCodec"), ctor), _), List(Literal(StringConstant(n))))
             if Set("int", "long", "string", "bool", "uuid").contains(ctor) =>
@@ -400,6 +402,9 @@ private[endpoint] object EndpointGroupMacro {
         case Select(_, "trailing")                                                 => "..."
         case Apply(TypeApply(Select(Select(_, "PathCodec"), "trailing"), _), _)    => "..."
         case Apply(TypeApply(Select(_, "trailing"), _), _)                         => "..."
+        case Apply(Select(inner, "unused"), _)                                     => pathRender0(inner)
+        case Apply(TypeApply(Select(inner, "unused"), _), _)                       => pathRender0(inner)
+        case Select(inner, "unused")                                               => pathRender0(inner)
         case Apply(TypeApply(Ident("leftUnit"), _), List(inner))                   => pathRender0(inner)
         case Apply(Select(qual, "apply"), args) if qual.symbol.name == "PathCodec" =>
           pathRender0(args.headOption.getOrElse(qual))
@@ -505,7 +510,7 @@ private[endpoint] object EndpointGroupMacro {
           walk(withOutTerm.tpe)
         }
 
-        // Fold codecs left-to-right building precise PC chain; track precise A type via TypeRepr
+        // Prepend the prefixes, innermost first, building a precise PC chain; track precise A type via TypeRepr
         val composedPCWithType: (Expr[PathCodec[?]], TypeRepr) =
           prefixRefs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) {
             case ((acc, accATpe), codecExpr) =>
@@ -561,15 +566,19 @@ private[endpoint] object EndpointGroupMacro {
         val (composedPC, finalOutTpe) = composedPCWithType
         // Build precise Endpoint type with finalOut as PathInput
         val composedEndpointTpe: TypeRepr = TypeRepr.of[Endpoint].appliedTo(List(finalOutTpe, i, e, o, a))
-        composedEndpointTpe.asType match {
-          case '[ce] =>
+        (composedEndpointTpe.asType, pi.asType) match {
+          case ('[ce], '[p]) =>
+            // NOTE (Scala 3.9 / E007): ep0 pins the endpoint to its own
+            // PathInput (plus wildcards) so every route/pathCodec selection and
+            // copy argument conforms exactly. The previous shape called copy
+            // through the existential epRefExpr, whose rigid PathInput skolem
+            // 3.9 refuses to unify with the inner RoutePattern copy.
             Block(
               List(epDef),
               '{
-                val pc = $composedPC.asInstanceOf[PathCodec[Any]]
-                $epRefExpr
-                  .copy(route = $epRefExpr.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]))
-                  .asInstanceOf[ce]
+                val pc  = $composedPC.asInstanceOf[PathCodec[p]]
+                val ep0 = $epRefExpr.asInstanceOf[Endpoint[p, ?, ?, ?, ?]]
+                ep0.copy(route = ep0.route.copy(pathCodec = pc)).asInstanceOf[ce]
               }.asTerm
             ).asExpr
         }

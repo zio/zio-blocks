@@ -1,7 +1,7 @@
 package stream
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.streams.*
+import zio.blocks.streams._
 import zio.blocks.streams.io.Reader
 
 /**
@@ -88,8 +88,8 @@ object MixedFeedAuditWalkthrough extends App {
   // (BUG-R5-02): a read after close() materializes and reads the next segment,
   // and post-EOF reads re-run the release hook.
   locally {
-    var releases                = 0
-    def stitched(): Reader[Int] =
+    var releases                           = 0
+    def stitched(): Reader.SyncReader[Int] =
       Reader.fromChunk[Int](Chunk(1, 2)) ++
         Reader.fromChunk[Int](Chunk(3, 4)).withRelease { () => releases += 1; () }
 

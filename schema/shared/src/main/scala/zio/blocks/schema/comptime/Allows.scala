@@ -37,6 +37,7 @@ package zio.blocks.schema.comptime
  *
  * ==Usage (Scala 3)==
  * {{{
+ * // scala-3-only
  * import zio.blocks.schema.comptime.Allows
  * import Allows._
  *
@@ -76,19 +77,21 @@ package zio.blocks.schema.comptime
  *     such as [[Allows.Primitive$.Int]] to restrict to a single kind
  *   - [[Allows.Record]] — a product type (case class); fields must satisfy `A`.
  *     Sealed traits and enums are automatically unwrapped: each case is checked
- *     individually against the grammar, so `Variant` is not needed.
- *   - [[Allows.Sequence]] — any collection (List, Vector, Set, Array, Chunk,
- *     …); elements satisfy `A`. Use the subtypes in `Sequence.List`,
- *     `Sequence.Set`, `Sequence.Vector`, `Sequence.Array`, and `Sequence.Chunk`
- *     to narrow to a specific collection kind.
+ *     individually against the grammar, so `Variant` is not needed. On Scala 3,
+ *     a union type is checked member by member in the same way.
+ *   - [[Allows.Sequence]] — any `Iterable`, `Iterator` or `Array` other than a
+ *     map (List, Vector, Set, Array, Chunk, …); elements satisfy `A`. Use the
+ *     subtypes in `Sequence.List`, `Sequence.Set`, `Sequence.Vector`,
+ *     `Sequence.Array`, and `Sequence.Chunk` to narrow to a specific collection
+ *     kind.
  *   - [[Allows.IsType]] — nominal type predicate; satisfied only when the Scala
  *     type is exactly `A` (`=:=`). Used as an element constraint to align a
  *     polymorphic type parameter with the element type of a collection, e.g.
  *     `Sequence.Set[IsType[A]]`.
  *   - [[Allows.Map]] — a key-value map; keys satisfy `K`, values satisfy `V`
  *   - [[Allows.Optional]] — `Option[A]`; inner type satisfies `A`
- *   - [[Allows.Wrapped]] — a newtype / opaque type; underlying type satisfies
- *     `A`
+ *   - [[Allows.Wrapped]] — a ZIO Prelude newtype, and on Scala 3 also an opaque
+ *     type or a neotype newtype; underlying type satisfies `A`
  *   - [[Allows.Dynamic]] — `DynamicValue`; no further constraint
  *   - [[Allows.Self]] — recursive self-reference back to the root grammar
  *   - [[Allows.`|`]] — union of two grammar nodes; write as `A | B` in infix
@@ -96,6 +99,10 @@ package zio.blocks.schema.comptime
  */
 sealed abstract class Allows[A, S <: Allows.Structural]
 
+/**
+ * The grammar nodes that describe shapes, and `derived`, the macro that proves
+ * `Allows` evidence (from `AllowsCompanionVersionSpecific`).
+ */
 object Allows extends AllowsCompanionVersionSpecific {
 
   /**
@@ -113,10 +120,12 @@ object Allows extends AllowsCompanionVersionSpecific {
    * For stricter control, use the type aliases in `Primitive.Int`,
    * `Primitive.String`, etc. — each is defined as `IsType[X]` for the
    * corresponding Scala/Java type, and is handled by the same `IsType` macro
-   * path. A type that satisfies `Primitive.Int` also satisfies `Primitive` via
-   * the union check; no special subtype relationship is required.
+   * path. The aliases are not subtypes of `Primitive`, but every type that one
+   * of them accepts, `Primitive` accepts too.
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows._
+   *
    * // Allow only JSON-representable numbers:
    * type JsonNumber = Primitive.Int | Primitive.Long | Primitive.Double
    *
@@ -128,6 +137,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    */
   sealed abstract class Primitive extends Structural
 
+  /**
+   * One grammar node per primitive type, such as `Primitive.Int`, each an alias
+   * of [[IsType]] for that type.
+   */
   object Primitive {
 
     /**
@@ -353,8 +366,9 @@ object Allows extends AllowsCompanionVersionSpecific {
   sealed abstract class Record[A <: Structural] extends Structural
 
   /**
-   * Matches any sequence type (List, Vector, Set, Array, Chunk, …) whose
-   * element type satisfies `A`.
+   * Matches any sequence type whose element type satisfies `A`: an `Iterable`,
+   * an `Iterator` or an `Array` that is not an `Option` or a map, such as a
+   * List, Vector, Set, Array or Chunk.
    *
    * Use the subtypes in `Sequence.List`, `Sequence.Vector`, `Sequence.Set`,
    * `Sequence.Array`, and `Sequence.Chunk` when you need to distinguish a
@@ -362,14 +376,17 @@ object Allows extends AllowsCompanionVersionSpecific {
    * written with the parent still accepts all collections.
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
+   *
    * // Any collection of primitives:
-   * Allows[List[Int], Sequence[Primitive]]
+   * implicitly[Allows[List[Int], Sequence[Primitive]]]
    *
    * // Only a Set, not a List:
-   * Allows[Set[Int], Sequence.Set[Primitive]]
+   * implicitly[Allows[Set[Int], Sequence.Set[Primitive]]]
    *
    * // Only a Set, and the element type must be exactly Int:
-   * Allows[Set[Int], Sequence.Set[IsType[Int]]]
+   * implicitly[Allows[Set[Int], Sequence.Set[IsType[Int]]]]
    * }}}
    *
    * @tparam A
@@ -377,6 +394,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    */
   sealed abstract class Sequence[A <: Structural] extends Structural
 
+  /**
+   * The grammar nodes for one kind of collection, such as `Sequence.List`, each
+   * a subtype of [[Sequence]].
+   */
   object Sequence {
 
     /**
@@ -446,8 +467,12 @@ object Allows extends AllowsCompanionVersionSpecific {
   sealed abstract class Optional[A <: Structural] extends Structural
 
   /**
-   * Matches a wrapper / newtype / opaque type whose underlying type satisfies
-   * `A`.
+   * Matches a wrapper type whose underlying type satisfies `A`: a ZIO Prelude
+   * `Newtype` or `Subtype` and, on Scala 3, also an opaque type and a neotype
+   * `Newtype` or `Subtype`. Inside the scope that defines an opaque type, the
+   * compiler sees its underlying type instead, so there it matches the node of
+   * that type, such as `Primitive`. A case class with one field, even an
+   * `AnyVal` one, is a [[Record]], not a wrapper.
    *
    * @tparam A
    *   The constraint that the underlying type of the wrapper must satisfy.
@@ -462,15 +487,21 @@ object Allows extends AllowsCompanionVersionSpecific {
 
   /**
    * Recursive self-reference. When used inside a grammar expression, `Self`
-   * refers back to the entire enclosing `Allows[…, S]` constraint, allowing the
-   * grammar to describe recursive data structures.
+   * checks the type at its position against the entire enclosing grammar `S`
+   * again, which lets the grammar describe recursive data structures, such as
+   * `case class Category(name: String, subcategories: List[Category])` with
+   * `Record[Primitive | Sequence[Self]]`.
    *
-   * Mutual recursion between two or more distinct types is a compile-time
-   * error.
+   * Recursion is accepted only when it leads back to the checked type `A`,
+   * directly or through other types: mutually recursive `Forest` and `Tree`
+   * checked as `Allows[Forest, …]` are accepted. A recursive type below `A`,
+   * such as a self-recursive `Category` field of a record that is not
+   * recursive, is rejected (see `docs/dev/issues.md`).
    *
-   * Non-recursive types satisfy `Self`-containing grammars without issue: since
-   * the `Self` position is never reached, the constraint is vacuously
-   * satisfied.
+   * A type that contains no recursive type satisfies a `Self`-containing
+   * grammar whenever its parts match: `Self` checks the part at its position
+   * against the whole grammar again, and since no type comes back, the check
+   * ends.
    */
   sealed abstract class Self extends Structural
 
@@ -484,17 +515,25 @@ object Allows extends AllowsCompanionVersionSpecific {
    * class) is needed:
    *
    * {{{
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
    * import zio.blocks.typeid.IsNominalType
    *
-   * // `To` must be a Set whose element type is exactly `A`.
-   * // `IsNominalType[A]` ensures A is concrete at the call site.
-   * def contains[A: IsNominalType](a: A)(implicit
-   *   ev: Allows[To, Sequence.Set[IsType[A]]]
-   * ): ConditionExpression[From]
+   * trait ConditionExpression[From]
+   *
+   * trait Column[From, To] {
+   *   // `To` must be a Set whose element type is exactly `A`.
+   *   // `IsNominalType[A]` ensures A is concrete at the call site.
+   *   def contains[A: IsNominalType](a: A)(implicit
+   *     ev: Allows[To, Sequence.Set[IsType[A]]]
+   *   ): ConditionExpression[From]
+   * }
    * }}}
    *
    * `IsType[A]` can also replace specific primitive nodes as type aliases:
    * {{{
+   * import zio.blocks.schema.comptime.Allows._
+   *
    * type MyInt = IsType[scala.Int]  // equivalent to Primitive.Int semantically
    * }}}
    *
@@ -512,7 +551,10 @@ object Allows extends AllowsCompanionVersionSpecific {
    *
    * In Scala 3 the native union type syntax `A | B` is also accepted and
    * produces identical semantics with a more concise spelling. In Scala 2,
-   * write `` A `|` B `` in infix position.
+   * write `` A `|` B `` in infix position. On Scala 3, `import Allows._` brings
+   * this `|` into scope, where it shadows the native union type, so a field
+   * type such as `Int | String` written in that scope does not compile: import
+   * the grammar nodes by name there instead.
    *
    * For three-or-more alternatives, chain: `` A `|` B `|` C ``.
    *
@@ -523,7 +565,13 @@ object Allows extends AllowsCompanionVersionSpecific {
    *
    * Example (both Scala 2 infix and Scala 3 native produce the same grammar):
    * {{{
-   * Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]
+   * import zio.blocks.schema.comptime.Allows
+   * import Allows._
+   *
+   * // `Allows._` brings the `Map` grammar node into scope, so name Scala's `Map` as `Predef.Map`
+   * case class Person(name: String, emails: List[String], phones: Predef.Map[String, String])
+   *
+   * implicitly[Allows[Person, Record[Primitive | Sequence[Primitive] | Map[Primitive, Primitive]]]]
    * }}}
    */
   sealed abstract class `|`[A <: Structural, B <: Structural] extends Structural

@@ -23,11 +23,21 @@ import zio.blocks.typeid.{Owner, TypeId}
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/** The implicit macro that derives [[ToStructural]] instances. */
 trait ToStructuralVersionSpecific {
+
+  /** Derives a `ToStructural[A]` for a case class or a tuple. */
   implicit def toStructural[A]: ToStructural[A] = macro ToStructuralMacro.derived[A]
 }
 
+/** The implementation of the `ToStructural` macro. */
 object ToStructuralMacro {
+
+  /**
+   * Derives the `ToStructural[A]` instance, failing at compile time for a
+   * recursive type, a type it does not support, or a platform without
+   * reflection.
+   */
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[ToStructural[A]] = {
     import c.universe._
 
@@ -218,8 +228,10 @@ object ToStructuralMacro {
   }
 
   /**
-   * Transform a product schema (case class) to its structural equivalent. This
-   * is called at runtime from the generated code.
+   * Converts a record schema to the schema of its structural type. The code
+   * that `ToStructural` derivation generates calls it at run time. Values are
+   * encoded by reflection on Scala 3 and through a cast to `A` on Scala 2.
+   * Throws `IllegalArgumentException` when `schema` is not a record.
    */
   def transformProductSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {
@@ -270,8 +282,9 @@ object ToStructuralMacro {
     }
 
   /**
-   * Transform a tuple schema to its structural equivalent. This is called at
-   * runtime from the generated code.
+   * Converts a tuple schema to the schema of its structural type, as
+   * [[transformProductSchema]] does. Throws `IllegalArgumentException` when
+   * `schema` is not a record.
    */
   def transformTupleSchema[A, S](schema: Schema[A]): Schema[S] =
     schema.reflect match {

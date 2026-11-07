@@ -39,8 +39,8 @@ object TableNamingPolicy {
 Derive column metadata from a schema:
 
 ```scala mdoc:reset
-import zio.blocks.sql.{TableMetadata, SqlDialect}
 import zio.blocks.schema.Schema
+import zio.blocks.sql.{TableMetadata, SqlDialect}
 
 case class Product(id: Int, name: String, price: Option[BigDecimal])
 object Product { given schema: Schema[Product] = Schema.derived }

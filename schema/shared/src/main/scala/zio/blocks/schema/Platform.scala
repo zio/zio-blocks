@@ -17,32 +17,37 @@
 package zio.blocks.schema
 
 /**
- * Platform detection for zio-blocks-schema.
- *
- * This trait provides compile-time information about the current runtime
- * platform. Some features (like structural types) require reflection APIs that
- * are only available on the JVM.
- *
- * Platform-specific implementations are provided in:
- *   - jvm/src/main/scala/zio/blocks/schema/PlatformSpecific.scala
- *   - js/src/main/scala/zio/blocks/schema/PlatformSpecific.scala
+ * Facts about the platform that `zio-blocks-schema` runs on, the JVM or
+ * Scala.js, and the operations that differ between them. The [[Platform]]
+ * object is the instance for the current platform; the schema macros read it to
+ * reject structural types where reflection is missing.
  */
 trait Platform {
 
-  /** Whether this is the JVM platform */
+  /** Whether this is the JVM. */
   def isJVM: Boolean
 
-  /** Whether this is the JavaScript platform */
+  /** Whether this is Scala.js. */
   def isJS: Boolean
 
-  /** Human-readable name of the platform */
+  /** The name of the platform: `JVM` or `JS`. */
   def name: String
 
-  /** Translates Internationalized Domain Name to ASCII representation */
+  /**
+   * Converts the internationalized domain name `idn` to its ASCII form, as JSON
+   * Schema's `hostname` format check needs. On the JVM it uses
+   * `java.net.IDN.toASCII` with the STD3 ASCII rules and returns `None` when
+   * that rejects the name; on Scala.js it returns the name unchanged.
+   */
   def idnToAscii(idn: String): Option[String]
 
-  /** Whether reflection APIs are available on this platform */
+  /**
+   * Whether reflection is available, which structural types need: deriving
+   * their schemas and bindings, `ToStructural`, and `Into` to or from a
+   * structural type. It is true on the JVM only.
+   */
   final def supportsReflection: Boolean = isJVM
 }
 
+/** The [[Platform]] that this build runs on. */
 object Platform extends PlatformSpecific

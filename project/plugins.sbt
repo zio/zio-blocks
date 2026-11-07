@@ -1,12 +1,14 @@
-addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.7.2")
+addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.6")
 
-addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.7.2")
-addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.0")
+// TODO: switch to the next released zio-sbt-ci before merging; the snapshot has `ciDeployPreviewMode` (zio-sbt#835).
+resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"
+addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.6+9-2050a4ff-SNAPSHOT")
+addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.1")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh"                  % "0.4.8")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.5.0")
-addSbtPlugin("com.eed3si9n"       % "sbt-buildinfo"            % "0.13.1")
+addSbtPlugin("com.eed3si9n"       % "sbt-buildinfo"            % "0.13.2")
 addSbtPlugin("com.github.sbt"     % "sbt-ci-release"           % "1.12.1")
-addSbtPlugin("com.typesafe"       % "sbt-mima-plugin"          % "1.1.6")
+addSbtPlugin("com.typesafe"       % "sbt-mima-plugin"          % "1.2.1")
 addSbtPlugin("com.github.sbt"     % "sbt-header"               % "5.11.0")
 addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.4.0")
 addSbtPlugin("org.scala-js"       % "sbt-scalajs"              % "1.22.0")
@@ -16,7 +18,7 @@ addSbtPlugin("com.eed3si9n"       % "sbt-salad-days"           % "0.2.0")
 
 // `build.sbt` calls `SbtGit.useReadableConsoleGit` so sbt can start inside a git worktree (#1139).
 // sbt-git used to arrive transitively via sbt-ci-release, which dropped that dependency in 1.12.0.
-addSbtPlugin("com.github.sbt" % "sbt-git" % "2.1.0")
+addSbtPlugin("com.github.sbt" % "sbt-git" % "2.2.0")
 
 addDependencyTreePlugin
 

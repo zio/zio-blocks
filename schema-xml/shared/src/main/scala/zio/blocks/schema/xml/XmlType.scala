@@ -24,6 +24,12 @@ import zio.blocks.chunk.Chunk
  * Each case provides two type members:
  *   - `Type`: The corresponding [[Xml]] subtype (e.g., `Xml.Element`)
  *   - `Unwrap`: The underlying Scala type of the value
+ *
+ * An `XmlType` is also a predicate on [[Xml]] nodes, so it can be passed to
+ * `XmlSelection#filter`. Its `toString` is `<function1>`, not the case name, so
+ * error messages that print it (from `XmlSelection#as`, `XmlSelection#unwrap`,
+ * `XmlSelection#text` and `XmlPatch` paths that reach a non-element) show
+ * `<function1>`; this is a known bug.
  */
 sealed trait XmlType extends (Xml => Boolean) {
 
@@ -33,41 +39,63 @@ sealed trait XmlType extends (Xml => Boolean) {
   /** The underlying Scala type of the value contained in this XML type. */
   type Unwrap
 
-  /** Returns the type index for ordering. */
+  /**
+   * Returns the index of this case: 0 for `Element`, 1 for `Text`, 2 for
+   * `CData`, 3 for `Comment` and 4 for `ProcessingInstruction`.
+   */
   def typeIndex: Int
 
   /** Returns true if the given XML node is of this type. */
   override def apply(xml: Xml): Boolean = xml.xmlType == this
 }
 
+/** The five cases of [[XmlType]], one per [[Xml]] case. */
 object XmlType {
+
+  /** The type of [[Xml.Element]]; unwraps to `(name, attributes, children)`. */
   case object Element extends XmlType {
     override final type Type   = Xml.Element
     override final type Unwrap = (XmlName, Chunk[(XmlName, String)], Chunk[Xml])
+
+    /** Returns `0`. */
     val typeIndex = 0
   }
 
+  /** The type of [[Xml.Text]]; unwraps to the text. */
   case object Text extends XmlType {
     override final type Type   = Xml.Text
     override final type Unwrap = String
+
+    /** Returns `1`. */
     val typeIndex = 1
   }
 
+  /** The type of [[Xml.CData]]; unwraps to the CDATA content. */
   case object CData extends XmlType {
     override final type Type   = Xml.CData
     override final type Unwrap = String
+
+    /** Returns `2`. */
     val typeIndex = 2
   }
 
+  /** The type of [[Xml.Comment]]; unwraps to the comment text. */
   case object Comment extends XmlType {
     override final type Type   = Xml.Comment
     override final type Unwrap = String
+
+    /** Returns `3`. */
     val typeIndex = 3
   }
 
+  /**
+   * The type of [[Xml.ProcessingInstruction]]; unwraps to `(target, data)`.
+   */
   case object ProcessingInstruction extends XmlType {
     override final type Type   = Xml.ProcessingInstruction
     override final type Unwrap = (String, String)
+
+    /** Returns `4`. */
     val typeIndex = 4
   }
 }

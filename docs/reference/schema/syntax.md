@@ -17,6 +17,8 @@ This brings the extension methods into scope for any type with an implicit `Sche
 
 ## Quick Example
 
+To encode a `Person` as JSON, parse one back, pretty-print it, and compute and apply a patch between two values:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
@@ -37,7 +39,7 @@ val parsed = """{"name":"Bob","age":25}""".fromJson[Person]
 // Right(Person("Bob", 25))
 
 // Pretty-print
-val shown = alice.show               // Record { name = Alice, age = 30 }
+val shown = alice.show               // EJSON text over several lines: { name: "Alice", age: 30 }
 
 // Compute and apply patches
 val bob = Person("Bob", 30)
@@ -46,6 +48,8 @@ val result = alice.applyPatch(patch) // Person("Bob", 30)
 ```
 
 ## JSON Encoding Methods
+
+Three methods encode a value as JSON and differ only in the output: a `Json` AST, a `String`, or UTF-8 bytes.
 
 ### toJson
 
@@ -106,6 +110,8 @@ val bytes: Array[Byte] = msg.toJsonBytes
 
 ## JSON Decoding Methods
 
+To decode JSON into a typed value, `StringSchemaOps#fromJson` reads a `String` and `ByteArraySchemaOps#fromJson` reads an `Array[Byte]`; both return `Either[SchemaError, A]`.
+
 ### fromJson (on String)
 
 Parses a JSON string into a typed value:
@@ -150,9 +156,7 @@ val result: Either[SchemaError, Event] = jsonBytes.fromJson[Event]
 
 ## Pretty-Printing
 
-### show
-
-Converts a value to a human-readable string representation using `DynamicValue`:
+`SchemaValueOps#show` renders any value that has a `Schema` as readable text, for debugging and logging. It converts the value to a `DynamicValue` and prints that:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -164,7 +168,11 @@ object Address {
 
 val addr = Address("123 Main St", "Springfield", "12345")
 val shown = addr.show
-// Record { street = 123 Main St, city = Springfield, zip = 12345 }
+// {
+//   street: "123 Main St",
+//   city: "Springfield",
+//   zip: "12345"
+// }
 ```
 
 This is useful for debugging and logging, as it provides a consistent, schema-aware representation of any value.
@@ -256,6 +264,8 @@ val emptyResult = record.applyPatchStrict(Patch.empty[Record])
 
 ## Roundtrip Examples
 
+A roundtrip turns a value into another form and back again to recover the value; the subsections show one through JSON and one through a patch.
+
 ### JSON Roundtrip
 
 ```scala mdoc:compile-only
@@ -302,6 +312,8 @@ assert(result == customized)
 
 ## Edge Cases
 
+JSON encoding and decoding also handle inputs that are easy to get wrong: special characters, Unicode text, empty strings and absent optional fields.
+
 ### Special Characters
 
 The JSON encoding handles special characters, Unicode, and escape sequences correctly:
@@ -328,6 +340,8 @@ val decoded2 = json2.fromJson[Text]
 ```
 
 ### Empty and Null Values
+
+An empty string and a `None` field both survive a JSON round trip:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -374,18 +388,18 @@ extension (self: Array[Byte]) {
 ### Scala 2 (Implicit Classes)
 
 ```scala
-implicit final class SchemaValueOps[A](private val self: A) {
+implicit final class SchemaValueOps[A](self: A) {
   def toJson(implicit schema: Schema[A]): Json = ...
   def show(implicit schema: Schema[A]): String = ...
   def diff(that: A)(implicit schema: Schema[A]): Patch[A] = ...
   // ...
 }
 
-implicit final class StringSchemaOps(private val self: String) {
+implicit final class StringSchemaOps(self: String) {
   def fromJson[A](implicit schema: Schema[A]): Either[SchemaError, A] = ...
 }
 
-implicit final class ByteArraySchemaOps(private val self: Array[Byte]) {
+implicit final class ByteArraySchemaOps(self: Array[Byte]) {
   def fromJson[A](implicit schema: Schema[A]): Either[SchemaError, A] = ...
 }
 ```
@@ -406,4 +420,6 @@ The API is the same—just import `zio.blocks.schema._` and the appropriate synt
 | `applyPatch`       | `A`           | `A`                      | Apply patch (lenient)          |
 | `applyPatchStrict` | `A`           | `Either[SchemaError, A]` | Apply patch (strict)           |
 
-All methods require an implicit/given `Schema[A]` in scope.
+All methods except `applyPatch` and `applyPatchStrict` require an implicit/given `Schema[A]` in scope.
+
+See also the [Your First Schema](../../guides/your-first-schema.md) tutorial for a step-by-step walkthrough of `SchemaValueOps#toJsonString` and `StringSchemaOps#fromJson`.

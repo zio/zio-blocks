@@ -315,3 +315,5 @@ Three principles guide codegen IR:
 3. **Self-contained**: Zero external dependencies, works everywhere
 
 This makes it a safe, reliable foundation for any Scala code generator.
+
+For a complete generator built on this IR, see [Generate Scala Code from a Smithy Model](../../guides/generate-scala-code-from-smithy.md).

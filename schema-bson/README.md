@@ -6,7 +6,9 @@ BSON (Binary JSON) codec support for ZIO Blocks Schema.
 
 ## Overview
 
-This module provides automatic BSON serialization and deserialization for any type with a ZIO Blocks `Schema`. It uses MongoDB's native BSON library (`org.mongodb:bson`) to interface directly with MongoDB and other BSON-native tools. This allows you to use your ZIO Schema data models directly with MongoDB drivers without boilerplate code.
+This module provides automatic BSON serialization and deserialization for any type with a ZIO Blocks `Schema`. It uses MongoDB's native BSON library (`org.mongodb:bson`) to interface directly with MongoDB and other BSON-native tools. This allows you to use your ZIO Blocks Schema data models directly with MongoDB drivers without boilerplate code.
+
+For a task-oriented walkthrough that stores case classes in MongoDB, see [How to Store Case Classes in MongoDB](../docs/guides/store-case-classes-in-mongodb.md).
 
 ## Installation
 
@@ -16,9 +18,13 @@ Add to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "<version>"
 ```
 
-This module depends on `org.mongodb:bson:5.2.1`, which is included transitively.
+This line is for Scala 2.13 and Scala 3.3 to 3.8. On Scala 3.9 and newer, use `zio-blocks-next-schema-bson` instead and add `scalacOptions += "-experimental"`.
+
+This module depends on `org.mongodb:bson:5.13.0`, which is included transitively.
 
 ## Usage
+
+The examples below derive a BSON codec for a case class, encode and decode with it, and then customize the deriver.
 
 ### Basic Usage
 
@@ -55,6 +61,9 @@ val decoded: Person = codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.B
 You can customize the deriver directly:
 
 ```scala
+import zio.blocks.schema._
+import zio.blocks.schema.bson._
+
 val deriver = BsonCodecDeriver
   .withIgnoreExtraFields(false)          // Fail on unknown fields
   .withSumTypeHandling(                  // Customize ADT encoding
@@ -68,12 +77,12 @@ val codec = Person.schema.derive(deriver)
 
 #### Available Configuration Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `withIgnoreExtraFields` | If true, extra fields in BSON are ignored. If false, decoding fails. | `true` |
-| `withNativeObjectId` | If true, treats `org.bson.types.ObjectId` wrappers as native BSON ObjectIds. | `false` |
-| `withSumTypeHandling` | Strategy for encoding Sealed Traits / Enums. | `WrapperWithClassNameField` |
-| `withClassNameMapping` | Function to transform class names (e.g. for remapping legacy data). | `identity` |
+| Option                  | Description                                                                                                                                           | Default                     |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|
+| `withIgnoreExtraFields` | If true, extra fields in BSON are ignored. If false, decoding fails.                                                                                  | `true`                      |
+| `withNativeObjectId`    | Has no effect in 0.0.56: an `ObjectId` is stored as a native BSON ObjectId whenever `ObjectIdSupport.objectIdSchema` is in scope, whatever the value. | `false`                     |
+| `withSumTypeHandling`   | Strategy for encoding Sealed Traits / Enums.                                                                                                          | `WrapperWithClassNameField` |
+| `withClassNameMapping`  | Function to transform class names (e.g. for remapping legacy data).                                                                                   | `identity`                  |
 
 ### Sum Type Handling
 
@@ -88,7 +97,10 @@ Polymorphism (Sealed Traits) can be handled in three ways:
 2.  **DiscriminatorField**:
     Adds a type tag field to the data itself.
     ```scala
-    .withSumTypeHandling(SumTypeHandling.DiscriminatorField("type"))
+    import zio.blocks.schema.bson._
+    import zio.blocks.schema.bson.BsonSchemaCodec.SumTypeHandling
+
+    BsonCodecDeriver.withSumTypeHandling(SumTypeHandling.DiscriminatorField("type"))
     ```
     ```json
     { "type": "Circle", "radius": 10 }
@@ -105,10 +117,11 @@ Polymorphism (Sealed Traits) can be handled in three ways:
 MongoDB `ObjectId` is supported out of the box.
 
 1.  **Automatic Detection**:
-    If you use `ObjectIdSupport.objectIdSchema`, the codec automatically detects the type name `org.bson.types.ObjectId` and uses the native MongoDB ObjectId BSON type (12-byte binary) instead of a string.
+    If you use `ObjectIdSupport.objectIdSchema`, the codec automatically detects the type name `org.bson.types.ObjectId` and uses the native MongoDB ObjectId BSON type (12-byte binary) instead of a string:
 
     ```scala
     import org.bson.types.ObjectId
+    import zio.blocks.schema._
     import zio.blocks.schema.bson.ObjectIdSupport._
 
     case class User(_id: ObjectId, name: String)
@@ -119,7 +132,7 @@ MongoDB `ObjectId` is supported out of the box.
     ```
 
 2.  **Manual Config**:
-    You can force specific wrappers to be treated as ObjectIds using `withNativeObjectId(true)` in the config.
+    `withNativeObjectId(true)` has no effect in 0.0.56, which is a known bug: an `ObjectId` is stored as a native ObjectId with or without the flag. Import `ObjectIdSupport.objectIdSchema` instead.
 
 ## Modifiers
 
@@ -127,9 +140,11 @@ You can use standard ZIO Blocks Schema modifiers to control the BSON serializati
 
 ### Renaming Fields and Cases
 
-Use `@Modifier.rename` to change the field key or class name in the BSON document.
+Use `@Modifier.rename` to change a field key, or the case name of a sealed-trait case, in the BSON document:
 
 ```scala
+import zio.blocks.schema._
+
 case class User(
   @Modifier.rename("user_name") name: String,
   @Modifier.rename("user_age") age: Int
@@ -143,7 +158,11 @@ Use `@Modifier.transient` to exclude a field from the BSON document.
 - **Encoding:** The field is completely skipped.
 - **Decoding:** The field is set to its default value (required) or ignored if optional.
 
+In `Session`, the `cache` field is transient:
+
 ```scala
+import zio.blocks.schema._
+
 case class Session(
   id: String,
   @Modifier.transient cache: Map[String, Any] = Map.empty
@@ -154,27 +173,32 @@ case class Session(
 
 ### Aliases (Migration Support)
 
-Use `@Modifier.alias` (often combined with `@rename`) to support multiple names during decoding. This is useful for migrating data without breaking compatibility.
+Use `@Modifier.alias` (often combined with `@rename`) on a case of a sealed trait to support multiple names during decoding. This is useful for migrating data without breaking compatibility:
 
 ```scala
-// Encodes as "NewName"
-// Decodes "NewName", "OldName", or "LegacyName"
-@Modifier.rename("NewName")
-@Modifier.alias("OldName")
-@Modifier.alias("LegacyName")
-case class MyClass(...)
+import zio.blocks.schema._
+
+sealed trait Shape
+
+// Encodes as {"Round": {"r": 2}}
+// Decodes {"Round": ...} or {"Circle": ...}
+@Modifier.rename("Round")
+@Modifier.alias("Circle")
+case class Ring(r: Int) extends Shape
 ```
+
+On a plain record, a class-level `@Modifier.rename` or `@Modifier.alias` has no effect, because the codec writes the fields of a record and not its class name. Put a rename on a field with `@Modifier.rename`, as shown above, and use `@Modifier.alias` only on sealed-trait cases.
 
 ## Supported Types
 
-All ZIO Blocks Schema primitive types are supported and mapped to their BSON equivalents:
+All 30 ZIO Blocks Schema primitive types are supported; the common ones map as follows:
 
 -   `Boolean`, `Int` (Int32), `Long` (Int64), `Double`
--   `String`, `Char`
--   `BigInt`, `BigDecimal` (Decimal128)
--   `UUID` (Binary)
--   `Instant`, `LocalDate`, `LocalDateTime` (DateTime)
--   `Option` (Null or missing)
+-   `String`, `Char` (String)
+-   `BigInt` (String), `BigDecimal` (Decimal128)
+-   `UUID` (String)
+-   `Instant`, `LocalDate`, `LocalDateTime` (String, in ISO-8601 form)
+-   `Option`, stored as a sub-document: `Some("x")` is `{"Some": {"value": "x"}}` and `None` is `{"None": {}}`. A known bug in 0.0.56: a field that holds BSON `null`, a plain value or no value does not decode as an `Option`.
 -   `Collections` (BSON Arrays)
 -   `Maps` (BSON Documents)
 -   `zio.blocks.schema.json.Json` (semantic BSON documents, arrays, and scalar values)

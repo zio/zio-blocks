@@ -25,9 +25,16 @@ package zio.blocks.typeid
  *   - Type members (`type T`, `type T <: Bound`)
  */
 sealed trait Member {
+
+  /**
+   * The name of the member.
+   */
   def name: String
 }
 
+/**
+ * The cases of [[Member]]: `Val`, `Def` and `TypeMember`.
+ */
 object Member {
 
   /**
@@ -99,17 +106,16 @@ object Member {
 }
 
 /**
- * A method parameter.
+ * A parameter of a method in a structural type.
  *
  * @param name
- *   The name of the parameter
+ *   the name of the parameter
  * @param tpe
- *   The type of the parameter
+ *   the type of the parameter
  * @param isImplicit
- *   Whether this is an implicit parameter
- * @param defaultValue
- *   Whether this parameter has a default value (we don't store the value
- *   itself)
+ *   whether the parameter is implicit
+ * @param hasDefault
+ *   whether the parameter has a default value (the value itself is not stored)
  */
 final case class Param(
   name: String,

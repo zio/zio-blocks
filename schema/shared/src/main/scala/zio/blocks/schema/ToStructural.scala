@@ -24,19 +24,44 @@ package zio.blocks.schema
  *
  * Example:
  * {{{
+ * // scala-3-only
  * case class Person(name: String, age: Int)
  *
  * val nominalSchema: Schema[Person] = Schema.derived[Person]
  * val structuralSchema: Schema[{ def name: String; def age: Int }] = nominalSchema.structural
  * }}}
  *
+ * In Scala 2 the compiler does not see the refined `StructuralType`, so
+ * `nominalSchema.structural` has type `Schema[ts.StructuralType]` and cannot be
+ * assigned to a `Schema` of the structural type.
+ *
  * Note: This is JVM-only due to reflection requirements for structural types.
  */
 trait ToStructural[A] {
+
+  /**
+   * The structural type that mirrors `A`: a refinement with one method per
+   * field, such as `{ def name: String; def age: Int }`.
+   */
   type StructuralType
+
+  /**
+   * Returns a schema of [[StructuralType]] with the same fields as `schema`.
+   * Decoding builds an instance of `A`, which has the structural type's
+   * members. Encoding reads the fields by reflection on Scala 3; on Scala 2 it
+   * casts the value to `A`, so encoding any other value of the structural type
+   * throws `ClassCastException` (see `docs/dev/issues.md`).
+   */
   def apply(schema: Schema[A]): Schema[StructuralType]
 }
 
+/**
+ * Provides the derived `ToStructural` instances: for case classes and tuples on
+ * Scala 2, and also for sealed traits and enums on Scala 3. Derivation fails at
+ * compile time for a recursive type and on platforms without reflection.
+ */
 object ToStructural extends ToStructuralVersionSpecific {
+
+  /** A `ToStructural[A]` whose [[ToStructural#StructuralType]] is `S`. */
   type Aux[A, S] = ToStructural[A] { type StructuralType = S }
 }

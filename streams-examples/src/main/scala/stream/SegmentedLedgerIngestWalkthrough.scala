@@ -1,8 +1,8 @@
 package stream
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.scope.*
-import zio.blocks.streams.*
+import zio.blocks.scope._
+import zio.blocks.streams._
 import zio.blocks.streams.io.{Reader, Writer}
 
 import java.io.{IOException, OutputStream}
@@ -70,8 +70,8 @@ object SegmentedLedgerIngestWalkthrough extends App {
     // partition must not look like end-of-day.
     val exported = List.newBuilder[Long]
     Scope.global.scoped { scope =>
-      import scope.*
-      val reader: $[Reader[Long]] = ledger().start(using scope)
+      import scope._
+      val reader: $[Reader.SyncReader[Long]] = ledger().start(using scope)
       $(reader) { r =>
         val buf = new Array[Long](16)
         var n   = r.readLongs(buf, 0, 16)

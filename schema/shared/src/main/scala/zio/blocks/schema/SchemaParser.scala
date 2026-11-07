@@ -19,41 +19,77 @@ package zio.blocks.schema
 import zio.blocks.chunk.Chunk
 
 /**
- * Pure Scala parser for schema representation syntax.
- *
- * This parser converts a schema string (e.g., "record { name: string, age: int
- * }") into a SchemaRepr. Used by the path interpolator to parse schema searches
- * like `p"#Person"` or `p"#record { name: string }"`.
+ * Parses the `#pattern` syntax of schema searches, such as
+ * `record { name: string, age: int }`, into a [[SchemaRepr]]. `PathParser`
+ * calls it, so the `p"..."` interpolator checks patterns at compile time. The
+ * keywords `record`, `variant`, `list`, `set`, `vector`, `map` and `option` are
+ * case-sensitive; any other identifier is a [[SchemaRepr.Primitive]] when it
+ * names a primitive type (ignoring case) and a [[SchemaRepr.Nominal]]
+ * otherwise, so a misspelled type name parses as a nominal type.
  */
 private[schema] object SchemaParser {
 
+  /**
+   * Why a pattern did not parse.
+   */
   sealed trait ParseError {
+
+    /**
+     * A message that says what was expected and where.
+     */
     def message: String
+
+    /**
+     * The offset in the pattern where parsing failed, or -1 at the end of
+     * input.
+     */
     def position: Int
   }
 
+  /**
+   * The cases of [[ParseError]].
+   */
   object ParseError {
+
+    /**
+     * A character that does not fit at `position`.
+     */
     case class UnexpectedChar(char: Char, position: Int, expected: String) extends ParseError {
       def message: String = s"Unexpected character '$char' at position $position. Expected $expected"
     }
 
+    /**
+     * No identifier where one is needed.
+     */
     case class InvalidIdentifier(position: Int) extends ParseError {
       def message: String = s"Invalid identifier at position $position"
     }
 
+    /**
+     * The pattern ended where `expected` was needed.
+     */
     case class UnexpectedEnd(expected: String) extends ParseError {
       def position: Int   = -1
       def message: String = s"Unexpected end of input. Expected $expected"
     }
 
+    /**
+     * A `record {}` with no fields.
+     */
     case class EmptyRecord(position: Int) extends ParseError {
       def message: String = s"Empty record at position $position. Records must have at least one field"
     }
 
+    /**
+     * A `variant {}` with no cases.
+     */
     case class EmptyVariant(position: Int) extends ParseError {
       def message: String = s"Empty variant at position $position. Variants must have at least one case"
     }
 
+    /**
+     * Another syntax error; the parser does not produce it.
+     */
     case class InvalidSyntax(msg: String, position: Int) extends ParseError {
       def message: String = s"$msg at position $position"
     }
@@ -94,8 +130,7 @@ private[schema] object SchemaParser {
   )
 
   /**
-   * Parse a schema string into a SchemaRepr. Returns Left with error if parsing
-   * fails, Right with SchemaRepr on success.
+   * Parses `input`, which may have whitespace around it, into a [[SchemaRepr]].
    */
   def parse(input: String): Either[ParseError, SchemaRepr] = {
     val ctx = new ParseContext(input)

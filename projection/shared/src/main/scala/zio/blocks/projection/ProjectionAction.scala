@@ -19,32 +19,52 @@ package zio.blocks.projection
 import zio.blocks.chunk.Chunk
 
 /**
- * A sealed enumeration of actions that can be applied to a projection.
+ * What a handler asks the engine to do to a projection's store for one event.
+ * The engine turns each action into a call on the [[ProjectionStore]] chosen
+ * for the event, and the actions that need a row ID use the event's
+ * `ctx.entityId`.
  *
- * `ProjectionAction[+A]` is covariant in `A`, allowing actions on subtypes to
- * be used where supertype actions are expected.
- *
- * Each variant represents a distinct operation on projected data:
- *   - `Insert`: Add a new entity
- *   - `Upsert`: Add or update an entity
- *   - `Update`: Modify specific fields of an existing entity
- *   - `Delete`: Remove an entity (sentinel — no payload)
- *   - `Truncate`: Remove all entities (sentinel — no payload)
- *   - `Noop`: No operation (sentinel — no payload)
+ * `ProjectionAction[+A]` is covariant in `A`, so the three actions without a
+ * row are `ProjectionAction[Nothing]` and fit any projection.
  *
  * @tparam A
- *   The entity type this action operates on
+ *   the row type of the projection
  */
 enum ProjectionAction[+A] {
 
-  case Insert[A](value: A)                          extends ProjectionAction[A]
-  case Upsert[A](value: A)                          extends ProjectionAction[A]
+  /**
+   * Adds `value` as a new row, with `ProjectionStore#insert`. A row with the
+   * same ID makes the action fail, except in a rebuild, which retries it as an
+   * upsert.
+   */
+  case Insert[A](value: A) extends ProjectionAction[A]
+
+  /** Adds `value`, or replaces the row with the same ID. */
+  case Upsert[A](value: A) extends ProjectionAction[A]
+
+  /**
+   * Applies `modifications` to the row of `ctx.entityId`, creating the row
+   * first if it is missing (see `ProjectionStore#updateFields`).
+   */
   case Update[A](modifications: Chunk[FieldUpdate]) extends ProjectionAction[A]
-  case Delete                                       extends ProjectionAction[Nothing]
-  case Truncate                                     extends ProjectionAction[Nothing]
-  case Noop                                         extends ProjectionAction[Nothing]
+
+  /** Deletes the row of `ctx.entityId`, if there is one. */
+  case Delete extends ProjectionAction[Nothing]
+
+  /**
+   * Deletes every row of the store the event is routed to: the whole
+   * projection, or one shard of a cross-entity projection.
+   */
+  case Truncate extends ProjectionAction[Nothing]
+
+  /**
+   * Changes nothing. The engine still counts the event as applied and moves the
+   * watermark past it.
+   */
+  case Noop extends ProjectionAction[Nothing]
 }
 
+/** The actions without a row, as values typed `ProjectionAction[Nothing]`. */
 object ProjectionAction {
 
   /** The `Delete` sentinel action. */

@@ -20,6 +20,7 @@ import scala.annotation.tailrec
 import scala.quoted.*
 import zio.blocks.schema.SchemaExpr
 
+/** Macro implementations of the `MigrationBuilder` methods. */
 object MigrationBuilderMacros {
 
   private def refinementFieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
@@ -47,6 +48,10 @@ object MigrationBuilderMacros {
       refinementFieldTypes(dealiased)
   }
 
+  /**
+   * Expands `addField`: appends a `MigrationAction.AddField` at the target path
+   * and adds `Changeset.AddField` of the field path to the changeset type.
+   */
   def addFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     target: Expr[B => Any],
@@ -72,6 +77,11 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `dropField`: appends a `MigrationAction.DropField` at the source
+   * path and adds `Changeset.DropField` of the field path to the changeset
+   * type.
+   */
   def dropFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => Any],
@@ -97,6 +107,11 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `renameField`: appends a `MigrationAction.RenameField` to the last
+   * field name of `to` and adds `Changeset.RenameField` of both field paths to
+   * the changeset type.
+   */
   def renameFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     from: Expr[A => Any],
@@ -126,6 +141,11 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `transformField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a `MigrationAction.TransformField`
+   * and adds `Changeset.TransformField` to the changeset type.
+   */
   def transformFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     from: Expr[A => Any],
@@ -160,6 +180,11 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `mandateField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a `MigrationAction.MandateField`
+   * and adds `Changeset.MandateField` to the changeset type.
+   */
   def mandateFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => Option[?]],
@@ -194,6 +219,12 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `optionalizeField`: aborts compilation when the two selectors give
+   * different field paths, otherwise appends a
+   * `MigrationAction.OptionalizeField` and adds `Changeset.OptionalizeField` to
+   * the changeset type.
+   */
   def optionalizeFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => Any],
@@ -227,6 +258,11 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `changeFieldType`: appends a `MigrationAction.ChangeFieldType` at
+   * the source path and adds `Changeset.ChangeFieldType` of the field path to
+   * the changeset type.
+   */
   def changeFieldTypeImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => Any],
@@ -252,6 +288,13 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `migrateField` with an explicit migration: appends a
+   * `MigrationAction.MigrateField` at the selected path and adds
+   * `Changeset.MigrateField` of the field path, and a `Changeset.FieldName` for
+   * every field of `F1` and of `F2` at any depth under that path, to the
+   * changeset type.
+   */
   def migrateFieldExplicitImpl[A: Type, B: Type, F1: Type, F2: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => F1],
@@ -296,6 +339,10 @@ object MigrationBuilderMacros {
     }
   }
 
+  /**
+   * Expands `migrateField` with an implicit migration, as
+   * `migrateFieldExplicitImpl` does.
+   */
   def migrateFieldImplicitImpl[A: Type, B: Type, F1: Type, F2: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => F1],

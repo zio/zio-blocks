@@ -17,40 +17,59 @@
 package zio.blocks.scope
 
 /**
- * Scala 3 version-specific methods for Scope.
- *
- * Provides the `scoped` method using Scala 3's dependent function types, the
- * macro-enforced `$` for safe resource access, and the `leak` macro for
- * escaping the scoped type system with a warning.
+ * The members of [[Scope]] whose implementation differs between Scala 2 and
+ * Scala 3: `scoped`, the `$` macro and `leak`, plus, on Scala 3 only, the
+ * implicit `thisScope`.
  */
 private[scope] trait ScopeVersionSpecific { self: Scope =>
 
+  /**
+   * This scope as an implicit value (Scala 3 only). After `import scope.*`, a
+   * constructor or method that takes an implicit `Finalizer` or `Scope`
+   * receives this scope.
+   */
   implicit val thisScope: this.type = this
 
   /**
-   * Create a child scope. The block receives a child scope and returns a plain
-   * value of type `A`, which must have an [[Unscoped]] instance.
+   * Opens a child scope, runs `f` in it, closes the child, and returns the
+   * result of `f`.
    *
-   * @example
-   *   {{{
-   *   Scope.global.scoped { scope =>
-   *     import scope._
-   *     val db: $[Database] = allocate(Resource(new Database))
-   *     (scope $ db)(_.query("SELECT 1"))
-   *   }
-   *   }}}
+   * The child's finalizers run when `f` returns or throws, in reverse order of
+   * registration. If `f` throws, finalizer errors are added to its exception as
+   * suppressed exceptions; otherwise the first finalizer error is thrown with
+   * the others suppressed. The result type `A` must have an `Unscoped`
+   * instance, so a resource or a scoped value cannot be returned. On a closed
+   * scope, `f` runs in a child that is already closed.
+   *
+   * On Scala 3, when the last expression of `f` does not type-check, the
+   * compiler also reports an "Ambiguous given instances" error for `Unscoped`;
+   * fix the first error first (a known bug). On both versions, a block that
+   * always throws also fails with an ambiguous `Unscoped` error; write
+   * `scoped[Nothing] { ... }` (a known bug).
+   *
+   * {{{
+   * final class Connection extends AutoCloseable {
+   *   def query(sql: String): Int = sql.length
+   *   def close(): Unit           = println("connection closed")
+   * }
+   *
+   * val rows: Int = Scope.global.scoped { scope =>
+   *   import scope._
+   *   val conn = allocate(new Connection)
+   *   $(conn)(_.query("SELECT 1"))
+   * }
+   * // prints: connection closed
+   * // rows: 8
+   * }}}
    *
    * @tparam A
-   *   the return type of the scoped block; must have an [[Unscoped]] instance,
-   *   ensuring only pure data escapes the scope boundary
+   *   the return type of the scoped block; must have an `Unscoped` instance
    * @param f
-   *   a function that receives a [[Scope.Child]] and returns a value of type
-   *   `A`
+   *   a function that receives a `Scope.Child` and returns a value of type `A`
    * @return
    *   the value of type `A`, after all child-scope finalizers have run
    * @throws java.lang.IllegalStateException
-   *   if the current thread does not own this scope (thread-ownership
-   *   violation)
+   *   if the current thread does not own this scope (see `Scope#isOwner`)
    */
   final def scoped[A](f: (child: Scope.Child[self.type]) => A)(using ev: Unscoped[A]): A = {
     if (!self.isOwner) {
@@ -99,37 +118,45 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   // statement/branch coverage gate. The test suite is the sole quality gate.
 
   /**
-   * Macro-enforced access to a scoped value (N=1).
+   * Applies `f` to the value inside `sa` and returns the result (N=1).
    *
-   * Unwraps the scoped value, applies the function, and returns the result. If
-   * `B` has an [[Unscoped]] instance, the result is returned directly as `B`
-   * (auto-unwrapped). Otherwise, the result is re-wrapped as `$[B]`. The macro
-   * verifies at compile time that the lambda parameter is only used in
-   * method-receiver position (e.g., `x.method()`), preventing resource leaks
-   * through capture, storage, or passing as an argument.
+   * At compile time, the macro checks that `f` uses its parameter only as the
+   * receiver of a method call, as in `_.query("...")` or `c => c.query("a") +
+   * c.query("b")`. Returning the parameter, passing it as an argument, storing
+   * it in a `val` or `var`, or capturing it in a nested lambda is a compile
+   * error. The result is a plain `B` when `B` has an `Unscoped` instance, and
+   * `$[B]` otherwise, so a method that returns another resource keeps it in
+   * this scope. On Scala 3 this is a `transparent inline` method; on Scala 2 it
+   * is a whitebox macro whose declared result type `Any` is narrowed to `B` or
+   * `$[B]` at the call site.
    *
-   * @example
-   *   {{{
-   *   // Allowed:
-   *   (scope $ db)(_.query("SELECT 1"))
-   *   (scope $ db)(db => db.query("a") + db.query("b"))
+   * After `import scope._`, call it unqualified as `$(sa)(f)`; without the
+   * import, use the infix form `(scope $ sa)(f)`.
    *
-   *   // Rejected at compile time:
-   *   (scope $ db)(db => store(db))       // param as argument
-   *   (scope $ db)(db => () => db.query()) // captured in closure
-   *   }}}
+   * {{{
+   * final class Connection extends AutoCloseable {
+   *   def query(sql: String): Int = sql.length
+   *   def close(): Unit           = ()
+   * }
    *
+   * Scope.global.scoped { scope =>
+   *   import scope._
+   *   val conn = allocate(new Connection)
+   *   val rows: Int = $(conn)(c => c.query("SELECT 1") + c.query("SELECT 2"))
+   *   rows
+   * }
+   * }}}
+   *
+   * @tparam A
+   *   the underlying type of the scoped value
+   * @tparam B
+   *   the result type produced by the lambda
    * @param sa
    *   the scoped value to access
    * @param f
    *   a lambda whose parameter is only used as a method receiver
-   * @tparam A
-   *   the input value type
-   * @tparam B
-   *   the output value type
    * @return
-   *   the result as `B` if `B` has an `Unscoped` instance (auto-unwrapped),
-   *   otherwise as `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -152,19 +179,48 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   }
 
   /**
-   * Macro-enforced access to two scoped values simultaneously (N=2).
+   * Applies `f` to the values inside `sa1` and `sa2` and returns the result
+   * (N=2).
    *
-   * Both scoped values are unwrapped and the lambda is applied. The lambda may
-   * call methods on either parameter, and may feed the result of one as an
-   * argument to a method of the other (e.g., `d1.method(d2.result())`). Direct
-   * passing of either parameter as a bare argument is rejected at compile time.
+   * Each parameter of `f` may only be used as a method receiver, as in the
+   * one-value `$`, but the result of a call on one may be passed to a method of
+   * the other: `(d, c) => d.query(c.key())`. The result is `B` when `B` has an
+   * `Unscoped` instance, and `$[B]` otherwise. The infix form is not available
+   * for two or more values, so call it as `$(sa1, sa2)(f)` after
+   * `import scope._`.
    *
-   * @example
-   *   {{{
+   * {{{
+   * final class Database extends AutoCloseable {
+   *   def query(sql: String): Int = sql.length
+   *   def close(): Unit           = ()
+   * }
+   * final class Cache extends AutoCloseable {
+   *   def key(): String = "SELECT 1"
+   *   def close(): Unit = ()
+   * }
+   *
+   * Scope.global.scoped { scope =>
+   *   import scope._
+   *   val db    = allocate(new Database)
+   *   val cache = allocate(new Cache)
    *   $(db, cache)((d, c) => d.query(c.key()))
-   *   $(db, cache)((d, c) => d.query("x") + c.get("y"))
-   *   }}}
+   * }
+   * }}}
    *
+   * @tparam A1
+   *   the underlying type of the first scoped value
+   * @tparam A2
+   *   the underlying type of the second scoped value
+   * @tparam B
+   *   the result type produced by the lambda
+   * @param sa1
+   *   the first scoped value to access
+   * @param sa2
+   *   the second scoped value to access
+   * @param f
+   *   a lambda whose parameters are only used as method receivers
+   * @return
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -172,11 +228,13 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     ${ UseMacros.applyN2[A1, A2, B]('self, 'sa1, 'sa2, 'f) }
 
   /**
-   * Macro-enforced access to three scoped values simultaneously (N=3).
+   * Applies `f` to the values inside three scoped values and returns the result
+   * (N=3).
    *
-   * All three parameters are subject to the same receiver-only constraint as
-   * the N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full
-   * safety rules.
+   * Each parameter of `f` is subject to the same receiver-only rule as in the
+   * two-value `$`. The result is `B` when `B` has an `Unscoped` instance, and
+   * `$[B]` otherwise. For more than five values, nest calls:
+   * `$(sa1)(v1 => $(sa2)(v2 => ...))`.
    *
    * @tparam A1
    *   the underlying type of the first scoped value
@@ -195,8 +253,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @param f
    *   a lambda whose parameters are only used as method receivers
    * @return
-   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
-   *   `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -205,11 +262,13 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
   ) = ${ UseMacros.applyN3[A1, A2, A3, B]('self, 'sa1, 'sa2, 'sa3, 'f) }
 
   /**
-   * Macro-enforced access to four scoped values simultaneously (N=4).
+   * Applies `f` to the values inside four scoped values and returns the result
+   * (N=4).
    *
-   * All four parameters are subject to the same receiver-only constraint as the
-   * N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full safety
-   * rules.
+   * Each parameter of `f` is subject to the same receiver-only rule as in the
+   * two-value `$`. The result is `B` when `B` has an `Unscoped` instance, and
+   * `$[B]` otherwise. For more than five values, nest calls:
+   * `$(sa1)(v1 => $(sa2)(v2 => ...))`.
    *
    * @tparam A1
    *   the underlying type of the first scoped value
@@ -232,8 +291,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @param f
    *   a lambda whose parameters are only used as method receivers
    * @return
-   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
-   *   `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -246,11 +304,13 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     ${ UseMacros.applyN4[A1, A2, A3, A4, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'f) }
 
   /**
-   * Macro-enforced access to five scoped values simultaneously (N=5).
+   * Applies `f` to the values inside five scoped values and returns the result
+   * (N=5).
    *
-   * All five parameters are subject to the same receiver-only constraint as the
-   * N=1 and N=2 overloads. See [[$ (sa: $[A])(f: A => B)]] for the full safety
-   * rules.
+   * Each parameter of `f` is subject to the same receiver-only rule as in the
+   * two-value `$`. The result is `B` when `B` has an `Unscoped` instance, and
+   * `$[B]` otherwise. For more than five values, nest calls:
+   * `$(sa1)(v1 => $(sa2)(v2 => ...))`.
    *
    * @tparam A1
    *   the underlying type of the first scoped value
@@ -277,8 +337,7 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
    * @param f
    *   a lambda whose parameters are only used as method receivers
    * @return
-   *   the result as `B` if `B` has an [[Unscoped]] instance, otherwise as
-   *   `$[B]`
+   *   the result as `B` if `B` has an `Unscoped` instance, otherwise as `$[B]`
    * @throws java.lang.IllegalStateException
    *   if this scope is already closed
    */
@@ -292,18 +351,20 @@ private[scope] trait ScopeVersionSpecific { self: Scope =>
     ${ UseMacros.applyN5[A1, A2, A3, A4, A5, B]('self, 'sa1, 'sa2, 'sa3, 'sa4, 'sa5, 'f) }
 
   /**
-   * Escape hatch: unwrap a scoped value to its raw type, bypassing compile-time
-   * scope safety. Emits a compiler warning.
+   * Returns the raw value inside `sa`, outside the compile-time checks of `$`,
+   * and makes the compiler emit a warning at the call site.
    *
-   * Use this only for interop with code that cannot work with scoped types. If
-   * the type is pure data, prefer adding an `Unscoped` instance instead.
+   * Use it only for interop with code that cannot work with scoped values, such
+   * as a library that needs the raw object. The scope still runs the value's
+   * finalizers when it closes, so do not use the value after that. If the type
+   * is plain data, give it an `Unscoped` instance instead.
    *
    * @tparam A
    *   the underlying type of the scoped value
    * @param sa
    *   the scoped value to unwrap
    * @return
-   *   the raw value of type `A`, no longer tracked by the scope
+   *   the raw value of type `A`; the scope still closes it
    */
   inline def leak[A](inline sa: $[A]): A = ${ LeakMacros.leakImpl[A]('sa, 'self) }
 }

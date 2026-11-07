@@ -20,11 +20,25 @@ import scala.collection.mutable
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
+/**
+ * Helpers shared by the derivation macros of this module, such as
+ * `Schema.derived`.
+ */
 private[schema] object CommonMacroOps {
+
+  /**
+   * Aborts the macro expansion with the compile error `msg` at the expansion
+   * site.
+   */
   def fail(c: blackbox.Context)(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
+  /** Returns the type arguments of `tpe`, dealiased. */
   def typeArgs(c: blackbox.Context)(tpe: c.Type): List[c.Type] = tpe.typeArgs.map(_.dealias)
 
+  /**
+   * Returns the companion object of the class of `tpe`, also for a class
+   * declared inside a method, or `NoSymbol` when it has none.
+   */
   def companion(c: blackbox.Context)(tpe: c.Type): c.Symbol = {
     import c.universe._
 
@@ -42,6 +56,10 @@ private[schema] object CommonMacroOps {
     }
   }
 
+  /**
+   * Returns the direct subtypes (the cases) of the sealed type `tpe`, with
+   * their type parameters filled in from the type arguments of `tpe`.
+   */
   def directSubTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
     import c.universe._
 

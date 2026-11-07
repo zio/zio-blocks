@@ -24,21 +24,9 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.concurrent.locks.ReentrantLock
 
 /**
- * Writes log output to a file using FileChannel + ByteBuffer for maximum
- * throughput. JVM only.
- *
- * Uses:
- *   - FileChannel for direct syscalls
- *   - Shared ByteBuffer (heap) reused across writes under lock
- *   - ASCII fast path for most log lines
- *   - Shared CharsetEncoder for non-ASCII content
- *
- * Usage: val writer = FileLogWriter("logs/app.log") val emitter = new
- * FormattedLogEmitter(TextLogFormatter, writer)
- *
- * // Or with JSON: val jsonWriter = FileLogWriter(Paths.get("logs/app.json"),
- * bufferSize = 16384) val emitter = new FormattedLogEmitter(JsonLogFormatter,
- * jsonWriter)
+ * A [[LogWriter]] that appends each line, followed by `\n`, to a file in UTF-8,
+ * through a `FileChannel` and one buffer reused under a lock. Internal and JVM
+ * only.
  */
 private[telemetry] final class FileLogWriter private (
   private val channel: FileChannel,
@@ -143,9 +131,7 @@ private[telemetry] object FileLogWriter {
     val encoder: CharsetEncoder = StandardCharsets.UTF_8.newEncoder()
   }
 
-  /**
-   * Create a file writer with default settings (append mode, 8KB buffer).
-   */
+  /** Opens `path` for appending, with an 8192-byte buffer. */
   def apply(path: String): FileLogWriter = apply(Paths.get(path))
 
   def apply(

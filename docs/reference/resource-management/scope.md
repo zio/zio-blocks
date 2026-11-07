@@ -13,13 +13,13 @@ title: "Scope"
 Here's the interface definition:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   type $[+A]
 
-  def scoped[A](f: Scope => A): A
+  def scoped[A](f: Scope.Child[this.type] => A)(using Unscoped[A]): A  // Scala 2: implicit Unscoped[A]
   def allocate[A](resource: Resource[A]): $[A]
-  def allocate(value: => AutoCloseable): $[AutoCloseable]
-  def open(): $[OpenScope]
+  def allocate[A <: AutoCloseable](value: => A): $[A]
+  def open(): $[Scope.OpenScope]
   def defer(f: => Unit): DeferHandle
   def lower[A](value: parent.$[A]): $[A]
   def isClosed: Boolean
@@ -118,7 +118,14 @@ Scope.global.scoped { scope1 =>
 
 To safely use a parent scope's resource in a child scope, use `lower`:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
 Scope.global.scoped { outer =>
   import outer._
   val db = allocate(new Database)
@@ -184,7 +191,14 @@ Scope.global.scoped { scope =>
 
 Only types with an `Unscoped` instance can cross the scope boundary—typically pure data:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
 Scope.global.scoped { scope =>
   import scope._
   val db = allocate(new Database)
@@ -286,7 +300,7 @@ try {
 Allocates a `Resource[A]` in this scope, acquiring the underlying value immediately and registering its finalizer:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def allocate[A](resource: Resource[A]): $[A]
   def allocate[A <: AutoCloseable](value: => A): $[A]
 }
@@ -471,7 +485,7 @@ If the scope is already closed, `defer` is silently ignored (no-op). The finaliz
 Returns whether this scope's finalizers have already run:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def isClosed: Boolean
 }
 ```
@@ -543,14 +557,14 @@ val result2 = service.execute("SELECT 2")
 println(s"Query after shutdown: $result2")
 ```
 
-`Scope.global` returns `false` until JVM shutdown. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
+On the JVM, `Scope.global.isClosed` returns `false` until its shutdown hook runs. On Scala.js it never closes, so `isClosed` is always `false` and finalizers registered on `Scope.global` never run. Child scopes created with `scoped { }` are closed when the block exits, while those created with `open()` remain open until you call `close()`.
 
 ### `Scope#isOwner` — Check Thread Ownership
 
 Returns whether the calling thread is the owner of this scope:
 
 ```scala
-trait Scope {
+sealed abstract class Scope {
   def isOwner: Boolean
 }
 ```
@@ -560,7 +574,9 @@ Ownership is used to detect cross-thread scope misuse. Thread ownership rules:
 - Child scopes created via `scoped { }`: returns `true` only on the thread that entered the block
 - Child scopes created via `open()`: always returns `true` (unowned, usable cross-thread)
 
-Calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime:
+These rules describe the JVM. On Scala.js, `isOwner` returns `true` for every scope, because there is only one thread.
+
+On the JVM, calling `scoped { }` on a scope you don't own throws `IllegalStateException` at runtime; on Scala.js the check never fires. This JVM example shows `isOwner` on the owning thread and on another thread:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._
@@ -812,7 +828,7 @@ final class App(service: UserService) {
 // Wire describes the dependency graph: App -> UserService -> Database -> Config
 // Resource.from uses the Wire to automatically construct the entire graph
 val config = Config("jdbc:postgres://localhost/db")
-val appResource = Resource.from[App](
+def appResource = Resource.from[App](
   Wire(config)
 )
 
@@ -895,7 +911,7 @@ val appResources = dbResource.zip(cacheResource)
 // Allocate once inside scope
 Scope.global.scoped { scope =>
   import scope._
-  val (db, cache) = allocate(appResources)
+  val both = allocate(appResources)
   // Use both — cleanup happens in LIFO order (cache first, then db)
 }
 ```
@@ -930,15 +946,19 @@ To learn more about building and composing resources, see the [Resource referenc
 
 ## Runtime Errors
 
+For every error the Scope and Wire macros report, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
+
 Runtime errors occur when you violate scope rules at runtime—typically by accessing resources after the scope has already cleaned them up, or by mixing scopes across threads.
 
 ### `IllegalStateException` — accessing a closed scope
 
-This error occurs when you attempt to acquire resources (via `allocate`, `open`, or the `$` operator) on a scope that has already closed. Every `scoped { }` block cleans up its resources as soon as the block exits, so any attempt to use the scope after that point fails.
+This error occurs when you attempt to acquire resources (via `allocate`, `open`, or the `$` operator) on a scope that has already closed. Every `scoped { }` block cleans up its resources as soon as the block exits, so any attempt to use the scope after that point fails. `defer` does not throw on a closed scope: it returns a no-op `DeferHandle` and ignores the finalizer.
 
-The error message is typically:
+The error message starts with one of these lines, depending on the operation:
 ```
-Cannot acquire resource: scope has already been closed. ...
+Cannot allocate resource: scope is already closed.
+Cannot open child scope: scope is already closed.
+Cannot access scoped value: scope is already closed.
 ```
 
 This usually happens when you:
@@ -949,9 +969,9 @@ To avoid this, keep the scope's lifetime clear: allocate resources, use them, th
 
 ### `IllegalStateException` — cross-thread scope usage
 
-Scopes are thread-owned by default. When you create a child scope using `scoped { }`, it's owned by the thread that created it. If you try to access that scope (allocate resources, create child scopes) from a different thread, the scope will reject it.
+Scopes created by `scoped { }` are owned by the thread that entered the block. Only `scoped` checks the owner: calling `scoped` on a scope from a different thread fails. `allocate`, `open`, `defer` and `$` do not check the owner, so a closure that runs on another thread can still allocate into a scope that is open. Keep allocation on the owning thread.
 
-The error message is typically:
+The error message for a `scoped` call from another thread is typically:
 ```
 Cannot create child scope: current thread '...' does not own this scope (owner: '...')
 ```
@@ -963,6 +983,8 @@ This happens when you try to:
 To fix this, use thread-unowned scopes when you need to share across threads. Instead of `scope.scoped { }` (which creates a thread-owned child), use `Scope.global.open()` or the scope's `open()` method directly to get an `OpenScope` handle. These unowned scopes can be safely passed and used from any thread, though you're responsible for manual cleanup via the returned handle.
 
 ## Compile Errors
+
+For a task-oriented walkthrough of every error the Scope and Wire macros report, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
 
 The following compile errors occur when `Scope` type rules are violated. All examples below use this scoping pattern (see [Quickstart](#quickstart) for full context):
 
@@ -991,8 +1013,19 @@ To fix this, you have two options:
 
 Call a method on the resource to get pure data (strings, numbers, etc.) that are naturally `Unscoped`:
 
-```scala
-$(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(_.query("data"))  // ✓ Correct: Returns String, which is Unscoped
+}
 ```
 
 The `String` returned by `query()` is pure data with no cleanup logic, so it can safely escape the scope.
@@ -1037,17 +1070,40 @@ The macro detects several violations:
 
 **What works — calling methods on the parameter:**
 
-```scala
-$(db)(d => d.query("SELECT * FROM users"))      // ✓ Method call on receiver
-$(db)(_.query("data"))                           // ✓ Using underscore shorthand
-$(db)(d => d.execute(statement).rows)           // ✓ Chain method calls
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(d => d.query("SELECT * FROM users"))  // ✓ Method call on receiver
+  $(db)(_.query("data"))                      // ✓ Using underscore shorthand
+  $(db)(d => d.query("x").length)             // ✓ Chain method calls
+  ()
+}
 ```
 
 If you need to transform or extract data from a resource before using it elsewhere, call a method to extract what you need:
 
-```scala
-$(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
-// The returned String can now be passed to other functions
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final class Database extends AutoCloseable {
+  def query(sql: String): String = s"result: $sql"
+  def close(): Unit = println("db closed")
+}
+
+Scope.global.scoped { scope =>
+  import scope._
+  val db = allocate(new Database)
+  $(db)(d => d.query("SELECT COUNT(*)"))  // ✓ Returns String (pure data)
+  // The returned String can now be passed to other functions
+}
 ```
 
 **Why this restriction exists:** Scoped values are bound to a specific cleanup phase. Allowing them to escape (via arguments or closures) would let them be used after cleanup, causing crashes or data corruption. By restricting usage to method calls only, the macro ensures the resource never leaves its scope.
@@ -1062,7 +1118,7 @@ Scope integrates seamlessly with ZIO Blocks' other data types for building compl
 
 Key integration points:
 - Use `Resource[A].allocate` to acquire within a scope
-- Compose resources with `flatMap`, `andThen`, and other combinators before allocating
+- Compose resources with `map`, `flatMap`, `zip`, and other combinators before allocating
 - Use `Resource.shared` for multiple-use resources within a scope
 
 ### Finalizer
@@ -1104,7 +1160,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/DatabaseConnectionExample.scala))
 
 ```bash
-sbt "scope-examples/runMain runDatabaseExample"
+cd scope-examples && sbt "runMain runDatabaseExample"
 ```
 
 ### Managing a Connection Pool with Multiple Allocations
@@ -1120,7 +1176,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConnectionPoolExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.connectionPoolExample"
+cd scope-examples && sbt "runMain scope.examples.connectionPoolExample"
 ```
 
 ### Handling Temporary File Resources with Automatic Cleanup
@@ -1136,7 +1192,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TempFileHandlingExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.tempFileHandlingExample"
+cd scope-examples && sbt "runMain scope.examples.tempFileHandlingExample"
 ```
 
 ### Managing Database Transactions with Commit/Rollback Semantics
@@ -1152,7 +1208,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/TransactionBoundaryExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runTransactionBoundaryExample"
+cd scope-examples && sbt "runMain scope.examples.runTransactionBoundaryExample"
 ```
 
 ### Implementing an HTTP Client Pipeline with Request/Response Interceptors
@@ -1168,7 +1224,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/HttpClientPipelin
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/HttpClientPipelineExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.httpClientPipelineExample"
+cd scope-examples && sbt "runMain scope.examples.httpClientPipelineExample"
 ```
 
 ### Managing a Shared, Cached Logger Across Multiple Services
@@ -1184,7 +1240,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CachingSharedLoggerExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runCachingExample"
+cd scope-examples && sbt "runMain scope.examples.runCachingExample"
 ```
 
 ### Building a Layered Web Service with Dependency Injection
@@ -1200,7 +1256,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebService
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.layeredWebServiceExample"
+cd scope-examples && sbt "runMain scope.examples.layeredWebServiceExample"
 ```
 
 ### Reading Configuration from a File with Scope Management
@@ -1216,7 +1272,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConfigReaderExamp
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ConfigReaderExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runConfigReaderExample"
+cd scope-examples && sbt "runMain scope.examples.runConfigReaderExample"
 ```
 
 ### Implementing a Plugin Architecture with Automatic Resource Discovery
@@ -1232,7 +1288,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/PluginArchitectur
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/PluginArchitectureExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.pluginArchitectureExample"
+cd scope-examples && sbt "runMain scope.examples.pluginArchitectureExample"
 ```
 
 ### Demonstrating Thread Ownership Enforcement in Scope Hierarchies
@@ -1248,12 +1304,12 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ThreadOwnershipEx
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/ThreadOwnershipExample.scala))
 
 ```bash
-sbt "scope-examples/runMain runThreadOwnershipExample"
+cd scope-examples && sbt "runMain runThreadOwnershipExample"
 ```
 
 ### Detecting and Demonstrating Circular Dependency Scenarios
 
-This example shows how to detect and handle circular dependencies in resource management, illustrating how scopes help prevent subtle bugs in complex dependency graphs.
+This example shows a circular dependency between two services, which the Wire macro should reject at compile time. It does not do that in 0.0.56: a cycle makes the `Resource.from` macro crash instead of printing a cycle diagram (a known bug, tracked as #1767). The commented-out code is the shape to avoid, not a working compile-error demo.
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -1264,7 +1320,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CircularDependenc
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/CircularDependencyDemoExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.circularDependencyDemoExample"
+cd scope-examples && sbt "runMain scope.examples.circularDependencyDemoExample"
 ```
 
 ### Using Scope with Legacy Libraries that Don't Support Managed Resources
@@ -1280,7 +1336,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LegacyLibraryInte
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LegacyLibraryInteropExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.legacyLibraryInteropExample"
+cd scope-examples && sbt "runMain scope.examples.legacyLibraryInteropExample"
 ```
 
 ### Integration Testing with Automatic Setup and Teardown
@@ -1296,5 +1352,5 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/IntegrationTestHa
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/IntegrationTestHarnessExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.IntegrationTestHarnessExample"
+cd scope-examples && sbt "runMain scope.examples.IntegrationTestHarnessExample"
 ```

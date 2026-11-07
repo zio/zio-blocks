@@ -19,33 +19,91 @@ package zio.blocks.telemetry.otel
 import zio.blocks.telemetry._
 
 /**
- * B3 propagation format (Zipkin's trace context standard).
+ * Reads and writes trace context in Zipkin's B3 headers. Use it to exchange
+ * traces with services that speak B3 rather than W3C Trace Context:
+ * [[B3Propagator.single]] puts everything in one `b3` header,
+ * [[B3Propagator.multi]] uses one `X-B3-*` header per field.
  *
- * Provides both single-header (`b3`) and multi-header (`X-B3-*`) variants.
+ * Both write the 32-digit trace id, the span id and the sampling decision (`1`
+ * or `0`), and nothing else: no parent span id, no debug flag and no trace
+ * state. Both read a 16- or 32-digit trace id (a 16-digit one is padded with
+ * zeros on the left) and ids in upper or lower case, and mark the context
+ * `isRemote`. Like [[W3CTraceContextPropagator]], they accept a `+` at the
+ * start of an id, a known bug.
+ *
+ * To call a B3 service from a request that arrived with W3C headers:
+ *
+ * {{{
+ * val get = (headers: Map[String, String], name: String) => headers.get(name)
+ * val set = (headers: Map[String, String], name: String, value: String) => headers + (name -> value)
+ *
+ * val incoming = Map("traceparent" -> "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+ * val parent   = W3CTraceContextPropagator.extract(incoming, get)
+ *
+ * parent.map(ctx => B3Propagator.single.inject(ctx, Map.empty[String, String], set))
+ * // Some(Map(b3 -> 4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1))
+ * parent.map(ctx => B3Propagator.multi.inject(ctx, Map.empty[String, String], set))
+ * // Some(Map(X-B3-TraceId -> 4bf92f3577b34da6a3ce929d0e0e4736, X-B3-SpanId -> 00f067aa0ba902b7, X-B3-Sampled -> 1))
+ * }}}
  *
  * @see
- *   https://github.com/openzipkin/b3-propagation
+ *   [[https://zioblocks.com/reference/telemetry/otel/ OTLP Export]]
+ * @see
+ *   [[https://github.com/openzipkin/b3-propagation B3 Propagation]]
  */
 object B3Propagator {
 
   /**
-   * Returns a B3 single-header propagator.
+   * The single-header format,
+   * `b3: {traceId}-{spanId}-{sampling}-{parentSpanId}`, where the last two
+   * fields are optional. `inject` writes `{traceId}-{spanId}-1`, or `-0` when
+   * the context is not sampled. `extract` takes `1` or `d` (debug) as sampled
+   * and any other value, or no third field, as not sampled, and ignores the
+   * parent span id.
    *
-   * Single-header format: `{traceId}-{spanId}-{sampling}-{parentSpanId}`
+   * A header that holds only a sampling decision (`b3: 0`, `1` or `d`) gives
+   * `Some` of an invalid context with zero ids instead of `None`, a known bug:
+   * check `SpanContext#isValid` before you use the result as a parent.
+   *
+   * {{{
+   * val get = (headers: Map[String, String], name: String) => headers.get(name)
+   *
+   * val zipkin = Map("b3" -> "a3ce929d0e0e4736-00f067aa0ba902b7-1-05e3ac9a4f6e3b90")
+   * B3Propagator.single.extract(zipkin, get).map(ctx => (ctx.traceIdHex, ctx.isSampled))
+   * // Some((0000000000000000a3ce929d0e0e4736,true))
+   *
+   * B3Propagator.single.extract(Map("b3" -> "0"), get).map(_.isValid) // Some(false), a known bug
+   * }}}
    */
   val single: Propagator = B3SinglePropagator
 
   /**
-   * Returns a B3 multi-header propagator.
+   * The multi-header format. Injects the `X-B3-TraceId`, `X-B3-SpanId` and
+   * `X-B3-Sampled` headers. Extraction also reads `X-B3-Flags`: a value of `1`
+   * (debug) samples the span. Only `1` counts as sampled in `X-B3-Sampled`, so
+   * the legacy value `true` does not. `X-B3-ParentSpanId` is neither written
+   * nor read.
    *
-   * Uses `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`,
-   * and `X-B3-Flags` headers.
+   * The getter is asked for the names in this exact case, so over HTTP headers
+   * it should ignore case:
+   *
+   * {{{
+   * val incoming = Map(
+   *   "x-b3-traceid" -> "4bf92f3577b34da6a3ce929d0e0e4736",
+   *   "x-b3-spanid"  -> "00f067aa0ba902b7",
+   *   "x-b3-sampled" -> "0",
+   *   "x-b3-flags"   -> "1"
+   * )
+   * val ignoringCase = (headers: Map[String, String], name: String) => headers.get(name.toLowerCase)
+   * B3Propagator.multi.extract(incoming, ignoringCase).map(_.isSampled) // Some(true)
+   * B3Propagator.multi.extract[Map[String, String]](incoming, (headers, name) => headers.get(name)) // None
+   * }}}
    */
   val multi: Propagator = B3MultiPropagator
 
   /**
-   * Normalizes a trace ID hex string. Accepts 16 or 32 hex characters. 16-char
-   * IDs are left-padded with zeros to 32 characters.
+   * Lower-cases a 16- or 32-character trace id, pads a 16-character one with
+   * zeros on the left, and parses it.
    */
   private[otel] def normalizeTraceId(hex: String): Option[(Long, Long)] = {
     val lower  = hex.toLowerCase(java.util.Locale.ROOT)

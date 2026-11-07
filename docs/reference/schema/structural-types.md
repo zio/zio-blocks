@@ -343,20 +343,20 @@ Example applications demonstrating structural types are available in `schema-exa
 
 ```sh
 # Simple product type
-sbt "schema-examples/runMain structural.StructuralSimpleProductExample"
+cd schema-examples && sbt "runMain structural.StructuralSimpleProductExample"
 
 # Nested products
-sbt "schema-examples/runMain structural.StructuralNestedProductExample"
+cd schema-examples && sbt "runMain structural.StructuralNestedProductExample"
 
 # Sealed trait (Scala 3)
-sbt "schema-examples/runMain structural.StructuralSealedTraitExample"
+cd schema-examples && sbt "runMain structural.StructuralSealedTraitExample"
 
 # Enum (Scala 3)
-sbt "schema-examples/runMain structural.StructuralEnumExample"
+cd schema-examples && sbt "runMain structural.StructuralEnumExample"
 
 # Tuples
-sbt "schema-examples/runMain structural.StructuralTupleExample"
+cd schema-examples && sbt "runMain structural.StructuralTupleExample"
 
 # Integration with Into macro
-sbt "schema-examples/runMain structural.StructuralIntoExample"
+cd schema-examples && sbt "runMain structural.StructuralIntoExample"
 ```

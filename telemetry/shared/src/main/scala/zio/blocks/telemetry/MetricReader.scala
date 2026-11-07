@@ -17,31 +17,40 @@
 package zio.blocks.telemetry
 
 /**
- * Reads and collects metric data from all registered instruments.
+ * Reads the current data of a set of instruments. Every [[MeterProvider]] has
+ * one, its `reader`, which covers the instruments its meters registered;
+ * `metric.reader` is the reader of the installed provider. Nothing is pushed:
+ * an exporter calls `collectAllMetrics()` on its own schedule.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/metric-data/ MetricData]]
  */
 trait MetricReader extends AutoCloseable {
 
   /**
-   * Collects metric data from all registered instruments across all meters.
+   * Returns the current data of every instrument the reader covers, one
+   * [[MetricData]] per instrument. The data carry no instrument name, so to
+   * know where an entry comes from, call `collect()` on the instrument itself.
    */
   def collectAllMetrics(): Seq[MetricData]
 
   /**
-   * Shuts down the reader, releasing any resources.
+   * Releases the reader's resources; `MeterProvider#shutdown` calls it.
    */
   def shutdown(): Unit
 
-  /**
-   * Forces a flush of any buffered metric data.
-   */
+  /** Exports buffered data now, for a reader that buffers. */
   def forceFlush(): Unit
 
   override def close(): Unit = shutdown()
 }
 
 /**
- * Default MetricReader implementation backed by a MeterProvider's meter
- * registry.
+ * The reader that every [[MeterProvider]] creates. Each `collectAllMetrics()`
+ * call runs `collect()` on every registered instrument, including the callbacks
+ * of observable instruments, on the calling thread; an exception from a
+ * callback propagates and no data is returned. Instruments with no data yet
+ * appear with an empty point list. `shutdown` and `forceFlush` do nothing.
  */
 final class MetricReaderImpl private[telemetry] (
   private val meterRegistry: MeterRegistry

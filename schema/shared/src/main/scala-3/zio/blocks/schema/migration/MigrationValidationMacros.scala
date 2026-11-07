@@ -18,6 +18,10 @@ package zio.blocks.schema.migration
 
 import scala.quoted.*
 
+/**
+ * Macro implementation of `MigrationComplete.derive`, the compile-time
+ * changeset check.
+ */
 object MigrationValidationMacros {
 
   private def refinementFieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
@@ -45,6 +49,10 @@ object MigrationValidationMacros {
       refinementFieldTypes(dealiased)
   }
 
+  /**
+   * Checks the changeset of a migration from `A` to `B` for
+   * `MigrationComplete.derive`.
+   */
   def validateMigration[A: Type, B: Type, CS: Type](using
     Quotes
   ): Expr[MigrationComplete[A, B, CS]] = {

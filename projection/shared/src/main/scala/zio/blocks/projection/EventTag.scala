@@ -18,4 +18,50 @@ package zio.blocks.projection
 
 import scala.annotation.StaticAnnotation
 
+/**
+ * Gives an event case a numeric tag in place of its default name-based tag.
+ *
+ * Every event an [[EventStore]] appends is stored with a tag that identifies
+ * its kind, and reads can be filtered by tag. By default the tag is the case
+ * name, so renaming a case changes the tag that new events are stored with.
+ * Annotating the case with `@eventTag(n)` makes the tag the string form of `n`
+ * instead, for example `"1"`, which stays the same when the case is renamed.
+ *
+ * Put the annotation on each case class of a sealed event type, with a
+ * different number for each case. The numbers are not checked for uniqueness.
+ * It is also honoured on a single, non-sealed event type.
+ *
+ * {{{
+ * import zio.blocks.schema.Schema
+ *
+ * sealed trait UserEvent
+ * object UserEvent {
+ *   @eventTag(1)
+ *   case class Created(userId: String, name: String) extends UserEvent
+ *
+ *   @eventTag(2)
+ *   case class Deleted(userId: String) extends UserEvent
+ *
+ *   implicit val schema: Schema[UserEvent] = Schema.derived[UserEvent]
+ * }
+ *
+ * TagResolver.currentTags[UserEvent] // Set(1, 2)
+ * }}}
+ *
+ * The tag is the event's identity in the store's `tag` column and in
+ * [[EventEnvelope]]. It does not change how the event's payload is encoded: the
+ * JSON is still keyed by the case name, such as `{"Created":{...}}`. So after a
+ * numbered case is renamed, its stored events no longer decode and a read
+ * fails, and a `renameCase` migration does not help, because it works on tags;
+ * keep the old name readable with `@Modifier.alias` on the renamed case
+ * instead. Adding or removing `@eventTag` on a case that already has stored
+ * events changes its tag, so the events stored under the old tag are skipped by
+ * every read that does not ask for that tag by name.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/migration/ Migration]]
+ *
+ * @param value
+ *   the number to use as the tag
+ */
 final class eventTag(val value: Int) extends StaticAnnotation

@@ -43,10 +43,10 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
           frag.sql(
             SqlDialect.SQLite
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
           frag.queryParams == IndexedSeq(
             DbValue.DbInt(1),
             DbValue.DbString("Alice"),
@@ -59,7 +59,7 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING"""
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING"""
         )
       },
       test("low-level doNothingSuffix golden string") {
@@ -80,10 +80,10 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING""",
           frag.sql(
             SqlDialect.SQLite
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING"""
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING"""
         )
       },
       test("buildDoNothingSuffix alias works") {
@@ -97,10 +97,10 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?""",
           frag.sql(
             SqlDialect.SQLite
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?""",
           // base params + assignment forwarded
           frag.queryParams == IndexedSeq(
             DbValue.DbInt(1),
@@ -115,10 +115,10 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
           frag.sql(
             SqlDialect.SQLite
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
           frag.queryParams == IndexedSeq(
             DbValue.DbInt(1),
             DbValue.DbString("Alice"),
@@ -134,7 +134,7 @@ object UpsertSpec extends ZIOSpecDefault {
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?"""
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?"""
         )
       },
       test("insertDoUpdate with explicit conflict and default update set") {
@@ -143,7 +143,7 @@ object UpsertSpec extends ZIOSpecDefault {
           frag.sql(SqlDialect.PostgreSQL).contains("""ON CONFLICT ("id") DO UPDATE SET"""),
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?"""
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?"""
         )
       },
       test("low-level doUpdateSuffix single and multi") {
@@ -171,7 +171,7 @@ object UpsertSpec extends ZIOSpecDefault {
           frag.queryParams == values ++ assignments.map(_._2),
           frag.sql(
             SqlDialect.PostgreSQL
-          ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?"""
+          ) == """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "email" = ?"""
         )
       }
     ),
@@ -214,6 +214,59 @@ object UpsertSpec extends ZIOSpecDefault {
       test("assignment containing conflict column throws") {
         val result = scala.util.Try(Upsert.insertDoUpdate(userTable, User(1, "A", "a@b"), "id", Seq("id", "email")))
         assertTrue(result.isFailure, result.failed.get.getMessage.contains("conflict"))
+      },
+      test("duplicate assignment columns throw instead of collapsing silently") {
+        val result = scala.util.Try(
+          Upsert.insertDoUpdate(userTable, User(1, "A", "a@b"), "id", Seq("email", "email"))
+        )
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("uplicate")
+        )
+      },
+      test("duplicate columns in a hand-built Table fail fast at construction") {
+        val codec  = Table.derived[User].codec
+        val result = scala.util.Try(
+          Table(
+            "user",
+            codec,
+            IndexedSeq(
+              ColumnMeta("id", DbValue.DbInt(0), nullable = false),
+              ColumnMeta("id", DbValue.DbInt(0), nullable = false)
+            )
+          )
+        )
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("uplicate")
+        )
+      }
+    ),
+    suite("batch shape stability")(
+      test("insertDoUpdate renders identical SQL for different entities") {
+        val first  = Upsert.insertDoUpdate(userTable, User(1, "Alice", "alice@example.com"), "id")
+        val second = Upsert.insertDoUpdate(userTable, User(2, "Bob", "bob@test.com"), "id")
+        assertTrue(
+          first.sql(SqlDialect.SQLite) == second.sql(SqlDialect.SQLite),
+          first.sql(SqlDialect.PostgreSQL) ==
+            """INSERT INTO "user" ("id", "name", "email") VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          first.queryParams == IndexedSeq(
+            DbValue.DbInt(1),
+            DbValue.DbString("Alice"),
+            DbValue.DbString("alice@example.com"),
+            DbValue.DbString("Alice"),
+            DbValue.DbString("alice@example.com")
+          ),
+          second.queryParams == IndexedSeq(
+            DbValue.DbInt(2),
+            DbValue.DbString("Bob"),
+            DbValue.DbString("bob@test.com"),
+            DbValue.DbString("Bob"),
+            DbValue.DbString("bob@test.com")
+          )
+        )
       }
     )
   )

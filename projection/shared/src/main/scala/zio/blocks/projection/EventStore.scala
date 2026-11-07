@@ -28,34 +28,137 @@ import zio.blocks.sql.{DbCon, DbValue, Transactor}
 import zio.blocks.typeid.AnnotationArg
 
 /**
- * Append-only event log for a single event type `E`.
+ * An append-only log of the events of one event type `E`.
  *
- * Backed by SQLite `events` table (seq, tag, payload, ts, entityId) with a live
- * [[Hub]] for streaming.
+ * Each appended event gets the next sequence number, which also gives the order
+ * of the events. The store streams the events it holds from any position, and
+ * publishes every new event to a [[Hub]], so that a reader can catch up on the
+ * history and then follow the new events. A [[ProjectionEngine]] reads each
+ * source of a projection from one event store.
+ *
+ * [[SQLiteEventStore]] keeps the events in a SQLite file:
+ *
+ * {{{
+ * import zio._
+ * import zio.blocks.schema.Schema
+ *
+ * sealed trait OrderEvent
+ * object OrderEvent {
+ *   case class Placed(customer: String, total: Long) extends OrderEvent
+ *   case class Shipped()                             extends OrderEvent
+ *   implicit val schema: Schema[OrderEvent] = Schema.derived[OrderEvent]
+ * }
+ *
+ * // Needs sqlite-jdbc at run time, and the folder events/
+ * val program: ZIO[Scope, Throwable, Chunk[(Long, String)]] =
+ *   for {
+ *     cache  <- TransactorCache.make()
+ *     tx     <- cache.get("events/orders.db")
+ *     orders <- SQLiteEventStore.make[OrderEvent](tx)
+ *     _      <- orders.append("order-1", OrderEvent.Placed("ada", 80L))
+ *     _      <- orders.append("order-1", OrderEvent.Shipped())
+ *     all    <- orders.readAll().runCollect
+ *   } yield all.map(e => (e.seq, e.tag))
+ * // On a new file, ZIO.scoped(program) gives Chunk((1,Placed),(2,Shipped))
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/event-store/ EventStore]]
+ *
+ * @tparam E
+ *   the event type, usually a sealed trait with one case for each kind of event
  */
 trait EventStore[E] {
 
-  /** Append `event` for `entityId`, returning the allocated monotonic seq. */
+  /**
+   * Appends `event`, recorded under the entity `entityId`, and returns its
+   * sequence number.
+   *
+   * The event is stored first, and its [[EventEnvelope]] is then published to
+   * the hub returned by `subscribe`.
+   *
+   * @param entityId
+   *   the entity the event belongs to, which a handler sees as
+   *   `ProjectionContext#entityId`
+   * @param event
+   *   the event to store
+   * @return
+   *   the sequence number given to the event, greater than that of every event
+   *   stored before it
+   */
   def append(entityId: String, event: E): Task[Long]
 
   /**
-   * Stream events strictly after `afterSeq`, optionally filtered by tags.
+   * Streams the stored events whose sequence number is greater than `afterSeq`,
+   * in order.
    *
-   * Uses a cursor stream via `ZStream.acquireReleaseWith` + blocking
-   * `rs.next()` to avoid loading the full table.
+   * The engine uses it to catch up from the last event it processed.
+   *
+   * @param afterSeq
+   *   the sequence number to read after; `0` reads from the first event
+   * @param tags
+   *   the tags of the events to keep; the empty set, the default, asks for no
+   *   particular tag. With it, [[SQLiteEventStore]] keeps only the events whose
+   *   tag it knows
    */
   def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
-  /** Stream all events (shorthand for `readFrom(0)`). */
+  /**
+   * Streams every stored event, in order. The same as `readFrom(0L, tags)`.
+   *
+   * A schema rebuild uses it to replay all the events.
+   *
+   * @param tags
+   *   the tags of the events to keep; the empty set, the default, asks for no
+   *   particular tag. With it, [[SQLiteEventStore]] keeps only the events whose
+   *   tag it knows
+   */
   def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]]
 
   /**
-   * Live broadcast hub; publishers append via `publish`, subscribers via
-   * `subscribe`.
+   * The hub that every appended event is published to.
+   *
+   * Despite its name, this does not subscribe. Call `subscribe` on the returned
+   * hub, inside a `Scope`, to receive the events appended from then on. The
+   * events stored before that are read with `readFrom`.
    */
   def subscribe: Hub[EventEnvelope[E]]
 }
 
+/**
+ * An [[EventStore]] kept in a SQLite database.
+ *
+ * Each event is a row of the `events` table, with the columns `seq`, `tag`,
+ * `payload`, `ts` and `entityId`. `seq` is the primary key and gives the
+ * sequence number. `tag` is the `@eventTag` number of the event's case, or else
+ * the case's name; for an event type that is not a sealed trait, it is the
+ * type's own `@eventTag` number or name. `payload` is the event encoded as
+ * JSON, and `ts` is the time it was appended, in milliseconds. An index on
+ * `tag` and `seq` serves filtered reads.
+ *
+ * The store knows the tags of `E` through a [[TagInfo]]. A read that asks for
+ * no tags keeps only the events whose tag the `TagInfo` knows: an event of a
+ * removed case, or of a case renamed without a migration, is skipped without an
+ * error. When a case was renamed and the store was made with the migration, a
+ * read that asks for the new tag also returns the events saved under the old
+ * one, decodes them as the renamed case, and reports them under the new tag.
+ *
+ * A read opens its own connection and pulls the rows through a cursor as the
+ * stream is consumed. It gets the connection from the transactor's private
+ * connection factory by reflection, so the transactor must be an instance of
+ * `JdbcTransactor` itself, such as one from `TransactorCache#get`; with a
+ * subclass or another `Transactor`, the read fails with `NoSuchFieldException`.
+ * An event whose payload cannot be decoded fails the stream.
+ *
+ * The constructor is private: create a store with the factories of the
+ * companion object, which also create the table and its index if they are
+ * missing.
+ *
+ * @param subscribe
+ *   the hub that every appended event is published to
+ * @param tagInfo
+ *   the tags of `E`, and the old tags that were renamed to them
+ */
 final class SQLiteEventStore[E] private (
   transactor: Transactor,
   schema: Schema[E],
@@ -108,6 +211,11 @@ final class SQLiteEventStore[E] private (
       case _: Throwable => event.getClass.getSimpleName.stripSuffix("$")
     }
 
+  /**
+   * Stores the event as a new row, then publishes its envelope to `subscribe`.
+   * The tag is worked out from the event's case, and the timestamp is the
+   * current time, cut to milliseconds.
+   */
   def append(entityId: String, event: E): Task[Long] =
     for {
       tagAndPayload <- ZIO.attempt {
@@ -152,6 +260,12 @@ final class SQLiteEventStore[E] private (
       _       <- subscribe.publish(envelope).unit
     } yield seq
 
+  /**
+   * Streams the stored events after `afterSeq` whose tag is one of `tags`,
+   * widened with [[TagInfo#expandRequested]]: the old tags of renamed cases are
+   * added, and an empty set stands for all the tags the store knows. Old tags
+   * are reported as their current ones.
+   */
   def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
     // M4: cursor streaming via ZStream.managed + ZIO.attemptBlocking(rs.next()) - uses ZStream.acquireReleaseWith for ZIO2
     ZStream
@@ -218,6 +332,7 @@ final class SQLiteEventStore[E] private (
         )
       }
 
+  /** Same as `readFrom(0L, tags)`. */
   def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
     readFrom(0L, tags)
 
@@ -386,15 +501,50 @@ final class SQLiteEventStore[E] private (
     }
 }
 
+/** Creates [[SQLiteEventStore]]s. */
 object SQLiteEventStore {
 
+  /**
+   * Creates a store for `E` in the database of `transactor`.
+   *
+   * It creates the `events` table and its index if they are missing, and a
+   * bounded hub of 4,096 events to publish to. The tags of `E` are worked out
+   * from its schema with `TagResolver.resolve`. When the store is created, it
+   * compares the tags in the database with the ones it knows, and logs a
+   * warning for any it cannot explain: the events under such tags are skipped
+   * by every read that does not ask for those tags by name.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   */
   def make[E: Schema](transactor: Transactor): Task[SQLiteEventStore[E]] =
     makeWithResolver[E](transactor, TagResolver.resolve[E])
 
   // $COVERAGE-OFF$
+  /**
+   * Like `make`, for an event type whose cases were renamed.
+   *
+   * The `renameCase` steps of `migration` give the old names of the cases, so
+   * that the events saved under an old name are still read, as the renamed
+   * case.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   * @param migration
+   *   the renames of the cases of `E`; only its `renameCase` steps make aliases
+   */
   def make[E: Schema](transactor: Transactor, migration: Migration[E, E]): Task[SQLiteEventStore[E]] =
     makeWithResolver[E](transactor, TagResolver.resolve[E](migration))
 
+  /**
+   * Like `make`, with a [[TagInfo]] you built yourself, for example with
+   * `TagResolver.resolve`, instead of one worked out from the schema.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   * @param tagInfo
+   *   the tags of `E`, and the old tags that were renamed to them
+   */
   def makeWithResolver[E: Schema](transactor: Transactor, tagInfo: TagInfo): Task[SQLiteEventStore[E]] =
     for {
       hub   <- Hub.bounded[EventEnvelope[E]](4096)
@@ -402,9 +552,29 @@ object SQLiteEventStore {
     } yield store
   // $COVERAGE-ON$
 
+  /**
+   * Like `make`, but publishes to `hub` instead of creating one, for example to
+   * choose its capacity or what happens when it is full.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   * @param hub
+   *   the hub that every appended event is published to
+   */
   def makeWithHub[E: Schema](transactor: Transactor, hub: Hub[EventEnvelope[E]]): Task[SQLiteEventStore[E]] =
     makeWithHub(transactor, hub, TagResolver.resolve[E])
 
+  /**
+   * Like `makeWithHub`, for an event type whose cases were renamed. The
+   * `renameCase` steps of `migration` give the old names of the cases.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   * @param hub
+   *   the hub that every appended event is published to
+   * @param migration
+   *   the renames of the cases of `E`; only its `renameCase` steps make aliases
+   */
   def makeWithHub[E: Schema](
     transactor: Transactor,
     hub: Hub[EventEnvelope[E]],
@@ -412,6 +582,18 @@ object SQLiteEventStore {
   ): Task[SQLiteEventStore[E]] =
     makeWithHub(transactor, hub, TagResolver.resolve[E](migration))
 
+  /**
+   * Like `makeWithHub`, with a [[TagInfo]] you built yourself. All the other
+   * factories that return a `Task` end up here: it creates the table and its
+   * index, and checks the tags in the database.
+   *
+   * @param transactor
+   *   the connection to the database file, usually from a [[TransactorCache]]
+   * @param hub
+   *   the hub that every appended event is published to
+   * @param tagInfo
+   *   the tags of `E`, and the old tags that were renamed to them
+   */
   def makeWithHub[E: Schema](
     transactor: Transactor,
     hub: Hub[EventEnvelope[E]],
@@ -440,10 +622,31 @@ object SQLiteEventStore {
     } yield store
 
   // $COVERAGE-OFF$
-  /** Blocking variant for tests that need synchronous construction */
+  /**
+   * Creates a store without an effect, for tests that need one outside a ZIO
+   * program.
+   *
+   * It creates the table and its index on the calling thread, and publishes to
+   * `hub`. Unlike `make`, it does not check the tags in the database.
+   *
+   * @param transactor
+   *   the connection to the database file
+   * @param hub
+   *   the hub that every appended event is published to
+   */
   def makeBlocking[E: Schema](transactor: Transactor, hub: Hub[EventEnvelope[E]]): SQLiteEventStore[E] =
     makeBlockingWithResolver[E](transactor, hub, TagResolver.resolve[E])
 
+  /**
+   * Like `makeBlocking`, with a [[TagInfo]] you built yourself.
+   *
+   * @param transactor
+   *   the connection to the database file
+   * @param hub
+   *   the hub that every appended event is published to
+   * @param tagInfo
+   *   the tags of `E`, and the old tags that were renamed to them
+   */
   def makeBlockingWithResolver[E: Schema](
     transactor: Transactor,
     hub: Hub[EventEnvelope[E]],
@@ -464,6 +667,17 @@ object SQLiteEventStore {
     new SQLiteEventStore[E](transactor, summon[Schema[E]], hub, tagInfo)
   }
 
+  /**
+   * Like `makeBlocking`, for an event type whose cases were renamed. The
+   * `renameCase` steps of `migration` give the old names of the cases.
+   *
+   * @param transactor
+   *   the connection to the database file
+   * @param hub
+   *   the hub that every appended event is published to
+   * @param migration
+   *   the renames of the cases of `E`; only its `renameCase` steps make aliases
+   */
   def makeBlocking[E: Schema](
     transactor: Transactor,
     hub: Hub[EventEnvelope[E]],

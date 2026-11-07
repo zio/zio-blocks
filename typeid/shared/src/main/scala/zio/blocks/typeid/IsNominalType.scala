@@ -17,27 +17,70 @@
 package zio.blocks.typeid
 
 /**
- * A compile-time witness that `A` is a nominal type.
+ * Compile-time evidence that `A` is a nominal type: a concrete, named type.
+ * Classes, traits and objects are nominal, and so are aliases of them, such
+ * types applied to type arguments (`List[Int]`, and also `List[B]` for a type
+ * parameter `B`), and on Scala 3 opaque types and enums. Type parameters,
+ * abstract type members, unions, intersections, structural types and literal
+ * types such as `1` are not. For those, the implicit is not found, and
+ * compilation fails with a message that starts with "Cannot derive
+ * IsNominalType for non-nominal type". On Scala 3, an intersection that the
+ * compiler reduces to one type, such as `Point & Serializable` for a case class
+ * `Point`, is accepted as that type.
  *
- * A nominal type is any fully-known, concrete named type: a class, trait,
- * object, enum, or applied type constructor (e.g. `List[Int]`). Abstract type
- * parameters, union types (`A | B`), intersection types (`A & B`), structural
- * refinements, and type lambdas are not nominal and will cause derivation to
- * fail with a compile error.
+ * Require it in a method's signature to stop generic code from calling the
+ * method with an unresolved type parameter: the call site must name a concrete
+ * type. [[typeId]] then gives the id of that type; for an alias, the id of the
+ * type the alias stands for.
  *
- * `IsNominalType[A]` is automatically derived by a macro when `A` is nominal.
- * The key effect of requiring `IsNominalType[A]` in a method signature is that
- * it prevents the method from being called with an unresolved type parameter,
- * ensuring the type is concrete at the call site.
+ * The singleton type `x.type` of a value is nominal when the value's type is.
+ * Its id is the id of that type without type arguments: for
+ * `val xs: List[Int]`, `IsNominalType[xs.type].typeId` equals `TypeId.list`,
+ * not `TypeId.of[List[Int]]`. On Scala 3, when the value is declared with an
+ * alias, the id is the alias's (`scala.Predef.String` for `val s: String`). Two
+ * cases differ between Scala 2 and Scala 3: for a value `x` of an intersection
+ * type, `x.type` is accepted on Scala 2 and rejected on Scala 3; for
+ * `final val lit = 1`, `lit.type` is accepted on Scala 3 (its id is `Int`) and
+ * rejected on Scala 2.
+ *
+ * {{{
+ * final case class Point(x: Int, y: Int)
+ *
+ * def describe[A](implicit ev: IsNominalType[A]): String = ev.typeId.name
+ *
+ * describe[Point]     // "Point"
+ * describe[List[Int]] // "List"
+ * // describe[{ def x: Int }] does not compile
+ * }}}
  *
  * @tparam A
- *   The type being witnessed as nominal.
+ *   the type witnessed as nominal
+ * @see
+ *   [[https://zioblocks.com/reference/typeid/ TypeId]]
  */
 trait IsNominalType[A] {
+
+  /**
+   * The id of `A`, or of the type `A` stands for when `A` is an alias. For a
+   * singleton type `x.type`, see [[IsNominalType]].
+   */
   def typeId: TypeId[A]
+
+  /**
+   * [[typeId]] as a [[TypeId.Erased]], to use as a key among ids of different
+   * types.
+   */
   def typeIdErased: TypeId.Erased
 }
 
+/**
+ * Summons and derives [[IsNominalType]] instances. The macro that derives them
+ * runs wherever an implicit `IsNominalType[A]` is required.
+ */
 object IsNominalType extends IsNominalTypeVersionSpecific {
+
+  /**
+   * Returns the implicit `IsNominalType[A]`, as `IsNominalType[Point]`.
+   */
   def apply[A](implicit ev: IsNominalType[A]): IsNominalType[A] = ev
 }

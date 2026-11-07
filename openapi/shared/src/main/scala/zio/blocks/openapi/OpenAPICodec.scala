@@ -47,6 +47,41 @@ import zio.blocks.docs.{Link => MdLink}
 import zio.blocks.schema.Schema
 import zio.blocks.schema.json._
 
+/**
+ * Reads and writes OpenAPI documents as JSON. [[openAPICodec]] is the codec for
+ * a whole [[OpenAPI]] document; `referenceOrCodec` builds the codec of a
+ * `ReferenceOr`, and the codecs of the other parts are internal.
+ *
+ * Use the `Json` methods: `encodeValue(api)` returns a `Json` whose `print` is
+ * the document text, and `decode(json)` reads a parsed document. The text and
+ * byte methods that every `JsonCodec` has (`encodeToString`, `encode`, `decode`
+ * on a `String`) do not work: the encoders throw `NotImplementedError` and the
+ * decoders return a `Left` (a known bug).
+ *
+ * The decoder keeps the keys that start with `x-` as extensions and ignores
+ * other unknown keys; the encoder writes every extension entry as is and leaves
+ * out empty collections, `None` fields and `false` flags. That includes an
+ * empty `scopes` map of an OAuth flow and an empty `content` map of a request
+ * body, which OpenAPI requires (a known bug). Descriptions are written as
+ * Markdown, so each ends with a blank line (`"Pets.\n\n"`), and a description
+ * written with `md"..."` is not `==` to itself after a round trip (known bugs).
+ * The derived `Schema`s of the OpenAPI types give different JSON, not an
+ * OpenAPI document; use this codec for documents.
+ *
+ * {{{
+ * import zio.blocks.openapi.OpenAPICodec.openAPICodec
+ * import zio.blocks.schema.json.Json
+ *
+ * val api  = OpenAPI(openapi = "3.1.0", info = Info(title = "Petstore", version = "1.0.0"))
+ * val text = openAPICodec.encodeValue(api).print
+ * // {"openapi":"3.1.0","info":{"title":"Petstore","version":"1.0.0"}}
+ *
+ * Json.parse(text).flatMap(openAPICodec.decode(_)) == Right(api) // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/openapi/#serialization Serialization]]
+ */
 object OpenAPICodec {
 
   // ---------------------------------------------------------------------------
@@ -150,8 +185,10 @@ object OpenAPICodec {
    * Normalize a Doc by converting all top-level inline types to their Inline.*
    * equivalents.
    *
-   * This is necessary because Parser.parse() creates top-level Text, Code, etc.
-   * instances, but DocsSchemas expects Inline.Text, Inline.Code, etc.
+   * Parser.parse() creates top-level Text, Code, etc. instances; the decoder
+   * converts them so that a decoded Doc holds only Inline.* inlines. A Doc
+   * built with `md"..."` keeps the top-level classes, so it is not `==` to its
+   * decoded copy (a known bug).
    */
   private[this] def normalizeDoc(doc: Doc): Doc = Doc(doc.blocks.map(normalizeBlock), doc.metadata)
 
@@ -467,6 +504,16 @@ object OpenAPICodec {
       "description" -> optField(ref.description)
     )
   }
+
+  /**
+   * Builds the codec of `ReferenceOr[A]` from the codec of `A`. A JSON object
+   * with a `\$ref` key decodes as `ReferenceOr.Ref`, keeping only `\$ref`,
+   * `summary` and `description`; any other JSON decodes as `ReferenceOr.Value`.
+   * JSON Schema allows `\$ref` next to other keywords, so a schema held in a
+   * `ReferenceOr` (a component schema, or the schema of a parameter or media
+   * type) loses those keywords (a known bug). Schemas nested inside
+   * `SchemaObject.jsonSchema` stay raw JSON and keep them.
+   */
   implicit def referenceOrCodec[A](implicit codec: JsonCodec[A]): JsonCodec[ReferenceOr[A]] =
     new JsonASTCodec[ReferenceOr[A]] {
       override def decodeValue(json: Json): ReferenceOr[A] = json match {
@@ -1075,6 +1122,13 @@ object OpenAPICodec {
       x.extensions
     )
   }
+
+  /**
+   * The JSON codec of an [[OpenAPI]] document. Decoding fails with a `Left`
+   * when `openapi` or `info` is missing; it does not check the `openapi`
+   * version, so an OpenAPI 3.0 document decodes too. Use the `Json` methods
+   * only, as the object description explains.
+   */
   implicit lazy val openAPICodec: JsonCodec[OpenAPI] = new JsonASTCodec[OpenAPI] {
     override def decodeValue(json: Json): OpenAPI = json match {
       case jObj: Json.Object =>

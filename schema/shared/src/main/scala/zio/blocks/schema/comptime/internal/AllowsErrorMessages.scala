@@ -33,7 +33,14 @@ private[comptime] object AllowsErrorMessages {
   // Terminal Colors
   // ───────────────────────────────────────────────────────────────────────────
 
+  /** ANSI colors for the messages. */
   object Colors {
+
+    /**
+     * Whether to color messages: false when the `NO_COLOR` environment variable
+     * is set and not empty, or when the system property `sbt.log.noformat` is
+     * `true`.
+     */
     def shouldUseColor: Boolean = {
       val noColor     = sys.env.get("NO_COLOR").exists(_.nonEmpty)
       val sbtNoFormat = sys.props.get("sbt.log.noformat").contains("true")

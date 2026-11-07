@@ -22,7 +22,8 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 /**
- * JVM-specific implementation of TypeId platform methods.
+ * The platform implementation of [[TypeId#clazz]] and [[TypeId#construct]]:
+ * reflection on the JVM, nothing on Scala.js.
  */
 private[typeid] object TypeIdPlatformMethods {
 
@@ -45,6 +46,9 @@ private[typeid] object TypeIdPlatformMethods {
     "scala.BigDecimal"               -> "scala.math.BigDecimal"
   )
 
+  /**
+   * Returns the runtime class of `id` on the JVM; `None` on Scala.js.
+   */
   def getClass(id: TypeId[_]): Option[Class[_]] =
     if (id.aliasedTo.isDefined || id.representation.isDefined) None
     else {
@@ -55,6 +59,10 @@ private[typeid] object TypeIdPlatformMethods {
       }
     }
 
+  /**
+   * Creates a value of the type `id` describes from `args` on the JVM; `Left`
+   * on Scala.js.
+   */
   def construct(id: TypeId[_], args: Chunk[AnyRef]): Either[String, Any] =
     knownTypeConstructors.get(id.fullName) match {
       case Some(ctor) => ctor(args)

@@ -21,13 +21,36 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
+/** The [[As.derived]] macro. */
 trait AsVersionSpecific {
 
-  /** Derives a bidirectional conversion As[A, B]. */
+  /**
+   * Derives an `As[A, B]` from `Into.derived[A, B]` and `Into.derived[B, A]`,
+   * so both directions follow the rules of [[Into.derived]].
+   *
+   * For two case classes it also rejects, at compile time, a field with a
+   * default value that the other type lacks, and a field present in both whose
+   * types do not convert in both directions. A field present on one side only
+   * must therefore be an `Option`, which becomes `None` on the way back.
+   *
+   * {{{
+   * case class Listing(title: String, subtitle: Option[String])
+   * case class Entry(title: String)
+   *
+   * val listing = As.derived[Listing, Entry]
+   * listing.into(Listing("Zionomicon", Some("Functional Effects"))).flatMap(listing.from)
+   * // Right(Listing("Zionomicon", None))
+   * }}}
+   *
+   * @see
+   *   [[https://zioblocks.com/reference/schema/schema-evolution/as/ As]]
+   */
   def derived[A, B]: As[A, B] = macro AsVersionSpecificImpl.derived[A, B]
 }
 
 private object AsVersionSpecificImpl {
+
+  /** Expands [[AsVersionSpecific#derived]]. */
   def derived[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Expr[As[A, B]] = {
     import c.universe._
 

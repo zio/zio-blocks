@@ -24,110 +24,128 @@ import zio.blocks.schema.Schema
 import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel}
 
 // Separate fixture objects ensure distinct dump fileBase per query (owner-derived).
-private object Legacy2JoinFixture {
+private object Ir2JoinFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  val repoTable                    = Table.derived[Repo]
-  val starTable                    = Table.derived[Star]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  val repoTable               = Table.derived[Repo]
+  val starTable               = Table.derived[Star]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-      .where(userTable, "name", DbValue.DbString("alice"))
-      .where(repoTable, "name", DbValue.DbString("my-repo"))
-  Dump.dump(query)
+      .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+      .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
+      .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
+      .filter(Frag(IndexedSeq("t1.\"name\" = ", ""), IndexedSeq(DbValue.DbString("my-repo"))))
+  Dump.dumpQuery(query)
 }
-private object LegacyFullFixture {
+private object IrFullFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  val repoTable                    = Table.derived[Repo]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  val repoTable               = Table.derived[Repo]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .where(userTable, "name", DbValue.DbString("bob"))
-      .groupBy(userTable, "id")
-      .orderBy(userTable, "id", SqlStatement.OrderDirection.Asc)
-      .orderBy(repoTable, "name", SqlStatement.OrderDirection.Desc)
+      .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+      .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("bob"))))
+      .groupBy("id")
+      .orderBy("id", QSortOrder.Asc)
+      .orderBy("name", QSortOrder.Desc)
       .limit(10)
       .offset(5)
-  Dump.dump(query)
+  Dump.dumpQuery(query)
 }
-private object FourArgFixture {
+private object IrWhereFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery.from(userTable).where(userTable, "name", "=", DbValue.DbString("alice"))
-  Dump.dump(query)
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry.from(userTable).filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
+  Dump.dumpQuery(query)
 }
-private object InQueryFixture {
+private object IrIn3Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3)))
-  Dump.dump(query)
+      .filter(
+        Frag(
+          IndexedSeq("t0.\"id\" IN (", ", ", ", ", ")"),
+          IndexedSeq(DbValue.DbInt(1), DbValue.DbInt(2), DbValue.DbInt(3))
+        )
+      )
+  Dump.dumpQuery(query)
 }
-private object InSize1Fixture {
+private object IrIn1Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery.from(userTable).where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1)))
-  Dump.dump(query)
-}
-private object InSize2Fixture {
-  case class User(id: Int, name: String)
-  object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2)))
-  Dump.dump(query)
+      .filter(
+        Frag(IndexedSeq("t0.\"id\" IN (", ")"), IndexedSeq(DbValue.DbInt(1)))
+      )
+  Dump.dumpQuery(query)
 }
-private object InSize5Fixture {
+private object IrIn2Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3, 4, 5)))
-  Dump.dump(query)
+      .filter(
+        Frag(IndexedSeq("t0.\"id\" IN (", ", ", ")"), IndexedSeq(DbValue.DbInt(1), DbValue.DbInt(2)))
+      )
+  Dump.dumpQuery(query)
 }
-private object InEmptyFixture {
+private object IrIn5Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq.empty[Int]))
-  Dump.dump(query)
+      .filter(
+        Frag(
+          IndexedSeq("t0.\"id\" IN (", ", ", ", ", ", ", ", ", ")"),
+          IndexedSeq(DbValue.DbInt(1), DbValue.DbInt(2), DbValue.DbInt(3), DbValue.DbInt(4), DbValue.DbInt(5))
+        )
+      )
+  Dump.dumpQuery(query)
 }
-private object InDynamicFixture {
+private object IrInEmptyFixture {
+  case class User(id: Int, name: String)
+  object User { implicit val schema: Schema[User] = Schema.derived }
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry.from(userTable).filter(Frag.literal("t0.\"id\" IN (NULL)"))
+  Dump.dumpQuery(query)
+}
+private object IrDynamicFixture {
   case class DynUser(id: Int, name: String)
   object DynUser { implicit val schema: Schema[DynUser] = Schema.derived }
-  val dynTable                        = Table.derived[DynUser]
-  def dynIds: IndexedSeq[Int]         = scala.util.Random.shuffle(Seq(1, 2, 3)).toIndexedSeq
-  inline def query: SqlQuery[DynUser] =
-    SqlQuery.from(dynTable).where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", dynIds))
-  Dump.dump(query)
+  val dynTable                   = Table.derived[DynUser]
+  def dynIds: IndexedSeq[Int]    = scala.util.Random.shuffle(Seq(1, 2, 3)).toIndexedSeq
+  inline def query: Qry[DynUser] =
+    Qry
+      .from(dynTable)
+      .filter(
+        Frag(IndexedSeq("t0.\"id\" IN (", ")"), IndexedSeq(DbValue.DbArray("integer", dynIds)))
+      )
+  Dump.dumpQuery(query)
 }
-private object IrFullFixture {
+private object IrJoinFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
@@ -205,8 +223,8 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
     }
 
   def spec = suite("ExplainDumpGoldenSpec")(
-    test("legacy 2-join with filters dump equals explain normalized (macro file)") {
-      val q           = Legacy2JoinFixture.query
+    test("IR 2-join with filters dump equals explain normalized (macro file)") {
+      val q           = Ir2JoinFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
@@ -227,8 +245,8 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("legacy with groupBy, orderBy, limit/offset dump equals explain normalized (macro file)") {
-      val q           = LegacyFullFixture.query
+    test("IR with groupBy, orderBy, limit/offset dump equals explain normalized (macro file)") {
+      val q           = IrFullFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
@@ -248,8 +266,8 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("four-arg where (table, column, operator, value) dump equals explain normalized") {
-      val q           = FourArgFixture.query
+    test("single filter dump equals explain normalized and never leaks values") {
+      val q           = IrWhereFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
@@ -268,7 +286,7 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       }
     },
     test("IN operator produces IN (?, ?, ?) list syntax and dump matches runtime") {
-      val q           = InQueryFixture.query
+      val q           = IrIn3Fixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       assertTrue(
@@ -290,7 +308,7 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       })
     },
     test("IN size 1 emits single placeholder and matches runtime") {
-      val q      = InSize1Fixture.query
+      val q      = IrIn1Fixture.query
       val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       assertTrue(normalizeSql(fragPg).contains("IN (?)")) &&
       (dumpDirOpt match {
@@ -305,7 +323,7 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       })
     },
     test("IN size 2 emits two placeholders and matches runtime") {
-      val q      = InSize2Fixture.query
+      val q      = IrIn2Fixture.query
       val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       assertTrue(normalizeSql(fragPg).contains("IN (?, ?)")) &&
       (dumpDirOpt match {
@@ -319,7 +337,7 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       })
     },
     test("IN size 5 emits five placeholders and matches runtime") {
-      val q      = InSize5Fixture.query
+      val q      = IrIn5Fixture.query
       val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       assertTrue(normalizeSql(fragPg).contains("IN (?, ?, ?, ?, ?)")) &&
       (dumpDirOpt match {
@@ -333,24 +351,26 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       })
     },
     test("IN empty emits IN (NULL) safe placeholder") {
-      // Do not evaluate InEmptyFixture.query at runtime — it throws on empty DbArray via where validation, but macro dump already emitted file at compile time
-      dumpDirOpt match {
+      val q      = IrInEmptyFixture.query
+      val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      assertTrue(normalizeSql(fragPg).contains("IN (NULL)")) &&
+      (dumpDirOpt match {
         case None    => assertTrue(true)
         case Some(_) =>
           val found = findDumpContaining("IN (NULL)")
           assertTrue(found.isDefined) &&
           assertTrue(normalizeSql(found.get).contains("IN (NULL)"))
-      }
+      })
     },
     test("IN dynamic indeterminate cardinality emits no file and skips inaccurate IN (?)") {
       // Touch the query to ensure macro expansion happened
-      val _ = InDynamicFixture.query
+      val _ = IrDynamicFixture.query
       dumpDirOpt match {
         case None    => assertTrue(true) // skipped — run with -Dzib.sql.dumpDir to verify
         case Some(_) =>
           // The dynamic fixture's table is dyn_user, which only appears in that query. If cardinality were indeterminate, no file should exist.
-          val byBasePg     = readDumpByBase("InDynamicFixture-query", SqlDialect.PostgreSQL)
-          val byBaseSqlite = readDumpByBase("InDynamicFixture-query", SqlDialect.SQLite)
+          val byBasePg     = readDumpByBase("IrDynamicFixture-query", SqlDialect.PostgreSQL)
+          val byBaseSqlite = readDumpByBase("IrDynamicFixture-query", SqlDialect.SQLite)
           val dynFound     = findDumpContaining("dyn_user")
           // No dump should contain dyn_user's IN with a fabricated single placeholder as sole file; absence proves skip
           assertTrue(byBasePg.isEmpty, byBaseSqlite.isEmpty) &&
@@ -360,7 +380,7 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
       }
     },
     test("IR 2-join with filters, groupBy, orderBy, limit/offset via dumpQuery equals runtime sql normalized") {
-      val q      = IrFullFixture.query
+      val q      = IrJoinFixture.query
       val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       dumpDirOpt match {
         case None =>
@@ -381,24 +401,22 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("tableAlias validation rejects invalid alias") {
-      val badRef    = SqlStatement.ColumnRef("bad-alias!", "id")
-      val otherRef  = SqlStatement.ColumnRef("other", "id")
-      val badResult = try {
-        SqlQuery.from(userTable).where(badRef, "=", DbValue.DbInt(1))
+    test("invalid identifiers are rejected") {
+      val badGroup = try {
+        Qry.from(userTable).groupBy("bad-alias!")
         false
       } catch {
         case _: IllegalArgumentException => true
         case _: Throwable                => false
       }
-      val otherResult = try {
-        SqlQuery.from(userTable).where(otherRef, "=", DbValue.DbInt(1))
+      val badOrder = try {
+        Qry.from(userTable).orderBy("other col", QSortOrder.Asc)
         false
       } catch {
         case _: IllegalArgumentException => true
         case _: Throwable                => false
       }
-      assertTrue(badResult, otherResult)
+      assertTrue(badGroup, badOrder)
     }
   )
 }

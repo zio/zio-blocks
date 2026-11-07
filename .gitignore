@@ -78,3 +78,8 @@ website/.docusaurus
 .flowrite/
 .docs-audit-state.json
 sweep-*.db
+
+# superpowers visual companion sessions
+.superpowers/
+
+__pycache__/

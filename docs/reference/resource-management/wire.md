@@ -25,7 +25,7 @@ Wires are the building blocks of dependency injection in Scope. They form the fo
 
 ## Overview
 
-A `Wire` is a **lazy recipe**, not an execution. It holds a construction function `(Scope, Context[In]) => Out` and a **sharing strategy** — either `Shared` (reference-counted via `Resource.shared`) or `Unique` (fresh instance per allocation). The Wire itself does nothing until you convert it to a `Resource` and allocate it within a scope.
+A `Wire` built with `Wire.shared` or `Wire.unique` is a **lazy recipe**, not an execution. It holds a construction function `(Scope, Context[In]) => Out` and a **sharing strategy** — either `Shared` (reference-counted via `Resource.shared`) or `Unique` (fresh instance per allocation). Such a Wire does nothing until you convert it to a `Resource` and allocate it within a scope. `Wire(value)` is the exception: a known bug in 0.0.56 evaluates `value` when the Wire is created, not when it is allocated.
 
 Here's the typical flow:
 
@@ -43,7 +43,9 @@ $[T] (scoped value in scope)
 
 Without Wires, building a multi-layer application requires manual dependency passing:
 
-```scala
+```scala mdoc:silent
+import zio.blocks.scope._
+
 final case class Config(dbUrl: String)
 
 final class Database(config: Config) extends AutoCloseable {
@@ -60,18 +62,19 @@ final class App(service: UserService) {
 
 // Manual wiring:
 Scope.global.scoped { scope =>
-  import scope._
   val config = Config("jdbc:postgres://localhost/db")
-  val db = Resource.fromAutoCloseable(new Database(config)).allocate
-  val service = new UserService($(db)(identity))
-  val app = new App(service)
-  app.run()
+  val db = new Database(config)
+  scope.defer(db.close())
+  val service = new UserService(db)
+  new App(service).run()
 }
 ```
 
+Manual wiring must build every object by hand and register each `close()` itself with `Scope#defer`. A value allocated through `Resource#allocate` is scoped and cannot be passed as a constructor argument, so manual wiring either builds plain values and defers each `close()`, or composes `Resource`s with `Resource#map` and `Resource#flatMap`.
+
 With `Wire` + `Resource.from`, the macro handles the dependency graph:
 
-```scala
+```scala mdoc:compile-only
 Scope.global.scoped { scope =>
   import scope._
   val app = Resource.from[App](
@@ -81,8 +84,12 @@ Scope.global.scoped { scope =>
 }
 ```
 
+:::note
+Write a `Resource.from` as a `def`, not a `val`. A known bug in 0.0.56: a `Resource.from[T]` stored in a `val` works in its first scope and then fails on a second use with `IllegalStateException: Cannot allocate from a destroyed shared resource`.
+:::
+
 **Benefits:**
-- **Compile-time graph validation** — cycle detection, duplicate providers, missing dependencies
+- **Compile-time graph validation** — missing dependencies and duplicate providers are reported at compile time; a dependency cycle is not (see the note below)
 - **Automatic finalization** — `AutoCloseable` resources are finalized in LIFO order
 - **Sharing control** — choose which services are singletons (shared) vs fresh per allocation (unique)
 - **Type-safe construction** — no stringly-typed dependency resolution
@@ -111,7 +118,7 @@ Supported Scala versions: 2.13.x and 3.x.
 
 The `Wire.shared[T]` macro inspects `T`'s primary constructor and generates a shared wire that reuses the same instance across dependents:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -135,9 +142,9 @@ Scope.global.scoped { scope =>
 
 ### Wire.unique[T] — derive a unique wire
 
-Like `Wire.shared[T]`, but creates a fresh instance each time the wire is used. Use for request-scoped or per-call services:
+Like `Wire.shared[T]`, but its resource is unique: each allocation builds a fresh instance. Use for request-scoped or per-call services. A known bug in 0.0.56: `Resource.from` does not always respect a wire's sharing. On Scala 3 it treats every explicit wire as shared, so a unique wire gives one instance to every dependent. On Scala 2 it reads the wire's static type, so a shared wire typed as plain `Wire` gives each dependent its own instance; keep shared wires typed as `Wire.Shared`. The example below uses `Wire#toResource`, where each allocation builds a fresh instance on both versions:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -149,17 +156,13 @@ val wire: Wire.Unique[Any, RequestHandler] = Wire.unique[RequestHandler]
 
 Scope.global.scoped { scope =>
   import scope._
-  val deps = Context.empty[Any]
+  val deps = Context.empty
   val resource = wire.toResource(deps)
 
   val h1 = allocate(resource)
   val h2 = allocate(resource)
 
-  val ids: (Int, Int) = (
-    $(h1)(_.id),
-    $(h2)(_.id)
-  )
-  // ids._1 != ids._2 (different instances)
+  $(h1)(_.id) != $(h2)(_.id)
 }
 ```
 
@@ -167,8 +170,9 @@ Scope.global.scoped { scope =>
 
 Creates a shared wire that injects a value you already have. If the value is `AutoCloseable`, its `close()` method is automatically registered as a finalizer:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
+import zio.blocks.context.Context
 
 final case class Config(dbUrl: String)
 
@@ -177,29 +181,32 @@ val wire: Wire.Shared[Any, Config] = Wire(config)
 
 Scope.global.scoped { scope =>
   import scope._
-  val cfg = allocate(wire.toResource(Context.empty[Any]))
+  val cfg = allocate(wire.toResource(Context.empty))
   $(cfg)(_.dbUrl)
 }
 ```
 
 ### Wire.Shared.fromFunction — manual shared wire construction
 
-Use this for custom construction logic when macro derivation doesn't fit:
+Use this for custom construction logic when macro derivation doesn't fit. Unlike `Wire.shared[T]`, `Wire.Shared.fromFunction` does not register `close()` for an `AutoCloseable` result (a known bug in 0.0.56). Register it inside the function with `scope.defer`, on the `Scope` the function receives:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
 final case class Config(timeout: Int)
 
-final class Client(config: Config) {
+final class Client(config: Config) extends AutoCloseable {
   def call(): String = s"calling with timeout=${config.timeout}"
+  def close(): Unit  = println("client closed")
 }
 
 val wire: Wire.Shared[Config, Client] =
   Wire.Shared.fromFunction { (scope, ctx) =>
     val config = ctx.get[Config]
-    new Client(config)
+    val client = new Client(config)
+    scope.defer(client.close())
+    client
   }
 
 Scope.global.scoped { scope =>
@@ -213,9 +220,9 @@ Scope.global.scoped { scope =>
 
 ### Wire.Unique.fromFunction — manual unique wire construction
 
-Like `Wire.Shared.fromFunction`, but for unique wires:
+Like `Wire.Shared.fromFunction`, but for unique wires. `Wire.Unique.fromFunction` does not register `close()` for an `AutoCloseable` result either (a known bug in 0.0.56), so register it inside the function with `scope.defer`. The example below returns a plain class, which needs no cleanup:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -230,14 +237,13 @@ val wire: Wire.Unique[Any, RequestContext] =
 
 Scope.global.scoped { scope =>
   import scope._
-  val deps = Context.empty[Any]
+  val deps = Context.empty
   val resource = wire.toResource(deps)
 
   val r1 = allocate(resource)
   val r2 = allocate(resource)
 
-  val different: Boolean = $(r1)(_.id) != $(r2)(_.id)
-  // different == true
+  $(r1)(_.id) != $(r2)(_.id)
 }
 ```
 
@@ -253,9 +259,11 @@ The fundamental difference is **reuse semantics**:
 | **Instance reuse** | Same instance across entire dependency graph | New instance per allocation |
 | **Finalization** | Runs when last referencing scope closes | Runs when each scope closes |
 
+A known bug in 0.0.56 breaks this table inside `Resource.from`: on Scala 3 an explicit unique wire is shared across the graph, and on Scala 2 a shared wire whose static type is plain `Wire` gives each dependent its own instance. `Wire#toResource` follows the table on both versions.
+
 In the diamond pattern (where `App` depends on both `UserService` and `OrderService`, both of which depend on `Database`), a shared wire ensures `Database` is constructed once and both services receive the same instance:
 
-```scala
+```scala mdoc:nest
 import zio.blocks.scope._
 
 final class Database {
@@ -278,7 +286,7 @@ final class App(userService: UserService, orderService: OrderService) {
 }
 
 // Using shared wires for all dependencies
-val resource = Resource.from[App](
+def resource = Resource.from[App](
   Wire.shared[Database],
   Wire.shared[UserService],
   Wire.shared[OrderService]
@@ -287,7 +295,7 @@ val resource = Resource.from[App](
 Scope.global.scoped { scope =>
   import scope._
   val app = resource.allocate
-  $(app)(_.check())  // true: Database is shared
+  $(app)(_.check())
 }
 ```
 
@@ -308,16 +316,22 @@ trait Wire[-In, +Out] {
 
 Here's how to use these methods:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.scope._
 
-val sharedWire = Wire.shared[String]
-val uniqueWire = Wire.unique[String]
+final class Greeter
 
-println(s"sharedWire.isShared: ${sharedWire.isShared}")      // true
-println(s"sharedWire.isUnique: ${sharedWire.isUnique}")      // false
-println(s"uniqueWire.isShared: ${uniqueWire.isShared}")      // false
-println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")      // true
+val sharedWire = Wire.shared[Greeter]
+val uniqueWire = Wire.unique[Greeter]
+```
+
+Each wire reports its strategy:
+
+```scala mdoc
+println(s"sharedWire.isShared: ${sharedWire.isShared}")
+println(s"sharedWire.isUnique: ${sharedWire.isUnique}")
+println(s"uniqueWire.isShared: ${uniqueWire.isShared}")
+println(s"uniqueWire.isUnique: ${uniqueWire.isUnique}")
 ```
 
 ### `Wire#shared` and `Wire#unique` — convert between strategies
@@ -331,20 +345,23 @@ trait Wire[-In, +Out] {
 }
 ```
 
-Here's how to convert between sharing strategies:
+To convert between sharing strategies:
 
-```scala
-import zio.blocks.scope._
+```scala mdoc:silent
+val original = Wire.shared[Greeter]
 
-val original = Wire.shared[String]
-
-val converted: Wire.Unique[Any, String] = original.unique
-println(s"original.isShared: ${original.isShared}")          // true
-println(s"converted.isUnique: ${converted.isUnique}")        // true
+val converted: Wire.Unique[Any, Greeter] = original.unique
 
 // Converting back returns a new shared wire
-val backToShared: Wire.Shared[Any, String] = converted.shared
-println(s"backToShared.isShared: ${backToShared.isShared}")  // true
+val backToShared: Wire.Shared[Any, Greeter] = converted.shared
+```
+
+The original stays shared, the converted wire is unique, and converting back yields a shared wire again:
+
+```scala mdoc
+println(s"original.isShared: ${original.isShared}")
+println(s"converted.isUnique: ${converted.isUnique}")
+println(s"backToShared.isShared: ${backToShared.isShared}")
 ```
 
 Calling `shared` on an already-shared wire returns `this` (identity); likewise `unique` on a unique wire returns `this`.
@@ -359,16 +376,16 @@ trait Wire[-In, +Out] {
 }
 ```
 
-Here's how to use this method:
+`Config` takes a `String`, so the wire needs a `Context[String]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
 final case class Config(value: String)
 
 val wire = Wire.shared[Config]
-val deps = Context[Config](Config("hello"))
+val deps = Context[String]("hello")
 
 val resource: Resource[Config] = wire.toResource(deps)
 
@@ -381,7 +398,7 @@ Scope.global.scoped { scope =>
 
 ### `Wire#make` — construct directly from a wire
 
-Directly construct a value without going through `Resource.toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety:
+Directly construct a value without going through `Wire#toResource`. This is a low-level operation; prefer `allocate(wire.toResource(...))` for safety:
 
 ```scala
 trait Wire.Shared[-In, +Out] {
@@ -391,7 +408,7 @@ trait Wire.Shared[-In, +Out] {
 
 Here's how to use this method:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 import zio.blocks.context.Context
 
@@ -403,7 +420,7 @@ val wire = Wire.shared[Service]
 
 Scope.global.scoped { scope =>
   import scope._
-  val service = wire.asInstanceOf[Wire.Shared[Any, Service]].make(scope, Context.empty[Any])
+  val service = wire.make(scope, Context.empty)
   println(service.getName)
 }
 ```
@@ -419,7 +436,7 @@ When you call `Wire.shared[T]` or `Wire.unique[T]`, the macro performs these che
 
 Example with all three features:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final case class Config(dbUrl: String)
@@ -451,24 +468,37 @@ val wire = Wire.shared[Service]
 
 ### What happens with subtype conflicts
 
-If a constructor has dependencies of related types (e.g., both `FileInputStream` and `InputStream`), the macro rejects the wire because `Context` is type-indexed and cannot reliably disambiguate.
+If a constructor has dependencies of related types (e.g., both `FileInputStream` and `InputStream`), the macro rejects the wire because `Context` is type-indexed and cannot reliably disambiguate. For example:
 
 ```scala
-// This will NOT compile
-final class App(input: InputStream, fileInput: FileInputStream)
-val wire = Wire.shared[App]  // error: subtype conflict
+import zio.blocks.scope._
+import java.io.{FileInputStream, InputStream}
 
-// Fix: wrap one type to make it distinct
+final class Copier(input: InputStream, fileInput: FileInputStream)
+
+// does not compile: the macro reports "Dependency type conflict in Copier"
+// and "java.io.FileInputStream is a subtype of java.io.InputStream."
+val copierWire = Wire.shared[Copier]
+```
+
+To fix this, wrap one of the types to make it distinct:
+
+```scala mdoc:compile-only
+import zio.blocks.scope._
+import java.io.{FileInputStream, InputStream}
+
 final case class FileInputWrapper(value: FileInputStream)
-final class App(input: InputStream, fileInput: FileInputWrapper)
-val wire = Wire.shared[App]  // ok
+
+final class Copier(input: InputStream, fileInput: FileInputWrapper)
+
+val copierWire = Wire.shared[Copier]
 ```
 
 ## Integration with Resource.from
 
 `Wire` is designed for use with `Resource.from[T](wires*)`, which performs whole-graph dependency injection:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.scope._
 
 final case class AppConfig(dbUrl: String)
@@ -492,7 +522,7 @@ final class App(service: Service) {
 }
 
 // Provide only the leaf dependency; Resource.from derives the rest
-val appResource: Resource[App] = Resource.from[App](
+def appResource: Resource[App] = Resource.from[App](
   Wire(AppConfig("jdbc:postgres://localhost/db"))
 )
 
@@ -503,19 +533,25 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 - **Shared wires** → reference-counted (single instance in the graph)
 - **Unique wires** → fresh per allocation
 
-The macro detects cycles, duplicate providers, and missing dependencies at compile time.
+A known bug in 0.0.56: on Scala 3, an explicit unique wire is also built once and shared across the graph. Scala 2 follows the wire's static type, so a shared wire stored as a plain `Wire[In, Out]` gives each dependent its own instance.
 
-The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md).
+The macro reports missing dependencies and duplicate providers at compile time. For what each error looks like and how to fix it, see [How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md).
+
+A known bug in 0.0.56: a dependency cycle does not produce a cycle error. The `Resource.from` macro crashes instead (#1767), so do not rely on cycle detection yet.
+
+The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md). For a complete walkthrough, see [How to Feed Configuration into a Wire Dependency Graph](../../guides/feed-config-into-a-wire-graph.md).
 
 ## Comparison with Alternatives
 
 | Feature | Wire | Manual Passing | Service Locator |
 |---------|------|----------------|-----------------|
 | **Type safety** | ✓ (compile-time validation) | ✓ (implicit) | ✗ (string keys) |
-| **Cycle detection** | ✓ (compile time) | ✗ | ✗ (runtime) |
+| **Cycle detection** | ✗ (a cycle crashes the macro in 0.0.56) | ✗ | ✗ (runtime) |
 | **Sharing semantics** | ✓ (configurable) | Manual | ✓ (singleton pattern) |
 | **Finalization** | ✓ (LIFO, automatic) | Manual | Manual |
 | **Performance** | ~0 overhead (macro-generated) | ~0 overhead | ~1 allocation overhead |
+
+Coming from `ZLayer` or macwire? [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) maps `ZLayer.make`, `ZLayer.fromFunction`, `wire[A]` and `autowire` onto `Resource.from` and `Wire`.
 
 ## Running the Examples
 
@@ -543,7 +579,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireBasicExample.scala")
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.wireBasicExample"
+cd scope-examples && sbt "runMain wire.wireBasicExample"
 ```
 
 Comparing shared vs unique semantics shows how shared wires reuse the same instance across dependents, while unique wires create fresh instances. View the example:
@@ -559,7 +595,7 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireSharedUniqueExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.wireSharedUniqueExample"
+cd scope-examples && sbt "runMain wire.wireSharedUniqueExample"
 ```
 
 Manual wire construction demonstrates how to use `fromFunction` for custom construction logic. View the example:
@@ -575,5 +611,5 @@ SourceFile.print("scope-examples/src/main/scala/wire/WireFromFunctionExample.sca
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain wire.wireFromFunctionExample"
+cd scope-examples && sbt "runMain wire.wireFromFunctionExample"
 ```

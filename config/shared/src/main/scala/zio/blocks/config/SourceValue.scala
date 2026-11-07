@@ -16,4 +16,13 @@
 
 package zio.blocks.config
 
+/**
+ * A value read from a source, with the [[Provenance]] that says where it came
+ * from. A [[ConfigSource]] returns a `SourceValue[String]` for each key.
+ *
+ * @param value
+ *   the value that the source holds
+ * @param provenance
+ *   where the value came from
+ */
 final case class SourceValue[A](value: A, provenance: Provenance)

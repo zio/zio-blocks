@@ -5,13 +5,15 @@ import zio.blocks.schema.binding._
 import zio.sbt.ExprEval.show
 
 // Demonstrates the schema registry pattern: schemas are persisted as DynamicSchema
-// (pure structural metadata — no Scala functions, fully serializable) and rehydrated
-// on service startup by rebinding them against local domain types using BindingResolver.
+// (pure structural metadata, no Scala functions) and rehydrated on service startup
+// by rebinding them against local domain types using BindingResolver.
 //
 // In production, the registry Map would be populated by loading schemas from a
 // database or a remote schema registry service (e.g., Confluent Schema Registry).
-// DynamicSchema carries only field names, type names, and annotations, so it can
-// be stored as JSON or bytes without capturing any Scala closures.
+// DynamicSchema carries only field names, type names, and annotations, with no
+// Scala closures. Store it as Avro bytes (Schema[DynamicSchema].derive(AvroFormat)):
+// in 0.0.56 a schema written as JSON, YAML, TOON or MessagePack reads back as one
+// that accepts any value.
 
 // ── Domain model ──────────────────────────────────────────────────────────────────
 

@@ -50,25 +50,25 @@ Each example can be run independently using sbt:
 
 ```bash
 # Example 1: Creating a Mux
-sbt "mux-examples/runMain mux.example1CreatingAMux"
+cd mux-examples && sbt "runMain mux.example1CreatingAMux"
 
 # Example 2: Understanding Streams and Message Queues
-sbt "mux-examples/runMain mux.example2UnderstandingStreamsAndMessageQueues"
+cd mux-examples && sbt "runMain mux.example2UnderstandingStreamsAndMessageQueues"
 
 # Example 3: The Stream Lifecycle
-sbt "mux-examples/runMain mux.example3StreamLifecycle"
+cd mux-examples && sbt "runMain mux.example3StreamLifecycle"
 
 # Example 4: Working with Multiple Streams
-sbt "mux-examples/runMain mux.example4WorkingWithMultipleStreams"
+cd mux-examples && sbt "runMain mux.example4WorkingWithMultipleStreams"
 
 # Example 5: Managing Capacity
-sbt "mux-examples/runMain mux.example5ManagingCapacity"
+cd mux-examples && sbt "runMain mux.example5ManagingCapacity"
 
 # Example 6: Thread Safety
-sbt "mux-examples/runMain mux.example6ThreadSafety"
+cd mux-examples && sbt "runMain mux.example6ThreadSafety"
 
 # Complete Example
-sbt "mux-examples/runMain mux.completeExample"
+cd mux-examples && sbt "runMain mux.completeExample"
 ```
 
 ## Key Concepts

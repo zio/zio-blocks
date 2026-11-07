@@ -16,8 +16,41 @@
 
 package zio.blocks.config
 
+/**
+ * Reads JSON configuration: `import zio.blocks.config.json._` adds
+ * `ConfigSource.fromJson`.
+ */
 package object json {
+
+  /** The `ConfigSource.fromJson` constructor. */
   implicit final class ConfigSourceJsonSyntax(private val companion: ConfigSource.type) extends AnyVal {
+
+    /**
+     * Parses the JSON text `json` and returns its values as a [[ConfigSource]]
+     * keyed by dot-separated paths: object keys join with dots, array elements
+     * get indexes (`replicas.0`), and `null` values, empty arrays and empty
+     * objects are left out. A number keeps the text of its `BigDecimal` value,
+     * so `1e3` becomes `1E+3`. `sourceId` names the source in provenance and
+     * errors.
+     *
+     * Text that is not valid JSON gives a [[ConfigError.ParseError]] with an
+     * empty path and no cause, so the error does not say where the text is
+     * wrong.
+     *
+     * {{{
+     * import zio.blocks.config._
+     *
+     * val source = ConfigSource.fromJson(
+     *   """{"server": {"host": "0.0.0.0", "port": 8080}, "replicas": ["db-1", "db-2"]}""",
+     *   "app.json"
+     * )
+     * val keys = source.map(_.all("").keySet.toList.sorted)
+     * // Right(List(replicas.0, replicas.1, server.host, server.port))
+     * }}}
+     *
+     * @see
+     *   [[https://zioblocks.com/reference/config/formats/ File Formats]]
+     */
     def fromJson(json: String, sourceId: String = "json:string"): Either[ConfigError, ConfigSource] =
       JsonConfigSource.fromString(json, sourceId)
   }

@@ -60,7 +60,7 @@ Resource offers two distinct types for managing instance lifecycles: **Shared** 
 | **When to use**    | Expensive resources (DB connections, thread pools) | Per-request state, isolated handlers      |
 | **Instance reuse** | Same instance across all allocations               | New instance per allocation               |
 | **Finalization**   | Runs when last reference released                  | Runs immediately when scope closes        |
-| **Thread safety**  | Lock-free atomic reference counting                | Per-scope, no global coordination needed  |
+| **Thread safety**  | Thread-safe atomic (CAS) reference counting        | Per-scope, no global coordination needed  |
 
 ### Shared Resources
 
@@ -373,9 +373,9 @@ val streamResource = Resource.fromAutoCloseable {
 
 ### `Resource.shared` — Memoized with Reference Counting
 
-Creates a shared resource that memoizes its value across multiple allocations using reference counting. The first allocation initializes the value using an `OpenScope` parented to `Scope.global`; subsequent allocations increment the reference count and return the same instance. Each scope that receives the shared value registers a finalizer that decrements the count. When the count reaches zero, the shared scope closes automatically. This mechanism is **thread-safe and lock-free**, implemented using `AtomicReference` with atomic compare-and-swap operations to avoid contention.
+Creates a shared resource that memoizes its value across multiple allocations using reference counting. The first allocation initializes the value using an `OpenScope` parented to `Scope.global`; subsequent allocations increment the reference count and return the same instance. Each scope that receives the shared value registers a finalizer that decrements the count. When the count reaches zero, the shared scope closes automatically. This mechanism is **thread-safe**: the state is an `AtomicReference` updated with compare-and-swap, so concurrent allocations share one instance and one reference count. It is not lock-free: while the first caller runs the initializer, every other caller waits for it.
 
-Under the hood, a shared resource progresses through four states: (1) **Uninitialized** — the resource has never been allocated and the first call triggers initialization; (2) **Pending** — initialization is in progress and other threads wait via spin-yield for the value to become available; (3) **Created** — the value is fully initialized and ready, each allocation increments the reference count, and each scope registers a finalizer to decrement it; (4) **Destroyed** — the reference count reached zero, the resource was cleaned up, and further allocations will fail. This state machine ensures that no matter how many threads try to allocate simultaneously, the underlying value initializes exactly once, and cleanup happens exactly once when the last reference is released.
+Under the hood, a shared resource progresses through four states: (1) **Uninitialized** — the resource has never been allocated and the first call triggers initialization; (2) **Pending** — initialization is in progress and other threads wait via spin-yield for the value to become available; (3) **Created** — the value is fully initialized and ready, each allocation increments the reference count, and each scope registers a finalizer to decrement it; (4) **Destroyed** — the reference count reached zero, the resource was cleaned up, and further allocations will fail. This state machine ensures that concurrent allocations share one value, and that cleanup happens once, when the last reference is released. If the initializer throws, the open scope is closed, the exception reaches the caller that ran it, the state returns to Uninitialized, and the next allocation runs the initializer again.
 
 Use shared resources for **expensive, singleton-like components** (database connection pools, thread pools, logging systems, caches) that should exist exactly once for the lifetime of the application, even when multiple services depend on them.
 
@@ -449,8 +449,11 @@ val uniqueResource = Resource.unique[Int] { _ =>
 ### `Resource.from[T]` — Derive from Constructor
 
 Derives a `Resource[T]` from `T`'s primary constructor, requiring no external dependencies.
-If `T` extends `AutoCloseable`, `Resource.from` automatically registers its `close()` method
-as a finalizer:
+If `T` extends `AutoCloseable` and its constructor takes no `Finalizer` or `Scope` parameter,
+`Resource.from` registers its `close()` method as a finalizer. A known bug in 0.0.56: when the
+constructor does take a `Finalizer` or `Scope`, `close()` is not registered. Use
+`Resource.from[T]()` (with empty parentheses), which registers it, or register the cleanup
+inside the constructor with `defer`. The signature is:
 
 ```scala
 object Resource {
@@ -468,12 +471,13 @@ class MetricsCollector extends AutoCloseable {
   def close(): Unit               = println("MetricsCollector closed")
 }
 
-val metricsResource = Resource.from[MetricsCollector]
+def metricsResource = Resource.from[MetricsCollector]
 ```
 
 Internally, the macro inspects `T`'s constructor at compile time, verifies that no external
-dependencies are needed, and synthesizes a `Resource.shared` that instantiates `T` and —
-when `T` extends `AutoCloseable` — registers `close()` as a scope finalizer. Any attempt
+dependencies are needed, and synthesizes a `Resource.shared` that instantiates `T`, passing
+the scope to any `Finalizer` or `Scope` parameter, and, when `T` extends `AutoCloseable` and
+takes no such parameter, registers `close()` as a scope finalizer. Any attempt
 to use `Resource.from[T]` on a type with unsatisfied constructor parameters results in a
 compile-time error.
 
@@ -506,7 +510,7 @@ class Service(logger: Logger) extends AutoCloseable {
   def close(): Unit = logger.log("Service shutting down")
 }
 
-val serviceResource = Resource.from[Service](
+def serviceResource = Resource.from[Service](
   Wire(Config("localhost", 8080))
 )
 ```
@@ -701,11 +705,26 @@ Resource is a core abstraction in ZIO Blocks' resource management ecosystem:
 - **[`Scope`](./scope.md)** — Resources require a `Scope` for allocation. The `Scope` manages the lifetime of acquired resources and automatically runs finalizers when the scope closes.
 - **[`Wire`](./wire.md)** — The `Resource.from[T](wires)` macro builds dependency graphs using `Wire` values, enabling constructor-based dependency injection with automatic resource management.
 - **[`Finalizer`](./finalizer.md)** — Resources register their cleanup logic with `Finalizer` objects, which execute in LIFO order when scopes close.
+- **[How to Fix Common Scope and Wire Compile Errors](../../guides/fix-scope-and-wire-compile-errors.md)** — The compile-time errors that `Resource.from` and the Scope macros report, and how to fix each one.
 
-For example, `Resource.from[T]` uses `Wire` to construct instances with their dependencies, automatically registering any `AutoCloseable` cleanup:
+For example, `Resource.from[T](wires*)` uses `Wire` values to construct instances with their dependencies, and registers `close()` for each `AutoCloseable` class the macro derives (an explicit wire registers its own cleanup):
 
-```scala
-val serviceResource = Resource.from[Service](
+```scala mdoc:compile-only
+import zio.blocks.scope._
+
+final case class Config(host: String, port: Int)
+
+final class Logger(config: Config) extends AutoCloseable {
+  def log(msg: String): Unit = println(s"[${config.host}:${config.port}] $msg")
+  def close(): Unit          = log("Logger shutting down")
+}
+
+final class Service(logger: Logger) extends AutoCloseable {
+  def run(): Unit   = logger.log("Service running")
+  def close(): Unit = logger.log("Service shutting down")
+}
+
+def serviceResource = Resource.from[Service](
   Wire(Config("localhost", 8080))
 )
 ```
@@ -740,7 +759,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TempFileHandlingE
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.tempFileHandlingExample"
+cd scope-examples && sbt "runMain scope.examples.tempFileHandlingExample"
 ```
 
 ### Acquiring and Releasing Database Connections
@@ -758,7 +777,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/DatabaseConnectio
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runDatabaseExample"
+cd scope-examples && sbt "runMain scope.examples.runDatabaseExample"
 ```
 
 ### Shared Resources with Memoization and Reference Counting
@@ -776,7 +795,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/CachingSharedLogg
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runCachingExample"
+cd scope-examples && sbt "runMain scope.examples.runCachingExample"
 ```
 
 ### Managing Shared Expensive Resources
@@ -794,7 +813,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/ConnectionPoolExa
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.connectionPoolExample"
+cd scope-examples && sbt "runMain scope.examples.connectionPoolExample"
 ```
 
 ### Transactional Resource Management
@@ -812,7 +831,7 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/TransactionBounda
 Run this example with:
 
 ```bash
-sbt "scope-examples/runMain scope.examples.runTransactionBoundaryExample"
+cd scope-examples && sbt "runMain scope.examples.runTransactionBoundaryExample"
 ```
 
 ### Multi-Layer Service Construction
@@ -828,5 +847,5 @@ SourceFile.print("scope-examples/src/main/scala/scope/examples/LayeredWebService
 ([source](https://github.com/zio/zio-blocks/blob/main/scope-examples/src/main/scala/scope/examples/LayeredWebServiceExample.scala))
 
 ```bash
-sbt "scope-examples/runMain scope.examples.layeredWebServiceExample"
+cd scope-examples && sbt "runMain scope.examples.layeredWebServiceExample"
 ```

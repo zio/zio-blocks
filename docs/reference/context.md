@@ -433,11 +433,13 @@ Context only accepts **nominal types**—concrete classes, case classes, traits,
 - Objects: `object Registry`
 - Applied types: `List[Int]`, `Map[String, Int]`
 - Enums (Scala 3): `enum Color { case Red, Green, Blue }`
+- Opaque types (Scala 3): `opaque type UserId = Long`
 
 **Not supported (compile error):**
 - Intersection types: `A & B` (use the context type parameter instead)
 - Union types: `A | B`
 - Structural types: `{ def foo: Int }`
+- Type parameters and abstract type members (require `IsNominalType[A]` from the caller instead)
 
 Attempting to store an unsupported type:
 
@@ -471,8 +473,7 @@ Here is a comparison of Context with related alternatives:
 
 `Context` is the dependency carrier in ZIO Blocks' Wire-based dependency injection system. A `Wire[-In, +Out]` describes how to build an output given input dependencies, and contexts supply those dependencies. Wire and Scope work together to provide type-safe, compile-checked dependency injection:
 
-```scala
-// Pseudocode illustrating how Context integrates with Wire and Scope
+```scala mdoc:reset
 import zio.blocks.scope._
 import zio.blocks.context._
 
@@ -480,17 +481,20 @@ case class Config(debug: Boolean)
 case class Logger(name: String)
 case class Service(config: Config, logger: Logger)
 
-// Define a wire that requires Config and Logger to build Service
-val buildService = Wire.make[Config & Logger, Service]
+// Derive a wire for Service from its constructor. The inputs it needs, Config & Logger, are inferred.
+val buildService = Wire.shared[Service]
 
 // Create a context with the required dependencies
 val deps = Context(Config(debug = true), Logger("app"))
 
-// Create a scope and instantiate the service
+// Create a scope and instantiate the service inside it
 Scope.global.scoped { scope =>
   val service: Service = buildService.make(scope, deps)
+  println(service)
 }
 ```
+
+`Wire.shared[Service]` and `Wire.unique[Service]` are the entry points. The `make(scope, context)` method is on the wire they return, not on the `Wire` companion.
 
 ## Running the Examples
 
@@ -516,7 +520,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextConstructionExam
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextConstructionExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextConstructionExample"
+cd schema-examples && sbt "runMain context.ContextConstructionExample"
 ```
 
 **Context retrieval: using get, supertype lookups, and getOption for safe access**
@@ -530,7 +534,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextRetrievalExample
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextRetrievalExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextRetrievalExample"
+cd schema-examples && sbt "runMain context.ContextRetrievalExample"
 ```
 
 **Context modification: adding values, updating existing ones, merging contexts, and pruning types**
@@ -544,7 +548,7 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExam
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextModificationExample.scala))
 
 ```bash
-sbt "schema-examples/runMain context.ContextModificationExample"
+cd schema-examples && sbt "runMain context.ContextModificationExample"
 ```
 
 ## See Also

@@ -48,25 +48,39 @@ private[schema] object ContextDetector {
   private sealed trait ParseState
 
   private object ParseState {
-    // In object, expecting a key (after { or ,)
+
+    /** In an object, expecting a key (after `{` or `,`). */
     case object ExpectingKey extends ParseState
-    // In object, after key, expecting colon
+
+    /** In an object, after a key, expecting `:`. */
     case object ExpectingColon extends ParseState
-    // Expecting a value (after : in object, or after [ or , in array)
+
+    /**
+     * Expecting a value (after `:` in an object, or after `[` or `,` in an
+     * array).
+     */
     case object ExpectingValue extends ParseState
-    // After a value, expecting comma or closing bracket
+
+    /** After a value, expecting `,` or a closing bracket. */
     case object AfterValue extends ParseState
-    // Inside a quoted string literal
+
+    /**
+     * Inside a quoted string literal; `returnState` follows its closing quote.
+     */
     case class InString(returnState: ParseState) extends ParseState
-    // Top level, outside any container
+
+    /** At the top level, outside any container. */
     case object TopLevel extends ParseState
   }
 
   private sealed trait Container
 
   private object Container {
+
+    /** Inside an object. */
     case object Object extends Container
 
+    /** Inside an array. */
     case object Array extends Container
   }
 

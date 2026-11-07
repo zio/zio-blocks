@@ -23,8 +23,9 @@ object Step2ModifiersAndTransform extends App {
   //    ZIO Blocks: @Modifier.transient()
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Transient fields must have a default value in ZIO Blocks Schema
-  // (they are excluded from serialization, so a default is needed for deserialization)
+  // As in ZIO Schema 1.x, a transient field needs a default value (an Option or
+  // a collection does not): the JSON codec leaves it out when encoding, so the
+  // decoder fills it in from the default.
   final case class User(
     name: String,
     @Modifier.transient() password: String = ""
@@ -34,10 +35,13 @@ object Step2ModifiersAndTransform extends App {
     implicit val schema: Schema[User] = Schema.derived[User]
   }
 
-  val user = User("alice", "s3cr3t")
+  val user     = User("alice", "s3cr3t")
+  val userJson = User.schema.jsonCodec.encodeToString(user)
   println(s"User: $user")
-  val userDv = User.schema.toDynamicValue(user)
-  println(s"DynamicValue (password excluded by codec): $userDv")
+  println(s"JSON (password left out): $userJson")
+  println(s"Decoded (default password): ${User.schema.jsonCodec.decode(userJson)}")
+  // The modifier only affects codecs: the DynamicValue still has the field
+  println(s"DynamicValue: ${User.schema.toDynamicValue(user)}")
 
   // ─────────────────────────────────────────────────────────────────────────
   // 2. Field renaming
@@ -82,7 +86,8 @@ object Step2ModifiersAndTransform extends App {
 
   // ─────────────────────────────────────────────────────────────────────────
   // 4. Codec-specific configuration
-  //    ZIO Schema: no standard mechanism; each codec module defines its own
+  //    ZIO Schema: no generic key-value annotation (its core annotations, such as
+  //                @fieldDefaultValue, have fixed meanings for every codec)
   //    ZIO Blocks: @Modifier.config("format.property", "value")
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -104,7 +109,7 @@ object Step2ModifiersAndTransform extends App {
 
   // ─────────────────────────────────────────────────────────────────────────
   // 5. Transform (newtype / wrapper)
-  //    ZIO Schema: Schema.transform(f, g) / Schema.transformOrFail(f, g)
+  //    ZIO Schema: schema.transform(f, g) / schema.transformOrFail(f, g)
   //    ZIO Blocks: Schema[A].transform(to, from) — throw SchemaError on failure
   // ─────────────────────────────────────────────────────────────────────────
 

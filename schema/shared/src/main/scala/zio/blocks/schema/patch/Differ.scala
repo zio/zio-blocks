@@ -19,11 +19,33 @@ package zio.blocks.schema.patch
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 import zio.blocks.schema._
 
-//Differ computes minimal patches between two DynamicValues.
+/**
+ * Computes the [[DynamicPatch]] between two values, for
+ * [[zio.blocks.schema.DynamicValue#diff]] and
+ * [[zio.blocks.schema.Schema#diff]].
+ */
 private[schema] object Differ {
 
-  // Compute the diff between two DynamicValues. Returns a DynamicPatch that
-  // transforms oldValue into newValue.
+  /**
+   * Returns a patch that turns `oldValue` into `newValue`, or the empty patch
+   * when they are equal.
+   *
+   *   - Numbers, and `Instant`, `Duration`, `LocalDate`, `LocalDateTime` and
+   *     `Period` values, get a delta; a `Float` or `Double` that is `NaN` on
+   *     one side only gets a set, and so does any other primitive.
+   *   - Strings get insert and delete edits when they are smaller than the new
+   *     string (counting the inserted text plus one per delete), and a set
+   *     otherwise.
+   *   - Records get the patches of the changed fields and a set for each field
+   *     that only `newValue` has. A record diff never removes a field: a field
+   *     that only `oldValue` has stays when the patch is applied.
+   *   - Variants in the same case get the patch of their inner value; a change
+   *     of case gets a set.
+   *   - Sequences get the deletes, inserts and appends of a
+   *     longest-common-subsequence alignment, by index.
+   *   - Maps get adds, removes, and a patch per changed value.
+   *   - Any other change of kind gets a set of the whole value.
+   */
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     if (oldValue == newValue) DynamicPatch.empty
     else if (oldValue.typeIndex == newValue.typeIndex) {

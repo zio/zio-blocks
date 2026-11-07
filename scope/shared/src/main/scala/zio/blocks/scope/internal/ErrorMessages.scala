@@ -31,29 +31,84 @@ object ErrorMessages {
   // Terminal Colors
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** ANSI escape sequences and helpers that colour text for a terminal. */
   object Colors {
+
+    /**
+     * Returns `true` unless the `NO_COLOR` environment variable is set to a
+     * non-empty value or the `sbt.log.noformat` system property is `true`.
+     */
     def shouldUseColor: Boolean = {
       val noColor     = sys.env.get("NO_COLOR").exists(_.nonEmpty)
       val sbtNoFormat = sys.props.get("sbt.log.noformat").contains("true")
       !noColor && !sbtNoFormat
     }
 
-    val Reset  = "\u001b[0m"
-    val Bold   = "\u001b[1m"
-    val Red    = "\u001b[31m"
-    val Green  = "\u001b[32m"
-    val Yellow = "\u001b[33m"
-    val Blue   = "\u001b[34m"
-    val Cyan   = "\u001b[36m"
-    val Gray   = "\u001b[90m"
+    /** The ANSI escape that resets all attributes. */
+    val Reset = "\u001b[0m"
 
-    def red(s: String, color: Boolean): String    = if (color) s"$Red$s$Reset" else s
-    def green(s: String, color: Boolean): String  = if (color) s"$Green$s$Reset" else s
+    /** The ANSI escape that switches to bold. */
+    val Bold = "\u001b[1m"
+
+    /** The ANSI escape that sets a red foreground. */
+    val Red = "\u001b[31m"
+
+    /** The ANSI escape that sets a green foreground. */
+    val Green = "\u001b[32m"
+
+    /** The ANSI escape that sets a yellow foreground. */
+    val Yellow = "\u001b[33m"
+
+    /** The ANSI escape that sets a blue foreground. */
+    val Blue = "\u001b[34m"
+
+    /** The ANSI escape that sets a cyan foreground. */
+    val Cyan = "\u001b[36m"
+
+    /** The ANSI escape that sets a gray foreground. */
+    val Gray = "\u001b[90m"
+
+    /**
+     * Wraps `s` in the red escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def red(s: String, color: Boolean): String = if (color) s"$Red$s$Reset" else s
+
+    /**
+     * Wraps `s` in the green escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def green(s: String, color: Boolean): String = if (color) s"$Green$s$Reset" else s
+
+    /**
+     * Wraps `s` in the yellow escape and a reset when `color` is `true`;
+     * returns `s` unchanged otherwise.
+     */
     def yellow(s: String, color: Boolean): String = if (color) s"$Yellow$s$Reset" else s
-    def blue(s: String, color: Boolean): String   = if (color) s"$Blue$s$Reset" else s
-    def cyan(s: String, color: Boolean): String   = if (color) s"$Cyan$s$Reset" else s
-    def gray(s: String, color: Boolean): String   = if (color) s"$Gray$s$Reset" else s
-    def bold(s: String, color: Boolean): String   = if (color) s"$Bold$s$Reset" else s
+
+    /**
+     * Wraps `s` in the blue escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def blue(s: String, color: Boolean): String = if (color) s"$Blue$s$Reset" else s
+
+    /**
+     * Wraps `s` in the cyan escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def cyan(s: String, color: Boolean): String = if (color) s"$Cyan$s$Reset" else s
+
+    /**
+     * Wraps `s` in the gray escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def gray(s: String, color: Boolean): String = if (color) s"$Gray$s$Reset" else s
+
+    /**
+     * Wraps `s` in the bold escape and a reset when `color` is `true`; returns
+     * `s` unchanged otherwise.
+     */
+    def bold(s: String, color: Boolean): String = if (color) s"$Bold$s$Reset" else s
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -62,9 +117,19 @@ object ErrorMessages {
 
   /** Status of a dependency in the graph. */
   sealed trait DepStatus
+
+  /** The statuses a [[DepStatus]] can have. */
   object DepStatus {
-    case object Found   extends DepStatus
+
+    /** The dependency is available; rendered with a green check mark. */
+    case object Found extends DepStatus
+
+    /** The dependency is not available; rendered with a red cross. */
     case object Missing extends DepStatus
+
+    /**
+     * The dependency is not resolved yet; rendered with a gray question mark.
+     */
     case object Pending extends DepStatus
   }
 
@@ -271,6 +336,9 @@ object ErrorMessages {
 
   /**
    * E2: No primary constructor.
+   *
+   * No user code reaches it, because every Scala class has a primary
+   * constructor (a known bug).
    */
   def renderNoPrimaryCtor(typeName: String, color: Boolean): String = {
     import Colors._
@@ -287,6 +355,10 @@ object ErrorMessages {
 
   /**
    * E3: Subtype conflict - two dependencies have subtype relationship.
+   *
+   * Its hint builds the wrapper name by prefixing `Wrapped` to the full type
+   * name, so for a type in a package the suggested code does not compile (a
+   * known bug).
    */
   def renderSubtypeConflict(
     typeName: String,
@@ -346,6 +418,9 @@ object ErrorMessages {
 
   /**
    * E5: Unsupported implicit parameter type.
+   *
+   * The macros report E4 for such a parameter first, so E5 is not reached (a
+   * known bug).
    */
   def renderUnsupportedImplicitParam(
     typeName: String,
@@ -372,6 +447,9 @@ object ErrorMessages {
 
   /**
    * E6: Cannot extract wire types.
+   *
+   * Reached only by an argument whose static type is not `Wire[In, Out]`, such
+   * as `???`.
    */
   def renderCannotExtractWireTypes(wireType: String, color: Boolean): String = {
     import Colors._
@@ -450,6 +528,9 @@ object ErrorMessages {
 
   /**
    * E9: No constructor for auto-create.
+   *
+   * No user code reaches it, because every Scala class has a primary
+   * constructor (a known bug).
    */
   def renderNoCtorForAutoCreate(
     typeName: String,
@@ -481,7 +562,8 @@ object ErrorMessages {
   /**
    * E10: Dependency cycle detected.
    *
-   * Renders an ASCII cycle diagram showing the circular dependency.
+   * Renders an ASCII cycle diagram showing the circular dependency. The macros
+   * never reach it: a cycle crashes `Resource.from` instead (a known bug).
    */
   def renderDependencyCycle(cyclePath: List[String], color: Boolean): String = {
     import Colors._
@@ -540,6 +622,9 @@ object ErrorMessages {
   /**
    * E12: Duplicate parameter type - constructor has multiple params of same
    * type.
+   *
+   * On Scala 3 the macros never reach it: both parameters receive the same
+   * instance (a known bug).
    */
   def renderDuplicateParamType(
     typeName: String,
@@ -683,6 +768,9 @@ object ErrorMessages {
    *   - The resolution stack (how we got here)
    *   - A tree view of all dependencies with their status
    *   - Actionable hints
+   *
+   * Neither macro calls it (a known bug): a missing dependency is derived from
+   * its constructor, or fails with E7 or E8.
    */
   def renderMissingDependency(
     requiredBy: String,

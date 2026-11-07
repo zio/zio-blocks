@@ -19,9 +19,19 @@ package zio.blocks.schema.binding
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Reflection helpers for calling the members of a structural type, with a cache
+ * of the looked-up methods per class and member name. The `Binding.of` macro
+ * does not use them: it generates its own `getMethod` calls. Only tests call
+ * them.
+ */
 private[binding] object StructuralReflection {
   private val methodCache = new ConcurrentHashMap[(Class[?], String), Method]()
 
+  /**
+   * Calls the public method `name` without parameters on `obj` and returns its
+   * result, caching the method per class and name.
+   */
   def get(obj: AnyRef, name: String): AnyRef = {
     val cls = obj.getClass
     val key = (cls, name)
@@ -33,6 +43,10 @@ private[binding] object StructuralReflection {
     m.invoke(obj)
   }
 
+  /**
+   * Returns `true` when `obj` is not `null` and its class has a public method
+   * without parameters for each of `names`.
+   */
   def hasAll(obj: AnyRef, names: Array[String]): Boolean = {
     if (obj == null) return false
     val cls = obj.getClass

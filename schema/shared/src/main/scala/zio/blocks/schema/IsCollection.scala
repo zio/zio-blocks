@@ -16,19 +16,40 @@
 
 package zio.blocks.schema
 
+/**
+ * Evidence that `A` has the shape `C[E]`, a type constructor with one type
+ * argument, with `C` as `Collection` and `E` as `Elem`. `Reflect#asSequence`
+ * takes it to type the sequence node it returns. The compiler provides it for
+ * any such type through `isCollection`, collection or not: for a type such as
+ * `Option[Int]`, `asSequence` returns `None`.
+ */
 trait IsCollection[A] {
+
+  /** The type constructor of `A`, such as `List` for `List[Int]`. */
   type Collection[_]
+
+  /** The element type of `A`, such as `Int` for `List[Int]`. */
   type Elem
 
+  /** Proves that `Collection[Elem]` is `A`. */
   def proof: Collection[Elem] =:= A
 }
 
+/** The instance of [[IsCollection]] for every type of the form `C[A]`. */
 object IsCollection {
+
+  /**
+   * An `IsCollection[A]` whose `Collection` is `C0` and whose `Elem` is
+   * `Elem0`.
+   */
   type Typed[A, C0[_], Elem0] = IsCollection[A] {
     type Collection[X] = C0[X]
     type Elem          = Elem0
   }
 
+  /**
+   * Provides `IsCollection` for `C[A]`, with `C` and `A` as its type members.
+   */
   implicit def isCollection[C[_], A]: IsCollection.Typed[C[A], C, A] =
     new IsCollection[C[A]] {
       type Collection[X] = C[X]

@@ -19,7 +19,8 @@ package zio.blocks.telemetry
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Internal thread-safe registry that tracks all instruments across all meters.
+ * The meters of one [[MeterProvider]], in the order they were created;
+ * `collectAll` collects their instruments in that order.
  */
 private[telemetry] final class MeterRegistry {
   private val meters = new CopyOnWriteArrayList[Meter]()
@@ -41,12 +42,35 @@ private[telemetry] final class MeterRegistry {
 }
 
 /**
- * A Meter creates and manages metric instruments for a given
- * InstrumentationScope. All instruments created through a Meter are registered
- * internally so the MetricReader can collect from them.
+ * Creates the instruments of one component, under the component's name. Get one
+ * from `MeterProvider#get`, or `metric.get` in application code; library code
+ * should take a `Meter` as a parameter.
+ *
+ * Every instrument a meter builds is registered with its provider, so the
+ * provider's `reader` collects it. Each `build()` registers a new instrument,
+ * even for a name used before, so build each instrument once and keep it. The
+ * collected [[MetricData]] carries neither the meter's scope nor the
+ * instrument's name, description or unit.
+ *
+ * {{{
+ * val meter = MeterProvider.builder.build().get("com.example.checkout")
+ * val latency = meter.histogramBuilder("checkout.latency").setUnit("ms").setDescription("Checkout time").build()
+ *
+ * latency.record(42.5, "route" -> "/checkout")
+ * latency.record(180.0, "route" -> "/checkout")
+ *
+ * val counts = latency.collect() match {
+ *   case MetricData.HistogramData(points) => points.map(p => (p.count, p.sum))
+ *   case _                                => Nil
+ * }
+ * counts.headOption // Some((2,222.5))
+ * }}}
  *
  * @param instrumentationScope
- *   the scope identifying the instrumentation library
+ *   the name and optional version that `MeterProvider#get` was called with
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/meter/ Meter]]
  */
 final class Meter private[telemetry] (
   val instrumentationScope: InstrumentationScope
@@ -61,28 +85,66 @@ final class Meter private[telemetry] (
   private final case class ObsGauge(g: ObservableGauge)                 extends Collectible
   private val instruments = new CopyOnWriteArrayList[Collectible]()
 
+  /**
+   * Returns a builder for a [[Counter]] named `name`, or, through
+   * `buildWithCallback`, an [[ObservableCounter]].
+   */
   def counterBuilder(name: String): CounterBuilder =
     new CounterBuilder(name, this)
 
+  /**
+   * Returns a builder for an [[UpDownCounter]] named `name`, or, through
+   * `buildWithCallback`, an [[ObservableUpDownCounter]].
+   */
   def upDownCounterBuilder(name: String): UpDownCounterBuilder =
     new UpDownCounterBuilder(name, this)
 
+  /**
+   * Returns a builder for a [[Histogram]] named `name`, with the default bucket
+   * boundaries; the builder cannot change them.
+   */
   def histogramBuilder(name: String): HistogramBuilder =
     new HistogramBuilder(name, this)
 
+  /**
+   * Returns a builder for a [[Gauge]] named `name`, or, through
+   * `buildWithCallback`, an [[ObservableGauge]].
+   */
   def gaugeBuilder(name: String): GaugeBuilder =
     new GaugeBuilder(name, this)
 
+  /**
+   * Creates and registers a [[Counter]] named `name`, wrapped in a
+   * [[LabeledCounter]] that takes label values in the order of `labels`.
+   *
+   * {{{
+   * val meter = MeterProvider.builder.build().get("com.example.api")
+   * val requests = meter.labeledCounter("http.requests", "method", "status")
+   *
+   * requests.add(1L, "GET", "200")
+   *
+   * requests.labelNames.toList // List(method, status)
+   * }}}
+   */
   def labeledCounter(name: String, labels: String*): LabeledCounter = {
     val counter = counterBuilder(name).build()
     new LabeledCounter(counter, labels.toArray)
   }
 
+  /**
+   * Creates and registers a [[Histogram]] named `name`, with the default bucket
+   * boundaries, wrapped in a [[LabeledHistogram]] that takes label values in
+   * the order of `labels`.
+   */
   def labeledHistogram(name: String, labels: String*): LabeledHistogram = {
     val histogram = histogramBuilder(name).build()
     new LabeledHistogram(histogram, labels.toArray)
   }
 
+  /**
+   * Creates and registers a [[Gauge]] named `name`, wrapped in a
+   * [[LabeledGauge]] that takes label values in the order of `labels`.
+   */
   def labeledGauge(name: String, labels: String*): LabeledGauge = {
     val gauge = gaugeBuilder(name).build()
     new LabeledGauge(gauge, labels.toArray)
@@ -142,7 +204,9 @@ final class Meter private[telemetry] (
 }
 
 /**
- * Builder for Counter instruments.
+ * Sets the description and unit of a [[Counter]] or an [[ObservableCounter]]
+ * before `Meter#counterBuilder` registers it. Each setter changes the builder
+ * and returns it.
  */
 final class CounterBuilder private[telemetry] (
   private val name: String,
@@ -151,22 +215,39 @@ final class CounterBuilder private[telemetry] (
   private var unit: String = ""
 ) {
 
+  /**
+   * Sets the description; the default is empty. The instrument keeps it in
+   * `description`, and the collected [[MetricData]] does not include it.
+   */
   def setDescription(desc: String): CounterBuilder = {
     this.description = desc
     this
   }
 
+  /**
+   * Sets the unit, such as `ms`, `By` or `{request}`; the default is empty. The
+   * instrument keeps it in `unit`, and the collected [[MetricData]] does not
+   * include it.
+   */
   def setUnit(u: String): CounterBuilder = {
     this.unit = u
     this
   }
 
+  /**
+   * Creates a [[Counter]] and registers it with the meter. Each call registers
+   * a new one, even with the same name.
+   */
   def build(): Counter = {
     val counter = Counter(name, description, unit)
     meter.registerCounter(counter)
     counter
   }
 
+  /**
+   * Creates an [[ObservableCounter]] that runs `callback` on each collection,
+   * and registers it with the meter; `callback` does not run now.
+   */
   def buildWithCallback(callback: ObservableCallback => Unit): ObservableCounter = {
     val obs = ObservableCounter(name, description, unit)(callback)
     meter.registerObservableCounter(obs)
@@ -175,7 +256,9 @@ final class CounterBuilder private[telemetry] (
 }
 
 /**
- * Builder for UpDownCounter instruments.
+ * Sets the description and unit of an [[UpDownCounter]] or an
+ * [[ObservableUpDownCounter]] before `Meter#upDownCounterBuilder` registers it.
+ * Each setter changes the builder and returns it.
  */
 final class UpDownCounterBuilder private[telemetry] (
   private val name: String,
@@ -184,22 +267,39 @@ final class UpDownCounterBuilder private[telemetry] (
   private var unit: String = ""
 ) {
 
+  /**
+   * Sets the description; the default is empty. The instrument keeps it in
+   * `description`, and the collected [[MetricData]] does not include it.
+   */
   def setDescription(desc: String): UpDownCounterBuilder = {
     this.description = desc
     this
   }
 
+  /**
+   * Sets the unit, such as `ms`, `By` or `{request}`; the default is empty. The
+   * instrument keeps it in `unit`, and the collected [[MetricData]] does not
+   * include it.
+   */
   def setUnit(u: String): UpDownCounterBuilder = {
     this.unit = u
     this
   }
 
+  /**
+   * Creates an [[UpDownCounter]] and registers it with the meter. Each call
+   * registers a new one, even with the same name.
+   */
   def build(): UpDownCounter = {
     val counter = UpDownCounter(name, description, unit)
     meter.registerUpDownCounter(counter)
     counter
   }
 
+  /**
+   * Creates an [[ObservableUpDownCounter]] that runs `callback` on each
+   * collection, and registers it with the meter; `callback` does not run now.
+   */
   def buildWithCallback(callback: ObservableCallback => Unit): ObservableUpDownCounter = {
     val obs = ObservableUpDownCounter(name, description, unit)(callback)
     meter.registerObservableUpDownCounter(obs)
@@ -208,7 +308,9 @@ final class UpDownCounterBuilder private[telemetry] (
 }
 
 /**
- * Builder for Histogram instruments.
+ * Sets the description and unit of a [[Histogram]] before
+ * `Meter#histogramBuilder` registers it. Each setter changes the builder and
+ * returns it.
  */
 final class HistogramBuilder private[telemetry] (
   private val name: String,
@@ -217,16 +319,29 @@ final class HistogramBuilder private[telemetry] (
   private var unit: String = ""
 ) {
 
+  /**
+   * Sets the description; the default is empty. The instrument keeps it in
+   * `description`, and the collected [[MetricData]] does not include it.
+   */
   def setDescription(desc: String): HistogramBuilder = {
     this.description = desc
     this
   }
 
+  /**
+   * Sets the unit, such as `ms`, `By` or `{request}`; the default is empty. The
+   * instrument keeps it in `unit`, and the collected [[MetricData]] does not
+   * include it.
+   */
   def setUnit(u: String): HistogramBuilder = {
     this.unit = u
     this
   }
 
+  /**
+   * Creates a [[Histogram]] and registers it with the meter. Each call
+   * registers a new one, even with the same name.
+   */
   def build(): Histogram = {
     val histogram = Histogram(name, description, unit)
     meter.registerHistogram(histogram)
@@ -235,7 +350,9 @@ final class HistogramBuilder private[telemetry] (
 }
 
 /**
- * Builder for Gauge instruments.
+ * Sets the description and unit of a [[Gauge]] or an [[ObservableGauge]] before
+ * `Meter#gaugeBuilder` registers it. Each setter changes the builder and
+ * returns it.
  */
 final class GaugeBuilder private[telemetry] (
   private val name: String,
@@ -244,22 +361,39 @@ final class GaugeBuilder private[telemetry] (
   private var unit: String = ""
 ) {
 
+  /**
+   * Sets the description; the default is empty. The instrument keeps it in
+   * `description`, and the collected [[MetricData]] does not include it.
+   */
   def setDescription(desc: String): GaugeBuilder = {
     this.description = desc
     this
   }
 
+  /**
+   * Sets the unit, such as `ms`, `By` or `{request}`; the default is empty. The
+   * instrument keeps it in `unit`, and the collected [[MetricData]] does not
+   * include it.
+   */
   def setUnit(u: String): GaugeBuilder = {
     this.unit = u
     this
   }
 
+  /**
+   * Creates a [[Gauge]] and registers it with the meter. Each call registers a
+   * new one, even with the same name.
+   */
   def build(): Gauge = {
     val gauge = Gauge(name, description, unit)
     meter.registerGauge(gauge)
     gauge
   }
 
+  /**
+   * Creates an [[ObservableGauge]] that runs `callback` on each collection, and
+   * registers it with the meter; `callback` does not run now.
+   */
   def buildWithCallback(callback: ObservableCallback => Unit): ObservableGauge = {
     val obs = ObservableGauge(name, description, unit)(callback)
     meter.registerObservableGauge(obs)

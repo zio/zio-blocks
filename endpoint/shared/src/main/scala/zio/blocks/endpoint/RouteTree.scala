@@ -22,15 +22,61 @@ import zio.blocks.chunk.Chunk
 import zio.http.{Method, Path}
 
 /**
- * Routing trie keyed by HTTP method, then by path segments. Literals are
- * matched first, then dynamic segments in priority order (int > long > uuid >
- * bool > string > combined > trailing). HEAD requests fall back to GET
- * handlers. Merge prefers right-hand-side values on conflict.
+ * A routing table that maps a request's method and path to a value of type `A`,
+ * such as a handler. It is a tree keyed by method, then by one path segment per
+ * level.
+ *
+ * At each level a literal segment is tried first; when it leads to no route,
+ * the capturing segments are tried in this order: int, long, UUID, bool,
+ * string, segments built with `~`, trailing. So `/notes/42` goes to a
+ * `{id: Int}` route before a `{slug: String}` one, and a string capture at a
+ * level wins over a `~` segment beside it. Only the shape of each segment is
+ * checked: a `transformOrFail` decoder does not run, so the route found can
+ * still fail to decode the path. The trailing slash of the request path is
+ * ignored.
+ *
+ * A `HEAD` request with no matching `HEAD` route uses the `GET` routes. A
+ * trailing route such as `/assets/...` also matches its prefix `/assets` when
+ * there is no exact route for it. Adding a route that has the same method and
+ * segment shapes as an existing one replaces its value, and so does `merge`
+ * (the right-hand tree wins).
+ *
+ * {{{
+ * import zio.blocks.endpoint.RoutePattern._
+ * import zio.http.{Method, Path}
+ *
+ * val routes = RouteTree
+ *   .empty[String]
+ *   .add(Method.GET / "notes" / "latest", "latest note")
+ *   .add(Method.GET / "notes" / PathCodec.int("id"), "note by id")
+ *   .add(Method.GET / "notes" / PathCodec.string("slug"), "note by slug")
+ *
+ * routes.get(Method.GET, Path("/notes/latest")) // Some(latest note)
+ * routes.get(Method.GET, Path("/notes/42"))     // Some(note by id)
+ * routes.get(Method.GET, Path("/notes/hello"))  // Some(note by slug)
+ * routes.get(Method.HEAD, Path("/notes/42"))    // Some(note by id)
+ * routes.get(Method.POST, Path("/notes/42"))    // None
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/endpoint/route-tree/ RouteTree]]
  */
 final case class RouteTree[A](
   roots: Map[Method, SegmentSubtree[A]]
 ) { self =>
 
+  /**
+   * Adds `value` under every method and path that `pattern.alternatives` gives
+   * (so `Method.ANY` adds it under all nine standard methods). A route with the
+   * same method and segment shapes as an existing one replaces it; the capture
+   * names do not count, so `/notes/{id}` and `/notes/{n}` (both `Int`) are the
+   * same route.
+   *
+   * A pattern with an empty path adds nothing, so a route for `/` cannot be
+   * stored: a known bug (see [[RoutePattern.alternatives]]). Throws
+   * `IllegalStateException` for an `orElse` branch that is not a single
+   * literal, such as `PathCodec("api/v1")`.
+   */
   def add[A1 >: A](pattern: RoutePattern[_], value: A1): RouteTree[A1] =
     pattern.alternatives.foldLeft(this.asInstanceOf[RouteTree[A1]]) { (tree, alternative) =>
       tree.addSingle(alternative, value)
@@ -44,11 +90,20 @@ final case class RouteTree[A](
     RouteTree(widened.updated(pattern.method, existing.merge(subtree)))
   }
 
+  /**
+   * Finds the value for a request, or `None`. A `HEAD` request with no matching
+   * `HEAD` route falls back to the `GET` routes. `add` never stores
+   * `Method.ANY` as a key, so looking it up finds nothing.
+   */
   def get(method: Method, path: Path): Option[A] =
     roots.get(method).flatMap(_.get(path.segments, 0)).orElse {
       if (method == Method.HEAD) roots.get(Method.GET).flatMap(_.get(path.segments, 0)) else None
     }
 
+  /**
+   * Combines two trees; where both have a route with the same method and
+   * segment shapes, the one from `that` wins.
+   */
   def merge[A1 >: A](that: RouteTree[A1]): RouteTree[A1] = {
     val mergedRoots = (self.roots.keySet ++ that.roots.keySet).iterator.map { method =>
       val left  = self.roots.getOrElse(method, SegmentSubtree.empty[A1])
@@ -58,11 +113,21 @@ final case class RouteTree[A](
     RouteTree(mergedRoots)
   }
 
+  /**
+   * Applies `f` to every value, keeping the routes.
+   */
   def map[B](f: A => B): RouteTree[B] =
     RouteTree(roots.map { case (method, subtree) => method -> subtree.map(f) })
 }
 
+/**
+ * Builds route trees.
+ */
 object RouteTree {
+
+  /**
+   * A tree with no routes.
+   */
   def empty[A]: RouteTree[A] = RouteTree(Map.empty)
 
   private[endpoint] def flattenPathCodec(codec: PathCodec[_]): Chunk[SegmentCodec[_]] =
@@ -70,15 +135,18 @@ object RouteTree {
       case PathCodec.Segment(seg)           => Chunk(seg)
       case PathCodec.Concat(left, right, _) => flattenPathCodec(left) ++ flattenPathCodec(right)
       case PathCodec.Transform(inner, _, _) => flattenPathCodec(inner)
+      case PathCodec.Ignored(inner)         => flattenPathCodec(inner)
       case PathCodec.Fallback(_, _)         =>
         throw new IllegalStateException("Fallback paths must be expanded before flattening")
     }
 }
 
 /**
- * A single level of the routing trie. `literals` holds exact-match branches,
- * `others` holds dynamic segment branches keyed by [[SegmentCodec.Key]] and
- * ordered by match priority.
+ * One level of a [[RouteTree]]: `literals` holds the branches for literal
+ * segments, `others` the branches for capturing segments keyed by
+ * [[SegmentCodec.Key]], and `value` the route that ends at this level. In a
+ * tree built with `add` or `merge`, `others` is sorted in match order (see
+ * [[RouteTree]]).
  */
 final case class SegmentSubtree[A](
   literals: Map[String, SegmentSubtree[A]],
@@ -86,6 +154,13 @@ final case class SegmentSubtree[A](
   value: Option[A]
 ) { self =>
 
+  /**
+   * Looks up the route for `segments`, starting at `index`. A literal branch is
+   * tried first, then the capturing branches in order, each tested with
+   * [[SegmentCodec.matches]], which checks the segment's shape without decoding
+   * it. When the segments run out, the value at this level is returned, or else
+   * the value of a trailing branch below it.
+   */
   def get(segments: Chunk[String], index: Int): Option[A] =
     if (index >= segments.length) {
       value.orElse(others.get(SegmentCodec.Key.Trailing).flatMap(_._2.value))
@@ -99,6 +174,11 @@ final case class SegmentSubtree[A](
       }
     }
 
+  /**
+   * Combines two levels branch by branch; where both have a value, the one from
+   * `that` wins. For a capturing branch on both sides, the segment codec of
+   * this level is kept.
+   */
   def merge[A1 >: A](that: SegmentSubtree[A1]): SegmentSubtree[A1] = {
     val mergedLiterals = (self.literals.keySet ++ that.literals.keySet).iterator.map { key =>
       val left  = self.literals.getOrElse(key, SegmentSubtree.empty[A1])
@@ -126,6 +206,9 @@ final case class SegmentSubtree[A](
     SegmentSubtree(mergedLiterals, mergedOthers, that.value.orElse(self.value))
   }
 
+  /**
+   * Applies `f` to every value below this level.
+   */
   def map[B](f: A => B): SegmentSubtree[B] =
     SegmentSubtree(
       literals = literals.map { case (key, subtree) => key -> subtree.map(f) },
@@ -136,9 +219,20 @@ final case class SegmentSubtree[A](
     )
 }
 
+/**
+ * Builds route tree levels.
+ */
 object SegmentSubtree {
+
+  /**
+   * A level with no branches and no value.
+   */
   def empty[A]: SegmentSubtree[A] = SegmentSubtree(Map.empty, ListMap.empty, None)
 
+  /**
+   * Builds the chain of levels for one route: one level per segment, with
+   * `value` at the end. [[SegmentCodec.Empty]] segments are skipped.
+   */
   def single[A](segments: Chunk[SegmentCodec[_]], value: A): SegmentSubtree[A] = {
     val filtered = segments.filter(_ != SegmentCodec.Empty)
     filtered.foldRight(SegmentSubtree[A](Map.empty, ListMap.empty, Some(value))) { case (codec, child) =>

@@ -18,6 +18,7 @@ package zio.blocks.typeid
 
 import zio.blocks.chunk.Chunk
 import zio.test._
+import TestIntersections.Intersect
 
 // ---------------------------------------------------------------------------
 // Test fixtures — defined at top level so macros can see them
@@ -95,7 +96,7 @@ object IsNominalTypeSpec extends ZIOSpecDefault {
     ),
     suite("IsNominalType — compile-time failures")(
       test("does not compile for an intersection type (A with B)") {
-        typeCheck("implicitly[zio.blocks.typeid.IsNominalType[NominalTrait with NominalClass]]").map(result =>
+        typeCheck("implicitly[zio.blocks.typeid.IsNominalType[Intersect[NominalTrait, NominalClass]]]").map(result =>
           assertTrue(result.isLeft)
         )
       },
@@ -104,8 +105,13 @@ object IsNominalTypeSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft)
         )
       },
+      test("does not compile for a bare type parameter") {
+        typeCheck("def foo[A] = zio.blocks.typeid.IsNominalType[A]").map(result =>
+          assertTrue(result.left.exists(IsNominalTypeTestMessages.isBareTypeParameterError))
+        )
+      },
       test("error message mentions the type name") {
-        typeCheck("implicitly[zio.blocks.typeid.IsNominalType[NominalTrait with NominalClass]]").map(result =>
+        typeCheck("implicitly[zio.blocks.typeid.IsNominalType[Intersect[NominalTrait, NominalClass]]]").map(result =>
           assertTrue(
             result.isLeft &&
               (result.left.exists(_.contains("NominalTrait")) ||
@@ -126,18 +132,18 @@ object IsNominalTypeSpec extends ZIOSpecDefault {
         assertTrue(ev.typeIdsErased.contains(ntEv.typeIdErased))
       },
       test("derives for a two-member intersection") {
-        val ev = implicitly[IsNominalIntersection[NominalTrait with NominalClass]]
+        val ev = implicitly[IsNominalIntersection[Intersect[NominalTrait, NominalClass]]]
         assertTrue(ev.typeIdsErased.length == 2)
       },
       test("two-member intersection contains both erased ids") {
-        val ev  = implicitly[IsNominalIntersection[NominalTrait with NominalClass]]
+        val ev  = implicitly[IsNominalIntersection[Intersect[NominalTrait, NominalClass]]]
         val evT = implicitly[IsNominalType[NominalTrait]]
         val evC = implicitly[IsNominalType[NominalClass]]
         val ids = ev.typeIdsErased
         assertTrue(ids.contains(evT.typeIdErased) && ids.contains(evC.typeIdErased))
       },
       test("derives for a three-member intersection") {
-        val ev = implicitly[IsNominalIntersection[NominalTrait with NominalClass with NominalCaseClass]]
+        val ev = implicitly[IsNominalIntersection[Intersect[Intersect[NominalTrait, NominalClass], NominalCaseClass]]]
         assertTrue(ev.typeIdsErased.length == 3)
       },
       test("apply summoner returns an instance") {
@@ -188,12 +194,12 @@ object IsNominalTypeSpec extends ZIOSpecDefault {
     suite("IsNominalIntersection — compile-time failures")(
       test("does not compile when a member has a structural refinement") {
         typeCheck(
-          "implicitly[zio.blocks.typeid.IsNominalIntersection[NominalTrait with NominalClass { def foo: Int }]]"
+          "implicitly[zio.blocks.typeid.IsNominalIntersection[Intersect[NominalTrait, NominalClass] { def foo: Int }]]"
         ).map(result => assertTrue(result.isLeft))
       },
       test("error message mentions the member type") {
         typeCheck(
-          "implicitly[zio.blocks.typeid.IsNominalIntersection[NominalTrait with NominalClass { def foo: Int }]]"
+          "implicitly[zio.blocks.typeid.IsNominalIntersection[Intersect[NominalTrait, NominalClass] { def foo: Int }]]"
         ).map(result =>
           assertTrue(
             result.isLeft &&

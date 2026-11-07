@@ -17,7 +17,8 @@
 package zio.blocks.telemetry
 
 /**
- * A single measurement observation with a value and associated attributes.
+ * A value with its attributes. No instrument in this module produces or reads
+ * it: observable instruments report values through `ObservableCallback#record`.
  *
  * @param value
  *   the measured value
@@ -27,16 +28,18 @@ package zio.blocks.telemetry
 final case class Measurement(value: Double, attributes: Attributes)
 
 /**
- * A data point for sum-based metrics (Counter, UpDownCounter).
+ * One series of a [[Counter]], [[UpDownCounter]], [[ObservableCounter]] or
+ * [[ObservableUpDownCounter]] at collection time.
  *
  * @param attributes
- *   attributes identifying this time series
+ *   the attribute set of the series
  * @param startTimeNanos
- *   epoch nanoseconds when the aggregation period started
+ *   always `0`: no instrument records when its sum started
  * @param timeNanos
- *   epoch nanoseconds when this snapshot was taken
+ *   the collection time, in epoch nanoseconds
  * @param value
- *   the aggregated sum value
+ *   the total since the instrument was created, or, for an observable counter,
+ *   the value the callback reported, rounded to a whole number
  */
 final case class SumDataPoint(
   attributes: Attributes,
@@ -46,26 +49,29 @@ final case class SumDataPoint(
 )
 
 /**
- * A data point for histogram metrics.
+ * One series of a [[Histogram]] at collection time, covering every value
+ * recorded since the histogram was created. Each collection copies the bucket
+ * counts and boundaries into new arrays.
  *
  * @param attributes
- *   attributes identifying this time series
+ *   the attribute set of the series
  * @param startTimeNanos
- *   epoch nanoseconds when the aggregation period started
+ *   always `0`: no histogram records when its series started
  * @param timeNanos
- *   epoch nanoseconds when this snapshot was taken
+ *   the collection time, in epoch nanoseconds
  * @param count
- *   total number of recorded values
+ *   the number of recorded values
  * @param sum
- *   sum of all recorded values
+ *   the sum of the recorded values
  * @param min
- *   minimum recorded value
+ *   the smallest recorded value, or `Double.MaxValue` when `count` is `0`
  * @param max
- *   maximum recorded value
+ *   the largest recorded value, or `Double.MinValue` when `count` is `0`
  * @param bucketCounts
- *   counts for each bucket (length = boundaries.length + 1)
+ *   the number of values in each bucket; one more entry than `boundaries`, the
+ *   last for values above the last boundary
  * @param boundaries
- *   upper exclusive boundaries for each bucket
+ *   the inclusive upper bound of each bucket but the last
  */
 final case class HistogramDataPoint(
   attributes: Attributes,
@@ -80,14 +86,15 @@ final case class HistogramDataPoint(
 )
 
 /**
- * A data point for gauge metrics.
+ * One series of a [[Gauge]] or [[ObservableGauge]] at collection time.
  *
  * @param attributes
- *   attributes identifying this time series
+ *   the attribute set of the series
  * @param timeNanos
- *   epoch nanoseconds when this value was observed
+ *   the collection time, in epoch nanoseconds, not the time of the last
+ *   `record`
  * @param value
- *   the current gauge value
+ *   the last value recorded, or reported by the callback
  */
 final case class GaugeDataPoint(
   attributes: Attributes,
@@ -96,25 +103,44 @@ final case class GaugeDataPoint(
 )
 
 /**
- * Aggregated metric data collected from an instrument. Each variant holds a
- * list of data points, one per unique attribute set observed.
+ * The data of one instrument at one collection, as `collect()` and
+ * `MetricReader#collectAllMetrics` return it: `SumData`, `HistogramData` or
+ * `GaugeData`, after the kind of instrument.
+ *
+ * A synchronous instrument gives one point per attribute set it has seen,
+ * including a set passed to `bind` that never recorded anything. An observable
+ * instrument gives one point per value its callback reported. The data carry no
+ * instrument name, description or unit.
+ *
+ * {{{
+ * val queueDepth = MeterProvider.builder.build().get("worker").gaugeBuilder("queue.depth").build()
+ * queueDepth.record(7.0, "queue" -> "orders")
+ *
+ * val latest = queueDepth.collect() match {
+ *   case MetricData.GaugeData(points) => points.map(_.value)
+ *   case MetricData.SumData(_)        => Nil
+ *   case MetricData.HistogramData(_)  => Nil
+ * }
+ * latest.headOption // Some(7.0)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/metric-data/ MetricData]]
  */
 sealed trait MetricData
 
+/** The three kinds of data. */
 object MetricData {
 
   /**
-   * Aggregated sum data from a Counter or UpDownCounter.
+   * The data of a [[Counter]], [[UpDownCounter]], [[ObservableCounter]] or
+   * [[ObservableUpDownCounter]].
    */
   final case class SumData(points: List[SumDataPoint]) extends MetricData
 
-  /**
-   * Aggregated histogram data from a Histogram instrument.
-   */
+  /** The data of a [[Histogram]]. */
   final case class HistogramData(points: List[HistogramDataPoint]) extends MetricData
 
-  /**
-   * Aggregated gauge data from a Gauge instrument.
-   */
+  /** The data of a [[Gauge]] or [[ObservableGauge]]. */
   final case class GaugeData(points: List[GaugeDataPoint]) extends MetricData
 }

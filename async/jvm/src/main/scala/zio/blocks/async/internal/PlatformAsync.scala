@@ -16,19 +16,113 @@
 
 package zio.blocks.async.internal
 
+import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import java.util.concurrent.locks.LockSupport
 
 /**
- * JVM platform helpers for the async runtime.
+ * JVM hooks for the async runtime: the execution owner and cancellation batch
+ * in thread-locals, scheduling on `ForkJoinPool.commonPool()`, and the parker
+ * behind `block`.
  *
  * The parker uses [[LockSupport]] `park`/`unpark` rather than
  * `Object.synchronized` / `Object.wait` so that virtual threads (Project Loom,
- * JDK 21+) properly unmount their carrier while parked instead of pinning it —
- * and, unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no AQS
- * wait-queue node per park, which is the bulk of the per-async-boundary garbage
- * on the genuinely-suspended (off-thread completion) path.
+ * JDK 21+) unmount their carrier while parked instead of pinning it, and,
+ * unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no wait-queue
+ * node per park.
  */
 private[async] object PlatformAsync {
+
+  private val executionOwner           = new ThreadLocal[AnyRef]
+  private val cancellationBatch        = new ThreadLocal[AnyRef]
+  private val continuationScratch1     = new ThreadLocal[AnyRef]
+  private val continuationScratch2     = new ThreadLocal[AnyRef]
+  private val bracketCancellationDepth = new ThreadLocal[BracketCancellationDepth]
+  private val bracketPollDepth         = new ThreadLocal[BracketPollDepth]
+
+  def currentExecutionOwner: AnyRef    = executionOwner.get()
+  def currentCancellationBatch: AnyRef = cancellationBatch.get()
+
+  def enterBracketCancellation(): Int = {
+    var depth = bracketCancellationDepth.get()
+    if (depth eq null) {
+      depth = new BracketCancellationDepth
+      bracketCancellationDepth.set(depth)
+    }
+    depth.value += 1
+    depth.value
+  }
+
+  def enterBracketPoll(): Int = {
+    var depth = bracketPollDepth.get()
+    if (depth eq null) {
+      depth = new BracketPollDepth
+      bracketPollDepth.set(depth)
+    }
+    depth.value += 1
+    depth.value
+  }
+
+  def exitBracketCancellation(): Unit = bracketCancellationDepth.get().value -= 1
+
+  def exitBracketPoll(): Unit = bracketPollDepth.get().value -= 1
+
+  def takeContinuationScratch(): AnyRef = {
+    val first = continuationScratch1.get()
+    if (first ne null) {
+      continuationScratch1.set(null)
+      first
+    } else {
+      val second = continuationScratch2.get()
+      if (second ne null) continuationScratch2.set(null)
+      second
+    }
+  }
+
+  def releaseContinuationScratch(scratch: AnyRef): Unit =
+    if (continuationScratch1.get() eq null) continuationScratch1.set(scratch)
+    else if (continuationScratch2.get() eq null) continuationScratch2.set(scratch)
+
+  def withCancellationBatch[A](batch: AnyRef)(body: => A): A = {
+    val previous = cancellationBatch.get()
+    cancellationBatch.set(batch)
+    try body
+    finally cancellationBatch.set(previous)
+  }
+
+  def withExecutionOwner[A](owner: AnyRef)(body: => A): A = {
+    val previous = executionOwner.get()
+    executionOwner.set(owner)
+    try body
+    finally executionOwner.set(previous)
+  }
+
+  /**
+   * Runs `runnable` on `ForkJoinPool.commonPool()` with the caller's execution
+   * owner and cancellation batch; `forceMacrotask` matters only on Scala.js.
+   */
+  def schedule(runnable: Runnable, forceMacrotask: Boolean): Unit = {
+    val _     = forceMacrotask
+    val owner = currentExecutionOwner
+    val batch = currentCancellationBatch
+    ForkJoinPool
+      .commonPool()
+      .execute(
+        if ((owner eq null) && (batch eq null)) runnable
+        else
+          new Runnable {
+            def run(): Unit = withExecutionOwner(owner)(withCancellationBatch(batch)(runnable.run()))
+          }
+      )
+  }
+
+  /** True on a worker thread of `ForkJoinPool.commonPool()`. */
+  def isSchedulerThread: Boolean = Thread.currentThread() match {
+    case worker: ForkJoinWorkerThread => worker.getPool eq ForkJoinPool.commonPool()
+    case _                            => false
+  }
+
+  /** Schedule runtime-owned work without inheriting the caller's contexts. */
+  def scheduleRaw(runnable: Runnable): Unit = ForkJoinPool.commonPool().execute(runnable)
 
   // One parker is cached per awaiting thread and reused across `await` calls,
   // so a steady stream of (non-nested) `.block` calls on the same thread
@@ -42,8 +136,8 @@ private[async] object PlatformAsync {
   //   - otherwise (first await on this thread, OR a NESTED await whose outer
   //     frame still owns the pooled parker — e.g. a `flatMap` continuation that
   //     itself calls `.block`) allocate a fresh, un-pooled parker.
-  // `owner` is re-captured here because a pooled parker created on this thread
-  // is only ever handed back out on this same thread.
+  // A parker records its creating thread as the one to unpark; a pooled
+  // parker is only handed back out on that same thread.
   def newParker(): Parker = {
     val p = pooled.get()
     if ((p ne null) && !p.busy) {
@@ -55,6 +149,14 @@ private[async] object PlatformAsync {
       if (p eq null) pooled.set(fresh) // pool only the FIRST parker per thread
       fresh
     }
+  }
+
+  private final class BracketCancellationDepth {
+    var value: Int = 0
+  }
+
+  private final class BracketPollDepth {
+    var value: Int = 0
   }
 
   // One object that IS the parker AND its own waker (`onComplete = this`). The
@@ -86,16 +188,14 @@ private[async] object PlatformAsync {
 
     def park(): Unit =
       // `while (!ready)` + unpark-permit semantics are lost-wakeup-free: a
-      // synchronous wakeup sets `ready` so we never block (the old fast path); a
-      // leftover permit from a prior round causes at most one spurious return the
-      // loop absorbs.
+      // synchronous wakeup sets `ready` so we never block; a leftover permit
+      // from a prior round causes at most one spurious return the loop absorbs.
       while (!ready) {
         LockSupport.park()
-        // A worker cancel interrupts the parked thread (AsyncRunner.cancel ->
-        // worker.interrupt()); `LockSupport.park` returns with the interrupt flag
-        // set, so re-throw `InterruptedException` exactly as the old `cond.await`
-        // did, for `drive` to unwind into a suppressed/cancelled outcome. Checked
-        // before `ready` so a cancel racing a completion still surfaces as
+        // An interrupt of the parked thread (from user code; the async runtime
+        // interrupts no thread) makes `LockSupport.park` return with the flag
+        // set, so `block` ends with `InterruptedException`. Checked before
+        // `ready`, so an interrupt racing a completion still surfaces as
         // interruption.
         if (Thread.interrupted()) throw new InterruptedException()
       }

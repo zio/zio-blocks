@@ -30,20 +30,24 @@ import scala.annotation.tailrec
  * ==Matching Rules==
  *
  *   - '''Wildcard''': Matches any Json value
- *   - '''Primitive(name)''': Matches Json primitive types:
+ *   - '''Primitive(name)''': Matches Json primitive types, ignoring the case of
+ *     the name:
  *     - "string" matches Json.String
  *     - "boolean" matches Json.Boolean
  *     - "int", "long", "short", "byte", "float", "double", "number", "bigint",
- *       "bigdecimal" all match Json.Number
+ *       "bigdecimal" all match Json.Number, whatever its value
  *     - "null" matches Json.Null
+ *     - "unit" matches the empty object
+ *     - any other name, such as "char" or "uuid", matches nothing
  *   - '''Record(fields)''': Matches Json.Object using subset matching - all
  *     specified fields must exist with matching types, but extra fields are
  *     allowed
  *   - '''Variant(cases)''': Returns false (JSON doesn't have tagged variants)
  *   - '''Sequence(elem)''': Matches Json.Array if all elements match the
  *     element pattern (empty array always matches)
- *   - '''Map(k, v)''': Matches Json.Object if key pattern is "string" and all
- *     values match the value pattern (empty object always matches)
+ *   - '''Map(k, v)''': Matches Json.Object if the key pattern is "string" or a
+ *     wildcard and all values match the value pattern (an empty object then
+ *     always matches)
  *   - '''Optional(inner)''': Matches Json.Null always, otherwise checks inner
  *     pattern
  *   - '''Nominal(name)''': Returns false (requires schema context not available

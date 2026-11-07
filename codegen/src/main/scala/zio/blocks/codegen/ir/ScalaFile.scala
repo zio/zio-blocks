@@ -17,20 +17,16 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a complete Scala source file in the IR.
+ * A complete Scala source file in the IR: a package declaration, imports and
+ * type definitions. It is the top-level IR node; `ScalaEmitter.emit` turns it
+ * into source text. The output has the package line, then the imports
+ * (duplicates removed, sorted when `EmitterConfig.sortImports` is true), then
+ * each definition after a blank line.
  *
- * A Scala file consists of a package declaration, optional imports, and type
- * definitions. This is the top-level IR node for code generation.
+ * {{{
+ * import zio.blocks.codegen.ir._
+ * import zio.blocks.codegen.emit.ScalaEmitter
  *
- * @param packageDecl
- *   The package declaration for this file
- * @param imports
- *   The import statements (defaults to empty list)
- * @param types
- *   The type definitions in this file (defaults to empty list)
- *
- * @example
- *   {{{
  * val file = ScalaFile(
  *   PackageDecl("com.example"),
  *   imports = List(
@@ -41,7 +37,26 @@ package zio.blocks.codegen.ir
  *     CaseClass("Person", List(Field("name", TypeRef.String)))
  *   )
  * )
- *   }}}
+ * ScalaEmitter.emit(file)
+ * // package com.example
+ * //
+ * // import scala.collection.List
+ * // import zio.*
+ * //
+ * // case class Person(
+ * //   name: String,
+ * // )
+ * }}}
+ *
+ * @param packageDecl
+ *   The package declaration for this file
+ * @param imports
+ *   The import statements (defaults to empty list)
+ * @param types
+ *   The type definitions in this file (defaults to empty list)
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/codegen/scala-file/ ScalaFile]]
  */
 final case class ScalaFile(
   packageDecl: PackageDecl,

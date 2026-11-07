@@ -49,8 +49,9 @@ import scala.reflect.macros.blackbox
  *      value* tree and returns the final `Async` tree. Every synchronous
  *      segment is wrapped in `try { ... } catch Async.fail` so a thrown
  *      exception becomes `Async.fail`; `.await` becomes
- *      `qual.flatMap(a => k(a))` so an awaited `Async.fail` short-circuits.
- *      Awaits run in strict source order (left-to-right ANF let-insertion).
+ *      `qual.flatMap(a => k(a))` (plain `qual` in tail position) so an awaited
+ *      `Async.fail` short-circuits. Awaits run in strict source order
+ *      (left-to-right ANF let-insertion).
  *   4. The result is ascribed `.asInstanceOf[Async[A]]` (as the Scala 3 backend
  *      also does) so intermediate `Try`-erased value types do not leak.
  */
@@ -139,10 +140,11 @@ private[async] object AsyncMacros {
     /**
      * Whitelisted HOFs whose semantics are PREFIX-ORDERED: `takeWhile` keeps
      * the longest leading run satisfying the predicate, `dropWhile` drops it.
-     * These are only meaningful on an ordered (`Seq`-like) receiver — on an
-     * unordered `Set` / `Map` the "prefix" is implementation-defined — so the
-     * typed pass restricts them to `Seq` receivers (`List` / `Vector`),
-     * rejecting `Set` / `Map` / `Option` with a good position.
+     * These are only meaningful on an ordered receiver — on an unordered `Set`
+     * / `Map` the "prefix" is implementation-defined — so the typed pass
+     * restricts them to immutable `Seq` receivers (`List`, `Vector`, `Queue`,
+     * `ArraySeq`) and `Array`, rejecting `Set` / `Map` / `Option` with a good
+     * position.
      */
     val prefixOrderedHofMethods: Set[String] = Set("takeWhile", "dropWhile")
 
@@ -321,8 +323,8 @@ private[async] object AsyncMacros {
 
     /**
      * The erased immutable `Seq[Any]` type, used to restrict the prefix-ordered
-     * HOFs (`takeWhile` / `dropWhile`) to ordered receivers (`List` /
-     * `Vector`).
+     * HOFs (`takeWhile` / `dropWhile`) to ordered receivers (`List`, `Vector`,
+     * `Queue`, `ArraySeq`; `Array` is admitted separately).
      */
     val SeqAnyTpe: Type = typeOf[scala.collection.immutable.Seq[Any]]
 
@@ -384,8 +386,11 @@ private[async] object AsyncMacros {
      *   - `"option"` — any `Option` (single element: eager/lazy collapse, so
      *     `map`/`flatMap`/`foreach` all reduce to a `Some`/`None` branch).
      *   - `"iterable"` — a whitelisted strict standard collection (`Vector`,
-     *     immutable `Set`): lazy / sequential `map`/`flatMap`/`foreach`, with
-     *     the result collection type preserved via the receiver's own builder.
+     *     immutable `Queue`, immutable `ArraySeq`, immutable `Set`): lazy /
+     *     sequential `map`/`flatMap`/`foreach`, with the result collection type
+     *     preserved via the receiver's own builder.
+     *   - `"array"` — an `Array` (through `ArrayOps`): eager `map`, lazy
+     *     `flatMap`/`foreach`, rebuilt with `Array.newBuilder`.
      *   - `"map"` — an immutable `Map` (entries are `(K, V)` tuples): lazy /
      *     sequential `map`/`flatMap`/`foreach`. `map`/`flatMap` rebuild a
      *     `Map[K2, V2]` via the receiver's `mapFactory` when the closure yields
@@ -436,11 +441,11 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Whether `t` is an `Array[_]` static type — used to pick
+     * Whether `t` is an `Array[_]` static type — used by `emitCollect` to pick
      * `Array.newBuilder` (which needs a `ClassTag`) over
-     * `iterableFactory.newBuilder` for the result-building HOFs (`filter` /
-     * `takeWhile` / `collect`) whose recorded RESULT type (not receiver type)
-     * is an `Array`.
+     * `iterableFactory.newBuilder` when the recorded RESULT type (not receiver
+     * type) is an `Array`. `filter` and `takeWhile` choose by receiver kind
+     * instead.
      */
     def isArrayResult(t: Type): Boolean =
       t != null && t != NoType && t.dealias.typeSymbol == ArrayClassSym
@@ -536,7 +541,7 @@ private[async] object AsyncMacros {
     // `receiverKind`): the untyped rewrite is collection-specific, so a
     // whitelisted method on an unsupported receiver is rejected here (with good
     // positions) rather than producing an opaque retypecheck error from the
-    // emitted code, and the recovered kind (`"list"` / `"option"`) is recorded
+    // emitted code, and the recovered kind (`"list"`, `"option"`, ...) is recorded
     // in `hofRecvKinds` (parallel to `hofElemTypes`) so the untyped dispatch can
     // pick the right emit strategy. The FULL result type (`Vector[B]` / `Set[B]`
     // / `Unit`) is recorded in `hofResultTypes` for the generic `"iterable"`
@@ -852,8 +857,8 @@ private[async] object AsyncMacros {
       else hofElemTypes.dequeue()
 
     /**
-     * The recorded receiver kind (`"list"` / `"option"`) for the next HOF
-     * rewrite.
+     * The recorded receiver kind (`"list"`, `"option"`, `"iterable"`, `"map"`
+     * or `"array"`) for the next HOF rewrite.
      */
     def dequeueHofKind(): String =
       if (hofRecvKinds.isEmpty)
@@ -864,8 +869,9 @@ private[async] object AsyncMacros {
       else hofRecvKinds.dequeue()
 
     /**
-     * The recorded full result type (`Vector[B]` / `Set[B]` / `Unit`) for the
-     * next HOF rewrite — consumed only by the generic `"iterable"` emit.
+     * The recorded full result type (`Vector[B]`, `Boolean`, `Unit`, ...) for
+     * the next HOF rewrite, for the emits whose drain `def` needs an explicit
+     * return type.
      */
     def dequeueHofResult(): Type =
       if (hofResultTypes.isEmpty)
@@ -1049,9 +1055,9 @@ private[async] object AsyncMacros {
      *
      * The explicit `T` is essential for awaited `Async[Nothing]` values (e.g.
      * `Async.fail(_).await`): Scala 2 refuses to infer a `flatMap` lambda
-     * parameter type of `Nothing` ("missing parameter type"). For every other
-     * element type inference also works, but ascribing it costs nothing and
-     * keeps the generated code robust.
+     * parameter type of `Nothing` ("missing parameter type"). Callers pass an
+     * explicit type only for `Nothing` (see `nextAwaitTpt`) and an empty
+     * `TypeTree()` otherwise, which lets the type infer.
      *
      * Right-identity elision: when the continuation is the terminal
      * [[pureReturn]] (`a => Async.succeed(a)`),
@@ -1101,9 +1107,9 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Rewrite `recvVal.foreach(pname => fbody-with-await)` (receiver already a
-     * bound `List` value) with LAZY / sequential semantics producing
-     * `Async[Unit]`, then continue with `k`.
+     * Rewrite `recvVal.foreach(pname => fbody-with-await)` (receiver already
+     * bound; every receiver kind except `Option`) with LAZY / sequential
+     * semantics producing `Async[Unit]`, then continue with `k`.
      *
      * Unlike `map`, `foreach` discards the closure results, and every Scala 3
      * backend evaluates it strictly left-to-right and lazily: the closure for
@@ -1601,11 +1607,12 @@ private[async] object AsyncMacros {
      * completes successfully, and a failed await short-circuits the rest. We
      * drain the source iterator and accumulate into `builder` (the receiver's
      * OWN builder, supplied by the caller — `iterableFactory.newBuilder` for
-     * `Vector`/`Set`/non-pair `Map` results, `mapFactory.newBuilder` for
-     * pair-producing `Map` results), which preserves the collection family (and
-     * deduplicates a `Set`'s, or collapses a `Map`'s, *awaited* values — never
-     * an intermediate `CC[Async[…]]`). A tight `while` advances ready elements;
-     * the first suspended element switches to a `flatMap` continuation.
+     * `Vector`/`Queue`/`ArraySeq`/`Set`/non-pair `Map` results,
+     * `mapFactory.newBuilder` for pair-producing `Map` results), which
+     * preserves the collection family (and deduplicates a `Set`'s, or collapses
+     * a `Map`'s, *awaited* values — never an intermediate `CC[Async[…]]`). A
+     * tight `while` advances ready elements; the first suspended element
+     * switches to a `flatMap` continuation.
      *
      * `elemTpt` is the closure result element type `E`; when `flat` is true
      * each element yields an `IterableOnce[E]` concatenated (`++=`) into the
@@ -1657,8 +1664,9 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * `map`/`flatMap` for a generic strict collection (`Vector`, immutable
-     * `Set`), accumulating into the receiver's own `iterableFactory` builder.
+     * `map`/`flatMap` for a generic strict collection (`Vector`, `Queue`,
+     * `ArraySeq`, immutable `Set`), accumulating into the receiver's own
+     * `iterableFactory` builder.
      */
     def emitCollMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type, resultTpe: Type)(k: Tree => Tree): Tree = {
       val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
@@ -1699,11 +1707,12 @@ private[async] object AsyncMacros {
     /**
      * Rewrite a short-circuiting predicate scan — `find` / `exists` / `forall`
      * — whose `A => Boolean` closure body contains `.await`, for any
-     * whitelisted receiver (`List`, `Option`, `Vector`, `Set`, `Map` — all have
-     * `.iterator`), then continue with `k`. These are inherently **lazy /
-     * sequential** (and so identical on every backend, verified empirically):
-     * the predicate for element `n+1` runs only after element `n`'s `.await`
-     * completes, and the scan stops at the first decisive element.
+     * whitelisted receiver (`List`, `Option`, `Vector`, `Queue`, `ArraySeq`,
+     * `Set`, `Map`, `Array` — all have `.iterator`), then continue with `k`.
+     * These are inherently **lazy / sequential** (and so identical on every
+     * backend, verified empirically): the predicate for element `n+1` runs only
+     * after element `n`'s `.await` completes, and the scan stops at the first
+     * decisive element.
      *
      * `mode` selects the result shape:
      *   - `"exists"` → `Async[Boolean]`; short-circuits `true` on the first
@@ -1766,14 +1775,15 @@ private[async] object AsyncMacros {
     /**
      * Rewrite a result-collection-preserving predicate filter — `filter` /
      * `filterNot` — whose `A => Boolean` closure body contains `.await`, for a
-     * builder-backed receiver (`List` / `Vector` / immutable `Set` / `Map`),
-     * then continue with `k`. **Lazy / sequential** on every backend (verified
-     * empirically): the predicate for element `n+1` runs only after element
-     * `n`'s `.await` completes, and a failed await short-circuits the rest. The
-     * SOURCE element (not the predicate result) is accumulated into the
-     * receiver's own `builder` (so the collection family is preserved —
-     * `iterableFactory.newBuilder` for `List`/`Vector`/`Set`, `mapFactory` for
-     * `Map`); `negate` selects `filterNot` (keep when the predicate is
+     * builder-backed receiver (`List`, `Vector`, `Queue`, `ArraySeq`, `Array`,
+     * immutable `Set`, `Map`), then continue with `k`. **Lazy / sequential** on
+     * every backend (verified empirically): the predicate for element `n+1`
+     * runs only after element `n`'s `.await` completes, and a failed await
+     * short-circuits the rest. The SOURCE element (not the predicate result) is
+     * accumulated into the `builder` the caller supplies (so the collection
+     * family is preserved — `mapFactory` for a pair-typed `Map` result,
+     * `Array.newBuilder` for an `Array`, `iterableFactory.newBuilder`
+     * otherwise); `negate` selects `filterNot` (keep when the predicate is
      * `false`).
      *
      * `elemTpt` is the SOURCE element type (for `Map`, the entry tuple
@@ -1856,11 +1866,11 @@ private[async] object AsyncMacros {
 
     /**
      * Dispatch a `filter` / `filterNot` rewrite by receiver kind: `Option` uses
-     * the single-element `Some`/`None` emit; every builder-backed receiver
-     * (`List` / `Vector` / `Set` / `Map`) uses [[emitFilterLike]] with the
-     * receiver's own factory (`mapFactory.newBuilder[K, V]` for a `Map`,
-     * `iterableFactory.newBuilder[A]` otherwise) so the collection family is
-     * preserved.
+     * the single-element `Some`/`None` emit; every builder-backed receiver uses
+     * [[emitFilterLike]] with a builder for its family (`Array.newBuilder[A]`
+     * for an `Array`, `mapFactory.newBuilder[K, V]` for a pair-typed `Map`
+     * result, `iterableFactory.newBuilder[A]` otherwise) so the collection
+     * family is preserved.
      */
     def emitFilter(
       recvVal: Tree,
@@ -1891,14 +1901,15 @@ private[async] object AsyncMacros {
 
     /**
      * Rewrite `recvVal.takeWhile` / `recvVal.dropWhile` (whose predicate
-     * awaits) for an ordered `Seq` receiver (`List` / `Vector`; enforced in the
-     * typed pass), then continue with `k`.
+     * awaits) for an ordered receiver (`List`, `Vector`, `Queue`, `ArraySeq` or
+     * `Array`; enforced in the typed pass), then continue with `k`.
      *
-     * Both keep the receiver's collection family via its own builder
-     * (`iterableFactory.newBuilder[A]` — `takeWhile`/`dropWhile` do not
-     * transform elements, so the result element type equals the source element
-     * type `elemTpt`). The predicate is CPS-transformed; a predicate that
-     * awaits suspends and resumes at the next element, and a failed await
+     * Both keep the receiver's collection family via the `builder` the caller
+     * supplies (`Array.newBuilder[A]` for an `Array`,
+     * `iterableFactory.newBuilder[A]` otherwise — `takeWhile`/`dropWhile` do
+     * not transform elements, so the result element type equals the source
+     * element type `elemTpt`). The predicate is CPS-transformed; a predicate
+     * that awaits suspends and resumes at the next element, and a failed await
      * short-circuits the whole rewrite (via `flatMap`'s `Failure` path).
      *
      *   - `takeWhile`: drain the iterator, appending each element while the
@@ -1993,19 +2004,10 @@ private[async] object AsyncMacros {
 
     /**
      * Rewrite `recvVal.collect(pf)` (whose `pf` has at least one awaiting case
-     * body) for a builder-backed receiver (`List` / `Vector` / immutable `Set`;
-     * enforced in the typed pass) producing the receiver's collection family of
-     * `B`, then continue with `k`.
-     *
-     * `collect` keeps the elements the `pf` is defined at, mapping them through
-     * it — so each element is matched against the USER `case`s; a match appends
-     * the (possibly awaited) body to the receiver's own builder, a non-match is
-     * skipped. Membership and the mapped value are computed in a SINGLE match
-     * per element (the guard runs exactly once), distinguishing "no match" with
-     * a fresh sentinel (`skip`) appended by a trailing `case _`. The case body
-     * is CPS-transformed; an awaiting body suspends and resumes at the next
-     * element, and a failed await short-circuits the rest. The recursive
-     * builder-drain `def` needs the explicit `Async[result]` return type.
+     * body) for an `Option` receiver, producing `Async[Option[B]]`, then
+     * continue with `k`. `None` short-circuits to `None`; for `Some(x)` the
+     * user cases are matched once, a non-match gives `None`, and a match runs
+     * its CPS-transformed body and wraps the result in `Some`.
      */
     def emitOptionCollect(
       recvVal: Tree,
@@ -2057,6 +2059,23 @@ private[async] object AsyncMacros {
       asyncBind(safe(resultAsync))(k)
     }
 
+    /**
+     * Rewrite `recvVal.collect(pf)` (whose `pf` has at least one awaiting case
+     * body) for a builder-backed receiver (`List`, `Vector`, `Queue`,
+     * `ArraySeq`, `Array`, immutable `Set`, or a non-pair `Map`; enforced in
+     * the typed pass) producing the receiver's collection family of `B`, then
+     * continue with `k`.
+     *
+     * `collect` keeps the elements the `pf` is defined at, mapping them through
+     * it — so each element is matched against the USER `case`s; a match appends
+     * the (possibly awaited) body to the receiver's own builder, a non-match is
+     * skipped. Membership and the mapped value are computed in a SINGLE match
+     * per element (the guard runs exactly once), distinguishing "no match" with
+     * a fresh sentinel (`skip`) appended by a trailing `case _`. The case body
+     * is CPS-transformed; an awaiting body suspends and resumes at the next
+     * element, and a failed await short-circuits the rest. The recursive
+     * builder-drain `def` needs the explicit `Async[result]` return type.
+     */
     def emitCollect(
       recvVal: Tree,
       cases: List[CaseDef],
@@ -2373,8 +2392,9 @@ private[async] object AsyncMacros {
           // `collect(pf)` whose partial function has an awaiting case body. The
           // PF literal is an anonymous-class `Apply`, so it must precede
           // `HofAwaitCall` and the generic application-spine case. Restricted to
-          // builder-backed receivers (`List` / `Vector` / `Array` / `Set` /
-          // non-pair `Map` → `Iterable[B]`) and `Option` in the typed pass; the
+          // builder-backed receivers (`List` / `Vector` / `Queue` / `ArraySeq` /
+          // `Array` / `Set` / non-pair `Map` → `Iterable[B]`) and `Option` in
+          // the typed pass; the
           // element type `B` is the result collection's `typeArgs.head`. An
           // `Option` receiver dispatches to the single-element
           // `emitOptionCollect`; everything else to the builder-drain
@@ -2402,7 +2422,7 @@ private[async] object AsyncMacros {
             val resTpe = dequeueHofResult()
             // Materialize any for-comprehension guard (`xs.withFilter(g)`) into a
             // strict `xs.filter(g)` so the emitted rewrite can iterate the
-            // collection (`List` / `Option` / `Vector` / `Set`).
+            // collection.
             val recv0 = defilterReceiver(recv)
             (kind, m) match {
               // Short-circuiting predicate scans (`find`/`exists`/`forall`) are
@@ -2425,8 +2445,8 @@ private[async] object AsyncMacros {
               case (_, "filterNot") =>
                 transform(recv0)(rv => emitFilter(rv, kind, param.name, fbody, negate = true, bTpe, resTpe)(k))
               // Prefix-ordered predicates (`takeWhile` / `dropWhile`) — restricted
-              // to ordered `Seq` receivers (`List` / `Vector`) in the typed pass,
-              // so both kinds (`"list"` / `"iterable"`) use the receiver's own
+              // to ordered receivers in the typed pass; an `Array` rebuilds with
+              // `Array.newBuilder`, every other kind with the receiver's own
               // `iterableFactory` builder (element type unchanged). Must precede
               // the kind-specific catch-alls.
               case (_, "takeWhile") =>
@@ -2457,7 +2477,7 @@ private[async] object AsyncMacros {
               case ("array", "foreach") => transform(recv0)(rv => emitHofForeach(rv, param.name, fbody)(k))
               case ("array", "flatMap") => transform(recv0)(rv => emitArrayFlatMap(rv, param.name, fbody, bTpe)(k))
               case ("array", _)         => transform(recv0)(rv => emitArrayMap(rv, param.name, fbody, bTpe)(k))
-              // Generic strict collections (`Vector`, immutable `Set`): lazy
+              // Generic strict collections (`Vector`, `Queue`, `ArraySeq`, `Set`): lazy
               // sequential map/flatMap (builder-drain, result type preserved) and
               // the already-generic iterator `foreach`.
               case ("iterable", "foreach") => transform(recv0)(rv => emitHofForeach(rv, param.name, fbody)(k))

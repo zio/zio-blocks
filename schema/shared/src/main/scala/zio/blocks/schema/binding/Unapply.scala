@@ -44,12 +44,21 @@ trait UnapplySeq[X] {
   def ev: X =:= C[A]
 }
 
+/**
+ * The `UnapplySeq` instances: `Set`, `List`, `Vector`, `IndexedSeq` and
+ * `Chunk`, and, in the lower-priority parent, the immutable `Seq`.
+ */
 object UnapplySeq extends UnapplySeqLowPriority {
+
+  /**
+   * An `UnapplySeq[X]` whose type constructor is `C0` and element type is `A0`.
+   */
   type Aux[X, C0[_], A0] = UnapplySeq[X] {
     type C[x] = C0[x]
     type A    = A0
   }
 
+  /** `Set[A0]` is `Set` applied to `A0`. */
   implicit def setInstance[A0]: UnapplySeq.Aux[Set[A0], Set, A0] =
     new UnapplySeq[Set[A0]] {
       type C[x] = Set[x]
@@ -57,6 +66,7 @@ object UnapplySeq extends UnapplySeqLowPriority {
       def ev: Set[A0] =:= Set[A0] = implicitly
     }
 
+  /** `List[A0]` is `List` applied to `A0`. */
   implicit def listInstance[A0]: UnapplySeq.Aux[List[A0], List, A0] =
     new UnapplySeq[List[A0]] {
       type C[x] = List[x]
@@ -64,6 +74,7 @@ object UnapplySeq extends UnapplySeqLowPriority {
       def ev: List[A0] =:= List[A0] = implicitly
     }
 
+  /** `Vector[A0]` is `Vector` applied to `A0`. */
   implicit def vectorInstance[A0]: UnapplySeq.Aux[Vector[A0], Vector, A0] =
     new UnapplySeq[Vector[A0]] {
       type C[x] = Vector[x]
@@ -71,6 +82,7 @@ object UnapplySeq extends UnapplySeqLowPriority {
       def ev: Vector[A0] =:= Vector[A0] = implicitly
     }
 
+  /** `IndexedSeq[A0]` is `IndexedSeq` applied to `A0`. */
   implicit def indexedSeqInstance[A0]: UnapplySeq.Aux[IndexedSeq[A0], IndexedSeq, A0] =
     new UnapplySeq[IndexedSeq[A0]] {
       type C[x] = IndexedSeq[x]
@@ -78,6 +90,7 @@ object UnapplySeq extends UnapplySeqLowPriority {
       def ev: IndexedSeq[A0] =:= IndexedSeq[A0] = implicitly
     }
 
+  /** `Chunk[A0]` is `Chunk` applied to `A0`. */
   implicit def chunkInstance[A0]: UnapplySeq.Aux[zio.blocks.chunk.Chunk[A0], zio.blocks.chunk.Chunk, A0] =
     new UnapplySeq[zio.blocks.chunk.Chunk[A0]] {
       type C[x] = zio.blocks.chunk.Chunk[x]
@@ -86,7 +99,10 @@ object UnapplySeq extends UnapplySeqLowPriority {
     }
 }
 
+/** The lower-priority `UnapplySeq` instance for the immutable `Seq`. */
 trait UnapplySeqLowPriority {
+
+  /** `scala.collection.immutable.Seq[A0]` is `Seq` applied to `A0`. */
   implicit def seqInstance[A0]: UnapplySeq.Aux[scala.collection.immutable.Seq[A0], scala.collection.immutable.Seq, A0] =
     new UnapplySeq[scala.collection.immutable.Seq[A0]] {
       type C[x] = scala.collection.immutable.Seq[x]
@@ -128,13 +144,20 @@ trait UnapplyMap[X] {
   def ev: X =:= M[K, V]
 }
 
+/** The `UnapplyMap` instance for the immutable `Map`. */
 object UnapplyMap {
+
+  /**
+   * An `UnapplyMap[X]` whose type constructor is `M0`, key type is `K0` and
+   * value type is `V0`.
+   */
   type Aux[X, M0[_, _], K0, V0] = UnapplyMap[X] {
     type M[k, v] = M0[k, v]
     type K       = K0
     type V       = V0
   }
 
+  /** `Map[K0, V0]` is `Map` applied to `K0` and `V0`. */
   implicit def mapInstance[K0, V0]: UnapplyMap.Aux[Map[K0, V0], Map, K0, V0] =
     new UnapplyMap[Map[K0, V0]] {
       type M[k, v] = Map[k, v]

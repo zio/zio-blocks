@@ -1,0 +1,1 @@
+{"schema":1,"id":"REPLAY-0001","seed":24301,"sampleOrdinal":0,"shrinkPath":[],"scenario":"lane:int/source:values/terminal:collect","scala":"3.8.3","platform":"jvm","runtime":"jdk-25","lane":"int","kind":"async","terminal":"collect","sink":"fold","faults":[],"schedule":["read","eof"],"model":{"result":[1]},"production":{"result":[1]},"traceDiff":[]}

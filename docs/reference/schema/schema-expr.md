@@ -19,7 +19,7 @@ final case class SchemaExpr[A, B](
   inputSchema: Schema[A],
   outputSchema: Schema[B]
 ) {
-  def eval(input: A): Either[OpticCheck, Seq[B]]
+  def eval[B1 >: B](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]]
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
 ```
@@ -252,8 +252,8 @@ If you need the raw dynamic form for serialization, transport, or custom interpr
 Evaluates the expression against an input value, returning the typed result. The result is a `Seq[B]` because traversal-based expressions can produce multiple values.
 
 ```scala
-trait SchemaExprLike[A, B] {
-  def eval(input: A): Either[OpticCheck, Seq[B]]
+final case class SchemaExpr[A, B](...) {
+  def eval[B1 >: B](input: A)(implicit schema: Schema[B1]): Either[OpticCheck, Seq[B1]]
 }
 ```
 
@@ -288,7 +288,7 @@ When an expression wraps a `Traversal` optic, `eval` returns multiple values —
 Like `eval`, but converts the result to [`DynamicValue`](./dynamic-value.md) instances. This is useful for serialization or when working with schema-agnostic code.
 
 ```scala
-trait SchemaExprLike[A, B] {
+final case class SchemaExpr[A, B](...) {
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
 ```

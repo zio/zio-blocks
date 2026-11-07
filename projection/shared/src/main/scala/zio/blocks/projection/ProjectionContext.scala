@@ -19,16 +19,19 @@ package zio.blocks.projection
 import java.time.Instant
 
 /**
- * Contextual metadata associated with a projection action.
+ * The metadata of an event that a handler receives next to the event itself.
+ * [[ProjectionEngine]] builds it from the event's [[EventEnvelope]].
  *
  * @param entityId
- *   the identifier of the entity this action targets
+ *   the entity the event was recorded under. Insert, update and delete actions
+ *   change the row with this ID
  * @param timestamp
- *   the time the action was produced
+ *   when the event was appended to its store
  * @param seq
- *   a monotonically increasing sequence number for ordering
+ *   the event's sequence number in its store
  * @param sourceEntityId
- *   optional identifier of the entity in the source system
+ *   the entity ID again, as `Some(entityId)`, when the engine builds the
+ *   context; `None` from the three-argument `apply`
  */
 final case class ProjectionContext(
   entityId: String,
@@ -37,8 +40,10 @@ final case class ProjectionContext(
   sourceEntityId: Option[String]
 )
 
+/** Builds [[ProjectionContext]]s. */
 object ProjectionContext {
 
+  /** Builds a context with no `sourceEntityId`, for example in tests. */
   def apply(entityId: String, timestamp: Instant, seq: Long): ProjectionContext =
     ProjectionContext(entityId, timestamp, seq, sourceEntityId = None)
 }

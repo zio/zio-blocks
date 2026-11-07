@@ -26,10 +26,15 @@ import scala.quoted.*
 /**
  * Macro implementations for Resource.from[T] derivation.
  *
- * The key insight is to compose Resources via flatMap, not accumulate values in
- * a Context. This correctly preserves sharing/uniqueness semantics:
- *   - Wire.shared → Resource.Shared → one instance, ref-counted
- *   - Wire.unique → Resource.Unique → fresh instance per flatMap call
+ * The macro builds one resource per type in the graph, which preserves the
+ * sharing semantics:
+ *   - Wire.shared → Resource.Shared, wrapping the whole construction of the
+ *     type, dependencies included → one instance, ref-counted
+ *   - Wire.unique → Resource.Unique, chained to its dependencies with flatMap →
+ *     a fresh instance per dependent
+ *
+ * Auto-created types call their constructor directly; explicit wires are called
+ * with a `Context` that holds their dependencies.
  */
 private[scope] object ResourceMacros {
 

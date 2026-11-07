@@ -46,9 +46,9 @@ object Frag {
 Build fragments with the `sql"..."` interpolator and execute them inside a `Transactor` block:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -119,6 +119,8 @@ val query = sql"SELECT * FROM users" ++ where
 query.sql(SqlDialect.SQLite)
 ```
 
+See also the [How to Build a Query from Optional Search Filters](../../guides/build-a-query-from-optional-search-filters.md) guide, which joins the conditions a search form needs into one `WHERE` clause and skips the empty ones.
+
 **`Frag.sequence`** — Concatenate multiple fragments with no separator:
 
 ```scala mdoc:reset
@@ -132,15 +134,23 @@ val full   = Frag.sequence(base, where, order)
 full.sql(SqlDialect.SQLite)
 ```
 
+See also the [How to Upsert Rows and Paginate with Keyset Cursors](../../guides/upsert-and-paginate-with-keyset-cursors.md) guide, which builds upsert statements and pages through a query with `Frag.keysetAfter`.
+
 ## Execution Methods
 
 All execution methods require an implicit `DbCon` (provided by `Transactor#connect` or `Transactor#transact`). They render the fragment to SQL, bind parameters, execute, and log the operation.
 
 **`query[A]`** — Execute SELECT and return all rows:
 
+```scala mdoc:invisible
+// sql-zio is on the docs classpath: `import zio.blocks.sql._` above brings its
+// subpackage `zio` into scope; restore the root package for the self-contained blocks below
+import _root_.zio
+```
+
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -153,9 +163,9 @@ val users: List[User] = sql"SELECT id, name FROM users".query[User]
 **`queryOne[A]`** — Execute SELECT and return at most one row:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -168,8 +178,8 @@ val user: Maybe[User] = sql"SELECT id, name FROM users WHERE id = ${1}".queryOne
 **`queryLimit[A](n)`** — Execute SELECT and return up to n rows (fetched from Scala side):
 
 ```scala mdoc:compile-only
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -183,9 +193,9 @@ val page: List[User] = sql"SELECT id, name FROM users ORDER BY name".queryLimit[
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.streams.Stream
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -201,9 +211,9 @@ val all: Either[Throwable, List[User]] = chunks.runCollect.map(_.toList.flatten)
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
-import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.streams.Stream
+import zio.blocks.sql._
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -233,3 +243,9 @@ given DbCon = ???
 
 val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```
+
+## See Also
+
+- **[How to Stream Large Query Results](../../guides/stream-large-query-results.md)** — Guide to aggregating, exporting and error-handling the chunked streams that `queryStream` and `queryChunked` return.
+- **[How to Write Joins and Inspect the Generated SQL](../../guides/write-joins-and-inspect-generated-sql.md)** — Guide that runs join queries and prints or dumps the SQL they generate.
+- **[SQL Module Overview](./index.md)** — How `Frag`, `Transactor` and the other SQL types fit together.

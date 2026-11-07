@@ -17,36 +17,43 @@
 package zio.blocks.schema.json
 
 /**
- * Represents the strategy for specifying the discriminator used in a JSON
- * schema for distinguishing between different subtypes of a sealed hierarchy.
+ * How a derived [[JsonCodec]] tells the cases of a sealed trait or enum apart,
+ * set with [[JsonCodecDeriver#withDiscriminatorKind]]. A
+ * `@Modifier.discriminator("name")` on the type overrides it with
+ * `Field("name")`. Either way, a type whose cases are all objects without
+ * fields encodes as plain strings while
+ * [[JsonCodecDeriver#withEnumValuesAsStrings]] is on (the default), and the
+ * cases of a nested sealed trait are named by their own leaf names.
  *
- * Implementations of this trait define how the discriminator is represented in
- * the serialized JSON, if any.
+ * {{{
+ * import zio.blocks.schema.json._
  *
- * The possible discriminator kinds include:
- *   - `Field` with adding a custom field named as specified in the `name`
- *     parameter that contains a value of the subtype discriminator, e.g.
- *     `{"type": "Person", ...}` for
- *     `case class Person(...) extends SealedTrait`
- *   - `Key`, where the discriminator is represented as a JSON object key with
- *     wrapping of the encoded value in a JSON object, e.g. `{"Person":{...}}`
- *     for `case class Person(...) extends SealedTrait`.
- *   - `None`, where no discriminator is used, meaning subtype differentiation
- *     is handled by sequential attempts to parse all possible subtypes,
- *     starting from the first subtype, until a successful parse is found, or an
- *     error is thrown if none of the subtypes can be parsed from the input.
+ * sealed trait Format
+ * object Format {
+ *   case class Ebook(sizeMb: Int)    extends Format
+ *   case class Paperback(pages: Int) extends Format
+ *   implicit val schema: Schema[Format] = Schema.derived
+ * }
+ *
+ * val format: Format = Format.Paperback(600)
+ * def codec(kind: DiscriminatorKind) = Format.schema.derive(JsonCodecDeriver.withDiscriminatorKind(kind))
+ *
+ * codec(DiscriminatorKind.Key).encodeToString(format)           // {"Paperback":{"pages":600}}
+ * codec(DiscriminatorKind.Field("type")).encodeToString(format) // {"type":"Paperback","pages":600}
+ * codec(DiscriminatorKind.None).encodeToString(format)          // {"pages":600}
+ * }}}
  */
 sealed trait DiscriminatorKind
 
+/** The three ways to encode the case of a sealed trait or enum. */
 object DiscriminatorKind {
 
   /**
-   * Represents a discriminator strategy where a specific field in the JSON
-   * object is used to identify the subtype of a sealed hierarchy, e.g.
-   * `{"type": "SubtypeIdentifier", ...}`
-   *
-   * Can be used only for serializing sealed hierarchy subtypes of non-abstract
-   * classes only (not union types).
+   * Writes the case name in a field of the case's own object, first:
+   * `{"type": "Paperback", "pages": 600}`. The decoder finds the field anywhere
+   * in the object. It applies only when every case is a record (or a sealed
+   * trait of records); otherwise the codec falls back to [[Key]]. With
+   * `withRejectExtraFields`, the discriminator field is not an extra field.
    *
    * Beware that parsing may be too slow for deeply nested or recursive data
    * structures when the discriminator field is placed at the end of the JSON
@@ -63,37 +70,24 @@ object DiscriminatorKind {
   case class Field(name: String) extends DiscriminatorKind
 
   /**
-   * Represents a discriminator strategy where the subtype identifier is encoded
-   * as the key of a JSON object.
-   *
-   * It is a default strategy for serializing and deserializing of all kinds of
-   * variants (sealed hierarchies, union types, etc.).
-   *
-   * In this strategy, the serialized representation of the subtype wraps the
-   * encoded value in a JSON object keyed by the subtype's discriminator, e.g.,
-   * `{"SubtypeIdentifier": {...}}`.
-   *
-   * This approach enables subtype differentiation based solely on the key of
-   * the JSON object for the sealed hierarchy.
+   * Wraps the encoded case in an object with one key, the case name:
+   * `{"Paperback": {"pages": 600}}`. The default. It works for every kind of
+   * case. The decoder takes the case from the first key; decoding text fails if
+   * the object has another key (`expected '}' or ','`), while decoding a `Json`
+   * tree ignores the others. A key that names no case fails with
+   * `illegal discriminator`.
    */
   case object Key extends DiscriminatorKind
 
   /**
-   * Represents the absence of a discriminator strategy for serializing and
-   * deserializing sealed hierarchy subtypes or union types.
+   * Writes the case as it is, with no name: `{"pages": 600}`. The decoder tries
+   * the cases in declaration order and returns the first that decodes, so a
+   * case whose fields are a subset of a later case's, extra fields being
+   * ignored, hides that later case. When no case decodes, the error is
+   * `expected a variant value`, without the cases' own errors.
    *
-   * When this strategy is used, subtype differentiation is performed without
-   * adding any explicit discriminator field or key to the serialized JSON.
-   * Instead, deserialization attempts to match the input JSON data sequentially
-   * against all possible subtypes of the sealed hierarchy until a successful
-   * match is found.
-   *
-   * This approach relies on the order and structure of subtype definitions and
-   * may result in parsing errors if no matching subtype is found.
-   *
-   * Beware that this strategy hides error messages of underlying parsing errors
-   * and parsing be too slow for large hierarchies of subtypes or deeply nested
-   * or recursive data structures.
+   * Beware that parsing can be too slow for large hierarchies of subtypes or
+   * deeply nested or recursive data structures.
    *
    * Don't use it for untrusted input that should be parsed into deeply nested
    * or recursive data structures to avoid potential security vulnerabilities of

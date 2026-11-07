@@ -30,7 +30,9 @@ import java.time._
  *   - Proper BSON type mapping
  */
 object BsonCodecPrimitivesSpec extends SchemaBaseSpec {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("BsonCodecPrimitivesSpec")(
+  // Note: no explicit Spec ascription so the Env intersection compiles on both
+  // Scala 2.13 (`with`) and Scala 3.10 (`&`, where `with` is an error).
+  def spec = suite("BsonCodecPrimitivesSpec")(
     test("Unit round-trip") {
       val codec       = BsonSchemaCodec.bsonCodec(Schema.unit)
       val value: Unit = ()

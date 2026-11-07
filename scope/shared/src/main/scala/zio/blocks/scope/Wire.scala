@@ -19,48 +19,59 @@ package zio.blocks.scope
 import zio.blocks.context.Context
 
 /**
- * A recipe for constructing a service and its dependencies.
+ * A recipe for constructing a service from its dependencies: a function from a
+ * scope and a `Context[In]` of dependencies to an `Out`, plus a sharing
+ * strategy.
  *
- * Wires are the building blocks of dependency injection in Scope. They describe
- * how to construct a service given access to its dependencies via a context.
+ * Wires are the building blocks of dependency injection in `scope`. Pass them
+ * to `Resource.from[T](wires*)`, which resolves the whole graph at compile
+ * time, or turn one into a [[Resource]] yourself with `toResource`.
  *
  * ==Wire Types==
  *
- *   - [[Wire.Shared]]: Converted to a reference-counted [[Resource.shared]]
- *     (default)
- *   - [[Wire.Unique]]: Converted to a fresh [[Resource.unique]] each time
+ *   - [[Wire.Shared]]: becomes a reference-counted [[Resource.shared]], so all
+ *     dependents in a graph get one instance
+ *   - [[Wire.Unique]]: becomes a [[Resource.unique]], so each allocation gets a
+ *     fresh instance (on Scala 3, `Resource.from` treats a unique wire as
+ *     shared, a known bug)
  *
  * ==Creating Wires==
  *
- * Use `Wire.shared[T]` and `Wire.unique[T]` macros for automatic derivation
- * from constructors, or create wires manually for custom construction logic.
- *
- * ==Usage Example==
+ * `Wire.shared[T]` and `Wire.unique[T]` derive a wire from the constructor of
+ * `T`. `Wire(value)` provides a value you already have, and
+ * `Wire.Shared.fromFunction` / `Wire.Unique.fromFunction` take a construction
+ * function.
  *
  * {{{
- * // Define a service with its wire
- * class Database(config: Config)
- * object Database {
- *   val wire: Wire[Config, Database] = Wire.shared[Database]
+ * final case class DbConfig(url: String)
+ *
+ * final class Database(config: DbConfig) extends AutoCloseable {
+ *   def query(sql: String): Int = sql.length
+ *   def close(): Unit           = println("closed " + config.url)
  * }
  *
- * // Create a unique wire for request-scoped services
- * class RequestHandler(db: Database)
- * object RequestHandler {
- *   val wire: Wire[Database, RequestHandler] = Wire.unique[RequestHandler]
+ * final class RequestHandler(db: Database) {
+ *   def handle(): Int = db.query("SELECT 1")
  * }
  *
- * // Create a Resource from wires
- * val appResource = Resource.from[App](
- *   Wire(Config("localhost", 8080)),
- *   Wire.shared[Database]
+ * def handler: Resource[RequestHandler] = Resource.from[RequestHandler](
+ *   Wire(DbConfig("jdbc:h2:mem:shop")),
+ *   Wire.shared[Database],
+ *   Wire.unique[RequestHandler]
  * )
+ *
+ * val result: Int = handler.use(_.handle())
+ * // prints: closed jdbc:h2:mem:shop
+ * // result: 8
  * }}}
  *
  * @tparam In
- *   the dependencies required (contravariant - accepts supertypes)
+ *   the dependencies required; contravariant, so a wire that needs less can
+ *   stand in for one that needs more
  * @tparam Out
- *   the service(s) produced (covariant - produces subtypes)
+ *   the service produced
+ * @see
+ *   [[https://zioblocks.com/reference/resource-management/wire/ Wire]]
  */
 sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 
@@ -68,9 +79,9 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
    * Returns true if this wire is shared (reference-counted via
    * [[Resource.shared]]).
    *
-   * Shared wires are converted to `Resource.shared`, meaning allocations may
-   * share a single underlying instance across scopes. The instance is released
-   * when the last referencing scope is closed.
+   * Shared wires are converted to `Resource.shared`, so the allocations of the
+   * resulting resource share one instance across scopes. The instance is
+   * released when the last referencing scope is closed.
    *
    * @return
    *   true if this wire is shared, false if unique
@@ -80,7 +91,8 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
   /**
    * Returns true if this wire is unique (creates fresh instances each time).
    *
-   * Unique wires create a new instance for each dependent service.
+   * Unique wires are converted to `Resource.unique`, which creates a new
+   * instance on each allocation.
    *
    * @return
    *   true if this wire is unique, false if shared
@@ -110,7 +122,24 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
   def unique: Wire.Unique[In, Out]
 
   /**
-   * Converts this Wire to a Resource by providing resolved dependencies.
+   * Converts this wire to a [[Resource]], given the dependencies it needs.
+   *
+   * A shared wire gives a [[Resource.shared]] and a unique wire a
+   * [[Resource.unique]]. Each call creates a new resource.
+   *
+   * {{{
+   * import zio.blocks.context.Context
+   *
+   * final case class DbConfig(url: String)
+   * final class Database(config: DbConfig) {
+   *   def url: String = config.url
+   * }
+   *
+   * val database: Resource[Database] =
+   *   Wire.unique[Database].toResource(Context(DbConfig("jdbc:h2:mem:shop")))
+   *
+   * database.use(_.url) // "jdbc:h2:mem:shop"
+   * }}}
    *
    * @param deps
    *   Context containing all required dependencies
@@ -121,7 +150,8 @@ sealed trait Wire[-In, +Out] extends WireVersionSpecific[In, Out] {
 }
 
 /**
- * Companion object providing wire factory methods and wire classes.
+ * Wire factory methods and the two wire classes, [[Wire.Shared]] and
+ * [[Wire.Unique]].
  */
 object Wire extends WireCompanionVersionSpecific {
 
@@ -131,11 +161,11 @@ object Wire extends WireCompanionVersionSpecific {
    *
    * The underlying instance may be shared across multiple allocating scopes. A
    * reference count tracks usage, and the instance is released when the last
-   * referencing scope is closed. This is the default wire type produced by
-   * `shared[T]`.
+   * referencing scope is closed. `Wire.shared[T]` and `Wire(value)` produce
+   * this kind, and `Resource.from` uses it for the dependencies it derives.
    *
    * @param makeFn
-   *   the function that constructs the service given a finalizer and context
+   *   the function that constructs the service given a scope and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
@@ -199,12 +229,13 @@ object Wire extends WireCompanionVersionSpecific {
   /**
    * A wire that produces a fresh instance each time it's used.
    *
-   * Unlike shared wires, unique wires create new instances for each dependent
-   * service. Use for services that should not be shared, like request-scoped
-   * resources or per-call state.
+   * Unlike shared wires, unique wires create a new instance for each dependent
+   * service. On Scala 3, `Resource.from` treats an explicit unique wire as
+   * shared, so its dependents get one instance (a known bug). Use for services
+   * that should not be shared, like request-scoped resources or per-call state.
    *
    * @param makeFn
-   *   the function that constructs the service given a finalizer and context
+   *   the function that constructs the service given a scope and context
    * @tparam In
    *   the dependencies required to construct the service
    * @tparam Out
@@ -266,11 +297,20 @@ object Wire extends WireCompanionVersionSpecific {
   object Unique extends UniqueVersionSpecific
 
   /**
-   * Creates a wire that injects a pre-existing value.
+   * Creates a wire that provides a value you already have.
    *
    * The value is wrapped in a shared wire with no dependencies. If the value is
-   * `AutoCloseable`, `close()` is registered automatically when the wire is
-   * used.
+   * `AutoCloseable`, its `close()` is registered when a scope allocates the
+   * wire's resource. The argument is evaluated once, when `Wire(t)` is called,
+   * not when the wire is used, so `Wire(new Database)` opens the database right
+   * away (a known bug: the parameter is not by-name).
+   *
+   * {{{
+   * final case class ServerConfig(host: String, port: Int)
+   *
+   * val config: Wire.Shared[Any, ServerConfig] =
+   *   Wire(ServerConfig("localhost", 8080))
+   * }}}
    *
    * @param t
    *   the value to inject

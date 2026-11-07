@@ -14,7 +14,7 @@ The `Format` trait defines the structure for any serialization format. Each form
 import zio.blocks.schema.codec.Codec
 import zio.blocks.schema.derive.Deriver
 
-trait Format {
+sealed trait Format {
   type DecodeInput
   type EncodeOutput
   type TypeClass[A] <: Codec[DecodeInput, EncodeOutput, A]
@@ -49,14 +49,24 @@ val decoded: Either[SchemaError, Person] = codec.decode(bytes)
 Formats are categorized into `BinaryFormat` and `TextFormat`, which specify the types of input and output for encoding and decoding:
 
 ```scala
-sealed trait Format
-abstract class BinaryFormat[A] extends Format { }
-abstract class TextFormat[A] extends Format { }
+import java.nio.{ByteBuffer, CharBuffer}
+import zio.blocks.schema.codec.{BinaryCodec, TextCodec}
+import zio.blocks.schema.derive.Deriver
+
+abstract class BinaryFormat[TC[A] <: BinaryCodec[A]](val mimeType: String, val deriver: Deriver[TC]) extends Format {
+  type DecodeInput  = ByteBuffer
+  type EncodeOutput = ByteBuffer
+}
+
+abstract class TextFormat[TC[A] <: TextCodec[A]](val mimeType: String, val deriver: Deriver[TC]) extends Format {
+  type DecodeInput  = CharBuffer
+  type EncodeOutput = CharBuffer
+}
 ```
 
-**BinaryFormat** — Encodes and decodes data as bytes. Used for compact, efficient serialization (e.g., Avro, Thrift, MessagePack).
+**BinaryFormat** — Encodes and decodes data as bytes (`ByteBuffer`). Used for binary formats (Avro, Thrift, MessagePack) and also for the text-based formats whose codecs read and write UTF-8 bytes (JSON, YAML, XML, TOON).
 
-**TextFormat** — Encodes and decodes data as text strings. Used for human-readable formats (e.g., JSON, YAML, TOON).
+**TextFormat** — Encodes and decodes data as characters (`CharBuffer`). Among the built-in formats, only CSV (`CsvFormat`) is a `TextFormat`.
 
 ### Example: JsonFormat
 
@@ -70,23 +80,28 @@ object MyJsonFormat extends zio.blocks.schema.codec.BinaryFormat("application/js
 
 ## Defining a Custom Format
 
-To add a new serialization format, define a `BinaryFormat` (or `TextFormat`) singleton with a custom `Deriver`:
+To add a new serialization format, define a codec base class that extends `BinaryCodec` (or `TextCodec`), a `Deriver` that builds those codecs from a schema, and a `BinaryFormat` (or `TextFormat`) singleton that ties them to a MIME type:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.codec.BinaryCodec
+import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
+import zio.blocks.schema.derive.Deriver
 
-// 1. Define your codec base class
+// The codec type of the format: every codec the deriver builds extends it
 abstract class MyCodec[A] extends BinaryCodec[A]
 
-// 2. Implement a Deriver[MyCodec] (see Type-class Derivation docs)
-// val myDeriver: Deriver[MyCodec] = ...
+// One method per kind of schema node: primitive, record, variant, sequence, map, wrapper and dynamic value
+lazy val myDeriver: Deriver[MyCodec] = ???
 
-// 3. Create the format singleton
-// object MyFormat extends BinaryFormat[MyCodec]("application/x-myformat", myDeriver)
+object MyFormat extends BinaryFormat[MyCodec]("application/x-myformat", myDeriver)
 ```
 
-For details on implementing a `Deriver`, see [Type-class Derivation](./type-class-derivation.md).
+`MyFormat` then works wherever a built-in format does, as in `Schema[A].derive(MyFormat)` and `Schema#decode(MyFormat)`. The guide [How to Write a Codec for a New Wire Format](../../guides/write-a-codec-for-a-new-wire-format.md) implements every `Deriver` method for a small binary format, with decode errors that carry a path, and [Type-class Derivation](./type-class-derivation.md) explains each method's parameters.
 
 ## Available Formats
 
 ZIO Blocks provides multiple built-in formats. See the [Built-in Formats and Codecs](./built-in-codecs/index.md) section for a complete list of supported serialization formats and their respective codec modules.
+
+## See Also
+
+- [One Type, Many Formats](../../guides/one-type-many-formats.md) - a tutorial that derives several built-in formats from one `Schema` and round-trips data through each.
+- [Built-in Formats and Codecs](./built-in-codecs/index.md) - every built-in format with its codec type and module.

@@ -108,7 +108,7 @@ Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "default
 
 ### ConfigError.ParseError
 
-The raw value could not be decoded at the format level, as distinct from a type mismatch on a well-formed value. Carries the path, source, expected format, and optional cause. The HOCON adapter produces it when the document itself is malformed, and the JVM file loader produces it for a missing file or a rejected include path.
+The raw value could not be decoded at the format level, as distinct from a type mismatch on a well-formed value. Carries the path, source, expected format, and optional cause. The YAML, JSON, and HOCON adapters produce it when the document itself is malformed, and the JVM file loader produces it for a missing file or a rejected include path.
 
 The difference from `InvalidValue` is which layer failed. `InvalidValue` means "this string is not an `Int`"; `ParseError` means "this document is not HOCON", so there is no string to quote.
 

@@ -16,8 +16,16 @@
 
 package zio.blocks.schema.derive
 
+/**
+ * Reads and updates the [[Instances]] stored in schema node metadata of type
+ * `F`. Nothing in ZIO Blocks uses it: derivation stores instances in
+ * [[BindingInstance]] and reads them with [[HasInstance]].
+ */
 trait HasInstances[F[_, _], TC[_]] {
+
+  /** Returns the instances stored in `fa`. */
   def instances[T, A](fa: F[T, A]): Instances[TC, A]
 
+  /** Returns `fa` with its instances replaced by `f` applied to them. */
   def updateInstances[T, A](fa: F[T, A], f: Instances[TC, A] => Instances[TC, A]): F[T, A]
 }

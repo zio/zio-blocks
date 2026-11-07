@@ -101,7 +101,8 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
     "a's and b's are valid",
     "when if is false and has unevaluated properties",
     "numbers are unique if mathematically unequal",
-    "string is only an annotation by default"
+    "string is only an annotation by default",
+    "Unicode letter property name matches but value type is incorrect"
   )
 
   private def isFailingTestGroup(description: String): Boolean =

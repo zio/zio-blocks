@@ -22,20 +22,25 @@ import zio.blocks.schema.binding.Binding
 import zio.blocks.typeid.{Owner, TypeId}
 
 /**
- * Provides Schema[ObjectId] support for BSON encoding/decoding.
+ * A schema for `org.bson.types.ObjectId`, which `Schema.derived` cannot derive
+ * on its own. Import [[ObjectIdSupport.objectIdSchema]] where you derive the
+ * schema of a type with an `ObjectId` field; a BSON codec then stores the field
+ * as BSON `OBJECT_ID`, the type MongoDB uses for `_id`.
  *
- * The ObjectId is represented as a wrapper around String (hex representation),
- * but when encoded to BSON, it uses the native BsonType.OBJECT_ID (12-byte
- * format) via special handling in BsonCodecDeriver.
+ * The schema wraps the 24-character hex string of the id, so other formats,
+ * such as JSON, write that string. A BSON codec decodes the field only from an
+ * `OBJECT_ID`, not from the hex string.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/schema/built-in-codecs/bson/ BSON Codec Module]]
  */
 object ObjectIdSupport {
 
   /**
-   * Schema for org.bson.types.ObjectId.
-   *
-   * Manually constructed with typeId for "ObjectId" so BsonCodecDeriver can
-   * detect it and use zio-bson's native BsonCodec[ObjectId] (encodes as
-   * BsonType.OBJECT_ID).
+   * The schema of `ObjectId`: a wrapper of its hex string whose type id is
+   * `org.bson.types.ObjectId`. [[BsonCodecDeriver]] recognises that type id and
+   * uses [[BsonCodec.objectId]] instead of the string. Wrapping a string that
+   * is not a valid id throws `IllegalArgumentException`.
    */
   implicit val objectIdSchema: Schema[ObjectId] = new Schema(
     new Reflect.Wrapper[Binding, ObjectId, String](

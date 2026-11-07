@@ -18,16 +18,23 @@ package zio.blocks.schema.json
 
 import scala.compiletime.error
 
+/** Adds `literal` to the [[NonNegativeInt]] companion. */
 trait NonNegativeIntCompanionVersionSpecific {
 
   /**
-   * Creates a NonNegativeInt from a literal integer value, validated at compile
-   * time. Use this when the value is known at compile time for zero runtime
-   * overhead.
+   * Returns a [[NonNegativeInt]] for an `Int` literal, checked at compile time:
+   * a negative literal, or an argument that is not a literal, does not compile.
+   * Use `NonNegativeInt.apply` for runtime values.
+   *
+   * On Scala 2.13, the macro calls the package-private constructor, so it
+   * compiles only inside the `zio.blocks.schema.json` package (a known bug).
    *
    * {{{
-   * val min = NonNegativeInt.literal(3)   // Compiles - returns NonNegativeInt directly
-   * val bad = NonNegativeInt.literal(-1)  // Compile error!
+   * // scala-3-only
+   * import zio.blocks.schema.json.NonNegativeInt
+   *
+   * val min: NonNegativeInt = NonNegativeInt.literal(3) // compiles
+   * // NonNegativeInt.literal(-1)                       // does not compile
    * }}}
    */
   inline def literal(inline n: Int): NonNegativeInt =

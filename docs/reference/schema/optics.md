@@ -6,7 +6,7 @@ title: "Optics"
 Optics are a fundamental feature of ZIO Blocks that enable type-safe, composable access and modification of nested data structures. What sets ZIO Blocks apart is its implementation of **reflective optics** — a novel construct that combines the operational capabilities of traditional optics with embedded structural metadata, enabling both data manipulation AND introspection.
 
 :::tip
-For a practical walkthrough of building query DSLs with optics, see the [Writing a Query DSL with Reified Optics](../../guides/query-dsl-reified-optics.md) guide.
+For a practical walkthrough of building query DSLs with optics, see the [Writing a Query DSL with Reified Optics](../../guides/query-dsl-reified-optics.md) guide. If you are new to optics, start with the [Navigate and Update Nested Data with Optics](../../guides/nested-data-with-optics.md) tutorial.
 :::
 
 ## What Are Optics?
@@ -49,7 +49,7 @@ This enables capabilities that ordinary optics have never had before:
 - **Amazing Error Messages** — Know exactly where and why an optic operation failed, because you know which part of the structure was being accessed during the failure
 - **DSL Integration** — Optics as first-class values enables us to write query DSLs that can introspect the data model being queried. So we can integrate that DSL with underlying storage systems (SQL, NoSQL, etc.) without losing type safety.
 
-The `OpticCheck` data type is an error reporting mechanism for reflective optics. It captures detailed diagnostic information when optic operations fail, solving a long-standing pain point in traditional optics libraries where failures silently return `None` without explanation. It provides detailed context about where and why the replacement failed. It includes the expected and actual cases, the full optic path, and the actual value encountered.
+The `OpticCheck` data type is an error reporting mechanism for reflective optics. It captures detailed diagnostic information when optic operations fail, solving a long-standing pain point in traditional optics libraries where failures silently return `None` without explanation. It says where and why the operation failed: every problem carries the full optic path and the path up to the failing step, and a prism step that found another case also names the expected and actual cases and carries the value it found. [Error Reporting with OpticCheck](#error-reporting-with-opticcheck) lists the problems it can report.
 
 ## The Optic Type Hierarchy
 
@@ -151,7 +151,7 @@ While manual lens construction gives you fine-grained control, ZIO Blocks provid
 The `optic` macro inside the `CompanionOptics` trait creates a lens using intuitive selector syntax that mirrors standard Scala field access. In the rest of the schema docs you may also see the symbolic `$(_.field)` form; it is the same optic-construction API presented with symbolic syntax instead of the named `optic(_.field)` helper.
 
 ```scala
-import zio.blocks.schema.optic
+import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
 
@@ -171,7 +171,7 @@ For nested structures, the `optic` macro can create composed lenses by chaining 
 case class Address(street: String, city: String)
 case class Person(name: String, address: Address)
 
-object Person {
+object Person extends CompanionOptics[Person] {
   implicit val schema: Schema[Person] = Schema.derived[Person]
   
   // Lens directly to the nested street field
@@ -1058,37 +1058,93 @@ Team.allMembers.modifyOrFail(emptyTeam, _.toUpperCase)
 // => Left(OpticCheck(List(EmptySequence(...))))
 ```
 
-## Debug-Friendly toString
+## Error Reporting with OpticCheck
 
-All optic types (`Lens`, `Prism`, `Optional`, `Traversal`) have a custom `toString` that produces output matching the `optic` macro syntax. This makes debugging easier by showing exactly what path the optic represents:
+The `...OrFail` methods, such as `Prism#getOrFail`, `Optional#getOrFail`, `Optional#replaceOrFail`, `Traversal#modifyOrFail` and `Traversal#reduceOrFail`, return `Left(OpticCheck)` when the optic cannot reach its focus. An `OpticCheck` holds a non-empty list of problems, `OpticCheck#errors`. Each problem is an `OpticCheck.Error`, which stops the optic, or an `OpticCheck.Warning`, which reports a missing part:
 
-```scala
-import zio.blocks.schema._
+| Problem                    | Kind    | Reported when                                                               | Extra fields                                |
+| -------------------------- | ------- | --------------------------------------------------------------------------- | ------------------------------------------- |
+| `UnexpectedCase`           | Error   | A prism step found another case of the variant                              | `expectedCase`, `actualCase`, `actualValue` |
+| `WrappingError`            | Error   | A wrapper step's conversion failed                                          | `error` (a `SchemaError`)                   |
+| `DynamicConversionError`   | Error   | `SchemaExpr#eval` could not decode its result, or failed for another reason | `error` (a `String`)                        |
+| `EmptySequence`            | Warning | A step over every element found an empty sequence                           | none                                        |
+| `SequenceIndexOutOfBounds` | Warning | An index step went past the end of the sequence                             | `index`, `size`                             |
+| `MissingKey`               | Warning | A key step found a map without the key                                      | `key`                                       |
+| `EmptyMap`                 | Warning | A step over every key or value found an empty map                           | none                                        |
 
-case class Person(name: String, address: Address)
-case class Address(street: String, city: String)
+Every problem has `full`, the path of the whole optic, `prefix`, the path up to and including the step that failed, and `OpticCheck.Single#message`. `DynamicConversionError` has no step, so both of its paths are the root and its message gives only the reason; every other message names both paths. Only `UnexpectedCase` carries the value it found. `OpticCheck#message` joins the messages of all problems, one per line, and `OpticCheck#hasError` and `OpticCheck#hasWarning` tell the two kinds apart.
 
-object Person extends CompanionOptics[Person] {
-  implicit val schema: Schema[Person] = Schema.derived
-  val street: Lens[Person, String] = optic(_.address.street)
+To see two of them, we define a parcel that is either delivered or in transit, with an `Optional` into the delivered case and a `Traversal` over the stops of the in-transit case:
+
+```scala mdoc:silent
+sealed trait Parcel
+case class Delivered(signedBy: String)    extends Parcel
+case class InTransit(stops: List[String]) extends Parcel
+
+object Parcel extends CompanionOptics[Parcel] {
+  implicit val schema: Schema[Parcel] = Schema.derived
+
+  val signedBy: Optional[Parcel, String] = optic(_.when[Delivered].signedBy)
+  val stops: Traversal[Parcel, String]   = optic(_.when[InTransit].stops.each)
+}
+```
+
+Reading the signature of a parcel in transit fails with `UnexpectedCase`, and modifying the stops of a parcel with no stops reports `EmptySequence`, a warning:
+
+```scala mdoc
+Parcel.signedBy.getOrFail(InTransit(List("Berlin"))).left.foreach { check =>
+  println(check.message)
+  check.errors.head match {
+    case e: OpticCheck.UnexpectedCase => println(s"actual value: ${e.actualValue}")
+    case _                            => ()
+  }
 }
 
-println(Person.street)  // Output: Lens(_.address.street)
+Parcel.stops.modifyOrFail(InTransit(Nil), _.toUpperCase).left.foreach { check =>
+  println(s"${check.message} (error: ${check.hasError}, warning: ${check.hasWarning})")
+}
 ```
+
+## Debug-Friendly toString
+
+All optic types (`Lens`, `Prism`, `Optional`, `Traversal`) have a custom `toString` that mirrors the `optic` macro syntax, which shows at a glance what path an optic represents:
+
+```scala mdoc
+case class Warehouse(street: String, city: String)
+case class Depot(name: String, warehouse: Warehouse, shelves: List[String], stock: Map[String, Int])
+
+object Depot extends CompanionOptics[Depot] {
+  implicit val schema: Schema[Depot] = Schema.derived
+
+  val street: Lens[Depot, String]           = optic(_.warehouse.street)
+  val shelves: Traversal[Depot, String]     = optic(_.shelves.each)
+  val firstShelf: Optional[Depot, String]   = optic(_.shelves.at(0))
+  val stockOfBooks: Optional[Depot, Int]    = optic(_.stock.atKey("books"))
+  val someShelves: Traversal[Depot, String] = optic(_.shelves.atIndices(0, 2))
+}
+
+println(Depot.street)
+println(Depot.shelves)
+println(Depot.firstShelf)
+println(Depot.stockOfBooks)
+println(Depot.someShelves)
+```
+
+The output is not always code you can paste back into `optic`: a step that focuses a map key prints the placeholder `atKey(<key>)` instead of the key, steps for several indices or keys print `atIndices(<indices>)` and `atKeys(<keys>)`, and a traversal built with `searchFor` prints only the type it searches for. `DynamicOptic#toString`, the path syntax of the `p"..."` interpolator, has gaps of its own, a known bug in 0.0.56, listed in [Path Interpolator](./path-interpolator.md#debug-friendly-tostring).
 
 **Examples by optic type:**
 
-| Optic | toString Output |
-|-------|-----------------|
-| `Lens` for field | `Lens(_.name)` |
-| `Lens` for nested field | `Lens(_.address.street)` |
-| `Prism` for variant case | `Prism(_.when[CreditCard])` |
-| `Optional` combining prism + lens | `Optional(_.when[Success].data)` |
-| `Traversal` over sequence | `Traversal(_.items.each)` |
-| `Traversal` over map keys | `Traversal(_.metadata.eachKey)` |
-| `Traversal` over map values | `Traversal(_.metadata.eachValue)` |
-
-The output mirrors what you would write with the `optic` macro, making it easy to understand and reproduce the optic path.
+| Optic                              | toString Output                       |
+|------------------------------------|---------------------------------------|
+| `Lens` for field                   | `Lens(_.name)`                        |
+| `Lens` for nested field            | `Lens(_.address.street)`              |
+| `Prism` for variant case           | `Prism(_.when[CreditCard])`           |
+| `Optional` combining prism + lens  | `Optional(_.when[Success].data)`      |
+| `Optional` at a sequence index     | `Optional(_.items.at(0))`             |
+| `Optional` at a map key            | `Optional(_.metadata.atKey(<key>))`   |
+| `Traversal` over sequence          | `Traversal(_.items.each)`             |
+| `Traversal` over map keys          | `Traversal(_.metadata.eachKey)`       |
+| `Traversal` over map values        | `Traversal(_.metadata.eachValue)`     |
 
 ## Composing Optics
 

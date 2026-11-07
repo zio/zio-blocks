@@ -1,6 +1,7 @@
 ---
 id: query-dsl-reified-optics
 title: "Query DSL with Reified Optics — Part 1: Expressions"
+description: "Write type-safe, composable query expressions over any schema-equipped type using reified optics: comparisons, boolean logic, arithmetic, strings and collections."
 ---
 
 In this guide, we will build a type-safe query DSL for filtering, comparing, and computing over domain data using ZIO Blocks' reified optics and schema expressions. By the end, you will have a composable query language that works on any schema-equipped data type, supporting equality checks, comparisons, boolean logic, arithmetic, and string operations.
@@ -117,13 +118,11 @@ The full set of comparison operators:
 | `<`      | Less than              |
 | `<=`     | Less than or equal     |
 
-Each operator works in two forms:
-- **Optic vs. literal**: `Product.price > 100.0` -- compare a field to a value
-- **Optic vs. optic**: `Product.rating === Product.rating` -- compare two fields
+Each operator works in two forms: an optic against a literal, as in `Product.price > 100.0`, which compares a field to a value, and an optic against another optic, as in `Product.rating === Product.rating`, which compares two fields.
 
 ## Evaluating Queries
 
-A `SchemaExpr[A, Boolean]` is a predicate over `A`. Evaluate it with `.eval`:
+A `SchemaExpr[A, Boolean]` is a predicate over `A`. Evaluate it with `SchemaExpr#eval`:
 
 ```scala mdoc:silent
 val laptop = Product("Laptop", 999.99, "Electronics", true, 5)
@@ -138,9 +137,7 @@ expensiveItems.eval(laptop)
 expensiveItems.eval(pen)
 ```
 
-The result type is `Either[OpticCheck, Seq[Boolean]]`:
-- `Right(Seq(true))` or `Right(Seq(false))` for successful evaluation
-- `Left(opticCheck)` if the optic path fails (e.g., a prism encounters the wrong variant case)
+The result type is `Either[OpticCheck, Seq[Boolean]]`. A successful evaluation gives `Right(Seq(true))` or `Right(Seq(false))`, and `Left(opticCheck)` means the optic path failed (for example, a prism encountered the wrong variant case).
 
 For lenses, evaluation always succeeds because lenses always resolve.
 
@@ -229,11 +226,11 @@ nameLength.eval(laptop)
 nameLength.eval(pen)
 ```
 
-| String Operation | Signature                          | Description               |
-|------------------|------------------------------------|---------------------------|
-| `matches`        | `(regex: String) => SchemaExpr[S, Boolean]` | Regex match        |
-| `concat`         | `(suffix: String) => SchemaExpr[S, String]` | Append a string    |
-| `length`         | `SchemaExpr[S, Int]`               | String length             |
+| String Operation | Signature                                   | Description     |
+| ---------------- | ------------------------------------------- | --------------- |
+| `matches`        | `(regex: String) => SchemaExpr[S, Boolean]` | Regex match     |
+| `concat`         | `(suffix: String) => SchemaExpr[S, String]` | Append a string |
+| `length`         | `SchemaExpr[S, Int]`                        | String length   |
 
 ## Dynamic Evaluation
 
@@ -247,7 +244,7 @@ val priceExpr: SchemaExpr[Product, Double] = Product.price * 0.9
 priceExpr.evalDynamic(laptop)
 ```
 
-The `evalDynamic` method converts results to `DynamicValue` representations, enabling integration with serialization formats without knowing the concrete type.
+The `SchemaExpr#evalDynamic` method converts results to `DynamicValue` representations, enabling integration with serialization formats without knowing the concrete type.
 
 ## Querying Nested Structures
 

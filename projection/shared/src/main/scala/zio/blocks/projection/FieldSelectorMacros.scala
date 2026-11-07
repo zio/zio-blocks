@@ -21,34 +21,57 @@ import scala.quoted.*
 import zio.blocks.sql.SqlNameMapper
 
 /**
- * Scala 3 macros for extracting field names from selector expressions and
- * mapping them to SQL snake_case column names.
+ * Scala 3 macro implementations that turn a field selector such as
+ * `_.userCount` into the name of the field, checked at compile time.
+ *
+ * They back the selector-based methods of [[FieldUpdate]] (`increment`,
+ * `decrement`, `setValue`, `maxValue`, `minValue`) and the
+ * `HandlerBuilder.update` macro, so that a misspelled field is a compile error
+ * and not a runtime failure. The selector must be a lambda whose body ends in a
+ * member access without a parameter list, such as `_.userCount`; the name of
+ * that last member is used, so `_.stats.userCount` gives `userCount` and
+ * `_.name.size` gives `size`. The macro does not check that the member is a
+ * field of `A`. A selector that is not a lambda, that ends in a call of a
+ * method with a parameter list, such as `_.name.length` on a `String`, or that
+ * reads no member, such as `x => x`, is rejected with a compile error.
+ *
+ * Field names are mapped to SQL `snake_case` column names with
+ * `SqlNameMapper.SnakeCase`, for example `userCount` becomes `user_count`. The
+ * name is worked out at compile time and appears as a string literal in the
+ * expanded code, so no reflection happens at runtime.
  */
 object FieldSelectorMacros {
 
+  /** Expands to the snake_case column name of the field `selector` reads. */
   def extractAndMapFieldImpl[A: Type](selector: Expr[A => Any])(using q: Quotes): Expr[String] = {
     val fieldName  = extractFieldNameRaw(selector)
     val snakeCased = SqlNameMapper.SnakeCase(fieldName)
     Expr(snakeCased)
   }
 
+  /** Expands to the Scala name of the field `selector` reads, unchanged. */
   def extractFieldNameImpl[A: Type](selector: Expr[A => Any])(using q: Quotes): Expr[String] = {
     val fieldName = extractFieldNameRaw(selector)
     Expr(fieldName)
   }
 
+  /** Implements `FieldUpdate.setValue`. */
   def setValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Any])(using q: Quotes): Expr[FieldUpdate.Set] =
     '{ FieldUpdate.Set(${ extractAndMapFieldImpl[A](selector) }, $value) }
 
+  /** Implements `FieldUpdate.increment`. */
   def incrementImpl[A: Type](selector: Expr[A => Any], by: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Increment] =
     '{ FieldUpdate.Increment(${ extractAndMapFieldImpl[A](selector) }, $by) }
 
+  /** Implements `FieldUpdate.decrement`. */
   def decrementImpl[A: Type](selector: Expr[A => Any], by: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Decrement] =
     '{ FieldUpdate.Decrement(${ extractAndMapFieldImpl[A](selector) }, $by) }
 
+  /** Implements `FieldUpdate.maxValue`. */
   def maxValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Max] =
     '{ FieldUpdate.Max(${ extractAndMapFieldImpl[A](selector) }, $value) }
 
+  /** Implements `FieldUpdate.minValue`. */
   def minValueImpl[A: Type](selector: Expr[A => Any], value: Expr[Long])(using q: Quotes): Expr[FieldUpdate.Min] =
     '{ FieldUpdate.Min(${ extractAndMapFieldImpl[A](selector) }, $value) }
 

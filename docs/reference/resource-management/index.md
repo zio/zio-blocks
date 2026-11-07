@@ -1,6 +1,6 @@
 ---
 id: index
-title: "Resource Management & Dependency Injection"
+title: "Resource Management"
 ---
 
 ## Introduction
@@ -15,7 +15,7 @@ These three types solve the fundamental problem of managing resources and depend
 
 **[Resource](./resource.md)** builds on Scope to describe how to acquire and finalize resources. Rather than executing immediately, a Resource is a lazy recipe that composes naturally with `map`, `flatMap`, and `zip`. When allocated within a scope, finalizers run automatically in LIFO order, ensuring cleanup happens even when errors occur.
 
-**[Wire](./wire.md)** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution, cycle detection, and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates.
+**[Wire](./wire.md)** brings it all together by describing how to construct services and their dependencies. The Wire macro automatically handles dependency resolution and AutoCloseable registration, letting you declaratively specify a dependency graph that the compiler validates. Cycle detection is not working yet: in 0.0.56 a dependency cycle crashes the macro (a known bug, #1767).
 
 ### How They Work Together
 
@@ -42,3 +42,9 @@ The typical flow is:
 - **Wire** uses **Resource** to manage lifecycles of constructed services
 - **Resource** uses **Scope** for finalization and scoped value boundaries
 - Both **Wire** and **Resource** produce values that are usable only within a **Scope** context
+
+## See Also
+
+- [Compile-Time Resource Safety with Scope](../../guides/compile-time-resource-safety-with-scope.md) — a step-by-step tutorial covering `Scope`, `Resource` and `Wire`
+- [Coming from cats-effect Resource, ZIO Scope/ZLayer, macwire or Using](../../guides/resource-and-di-migration.md) — maps each of those libraries onto `Scope`, `Resource` and `Wire`
+- [How to Use ZIO Blocks in a ZIO or cats-effect Application](../../guides/use-zio-blocks-in-zio-or-cats-effect.md) — using `Scope` and `Resource` from ZIO or cats-effect, with cleanup carried across

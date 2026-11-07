@@ -16,6 +16,17 @@
 
 package zio.blocks.schema.binding
 
+/**
+ * Wraps a [[Binding]] as the metadata `F[T, A]` of a `Reflect` node. The
+ * `Reflect` constructors for standard types, such as `Reflect.int` and
+ * `Reflect.option`, take one to store the bindings they create. The library's
+ * instance is `Binding.bindingFromBinding`, for `F` = `Binding`.
+ *
+ * @tparam F
+ *   the metadata type of the nodes
+ */
 trait FromBinding[F[_, _]] {
+
+  /** Returns `binding` as metadata of type `F`. */
   def fromBinding[T, A](binding: Binding[T, A]): F[T, A]
 }

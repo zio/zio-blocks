@@ -16,136 +16,58 @@
 
 package zio.blocks.endpoint
 
-import zio.blocks.combinators.Tuples
-
+/**
+ * Constructors of the [[SegmentCodec]] companion. The Scala 2 and Scala 3
+ * copies differ in how `literal` validates its value and in how the segment
+ * names are bounded to a singleton type.
+ */
 private[endpoint] trait SegmentCodecPlatformSpecific {
-  import SegmentCodec._
 
-  // A single captured segment's `PathVars` is the BARE `PathVar[..]` leaf (no `Tuple1` wrapper),
-  // structurally identical in shape to the value track's bare leaf (`int` -> `Int`). This lets
-  // `zio.blocks.combinators.Tuples` grow the PathVars track incrementally to `Tuple2`/`Tuple3`/...
-  // via exactly the same mechanism it already uses for real values everywhere. `Unit` is the
-  // neutral/empty element (matching this codebase's convention in combinators/Tuples.scala).
-  type NoPathVars = Unit
-
-  private def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
-    (suffixBoundary(left), prefixBoundary(right)) match {
-      case (Some((leftKind, _)), Some((rightKind, _))) if leftKind == Kind.Trailing || rightKind == Kind.Trailing =>
-        throw new IllegalArgumentException(
-          s"Cannot combine trailing path segments with `~`: ${boundaryLabel(leftKind)} ~ ${boundaryLabel(rightKind)}"
-        )
-      case (Some((Kind.String, leftName)), Some((Kind.String, rightName))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two string segments. Their names are $leftName and $rightName"
-        )
-      case (Some((leftKind, leftName)), Some((rightKind, rightName))) if isNumeric(leftKind) && isNumeric(rightKind) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
-        )
-      case _ => ()
-    }
-
-  private def prefixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
-    codec match {
-      case Empty                    => None
-      case Literal(value, _, _)     => Some((Kind.Literal, value))
-      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
-      case IntSeg(name, _, _)       => Some((Kind.Int, name))
-      case LongSeg(name, _, _)      => Some((Kind.Long, name))
-      case StringSeg(name, _, _)    => Some((Kind.String, name))
-      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
-      case Trailing                 => Some((Kind.Trailing, "trailing"))
-      case Transform(inner, _, _)   => prefixBoundary(inner)
-      case Combined(left, right, _) =>
-        prefixBoundary(left).orElse(prefixBoundary(right))
-    }
-
-  private def suffixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
-    codec match {
-      case Empty                    => None
-      case Literal(value, _, _)     => Some((Kind.Literal, value))
-      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
-      case IntSeg(name, _, _)       => Some((Kind.Int, name))
-      case LongSeg(name, _, _)      => Some((Kind.Long, name))
-      case StringSeg(name, _, _)    => Some((Kind.String, name))
-      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
-      case Trailing                 => Some((Kind.Trailing, "trailing"))
-      case Transform(inner, _, _)   => suffixBoundary(inner)
-      case Combined(left, right, _) =>
-        suffixBoundary(right).orElse(suffixBoundary(left))
-    }
-
-  private def boundaryLabel(kind: Kind): String =
-    kind match {
-      case Kind.Literal  => "literal"
-      case Kind.Bool     => "bool"
-      case Kind.Int      => "int"
-      case Kind.Long     => "long"
-      case Kind.String   => "string"
-      case Kind.UUID     => "uuid"
-      case Kind.Combined => "combined"
-      case Kind.Trailing => "trailing"
-      case Kind.Empty    => "empty"
-    }
-
-  private def isNumeric(kind: Kind): Boolean = kind == Kind.Int || kind == Kind.Long
-
-  implicit final class SegmentCodecOps[A, P <: BoundaryTag, S <: BoundaryTag, PV](
-    private val self: WithBoundaries[A, P, S] { type PathVars = PV }
-  ) {
-    def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, PV2, C, PVC](
-      that: WithBoundaries[B, P2, S2] { type PathVars = PV2 }
-    )(implicit
-      combiner: Tuples.Tuples.WithOut[A, B, C],
-      canCombine: CanCombine[S, P2],
-      pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
-    ): WithBoundaries[C, P, S2] { type PathVars = PVC } = {
-      // `pathVarsCombiner` is a pure compile-time evidence/inference parameter (it drives PVC's
-      // resolution, exactly like `canCombine` drives boundary validation) - never read at
-      // runtime, so it is referenced here only to satisfy `-Ywarn-unused`/`-Xfatal-warnings`.
-      val _ = pathVarsCombiner
-      validateCombination(self, that)
-      SegmentCodec
-        .combineValidated(self, that, combiner)
-        .asInstanceOf[WithBoundaries[C, P, S2] { type PathVars = PVC }]
-    }
-
-    def ~[C, PVC](that: String)(implicit
-      combiner: Tuples.Tuples.WithOut[A, Unit, C],
-      canCombine: CanCombine[S, BoundaryTag.Literal],
-      pathVarsCombiner: Tuples.Tuples.WithOut[PV, NoPathVars, PVC]
-    ): WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC } = {
-      val _     = pathVarsCombiner
-      val right = SegmentCodec.literal(that)
-      validateCombination(self, right)
-      SegmentCodec
-        .combineValidated(self, right, combiner)
-        .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC }]
-    }
-
-    def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] { type PathVars = PV } =
-      SegmentCodec
-        .transformValidated[A, B](self, value => Right(decode(value)), value => Right(encode(value)))
-        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
-
-    def transformOrFail[B](
-      decode: A => Either[DecodeError, B],
-      encode: B => Either[DecodeError, A]
-    ): WithBoundaries[B, P, S] { type PathVars = PV } =
-      SegmentCodec
-        .transformValidated[A, B](self, decode, encode)
-        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
-  }
-
-  def literal(value: String): Literal = {
+  /**
+   * Creates a segment that matches `value` exactly. `value` must be one path
+   * segment that needs no URL encoding: an empty value, one with `/`, and one
+   * with a character such as a space, `%`, `?`, `#` or a non-ASCII letter is
+   * rejected. Scala 2 checks at run time and throws; Scala 3 checks at compile
+   * time, so `value` must be a compile-time constant and a bad one is a compile
+   * error.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   on Scala 2, when `value` is not valid
+   */
+  def literal(value: String): SegmentCodec.Literal = {
     SegmentCodec.validateLiteralValue(value)
     SegmentCodec.literalValidated(value)
   }
-}
 
-private[endpoint] trait CanCombinePlatformSpecific {
-  import SegmentCodec.BoundaryTag
+  // `String with Singleton` preserves literal singletons on Scala 2.13.
+  // (`with` as a type operator is an error on Scala 3.10; Scala 3 uses `&`.)
+  /**
+   * Creates a segment that captures a `Boolean` under `name`, kept as a
+   * singleton type.
+   */
+  def bool[N <: String with Singleton](name: N): SegmentCodec.BoolSeg[N] = SegmentCodec.BoolSeg(name)
 
-  implicit def canCombine[L <: BoundaryTag, R <: BoundaryTag]: SegmentCodec.CanCombine[L, R] =
-    new SegmentCodec.CanCombine[L, R] {}
+  /**
+   * Creates a segment that captures an `Int` under `name`, kept as a singleton
+   * type.
+   */
+  def int[N <: String with Singleton](name: N): SegmentCodec.IntSeg[N] = SegmentCodec.IntSeg(name)
+
+  /**
+   * Creates a segment that captures a `Long` under `name`, kept as a singleton
+   * type.
+   */
+  def long[N <: String with Singleton](name: N): SegmentCodec.LongSeg[N] = SegmentCodec.LongSeg(name)
+
+  /**
+   * Creates a segment that captures a `String` under `name`, kept as a
+   * singleton type.
+   */
+  def string[N <: String with Singleton](name: N): SegmentCodec.StringSeg[N] = SegmentCodec.StringSeg(name)
+
+  /**
+   * Creates a segment that captures a `java.util.UUID` under `name`, kept as a
+   * singleton type.
+   */
+  def uuid[N <: String with Singleton](name: N): SegmentCodec.UUIDSeg[N] = SegmentCodec.UUIDSeg(name)
 }
