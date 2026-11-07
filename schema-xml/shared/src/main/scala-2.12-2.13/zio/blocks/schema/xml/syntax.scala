@@ -75,6 +75,7 @@ object syntax {
      * Encodes this value as an XML string formatted by `config`.
      *
      * {{{
+     * import zio.blocks.schema.xml.WriterConfig
      * import zio.blocks.schema.xml.syntax._
      *
      * Map("region" -> "eu").toXmlString(WriterConfig.pretty)

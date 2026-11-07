@@ -352,8 +352,10 @@ lazy val root = project
     projection.jvm,
     asyncExamples,
     capstoneExamples,
+    configExamples,
     datastarExamples,
     endpointExamples,
+    htmlExamples,
     httpModelExamples,
     jwtExamples,
     muxExamples,
@@ -361,6 +363,7 @@ lazy val root = project
     schemaExamples,
     scopeExamples,
     smithyExamples,
+    sqlExamples,
     streamsExamples,
     telemetryExamples,
     zioBlocksExamples,
@@ -372,8 +375,10 @@ lazy val root = project
 // root build only references them, the way zio-http does, instead of defining them as subprojects.
 lazy val asyncExamples         = RootProject(file("async-examples"))
 lazy val capstoneExamples      = RootProject(file("capstone-examples"))
+lazy val configExamples        = RootProject(file("config-examples"))
 lazy val datastarExamples      = RootProject(file("datastar-examples"))
 lazy val endpointExamples      = RootProject(file("endpoint-examples"))
+lazy val htmlExamples          = RootProject(file("html-examples"))
 lazy val httpModelExamples     = RootProject(file("http-model-examples"))
 lazy val jwtExamples           = RootProject(file("jwt-examples"))
 lazy val muxExamples           = RootProject(file("mux-examples"))
@@ -381,6 +386,7 @@ lazy val openapiExamples       = RootProject(file("openapi-examples"))
 lazy val schemaExamples        = RootProject(file("schema-examples"))
 lazy val scopeExamples         = RootProject(file("scope-examples"))
 lazy val smithyExamples        = RootProject(file("smithy-examples"))
+lazy val sqlExamples           = RootProject(file("sql-examples"))
 lazy val streamsExamples       = RootProject(file("streams-examples"))
 lazy val telemetryExamples     = RootProject(file("telemetry-examples"))
 lazy val zioBlocksExamples     = RootProject(file("zio-blocks-examples"))

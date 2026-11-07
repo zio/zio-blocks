@@ -610,7 +610,7 @@ val pricedOrders: Either[Nothing, Chunk[(Long, BigDecimal)]] =
 println(pricedOrders)
 ```
 
-A `usingEmit` loop over an iterator becomes `Stream.fromIterator`. A loop that does not fit either shape can implement a `Reader` and pass it to `Stream.fromReader`; see the [Reader reference](../reference/streams/primitives/reader.md). A `usingEmit` with `try`/`finally` around a resource becomes `Stream.fromAcquireRelease`, as in [the ZIO Streams section](#resources-and-parallel-work).
+A `usingEmit` loop over an iterator becomes `Stream.fromIterator`. For cursor-based pages, typed errors and `unfoldAsync`, see [How to Turn a Paginated API into a Stream](./turn-a-paginated-api-into-a-stream.md). A loop that does not fit either shape can implement a `Reader` and pass it to `Stream.fromReader`; see the [Reader reference](../reference/streams/primitives/reader.md). A `usingEmit` with `try`/`finally` around a resource becomes `Stream.fromAcquireRelease`, as in [the ZIO Streams section](#resources-and-parallel-work).
 
 ### Errors
 
