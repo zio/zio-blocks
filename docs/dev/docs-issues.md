@@ -53,73 +53,6 @@ Flags read `System.getProperty` and do see such properties on Scala.js (a `Stati
 
 **Suggested fix.** Replace the sentence with the expected text above. (If the library should read the emulated properties instead, that is a one-line change to the JS `SysPropSource`.)
 
-### `reference/http-model/model.md`, `headers.md` and `server-sent-event.md`: eleven statements that contradict http-model 0.0.56
-
-Found 2026-11-04 while fact-checking the reference pages against the source for the http-model Scaladoc (branch `http-model-scaladoc`, base `main` `5eb809c8f`; the http-model sources are identical at tag `v0.0.56`). Each item was checked with the reproduction below or by compiling the snippet.
-
-**Items** (page:line on `5eb809c8f`, then the correct statement):
-
-1. `model.md:505`: "Returns: Either[ParseError, URL]". There is no `ParseError`; `URL.parse` returns `Either[String, URL]`.
-2. `model.md:567`: `Path.fromEncoded("%2Fapi%2Fv1%2Fusers") // Parse from percent-encoded string` suggests the path `/api/v1/users`. `fromEncoded` splits at `/` before decoding, so this gives one segment `/api/v1/users` and no leading slash. Use `Path.fromEncoded("/api/v1/caf%C3%A9")` to show decoding.
-3. `model.md:590`: "`QueryParams` is an immutable, case-insensitive multi-map". Keys are compared exactly: `QueryParams("Page" -> "1").get("page")` is `None`.
-4. `model.md:293-297`: "`Status` is an opaque type alias for `Int`". Only on Scala 3. On Scala 2.13 it is `final case class Status(code: Int) extends AnyVal`, and `toString` gives `Status(200)` instead of `200`. Say both.
-5. `model.md:1349-1379` ("Lazy Header Parsing"): `request.headers.get("authorization")` and `headers.get("content-type")` do not compile; `Headers#get` takes a `Header.Codec[A]`, not a name (compile error below). Use `headers.get(Header.Authorization)` and `headers.get(Header.ContentType)`, or `rawGet` for the strings. The comment "parsed and cached as: ContentType(mediaType=ApplicationJson, charset=UTF8)" names no real value either.
-6. `headers.md:569`: the catalog row for `Header.Trailer` says `value: String`; the field is `headers: Chunk[String]` (`Header.scala:768`).
-7. `headers.md:314`: "the class is immutable and the arrays are never mutated in place". A typed read stores the parsed value in the entry's cache slot in place (the page's own "The Parse Cache" section, `:262-272`, says so). Say that the names and values are never changed in place.
-8. `server-sent-event.md:110`: "Four methods produce a modified copy", followed by a table of five (`event`, `clearEvent`, `id`, `retry`, `clearRetry`).
-9. `server-sent-event.md:276`: "two envelopes are equal when they would render identically". Equality compares the payloads with `==`, so `ServerSentEvent("a")` and `ServerSentEvent(Chunk("a"))` render the same text but are not equal. Say "equal payloads and equal metadata".
-10. `model.md:293`: "predefined constants for all standard codes (1xx–5xx)". There is no constant for 208, 226, 423, 424, 506, 508 and 510, and `Status(c).text` gives `Unknown` for each (run on 3.9.0 and 2.13.18). Say "constants for the common codes".
-11. `model.md:285`: `m.ordinal // ordinal position for sorting`. `Method.ANY` and every `Method.Methods` have ordinal -1. Say "0 to 8 for the standard methods, -1 for `ANY` and `Methods`".
-
-**Reproduction** (Scala 3.9.0, `zio-blocks-http-model` 0.0.56), `DocsRepro.scala`, run with `scala-cli run --server=false DocsRepro.scala`:
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-model:0.0.56
-import zio.http._
-import zio.blocks.chunk.Chunk
-
-object DocsRepro {
-  def main(args: Array[String]): Unit = {
-    val parsed: Either[String, URL] = URL.parse("https://example.com/api/users") // compiles: the error type is String
-    println(parsed.isRight)
-    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").segments)
-    println(Path.fromEncoded("%2Fapi%2Fv1%2Fusers").hasLeadingSlash)
-    println(QueryParams("Page" -> "1").get("page"))
-    println(Header.Trailer(Chunk("expires", "digest")).renderedValue)
-    println(ServerSentEvent("a") == ServerSentEvent(Chunk("a")))
-    println(ServerSentEvent("a").render == ServerSentEvent(Chunk("a")).render)
-    println(Status.Ok.toString)
-  }
-}
-// true
-// Chunk(/api/v1/users)
-// false
-// None
-// expires, digest
-// false
-// true
-// 200
-```
-
-With `//> using scala 2.13.18` the last line prints `Status(200)`.
-
-Item 5, `GetString.scala`, run with `scala-cli compile --server=false GetString.scala`:
-
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-model:0.0.56
-import zio.http._
-object GetString { val headers = Headers("authorization" -> "Bearer abc123"); val t = headers.get("authorization") }
-// -- [E007] Type Mismatch Error: GetString.scala:4:98
-// Found:    ("authorization" : String)
-// Required: zio.http.Header.Codec[A]
-```
-
-**Impact.** Items 2, 3 and 5 mislead readers about behaviour they rely on (case-insensitive query keys, decoding of `%2F`, a header read by name); item 5's block is a plain fence, so mdoc never compiled it. The others are small inaccuracies.
-
-**Suggested fix.** Apply the corrections above; turn the "Lazy Header Parsing" block into `mdoc:compile-only` so it is compiled.
-
 ### `reference/sql/db-codec.md`: `DbCodec.derivedOpaque` and `DbCodec.dbCodecFromAs` are not "selected automatically"
 
 Found 2026-11-05 by the sql Scaladoc rollout (Task 2), base `0c0021d61`; same at `v0.0.56`. Verified with entry A's reproducer.
@@ -336,82 +269,6 @@ object PeekRepro {
 **Test gap.** None needed for the library; the page has no test.
 
 **Suggested fix.** Replace the two sentences as in "Expected".
-
-### `reference/html.md`: the `html""` example `id="user-$age"` does not work
-
-**Where found.** `docs/reference/html.md:613-622` (section "`html""` Interpolator"), 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-**Summary.** The comment says "age is in attribute position → ToAttrValue[Int]", but the preceding text ends with `user-`, not `=`, so `$age` is content and the attribute renders with control characters (`id="user-\u0000\u00010\u0000\u0001"`); the library entry on control characters in quoted attribute values has the reproducer. The block is `mdoc:compile-only`, so the site never shows the output.
-
-**Suggested fix.** Use `id=$age` (whole value) in the example and say that a value inside a quoted attribute value is not supported (a known bug).
-
-### `reference/html.md`: the "Template Composition" example throws at run time
-
-**Where found.** `docs/reference/html.md:1242-1260`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-**Summary.** The template starts and ends with a newline, so `html"""..."""` sees three top-level nodes and throws `IllegalArgumentException` (the usability-trap entry on whitespace around the root has the reproducer). `mdoc:compile-only` hides it.
-
-**Suggested fix.** Start the template with `<html>` on the first line and end it right after `</html>`, run the block with plain `mdoc`, and mention the whitespace rule next to the single-root requirement.
-
-### `reference/html.md`: `Dom#filter` does not replace failing nodes with `Dom.Empty`
-
-**Where found.** `docs/reference/html.md:240`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-**Summary.** "Non-matching nodes are replaced with `Dom.Empty`, and their children are lost" is false for children: a failing child is removed from its parent's children; only a failing root returns `Dom.Empty`. `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
-
-```scala
-//> using scala 2.13.18
-//> using dep dev.zio::zio-blocks-html:0.0.56
-import zio.blocks.html._
-
-object Repro {
-  def main(args: Array[String]): Unit = {
-    val tree = div(p("A"), span("B", em("C")), p("D"))
-    println(tree.filter { case el: Dom.Element => el.tag != "span"; case _ => true }.render)
-    println(tree.filter { case el: Dom.Element => el.tag == "p"; case _ => true })
-  }
-}
-// <div><p>A</p><p>D</p></div>
-// Empty
-```
-
-
-**Suggested fix.** "A failing child is removed together with its subtree; when the root itself fails, the result is `Dom.Empty`."
-
-### `reference/html.md`: multi-valued attributes, override and `accept`
-
-**Where found.** `docs/reference/html.md:345-361`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-**Summary.** (a) `accept` is listed with `class` and `rel` as a multi-valued attribute, but it is an `AttributeKey`: `div(accept += "image/png")` fails to compile with "value += is not a member of zio.blocks.html.AttributeKey" (2.13.18: "did you mean :=?"; 3.9.0: "did you mean accept.!=? or perhaps accept.:=?"). (b) "`:=` (override) — Replaces any previous value. Last assignment wins" does not hold after `+=`: `className += "sale", className := "card"` renders `class="card sale"` (a known trap).
-
-**Suggested fix.** Drop `accept` from the list (or make it a `MultiAttributeKey` with a comma separator), and say that `:=` replaces earlier `:=` values while `+=` values are always appended.
-
-### `reference/html.md`: garbled JavaScript escape descriptions
-
-**Where found.** `docs/reference/html.md:700-701`, `:1153-1155`, `:1168-1169`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-**Summary.** The Unicode escapes were turned into the characters themselves somewhere along the way. Line 1153 reads "`<` → backslash-u-0-0-3-c (the six-character Unicode escape sequence `<`)" (lines 1154-1155 likewise for `>` and `&`), and line 701 says "with < and > characters escaped as < and > in actual output". The real output of `js"let check = $userInput"` with `userInput = "if (x < y) alert('<script>');"` contains `\u003c`, `\u003e` and `\'`:
-
-```
-let check = "if (x \u003c y) alert(\'\u003cscript\u003e\');"
-```
-
-The code comments at lines 700 and 1168 also show unescaped output. (Line 1169 reads "(with < and > characters escaped as Unicode in actual output)", which is right.)
-
-**Suggested fix.** Show the real `println(code.value)` output (run the blocks with plain `mdoc`), and write the escapes in code spans as `\u003c`, `\u003e`, `\u0026`.
-
-### `reference/html.md`: smaller errors
-
-**Where found.** `docs/reference/html.md`, 2026-11-05, base `a7014433f`. Same at v0.0.56: yes.
-
-- Line 50: `case class Css.Declaration(property: String, value: String) extends Css` — `Css.Declaration` does not extend `Css` (`Css.scala:82`), and its constructor is private.
-- Lines 147-149: "The Five Node Types" lists six headings (`Text`, `Generic`, `Script`, `Style`, `Doctype`, `Empty`) and leaves out `Dom.Element.Void`, which is a node type of its own (described at line 490).
-- Line 92: "depends transitively on `zio-blocks-schema`": `html` depends on `schema` and `chunk` directly (`build.sbt`, `lazy val html ... .dependsOn(chunk, schema)`).
-- Line 1069: "structured CSS ... prevents CSS injection": declaration values are not checked (Scala 2) or only quote-escaped (Scala 3; a known bug).
-- Line 704-713 (`selector""`): no warning that the result never matches in `Dom#select` (existing #1765).
-- Lines 893-897: the note on what `DomSelection` cannot match misses void elements, nested combinators and the attribute reading (all known bugs).
-
-**Suggested fix.** Correct each line as stated.
 
 ### `reference/schema/built-in-codecs/xml.md`: the `@xmlAttribute` and `@xmlNamespace` examples do not do what the page says
 
@@ -653,30 +510,6 @@ object RefPage {
 
 **Suggested fix.** Correct the four claims; add a "Wire format" table (record = map by field name, exactly one entry per field; `Option` = array of 0/1; `Either` = one-entry map; other variants = index then value; sequences = arrays; maps = maps with codec-encoded keys); link the Library bugs entries on variants and duplicate keys by GitHub issue once filed.
 
-### `reference/http-model/schema-codecs.md` and `schema.md`: overrides do not apply to record fields; UUIDs need not be in the standard form
-
-Found 2026-11-05 while fact-checking the http-model-schema Scaladoc against the reference pages, on `aa8164217`; the module sources are the same at `v0.0.56`. Verified against the published 0.0.56 on Scala 3.9.0.
-
-1. `docs/reference/http-model/schema-codecs.md`, "Overriding a Single Type": "The override applies wherever that type appears, so the custom rendering is used on both sides". It applies only when the overridden type is the whole schema; a record field of that type keeps the built-in rules (reproducer and root cause in NEW 3: `QueryParams((number,42))` instead of `number=p-42`). The page's example uses a top-level `Schema[Int]`, so mdoc does not catch it. Suggested text: "The override applies when the overridden type is the whole schema. In 0.0.56 a record's fields ignore it, a known bug."
-2. `docs/reference/http-model/schema.md`, "UUID": "error on invalid format (must be standard UUID format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)". On the JVM, `java.util.UUID.fromString` also accepts short groups:
-
-   ```scala
-   //> using scala 3.9.0
-   //> using options -experimental
-   //> using dep dev.zio::zio-blocks-next-http-model-schema:0.0.56
-
-   import zio.http.QueryParams
-   import zio.http.schema._
-
-   object ShortUuid {
-     def main(args: Array[String]): Unit =
-       println(QueryParams("order" -> "1-2-3-4-5").query[java.util.UUID]("order"))
-   }
-   // Right(00000001-0002-0003-0004-000000000005)
-   ```
-
-   (`ShortUuid.scala`, `scala-cli run --server=false ShortUuid.scala`; Scala.js not probed.) Suggested text: "Parsed with `java.util.UUID.fromString`; on the JVM it also accepts shortened groups such as `1-2-3-4-5`."
-
 ### `reference/combinators.md`: `Choices` does not exist, `Concat` is not Scala-2-only, and other errors
 
 **Where found.** Fact-checking `docs/reference/combinators.md` against the sources while writing the combinators Scaladoc, 2026-11-05, base `c2e4a39fd` (same at `v0.0.56`). Probed with scala-cli against `zio-blocks-combinators:0.0.56` on 2.13.18 and 3.9.0 (`/tmp/claude-1000/impl1/comb/C2.scala`, `C3.scala`).
@@ -703,32 +536,6 @@ Suggested fix: remove `Choices`; describe `Concat` on both versions; correct the
 - **`maybe.md:64`** ("only present-of-absent values allocate a `Present` wrapper") and the "Nested allocation" row at `:84` ("**1** (`Present(Absent)` only)") leave out `Maybe.present(Present(x))`, which is `Present(Present(x))` on Scala 3 (probe: `present(Present(1)) Present(Present(1))`); `:90` calls `Maybe.present(null)` "present-of-absent", but it is a present `null`.
 - **Cross-Version Parity / "Behavior Differences"**: add that `Maybe(Maybe.absent)` is absent on Scala 3 and present on Scala 2, and that `toString`/`==` differ (`Maybe.present(8080)` prints `8080` on Scala 3 and equals `8080` only when compared as `Any` (a direct `Maybe.present(8080) == 8080` does not compile there), prints `Present(8080)` on Scala 2; `Maybe.absent` prints `zio.blocks.maybe.Absent$@<hash>` on Scala 3 and `Absent` on Scala 2).
 
-### `reference/endpoint/endpoint.md` says the first `out` and `outError` widen from `Unit` to the schema type
-
-**Where found.** `docs/reference/endpoint/endpoint.md:199` and `:236`, 2026-11-06, `07f71de18`.
-
-**Summary.** ":199 The output type widens from `Unit` to the first schema type, then to a nested `Either` for each additional alternative." and ":236 Each `Endpoint#outError` call widens `Err` by one nested `Either` layer." The real types are `Either[A, Unit]` after the first call and `Either[Either[B, A], Unit]` after the second (see the endpoint library entry on `Either[A, Unit]` outputs). The page's `orOutError` example (`:248-252`) is correct.
-
-**Fix.** Either fix the library bug "the first `out` / `outError` keeps the empty `Unit` output as an alternative", or state the real types and link the bug in plain text ("a known bug in 0.0.56").
-
-### `reference/endpoint/bulk-creation.md` promises auto-names that do not compile, and gives the wrong Scala/artifact rule
-
-**Where found.** `docs/reference/endpoint/bulk-creation.md:8`, `:42-46`, `:96`, 2026-11-06, `07f71de18`.
-
-**Summary.**
-- `:42-46` list "`v{major}` for `~` concat segments" and "`.unused` renders as `{name}`" as auto-names; a `~` segment stops the compile wherever it is, and `.unused` after a literal does too (see the endpoint entry on `endpoints { ... }` auto-names). Two literals (`GET /notes/latest`), the most common REST shape, also fail and are not mentioned.
-- `:8` and `:96` say the DSL needs "Scala 3.8+ with `-experimental` ... also works on Scala 3.7 with `-experimental`". For 0.0.56, `zio-blocks-endpoint_3` does not contain `endpoints` at all (a 3.9.0 build against it reports "Not found: endpoints"), so it is available only from `zio-blocks-next-endpoint` on Scala 3.9+ with `-experimental`; built from `main` on Scala 3.9.0 it compiles without `-experimental` (the `scaladoc-check` run on 3.9.0 compiles the new `endpoints` examples without the flag), so the page needs the rule of the release it documents.
-
-**Fix.** List only the shapes that work (one literal or capture after the method; one literal then one capture), name the bug, and use the install rule of the other pages.
-
-### `reference/endpoint/auth-type.md` and `http-codec.md` claims that the Scaladoc corrected
-
-**Where found.** 2026-11-06, `07f71de18`.
-
-- `auth-type.md:134` "By default, `AuthType` returns `Status.NotFound` when the client does not meet the auth requirement": nothing in the module returns a status; `unauthorizedStatus` is a value for a server to use. Suggested: "`AuthType#unauthorizedStatus` is `Status.NotFound` by default; a server built on the endpoint should answer with it ...".
-- `http-codec.md:221` "surfacing a `SchemaError` if the scheme does not match": true; it could add that the message names the class of the parsed header (`... but found Bearer`, or `Unparsed` for an unknown scheme), see `HttpCodec.basicAuth` Scaladoc.
-- `route-tree.md:62` "HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered": the fallback also happens when a `HEAD` root exists but has no match for the path (`RouteTree.scala:57-59`); and the `RoutePattern#decode` side differs for method sets (the endpoint entry on `HEAD` and `GET #| POST`).
-
 ### `reference/projection/testing.md`: in-memory counters behave as in SQLite
 
 Found 2026-11-06 while writing the `projection` Scaladoc, at commit 07f71de18 (same at v0.0.56).
@@ -740,113 +547,6 @@ Found 2026-11-06 while writing the `projection` Scaladoc, at commit 07f71de18 (s
 **Expected.** The page lists the differences, or says that the in-memory store matches SQLite only for rows without `Option` fields and with valid column names.
 
 **Suggested fix.** Replace "so counters behave as they do in SQLite" with a short list of the differences, until entries 1 and 2 are fixed.
-
-### `reference/htmx/attribute-values.md`: "Extending with Custom Types" claims a custom `ToHtmxValue` makes a type usable in the DSL; it can't be
-
-Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both.
-
-**Summary.** `docs/reference/htmx/attribute-values.md:280-331` says "Define your own `ToHtmxValue` instance to make custom domain types work in the HTMX DSL" and "If you get an error like 'No `ToHtmxValue` instance found for type X,' implement the type class". Each `HtmxAttrKey` is built with a fixed value type and its instance (`HtmxAttrKey.stringValue[A]`, private to the package); `:=` takes `A`, with no implicit. A custom instance can't make a type assignable to any key, and users can't build keys. The page's own example never uses the `Priority` instance (it interpolates `Priority.High.toString()` into a `Js`). The same false claims were in the Scaladoc of `HtmxAttributes` and `ToHtmxValue` (fixed on this branch).
-
-**Reproducer.** `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
-
-import zio.blocks.html._
-import zio.http.htmx._
-
-enum Priority { case Low, High }
-object Priority {
-  given ToHtmxValue[Priority] = new ToHtmxValue[Priority] {
-    def toHtmxValue(p: Priority): String = p.toString.toLowerCase
-  }
-}
-
-object Repro {
-  def main(args: Array[String]): Unit = {
-    println(ToHtmxValue[Priority].toHtmxValue(Priority.High))
-    println(button(hxConfirm := Priority.High)("Create").render)
-  }
-}
-// -- [E007] Type Mismatch Error: Repro.scala:17:41
-// 17 |    println(button(hxConfirm := Priority.High)("Create").render)
-//    |                                ^^^^^^^^^^^^^
-//    |                                Found:    (Priority.High : Priority)
-//    |                                Required: String
-// 1 error found
-```
-
-**Expected.** The page says what the instances are for (rendering the built-in value types; `ToHtmxValue[A].toHtmxValue(a)` by hand) and drops the extension section, or the library adds a public way to define keys.
-
-**Root cause.** Documentation. `htmx/shared/src/main/scala/zio/http/htmx/HtmxAttrKey.scala:30-43` (private constructor and factory, `:=` without an implicit).
-
-**Impact.** Readers write instances that do nothing and then hit a type mismatch the page tells them an instance would fix.
-
-**Suggested fix.** Replace the section with a short note on the closed key set; remove the "No `ToHtmxValue` instance found" advice. Also `index.md:47` ("Extensible type class `ToHtmxValue` lets custom domain values render themselves").
-
-### htmx reference: smaller errors in `hx-swap.md`, `hx-target.md`, `index.md` and `attribute-values.md`
-
-Found 2026-11-06 while writing the htmx Scaladoc (branch `scala3-web-modules-scaladoc`, base `07f71de18`). The `htmx/` sources at `07f71de18` are identical to tag `v0.0.56` (`git diff v0.0.56 07f71de18 -- htmx/shared/src/main` is empty), so line numbers hold for both. Checked against htmx 2.0.11 (`htmx.js`) and the published 0.0.56 module.
-
-**Summary and evidence.**
-- `hx-swap.md:136`: "`focusScroll(enabled)` ... Pass `true` to focus the swapped element, `false` to disable focus movement". htmx's `focus-scroll` controls whether the browser scrolls to a focused input after the swap (`preventScroll`, htmx.js:2018), not whether focus moves; and htmx 2 ignores the library's `focusScroll:` token altogether (see the library entry "`HxSwap#focusScroll` renders `focusScroll:`").
-- `hx-target.md:102` and `:127`: "`next(selector)` targets the next sibling matching the selector" (and the same for `previous`). htmx 2 scans the whole document in order from the element (`scanForwardQuery`/`scanBackwardsQuery`, htmx.js:1211-1232), so `next .row` can be a non-sibling. The bare forms are siblings (`nextElementSibling`).
-- `index.md:247`: "Attributes that accept selectors (hxTarget, hxSelect, hxDisabledElt, hxIndicator) accept `CssSelector`". `hxTarget` takes `HxTarget` (`HtmxAttributes.scala:50`); `hxTarget := CssSelector.id("x")` does not compile.
-- `attribute-values.md:122`: "Use `HxSwapOob(true)` or `HxSwapOob(false)` for boolean flags". `false` still swaps out of band (library entry "`HxSwapOob.False` renders ...").
-
-**Reproducer.** The rendered values and browser runs for `focusScroll` and `HxSwapOob(false)` are in the two library entries named above. For `index.md:247`, `Repro.scala`, run with `scala-cli run --server=false Repro.scala`:
-```scala
-//> using scala 3.9.0
-//> using dep dev.zio::zio-blocks-http-htmx:0.0.56
-
-import zio.blocks.html._
-import zio.http.htmx._
-
-object Repro {
-  def main(args: Array[String]): Unit =
-    println(div(hxTarget := CssSelector.id("x")).render)
-}
-// -- [E007] Type Mismatch Error: Repro.scala:9:42
-// 9 |    println(div(hxTarget := CssSelector.id("x")).render)
-//   |                            ^^^^^^^^^^^^^^^^^^^
-//   |                            Found:    zio.blocks.html.CssSelector.Id
-//   |                            Required: zio.http.htmx.HxTarget
-// 1 error found
-```
-
-**Root cause.** Documentation.
-
-**Suggested fix.** Reword each line as above.
-
-### datastar reference: `attributes.md` says `DatastarAttrKey`'s constructor is `private[datastar]`, but it is public
-
-Found 2026-11-06 while fact-checking `DatastarAttrKey` Scaladoc, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
-
-**Where.** `docs/reference/datastar/attributes.md:261`: "Since the constructor is `private[datastar]`, reach it through a helper that returns a bare key."
-
-**Fact.** `datastar/shared/src/main/scala/zio/blocks/datastar/DatastarAttrKey.scala:30` declares `final class DatastarAttrKey(val name: String)` with a public constructor; only the companion's `apply` (`:40`) is `private[datastar]`. `new DatastarAttrKey("data-custom") := js"1"` compiles against 0.0.56 and renders `<span data-custom="1"></span>` (run with scala-cli, Scala 3.9.0, `zio-blocks-next-datastar` 0.0.56). The page's own intro two lines up says "you can construct one for an attribute the module has no helper for yet", which contradicts the sentence.
-
-**Fix.** Replace the sentence with: "`new DatastarAttrKey(name)` makes a key for an attribute that has no helper; the name is written as given, so use names from your own code. The bare helpers `dataAttr`, `dataClass`, ... return keys too:".
-
-### datastar reference: `events.md` calls `threshold(pct)` a "visibility fraction", but Datastar reads a percentage
-
-Found 2026-11-06 while fact-checking `DataOnIntersect#threshold`, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
-
-**Where.** `docs/reference/datastar/events.md:162`: "| `threshold(pct)` | Require an explicit visibility fraction |".
-
-**Fact.** Datastar's attribute reference documents `__threshold` as a percentage ("`.25` – Triggers when 25% of the element is visible"); `threshold(0.25)` renders `__threshold.0.25`, `threshold(25)` renders `__threshold.25` (see the library entry "`DataOnIntersect#threshold` takes a fraction-looking `Double`").
-
-**Fix.** "| `threshold(pct)` | Require `pct` percent visibility, as a whole number such as `25` |".
-
-### datastar reference: `sse.md` describes `Outer` and `Inner` as replacing, but Datastar morphs
-
-Found 2026-11-06 while fact-checking `ElementPatchMode`, on branch `scala3-web-modules-scaladoc` at `07f71de18`.
-
-**Where.** `docs/reference/datastar/sse.md`, `ElementPatchMode` table: "`Outer` | Replace the target element itself *(default)*", "`Inner` | Replace the target's children", "`Replace` | Replace using replacement semantics".
-
-**Fact.** Datastar's SSE reference: outer "Morphs the outer HTML of the elements. This is the default (and recommended) mode."; inner "Morphs the inner HTML of the elements."; replace "Replaces the outer HTML of the elements." The difference (morphing keeps element state such as focus and input values, replacing does not) is what a reader needs to choose between `Outer` and `Replace`, and the page's wording makes them sound the same.
-
-**Fix.** "`Outer` | Morph the target element into the new content *(default)*", "`Inner` | Morph the target's children", "`Replace` | Replace the target element without morphing".
 
 ### `reference/telemetry/common/index.md`: `AttributeKey` is not a case class, and a wrong key name or type is not a compile error
 
@@ -1156,6 +856,7 @@ Found 2026-11-06 by the schema core Scaladoc session on `main` `07f71de18`. The 
 
 ## Resolved
 
+- Web reference-page errors fixed in #1964 (merge `21bcc6ee7`, 2026-11-07), each re-checked against the code and the reviewed Scaladoc: http-model `model.md`, `headers.md` and `server-sent-event.md` (eleven statements); http-model `schema-codecs.md` and `schema.md` (overrides on record fields, non-standard UUIDs); `html.md` (the `id="user-$age"` example, the throwing "Template Composition" example, `Dom#filter`, multi-valued attributes/override/`accept`, the JavaScript escape descriptions, smaller errors); htmx `attribute-values.md` "Extending with Custom Types" and smaller errors in `hx-swap.md`, `hx-target.md`, `index.md`; datastar `attributes.md` (`DatastarAttrKey` constructor), `events.md` (`threshold` percentage), `sse.md` (`Outer`/`Inner` morph); endpoint `endpoint.md` (first `out`/`outError`), `bulk-creation.md` (auto-names, Scala/artifact rule), `auth-type.md` and `http-codec.md`. 16 entries.
 - Nine standalone example builds that didn't compile on Scala 2.13 (found 2026-10-29 by #1897): fixed in #1936 (merge `0c0021d61`, 2026-11-04), one commit per build. endpoint, http-model, mux, smithy, scope, schema, async, openapi and telemetry now pass `sbt "++2.13.18!" compile` (config, html, jwt and streams already did). Milad's decision: no example code was rewritten; each `build.sbt` skips Scala 3-only files on 2.x (the #1897 mechanism: a content regex plus per-file and per-package sets), so endpoint and scope compile almost nothing on 2.13 (nearly every file uses `@main`), and the generated smithy/openapi apps compile nothing on 2.x. Correction to the entry: "expected start of definition" came from `@main def`, not `import x.*`. The real 0.0.56 API gaps behind the other failures were already filed (telemetry `log.*` and `GlobalLogState`, `json"..."`, `yaml"..."`, `MigrationBuilder`); the async `Async.promise` difference is a new Usability traps entry (the Scala 2 body must bind the completer). Not done: a 2.13 compile step for the examples in CI (needs Milad's OK); trying the codegen's `EmitterConfig.scala2` to make the generated smithy/openapi apps 2.13-compatible. Opus review 8 findings, 3 applied, the rewrite-`@main` finding declined per Milad's decision.
 - `wire.md` had no mdoc-checked code blocks (found 2026-10-30 by #1917): fixed in #1934 (merge `5eb809c8f`, 2026-11-04) for all six resource-management pages. Plain ```` ```scala ```` fences 63 → 48 (wire 17 → 8, resource 19 → 18, scope 18 → 13); the rest are signatures, sbt lines, pseudocode and 5 deliberate-error fences that stay plain because `mdoc:fail` on this page also compiles the earlier blocks and reports "Conflicting definitions" (the known mdoc entry above); their error messages were confirmed in an isolated probe page. Compiling them found three `wire.md` errors, fixed in the same PR: the `Wire#isShared`/`Wire#shared` examples used `Wire.shared[String]` ("Cannot derive Wire for scala.Predef.String: not a class"); the `Wire#toResource` example passed a `Context[Config]` where `Context[String]` was needed; the motivation's manual-wiring example passed a scoped value to a constructor, which the scope checker rejects. Also fixed a Scala 3.9 pattern-narrowing warning at `scope.md:914`. Review: 0 blocking, 7 minor, 6 nits, all applied. Merged while GitHub Actions was backed up, so its PR CI never ran.
 - `typeid.md`: four claims that contradicted the library (found 2026-11-04 by the typeid Scaladoc rollout, #1924) fixed in #1933 (merge `6ee89c6b8`, 2026-11-04): (1) derived `TypeParam`s record name, index and variance only, always `Kind.Type` and unbounded (a known bug in 0.0.56), with a `TypeParam.higherKinded` example and the Kind table fixed; (2) `normalize` follows aliases only and leaves opaque types as they are, with an example; (3) `construct` builds `List`, `Vector`, `Set`, `Seq`, `IndexedSeq` and `Map`, while `Chunk`, `Array` and `ArraySeq` give `Left`, with an example; (4) `unapplied(TypeId.of[List[Int]])` equals `TypeId.list` on Scala 3. Probed against 0.0.56; Opus review 6 findings, 6 applied. Merged while GitHub Actions was down, so its PR CI never ran.
