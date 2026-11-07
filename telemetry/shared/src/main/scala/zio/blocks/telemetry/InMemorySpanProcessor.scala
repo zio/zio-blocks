@@ -18,6 +18,10 @@ package zio.blocks.telemetry
 
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Keeps the last `capacity` finished spans in a ring buffer; the default
+ * provider of the global `trace` reads `trace.collectedSpans` from one.
+ */
 private[telemetry] class InMemorySpanProcessor(capacity: Int = 1024) extends SpanProcessor {
   private val buffer: Array[SpanData]   = new Array[SpanData](capacity)
   private val writeIndex: AtomicInteger = new AtomicInteger(0)

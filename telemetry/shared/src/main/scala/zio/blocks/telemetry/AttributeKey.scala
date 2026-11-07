@@ -17,20 +17,29 @@
 package zio.blocks.telemetry
 
 /**
- * Type-safe key for attribute storage. Each key is bound to a specific value
- * type A.
+ * A name tied to a value type `A`, used to put a value into [[Attributes]] and
+ * read it back as an `A`. Create keys with the methods of the companion, such
+ * as `AttributeKey.long("http.status_code")`.
  *
- * AttributeKey instances are created via factory methods on the companion
- * object, which enforce type consistency between key and value.
+ * Two keys with the same name and type are equal. [[Attributes]] compares only
+ * names, so a key of the wrong type reads the stored value under a wrong type
+ * (see `Attributes#get`).
  *
  * @tparam A
- *   The type of values this key maps to
+ *   the type of the values this key maps to
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/common/attribute-key/ AttributeKey]]
  */
 sealed trait AttributeKey[A] {
+
+  /** Returns the attribute name, such as `"http.route"`. */
   def name: String
+
+  /** Returns the tag of the value type `A`. */
   def `type`: AttributeType
 }
 
+/** Creates [[AttributeKey]]s, one method per value type. */
 object AttributeKey {
 
   /**

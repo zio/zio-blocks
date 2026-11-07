@@ -18,6 +18,10 @@ package zio.blocks.telemetry
 
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * The configuration of the global [[log]]: its logger, global floor and prefix
+ * overrides. Internal: use the methods of `log` to change it.
+ */
 final class LogState private[telemetry] (
   val logger: Logger,
   val minSeverity: Int,
@@ -25,6 +29,11 @@ final class LogState private[telemetry] (
   val levelOverrideKeys: Array[String],
   val levelOverrideValues: Array[Int]
 ) {
+
+  /**
+   * Returns the minimum severity number for a call from `className`: the value
+   * of its longest matching prefix override, or the global floor.
+   */
   def effectiveLevel(className: String): Int = {
     if (levelOverrideKeys.length == 0) return minSeverity
     var bestLen   = -1
@@ -42,7 +51,10 @@ final class LogState private[telemetry] (
   }
 }
 
+/** Creates [[LogState]]s. */
 object LogState {
+
+  /** Returns a state with this logger, floor and prefix overrides. */
   def apply(logger: Logger, minSeverity: Int, overrides: Map[String, Int]): LogState = {
     val keys   = overrides.keysIterator.toArray
     val values = overrides.valuesIterator.toArray
@@ -50,6 +62,7 @@ object LogState {
   }
 }
 
+/** Holds the current [[LogState]] of the global [[log]]. */
 private[telemetry] object GlobalLogState {
 
   private val defaultState: LogState = {

@@ -17,13 +17,17 @@
 package zio.blocks.telemetry
 
 /**
- * Console log processor — triggers the fast ConsoleLogEmitter in Logger. Uses a
- * format that writes directly from raw values, bypassing LogRecord. Format:
- * "2026-03-31T17:30:00.123Z INFO [MyClass.method:42] message {key=val}"
+ * Prints each record to standard output as one text line, such as
+ * `2026-11-06T18:43:36.815Z INFO  [Checkout.placeOrder:42] order placed {orderId="ord-123"}`,
+ * followed by the stack trace when the record carries an exception. It is the
+ * default output of the global [[log]].
  *
- * When a LogRecord is passed via emit() (e.g. via bridges/adapters), delegates
- * to StdoutLogRecordProcessor to ensure full formatting with attributes and
- * stacktrace.
+ * When it is a logger's only processor, most `log.*` calls skip `onEmit` and
+ * format the line with [[TextLogFormatter]] themselves, so a subclass that
+ * overrides `onEmit` does not see them; only calls with an argument that goes
+ * through a [[LogEnrichment]] instance reach it. On that fast path, a known bug
+ * prints the full class name and two numbers in the bracket when the class is
+ * in a package.
  */
 class ConsoleLogRecordProcessor extends LogRecordProcessor {
 

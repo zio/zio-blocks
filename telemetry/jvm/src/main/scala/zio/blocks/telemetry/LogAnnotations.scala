@@ -17,11 +17,8 @@
 package zio.blocks.telemetry
 
 /**
- * Internal storage for scoped log annotations. Annotations are key-value pairs
- * that automatically attach to all log records within a `log.annotated` block.
- *
- * Uses ContextStorage (backed by ScopedValue on JVM) for
- * virtual-thread-friendly scoped bindings.
+ * Holds the pairs of the enclosing `log.annotated` blocks, which every `log.*`
+ * call adds to its record.
  */
 private[telemetry] object LogAnnotations {
   @volatile private var everUsed: Boolean = false

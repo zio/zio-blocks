@@ -19,31 +19,31 @@ package zio.blocks.telemetry
 import scala.util.Random
 
 /**
- * Utility object for OpenTelemetry TraceId operations.
+ * Functions on 128-bit trace ids. The module passes a trace id around as two
+ * `Long` halves, `hi` (the first 16 hex digits) and `lo`, rather than as an
+ * object, and [[SpanContext]] stores it the same way. An id of all zeros is
+ * invalid.
  *
- * TraceId is a 128-bit identifier represented as two Long values (hi and lo).
- * Instead of wrapping them in a case class, the hi/lo values are inlined
- * directly into SpanContext for zero heap allocation.
+ * {{{
+ * val parsed = TraceId.fromHex("4bf92f3577b34da6a3ce929d0e0e4736")
+ *
+ * parsed.map { case (hi, lo) => TraceId.toHex(hi, lo) } // Some(4bf92f3577b34da6a3ce929d0e0e4736)
+ * TraceId.isValid(0L, 0L) // false
+ * }}}
  */
 object TraceId {
 
-  /**
-   * Checks if a trace ID (hi, lo) pair is valid (not all zeros).
-   */
+  /** Returns `true` unless both halves are zero. */
   def isValid(hi: Long, lo: Long): Boolean = hi != 0L || lo != 0L
 
-  /**
-   * Converts a trace ID to a 32-character lowercase hexadecimal string.
-   */
+  /** Returns the id as 32 lowercase hex digits, with leading zeros. */
   def toHex(hi: Long, lo: Long): String = {
     val hiHex = String.format("%016x", hi)
     val loHex = String.format("%016x", lo)
     hiHex + loHex
   }
 
-  /**
-   * Converts a trace ID to a 16-byte big-endian array.
-   */
+  /** Returns the id as 16 bytes, most significant first, `hi` before `lo`. */
   def toByteArray(hi: Long, lo: Long): Array[Byte] = {
     val bytes = new Array[Byte](16)
     bytes(0) = ((hi >> 56) & 0xff).toByte
@@ -66,9 +66,8 @@ object TraceId {
   }
 
   /**
-   * Generates a random valid trace ID as a (hi, lo) pair.
-   *
-   * If both hi and lo are zero, regenerates until a valid one is obtained.
+   * Returns a random valid trace id as `(hi, lo)`, drawn from
+   * `scala.util.Random`.
    */
   def random(): (Long, Long) = {
     var hi = Random.nextLong()
@@ -81,10 +80,13 @@ object TraceId {
   }
 
   /**
-   * Parses a 32-character hexadecimal string into a (hi, lo) pair.
+   * Parses 32 hex digits, in either case, into `(hi, lo)`, or returns `None`
+   * when `s` is not 32 characters long or not hexadecimal. Thirty-two zeros
+   * give `Some((0, 0))`, so check `isValid`.
    *
-   * Returns None if the string is not exactly 32 characters or contains non-hex
-   * characters.
+   * A known bug: a `+` is accepted in place of the first digit of either half,
+   * so `"+bf92f3577b34da6a3ce929d0e0e4736"` parses as
+   * `0bf92f3577b34da6a3ce929d0e0e4736`.
    */
   def fromHex(s: String): Option[(Long, Long)] =
     if (s.length != 32) None

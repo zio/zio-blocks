@@ -210,6 +210,14 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         ScaladocSnippets.objectName(zioPath, 41) == "Snippet_sql_zio_scala_TransactorZIO_L41"
       )
     },
+    test("moduleImport gives otel its own package and telemetry the default one") {
+      val exporterPath = "otel/src/main/scala/zio/blocks/telemetry/otel/OtlpJsonTraceExporter.scala"
+      val spanPath     = "telemetry/shared/src/main/scala/zio/blocks/telemetry/Span.scala"
+      assertTrue(
+        ScaladocSnippets.moduleImport(exporterPath) == "zio.blocks.telemetry.otel._",
+        ScaladocSnippets.moduleImport(spanPath) == "zio.blocks.telemetry._"
+      )
+    },
     test("moduleImport and objectName give an html example the html import and drop the html package") {
       val domPath      = "html/shared/src/main/scala/zio/blocks/html/Dom.scala"
       val elementsPath = "html/shared/src/main/scala-2/zio/blocks/html/HtmlElements.scala"
