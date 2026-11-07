@@ -91,7 +91,7 @@ The YAML codec pipeline flows through these layers:
    - NullValue (YAML null)
                  ↓
 8. Errors include location traces
-   Shows path (.field[index].nested) to error location
+   Shows path (.field.at(index).nested) to error location
 ```
 
 **Typical workflow:**
@@ -579,7 +579,7 @@ YAML decoding errors include location traces showing the path through nested str
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
+Errors render as `DynamicOptic` paths such as `.field.at(0).nested.value`: a record field is `.name`, a sequence index is `.at(0)`, a map value is `.atKey(...)` and a variant case is `.when[Case]`. The path shows exactly where decoding failed:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -604,6 +604,27 @@ The `members` field holds a scalar where a sequence is expected, so decoding fai
 codec.decode(invalidYaml) match {
   case Right(team) => println(s"Loaded: $team")
   case Left(error) => println(s"Error: ${error.getMessage}")
+}
+```
+
+When the bad value is an element of a sequence, the path includes its index in the `.at(index)` form, not `[index]`. Searching logs for `[1]` finds nothing:
+
+```scala mdoc:silent:nest
+case class Ports(ports: List[Int])
+
+object Ports {
+  implicit val schema: Schema[Ports] = Schema.derived
+}
+
+val portsCodec = Ports.schema.derive(YamlFormat)
+```
+
+Here the second element is not a number:
+
+```scala mdoc
+portsCodec.decode("ports: [80, abc]") match {
+  case Right(value) => println(s"Loaded: $value")
+  case Left(error)  => println(s"Error: ${error.getMessage}")
 }
 ```
 

@@ -12,11 +12,11 @@ The module integrates with org.bson to provide native BSON type support includin
 ## Motivation
 
 BSON is the native wire format for MongoDB and appears widely across modern applications. Manually writing BSON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-bson` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
-- Full BSON type support (documents, arrays, strings, numbers, ObjectId, Decimal128, timestamps, etc.)
+- BSON documents, arrays, strings, numbers, `ObjectId` and `Decimal128`. The `java.time` types (`Instant`, `LocalDate`, `LocalDateTime`, `OffsetDateTime`, `ZonedDateTime`, `Duration` and the rest) and `UUID` are written as ISO-8601 or text `STRING`s, never as BSON `DATE_TIME` or `TIMESTAMP`, so MongoDB date queries and TTL indexes don't apply to them
 - Configurable sum type handling (discriminator fields, wrapper types, or no discriminator)
 - Flexible field name mapping for compatibility with MongoDB conventions
 - Native ObjectId support with automatic detection and encoding
-- Precise error reporting with location traces showing the path to errors
+- Error reporting with location traces showing the path to errors, with a known bug in 0.0.56: a malformed string (such as a bad `UUID`) and, through `decode`, a BSON value of the wrong type throw instead of returning a `Left`
 - Recursive type support with automatic cycle detection
 - JVM support (not available for Scala.js)
 
@@ -43,7 +43,7 @@ The module provides a complete pipeline for BSON codec derivation and usage:
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `schema.derive(BsonCodecDeriver)` to obtain a `BsonCodec[A]`
 3. **Encode or decode** — Call `codec.encoder.toBsonValue()` or `codec.decoder.fromBsonValue()`
-4. **Handle errors** — Catch `BsonDecoder.Error` with location traces showing where the error occurred
+4. **Handle errors** — `decode` and `fromBsonValue` return a `BsonDecoder.Error`, with the path to the bad value, in a `Left`; only the `*Unsafe` methods throw it
 
 The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module provides flexible configuration for sum type handling, field mapping, and ObjectId support.
 
@@ -90,7 +90,7 @@ schema.derive(configuredBsonCodecDeriver) → BsonCodec[Person]
 Use codec.encoder.toBsonValue(person) to serialize
 Use codec.decoder.fromBsonValue(bsonValue) to deserialize
     ↓
-Handle BsonDecoder.Error with location trace on failure
+Handle the Left(BsonDecoder.Error) with its location trace on failure
 ```
 
 ## Common Patterns
@@ -271,7 +271,7 @@ Trait for encoding Scala values to BSON format. Provides methods for writing to 
 
 ### Overview
 
-`BsonEncoder[A]` is responsible for converting values of type `A` to BSON representation. It supports skipping absent values and provides two encoding paths: direct BsonValue conversion or streaming to a BsonWriter.
+`BsonEncoder[A]` is responsible for converting values of type `A` to BSON representation. It provides two encoding paths: direct BsonValue conversion or streaming to a BsonWriter.
 
 ### Key Methods
 
@@ -286,6 +286,8 @@ trait BsonEncoder[A] {
   def isAbsent(value: A): Boolean = false
 }
 ```
+
+`BsonEncoder#isAbsent` exists, but no code in the module calls it, so no field is ever skipped because of it. A field is left out only when it carries `Modifier.transient`.
 
 ### Contramap for Transformations
 
