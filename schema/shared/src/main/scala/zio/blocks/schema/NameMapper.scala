@@ -136,7 +136,7 @@ object NameMapper {
    * inside the name that a digit or symbol follows, which is dropped:
    * `version_2` becomes `version2`. A capital right after an existing `_` or
    * `-` gets a second separator when a lower-case letter follows it, so
-   * `my_Field` becomes `my__field` (see `docs/dev/issues.md`).
+   * `my_Field` becomes `my__field` (a known bug in 0.0.56).
    */
   case object SnakeCase extends NameMapper {
     override def apply(memberName: String): String = enforceSnakeOrKebabCase(memberName, '_')

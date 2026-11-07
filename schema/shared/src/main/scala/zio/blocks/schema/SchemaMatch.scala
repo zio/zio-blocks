@@ -40,8 +40,8 @@ import scala.annotation.tailrec
  *     empty map always matches).
  *   - '''Optional(inner)''': matches `Null`, or a value that matches `inner`. A
  *     `Schema` encodes an `Option` as a variant named `Some` or `None`, which
- *     this does not match, so `option(string)` matches every string instead
- *     (see `docs/dev/issues.md`).
+ *     this does not match, so `option(string)` matches every string instead (a
+ *     known bug in 0.0.56).
  *   - '''Nominal(name)''': matches nothing, because a [[DynamicValue]] does not
  *     record its Scala type.
  *

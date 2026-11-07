@@ -34,7 +34,7 @@ import zio.blocks.schema.binding.Binding
  * no [[PatchMode]] checks that the value still holds what it held when the
  * patch was made. The constructor is not public, and on Scala 3 nothing turns a
  * stored `DynamicPatch` back into a `Patch[S]`: apply it to
- * `schema.toDynamicValue(value)` instead (see `docs/dev/issues.md`).
+ * `schema.toDynamicValue(value)` instead (a known bug in 0.0.56).
  *
  * {{{
  * import zio.blocks.schema.patch._

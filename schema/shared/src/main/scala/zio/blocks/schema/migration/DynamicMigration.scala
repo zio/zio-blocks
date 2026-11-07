@@ -30,7 +30,7 @@ import scala.util.control.NonFatal
  * can be inspected, compared, reversed and composed. ZIO Blocks provides no
  * `Schema` for `DynamicMigration`, though, and a literal expression holds the
  * `Schema` of its value, so a migration cannot be encoded with a codec the way
- * a `DynamicPatch` can (see `docs/dev/issues.md`).
+ * a `DynamicPatch` can (a known bug in 0.0.56).
  *
  * @param actions
  *   the actions, applied in order
@@ -66,7 +66,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * first action that has no inverse, and a dropped field comes back with its
    * `defaultForReverse`, not its old value. A reversed `MandateField` is an
    * `OptionalizeField`, which builds a `Some` that the schema of `Option`
-   * cannot decode (see `docs/dev/issues.md`).
+   * cannot decode (a known bug in 0.0.56).
    */
   def reverse: DynamicMigration =
     new DynamicMigration(Chunk.fromIterator(actions.reverseIterator.map(_.reverse)))

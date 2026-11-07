@@ -53,8 +53,8 @@ trait PathInterpolator {
      *
      * A malformed path is a compile error, and so is a literal with
      * interpolated arguments. There is no syntax for a wrapper step, so
-     * `p"..."` rejects the `.~` that `DynamicOptic#toString` prints for one
-     * (see `docs/dev/issues.md`).
+     * `p"..."` rejects the `.~` that `DynamicOptic#toString` prints for one (a
+     * known bug in 0.0.56).
      *
      * {{{
      * val path: DynamicOptic = p".books[*].title"

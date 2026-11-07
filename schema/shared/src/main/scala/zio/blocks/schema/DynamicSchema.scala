@@ -45,7 +45,7 @@ import java.util.{Currency, UUID}
  *
  * `Schema#toDynamicSchema` does not keep the default values of case class
  * fields, and a schema of a recursive type cannot be converted to a
- * [[DynamicValue]] (see `docs/dev/issues.md`).
+ * [[DynamicValue]] (a known bug in 0.0.56).
  *
  * {{{
  * case class Book(title: String, year: Int)
@@ -84,7 +84,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    * are not run, because they live in the bindings. Fields are checked in the
    * order of `value`; when several fields are missing, which one is reported is
    * not specified. Messages that name the kind of a value print it as
-   * `<function1>` (see `docs/dev/issues.md`).
+   * `<function1>` (a known bug in 0.0.56).
    *
    * @return
    *   `None` if the value conforms, or `Some(SchemaError)` describing the first
@@ -254,7 +254,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   when a binding is missing for a node that is not behind a
    *   `Reflect.Deferred`. A binding missing behind a `Deferred`, such as the
    *   recursive field of a recursive type, throws when that node is first used
-   *   (see `docs/dev/issues.md`).
+   *   (a known bug in 0.0.56).
    *
    * {{{
    * import zio.blocks.schema.binding._
@@ -1412,8 +1412,8 @@ object DynamicSchema extends TypeIdSchemas {
    * Converts `ds` to a [[DynamicValue]], to store or send it. The structure,
    * type ids, docs, modifiers, `Validation` constraints, stored default values
    * and examples are kept. It follows every `Reflect.Deferred`, so a schema of
-   * a recursive type never ends and throws `StackOverflowError` (see
-   * `docs/dev/issues.md`).
+   * a recursive type never ends and throws `StackOverflowError` (a known bug in
+   * 0.0.56).
    */
   def toDynamicValue(ds: DynamicSchema): DynamicValue = reflectToDynamicValue(ds.reflect)
 
@@ -1422,7 +1422,7 @@ object DynamicSchema extends TypeIdSchemas {
    * fails: a part it does not recognize becomes a `Reflect.Dynamic` node, which
    * accepts any value, an unreadable type id becomes `Unknown`, and an unknown
    * primitive type becomes `String`. A malformed input therefore gives a schema
-   * whose `check` accepts more than intended (see `docs/dev/issues.md`).
+   * whose `check` accepts more than intended (a known bug in 0.0.56).
    */
   def fromDynamicValue(dv: DynamicValue): DynamicSchema = new DynamicSchema(dynamicValueToReflect(dv))
 

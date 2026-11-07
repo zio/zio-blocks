@@ -34,7 +34,7 @@ import java.lang
  * fields, indices, map keys, cases, elements, wrappers and schema searches; an
  * operation whose path uses `AtIndices`, `AtMapKeys`, `MapKeys`, `MapValues` or
  * a type search always fails. No [[PatchMode]] detects that the value changed
- * since the patch was computed (see `docs/dev/issues.md`).
+ * since the patch was computed (a known bug in 0.0.56).
  *
  * @param ops
  *   the operations, applied in order

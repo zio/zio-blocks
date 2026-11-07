@@ -58,14 +58,14 @@ abstract class Codec[DecodeInput, EncodeOutput, Value] {
    * Encodes `value` into `output`, which the caller provides and which must
    * have room for the encoded value. What happens when it has too little room
    * depends on the codec: `JsonCodec` throws `BufferOverflowException` after
-   * writing part of the value into a `ByteBuffer` (see `docs/dev/issues.md`).
+   * writing part of the value into a `ByteBuffer` (a known bug in 0.0.56).
    */
   def encode(value: Value, output: EncodeOutput): Unit
 
   /**
    * Decodes a value from `input`, or returns `Left` with a [[SchemaError]] when
    * the input does not decode (`CsvCodec` throws instead when a
-   * `Schema#transform` check fails; see `docs/dev/issues.md`).
+   * `Schema#transform` check fails; a known bug in 0.0.56).
    */
   def decode(input: DecodeInput): Either[SchemaError, Value]
 }

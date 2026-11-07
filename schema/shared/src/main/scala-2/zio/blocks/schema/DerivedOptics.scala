@@ -45,11 +45,11 @@ import scala.reflect.macros.whitebox
  * type shares the optics built from the first schema used, and so do different
  * types that print the same, such as two local classes named `Book` in
  * different methods: the second then fails with a `ClassCastException` or
- * `No optic found` (a bug, see `docs/dev/issues.md`).
+ * `No optic found` (a known bug in 0.0.56).
  *
- * A known problem, described in `docs/dev/issues.md`: on Scala 2, `optics`
- * compiles only inside the `zio.blocks.schema` package, so the examples below
- * are compiled on Scala 3 only.
+ * A known problem in 0.0.56: on Scala 2, `optics` compiles only inside the
+ * `zio.blocks.schema` package, so the examples below are compiled on Scala 3
+ * only.
  *
  * {{{
  * // scala-3-only

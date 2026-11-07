@@ -338,7 +338,7 @@ object JwtSignOptions {
  * val claims  = JwtClaims(sub = Some("user-42"), iss = Some("https://auth.example.com"))
  * val token   = Jwt.sign(claims, key, Algorithm.HS256).getOrElse(throw new RuntimeException("cannot sign"))
  * val decoded = Jwt.decode(token, key, Algorithm.HS256).getOrElse(throw new RuntimeException("invalid token"))
- * decoded.sub // Some(user-42)
+ * println(decoded.sub) // Some(user-42)
  * }}}
  *
  * @see

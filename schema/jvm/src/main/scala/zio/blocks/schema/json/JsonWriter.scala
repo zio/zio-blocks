@@ -976,8 +976,7 @@ final class JsonWriter private[json] (
   /**
    * Writes `]` to end an array. With `WriterConfig#indentionStep` greater than
    * 0, it first starts a new line, indented one step less; an empty array then
-   * spans three lines, the middle one only spaces (a known bug, see
-   * `docs/dev/issues.md`).
+   * spans three lines, the middle one only spaces (a known bug in 0.0.56).
    */
   def writeArrayEnd(): Unit = writeNestedEnd(']')
 
@@ -991,8 +990,7 @@ final class JsonWriter private[json] (
   /**
    * Writes `}` to end an object. With `WriterConfig#indentionStep` greater than
    * 0, it first starts a new line, indented one step less; an empty object then
-   * spans three lines, the middle one only spaces (a known bug, see
-   * `docs/dev/issues.md`).
+   * spans three lines, the middle one only spaces (a known bug in 0.0.56).
    */
   def writeObjectEnd(): Unit = writeNestedEnd('}')
 
@@ -3522,7 +3520,7 @@ object JsonWriter {
    * `x`, so `0.1f` gives `0.1` and not the binary value
    * `0.100000001490116119384765625`. The value is exact, but the scale varies:
    * `100.0f` gives `1E+2`, `0.5f` gives `0.50` (the trailing-zero bug of
-   * `toBigDecimal(x: Double)`, see `docs/dev/issues.md`), and `10.0f` gives
+   * `toBigDecimal(x: Double)`, still present in 0.0.56), and `10.0f` gives
    * `10.0` on the JVM but `10` on Scala.js. `0.0f` and `-0.0f` give `0`.
    *
    * @throws java.lang.IllegalArgumentException
@@ -3594,8 +3592,8 @@ object JsonWriter {
    * `x`, so `0.1` gives `0.1` and not the binary value
    * `0.1000000000000000055511151231257827021181583404541015625`. The value is
    * exact, but the scale varies: `100.0` gives `1E+2`, `49.99` gives `49.990`
-   * (a known bug, see `docs/dev/issues.md`), and `10.0` gives `10.0` on the JVM
-   * but `10` on Scala.js. `0.0` and `-0.0` give `0`.
+   * (a known bug in 0.0.56), and `10.0` gives `10.0` on the JVM but `10` on
+   * Scala.js. `0.0` and `-0.0` give `0`.
    *
    * @throws java.lang.IllegalArgumentException
    *   with the message `Infinity or NaN` when `x` is not finite

@@ -33,7 +33,7 @@ package zio.blocks.schema
  * Otherwise, and for two variants of different cases, two values of different
  * kinds, two primitives or two `Null`s, [[apply]] returns the merged value. The
  * trait is sealed: use [[DynamicValueMergeStrategy.Custom]] for your own rules.
- * Its `toString` is `<function3>` (see `docs/dev/issues.md`).
+ * Its `toString` is `<function3>` (a known bug in 0.0.56).
  */
 sealed trait DynamicValueMergeStrategy extends ((DynamicOptic, DynamicValue, DynamicValue) => DynamicValue) {
 
