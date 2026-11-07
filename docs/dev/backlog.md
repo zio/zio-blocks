@@ -888,7 +888,7 @@ Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de
 
 | Item | Result |
 |---|---|
-| PR | #1960 (one PR); CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
+| PR | #1960 (one PR), merged 2026-11-07 as `0c6c31d63`; CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
 | Coverage | openapi 43/130 → 130/130; codegen 73/107 → 107/107; smithy 55/64 → 64/64; mux 43/46 → 46/46; ringbuffer 82/122 → 122/122; total 296/469 (63%) → 469/469; `--drift` mux 5 and ringbuffer 30 → empty |
 | Examples | 44 compiled on 2.13.18, 3.9.0 and 3.10.0 (27 old ones in codegen and smithy, none compiled before, plus 17 new) |
 | Existing comments | openapi/codegen/smithy 43 of 177 wrong or imprecise (24%; 7 false); mux/ringbuffer 28 of 98 (29%; 8 false) |
@@ -950,6 +950,9 @@ Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, co
 Skipped by Milad's decision on 2026-11-06 ("I would rather skip adding Scaladoc for this module"): mediatype stays at 0 / 2634. Notes for a later attempt, from the Phase 0 of session `mediatype-scaladoc` (on `main` `121cb1024`): 2,622 items are `lazy val`s in the generated `MediaTypes.scala`, so the comments would come from `project/GenerateMediaTypes.scala`; the committed file matches mime-db commit `6abfe5f81` (2026-02-01) exactly (2,595 types), while mime-db `master` has 6 more (`application/aas+zip`, `explicit-registration-response+jwt`, `measured-component+cbor`, `measured-component+json`, `trust-mark-status-response+jwt`, `audio/soundfont`), and the generator fetches `master`, so plain regeneration is not comments-only; pin the fetch to a commit first. The generator also drops multi-line `extensions` arrays (see the library entry).
 
 ## 13. Scaladoc: next modules
+
+**Status 2026-11-07: the module-wide Scaladoc rollout is complete.** Every published module has full, fact-checked Scaladoc with compiled examples (§11, §12, §13a–s), except `mediatype`, which Milad chose to skip (§13t). The examples are compiled by `scaladoc-check` (2.13.18, 3.9.0, 3.10.0), `scaladoc-check-scala3` (Scala-3-only modules) and `scaladoc-check-jdk21` (telemetry and otel, JDK 25 in CI). Wrong or imprecise inherited comments found per module: 19–40%. Open follow-ups: the reference-page errors in `docs-issues.md` (Documentation errors), the stale `docs/dev/issues.md` pointers in 8 schema files, the jwt and schema-xml snippet warnings, the 14 datastar `// no-check` blocks (waiting on the Scala 3.10 `NotString` library bug), and the plugin-owned setup-sbt v1.5.7 pins.
+
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
 
