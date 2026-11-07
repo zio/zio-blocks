@@ -3,18 +3,18 @@ id: thrift
 title: "Thrift Codec Module"
 ---
 
-`zio-blocks-schema-thrift` is a **schema-driven Thrift codec module** for serializing and deserializing Scala types to and from Thrift binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ThriftCodec`, `ThriftCodecDeriver`, `ThriftFormat`.
+`zio-blocks-schema-thrift` is a **schema-driven Thrift codec module** for serializing and deserializing Scala types to and from Thrift binary format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ThriftCodec`, `ThriftCodecDeriver`, `ThriftFormat`.
 
 The module integrates with Apache Thrift to provide native binary serialization using TBinaryProtocol with automatic schema generation and optimized performance for distributed systems.
 
 ## Motivation
 
-Thrift is a compact binary serialization format that appears widely across distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+Thrift is a compact binary serialization format that appears widely across distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
 - Full Thrift type support (all primitives, records, unions, arrays, maps)
-- Automatic schema generation from Scala types
+- No `.thrift` file needed: the codec derives the Thrift layout from your Scala types (it generates no IDL)
 - Optimized encoding with minimal overhead using TBinaryProtocol
 - Precise error reporting with location traces showing the path to errors
-- Recursive type support with automatic cycle detection
+- Recursive type support, such as trees
 - Multiple encoding paths: ByteBuffer and byte arrays
 - Multiple decoding paths: ByteBuffer and byte arrays
 - JVM support (not available for Scala.js)
@@ -40,9 +40,9 @@ The module provides a complete pipeline for Thrift codec derivation and usage:
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `Schema.derive(ThriftFormat)` to obtain a `ThriftCodec[A]`
 3. **Encode or decode** — Call `codec.encode(value)` or `codec.decode(bytes)`
-4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
+4. **Handle errors** — `decode` returns the `SchemaError`, with the path to the bad value, in a `Left`
 
-The derivation process is automatic for all supported types (all 27 primitives, records, variants, sequences, maps). The module automatically generates Thrift-compatible formats and handles encoding/decoding without manual configuration.
+The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module handles encoding and decoding without a `.thrift` file or manual configuration.
 
 ## How They Work Together
 
@@ -56,7 +56,7 @@ The Thrift codec pipeline flows through these layers:
 3. ThriftCodecDeriver derives Encoder and Decoder implementations
    - For primitives: type-specific Thrift encoders/decoders
    - For records: field-by-field composition with Thrift struct encoding
-   - For variants: union encoding with discriminators
+   - For variants: a struct with one field, whose id is the case index plus one
    - For sequences: array encoding/decoding
    - For maps: map encoding/decoding
                  ↓
@@ -70,11 +70,11 @@ The Thrift codec pipeline flows through these layers:
                  ↓
 6. TBinaryProtocol manages I/O with Thrift wire format
    - Efficient binary encoding with type information
-   - Automatic format detection and optimization
+   - Always `TBinaryProtocol`; nothing detects or switches the protocol
    - Support for unknown fields (schema evolution)
                  ↓
 7. Errors include location traces
-   Shows path (.field[index].nested) to error location
+   Shows path (.field.at(index).nested) to error location
 ```
 
 **Typical workflow:**
@@ -98,7 +98,7 @@ Handle SchemaError with location trace on failure
 
 - **`ThriftCodec[A]`** — Main public API; contains encoder and decoder for bidirectional serialization
 - **`ThriftCodecDeriver`** — Configuration and derivation system; generates codecs from Schema
-- **`ThriftFormat`** — Integration with ZIO Schema format system; enables `Schema[A].derive(ThriftFormat)`
+- **`ThriftFormat`** — Integration with the ZIO Blocks Schema format system; enables `Schema[A].derive(ThriftFormat)`
 
 ## Common Patterns
 
@@ -154,7 +154,7 @@ result match {
 
 ### Pattern 3: Handle Recursive Types
 
-Recursive types (types that reference themselves) are fully supported with automatic cycle detection.
+Recursive types (types that reference themselves) are supported: a recursive type refers to itself by name. The codec does not detect cycles in values, and a case class value cannot be cyclic anyway.
 
 To define and encode a recursive data structure:
 
@@ -177,7 +177,7 @@ val bytes = codec.encode(tree)
 
 ### Pattern 4: Work with Variants (Sealed Traits)
 
-Thrift unions are encoded as discriminated variants with type information.
+A variant is a Thrift struct with one field. The field id is the case index plus one, so the case name is not written.
 
 To derive a codec for a sealed trait:
 
@@ -306,7 +306,7 @@ Configuration and derivation system for creating `ThriftCodec[A]` instances from
 
 ### Overview
 
-`ThriftCodecDeriver` implements the schema-driven derivation of Thrift codecs. It automatically handles 27 primitive types and complex types (records, variants, sequences, maps), generating appropriate Thrift encoders and decoders.
+`ThriftCodecDeriver` implements the schema-driven derivation of Thrift codecs. It automatically handles 30 primitive types and complex types (records, variants, sequences, maps), generating appropriate Thrift encoders and decoders.
 
 ### How Derivation Works
 
@@ -327,15 +327,17 @@ val codec = Person.schema.derive(ThriftFormat)
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported:
+All 30 primitives of ZIO Blocks Schema are supported:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Logical: `Boolean`, `Char`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
 - Special: `UUID`, `Currency`, `Unit`
 
+`Float` is written as a Thrift `double`. `UUID`, `Currency` and most of the `java.time` types are Thrift strings. A `DynamicValue` can be encoded but not decoded.
+
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes a named field in the Thrift struct:
+Case classes (records) are fully supported. Each field becomes a numbered field of the Thrift struct (ids 1, 2, 3 and so on, in declaration order; the name is not written). The decoder accepts the fields in any order and skips ids it doesn't know:
 
 ```scala
 import zio.blocks.schema._
@@ -350,9 +352,15 @@ object Address {
 val codec = Address.schema.derive(ThriftFormat)
 ```
 
+Known bugs in 0.0.56 that matter when you read data you did not write yourself:
+
+- A record field missing from the input decodes as `null`, `0` or `false` instead of failing, so a missing `Option` field comes back as `null`, not `None`.
+- The decoder does not check the Thrift type written before a field, so a field of another type can decode without an error as a wrong value.
+- `decode` ignores any bytes after the first value.
+
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as Thrift union types with discriminators:
+A sealed trait is encoded as a struct with one field whose id is the index of the case plus one (in declaration order). The case name is not written:
 
 ```scala
 import zio.blocks.schema._
@@ -373,7 +381,7 @@ val codec = Status.schema.derive(ThriftFormat)
 
 ## ThriftFormat
 
-Integration point with ZIO Schema's format system. Provides `BinaryFormat[ThriftCodec]` to enable `Schema[A].derive(ThriftFormat)` for any supported type.
+Integration point with the ZIO Blocks Schema format system. Provides `BinaryFormat[ThriftCodec]` to enable `Schema[A].derive(ThriftFormat)` for any supported type.
 
 ### Using ThriftFormat
 
@@ -402,7 +410,7 @@ Thrift decoding errors include location traces showing the path through nested s
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
+Errors render as `DynamicOptic` paths such as `.field.at(0).nested.value`: a record field is `.name`, a sequence index is `.at(0)`, a map value is `.atKey(...)` and a variant case is `.when[Case]`. Errors from the Thrift library start with `Thrift protocol error:`. The path shows exactly where decoding failed:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
