@@ -483,7 +483,7 @@ The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done,
 9. **H-03 How to override the codec for one type everywhere.** Its example already exists, and it answers a classic "custom date format" question for every format at once.
 10. **M-06 Coming from PureConfig, Typesafe Config or zio-config.** Scala 3 users are still stuck on PureConfig derivation, and config-hocon reads their existing files.
 
-**Next 10 (2026-10-29 backlog refresh), in order:** 1. H-54 (skipped); 2. H-55 (skipped); 3. H-56 (skipped); 4. H-57; 5. H-58; 6. H-59; 7. H-60; 8. H-61; 9. H-62 (skipped); 10. H-63 (see §5.13). The list above is the original, finished Top 10.
+**Next 10 (2026-10-29 backlog refresh), in order:** 1. H-54 (skipped); 2. H-55 (skipped); 3. H-56 (skipped); 4. H-57; 5. H-58; 6. H-59; 7. H-60; 8. H-61 (skipped, Milad 2026-11-07); 9. H-62 (skipped); 10. H-63 (see §5.13). The list above is the original, finished Top 10.
 
 ## 10. Sources
 
@@ -827,7 +827,7 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1953 (one PR); CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
+| PR | #1953 (one PR), merged 2026-11-07 as `f896d304b`; CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
 | Coverage | maybe 5 / 135 → 135 / 135; combinators 7 / 79 → 79 / 79; context 13 / 37 → 37 / 37 (the script prints 36 / 37 because `ContextHas`'s comment sits above a 3-line `@implicitNotFound`); `--drift` prints one false positive (`def apply`: Scala 3 `Present.apply` paired with Scala 2 `Maybe.apply` by name order) |
 | Examples | 67 `{{{` blocks counting each Scala-version copy (`Unions` marked `// scala-3-only`); the 2 old `ContextHas` blocks now compile; every result comment from a real scala-cli run on 2.13.18 and 3.9.0; `Context` also probed on Scala.js |
 | Tooling | 3 `scaladocCheckedModules` entries; style-guide and AGENTS.md lists (approved); two merges of `main` (list-line conflicts only, both sides kept) |
@@ -888,7 +888,7 @@ Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de
 
 | Item | Result |
 |---|---|
-| PR | #1960 (one PR); CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
+| PR | #1960 (one PR), merged 2026-11-07 as `0c6c31d63`; CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
 | Coverage | openapi 43/130 → 130/130; codegen 73/107 → 107/107; smithy 55/64 → 64/64; mux 43/46 → 46/46; ringbuffer 82/122 → 122/122; total 296/469 (63%) → 469/469; `--drift` mux 5 and ringbuffer 30 → empty |
 | Examples | 44 compiled on 2.13.18, 3.9.0 and 3.10.0 (27 old ones in codegen and smithy, none compiled before, plus 17 new) |
 | Existing comments | openapi/codegen/smithy 43 of 177 wrong or imprecise (24%; 7 false); mux/ringbuffer 28 of 98 (29%; 8 false) |
@@ -900,7 +900,7 @@ Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de
 
 Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
 
-PR #1959 (one PR), opened 2026-11-06 with main `121cb1024` merged in (two conflicts, both sides kept). Gates after the merge: `scaladoc-check-scala3` on 3.9.0 and 3.10.0, `scaladoc-check/test` on 3.9.0 (35 tests), 7 `doc` builds on 3.9.0, `check`, `headerCheckAll`.
+PR #1959 (one PR), merged 2026-11-07 as `df2c81185`; opened 2026-11-06 with main `121cb1024` merged in (two conflicts, both sides kept). Gates after the merge: `scaladoc-check-scala3` on 3.9.0 and 3.10.0, `scaladoc-check/test` on 3.9.0 (35 tests), 7 `doc` builds on 3.9.0, `check`, `headerCheckAll`.
 
 | Module | Documented before → after | Inherited comments wrong or imprecise | Examples | Review (Important / Minor) | Bugs filed |
 |---|---|---|---|---|---|
@@ -918,7 +918,7 @@ Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. 
 
 | Item | Result |
 |---|---|
-| PR | #1958 (one PR), opened 2026-11-06; two merges of main |
+| PR | #1958 (one PR), merged 2026-11-07 as `2b06e7eda`; several merges of main |
 | Coverage | 91 / 107 (85%) → 107 / 107; 16 files, comments only; `packageOverrides` `markdown` → `zio.blocks.docs` |
 | Examples | 14 compiled (checker on 2.13.18, 3.9.0, 3.10.0); the 6 old blocks rewritten on their own lines, which survive scalafmt |
 | Existing comments | 91 fact-checked; e.g. "output can be re-parsed to an equal AST" was false in three ways (unescaped text, backtick code, centred table columns); normalisation claims hold per class only |
@@ -934,7 +934,7 @@ Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1
 
 | Item | Result |
 |---|---|
-| PR | #1961 (one PR); CI green, including testJVM on JDK 17 and 25, no reruns |
+| PR | #1961 (one PR), merged 2026-11-07 as `42a96ab0f`; CI green, including testJVM on JDK 17 and 25, no reruns |
 | Coverage | telemetry 203/567 (35%) → 567/567; otel 17/33 → 33/33; total 220/600 → 600/600; `--drift` empty |
 | Tooling | new checker `scaladoc-check-jdk21` (run only via `whenJdkAtLeast(25, ...)`, like telemetry's tests; `scaladoc-check` and the JDK 17 jobs untouched); otel `packageOverrides` entry with a unit test |
 | Examples | most `log.*` examples are `// scala-3-only` (the known 2.13 `log.*` bug); the OTLP exporters and `BatchProcessor` are `private[otel]`, so tier 3 |
@@ -950,6 +950,9 @@ Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, co
 Skipped by Milad's decision on 2026-11-06 ("I would rather skip adding Scaladoc for this module"): mediatype stays at 0 / 2634. Notes for a later attempt, from the Phase 0 of session `mediatype-scaladoc` (on `main` `121cb1024`): 2,622 items are `lazy val`s in the generated `MediaTypes.scala`, so the comments would come from `project/GenerateMediaTypes.scala`; the committed file matches mime-db commit `6abfe5f81` (2026-02-01) exactly (2,595 types), while mime-db `master` has 6 more (`application/aas+zip`, `explicit-registration-response+jwt`, `measured-component+cbor`, `measured-component+json`, `trust-mark-status-response+jwt`, `audio/soundfont`), and the generator fetches `master`, so plain regeneration is not comments-only; pin the fetch to a commit first. The generator also drops multi-line `extensions` arrays (see the library entry).
 
 ## 13. Scaladoc: next modules
+
+**Status 2026-11-07: the module-wide Scaladoc rollout is complete.** Every published module has full, fact-checked Scaladoc with compiled examples (§11, §12, §13a–s), except `mediatype`, which Milad chose to skip (§13t). The examples are compiled by `scaladoc-check` (2.13.18, 3.9.0, 3.10.0), `scaladoc-check-scala3` (Scala-3-only modules) and `scaladoc-check-jdk21` (telemetry and otel, JDK 25 in CI). Wrong or imprecise inherited comments found per module: 19–40%. Open follow-ups: the reference-page errors in `docs-issues.md` (Documentation errors), the stale `docs/dev/issues.md` pointers in 8 schema files, the jwt and schema-xml snippet warnings, the 14 datastar `// no-check` blocks (waiting on the Scala 3.10 `NotString` library bug), and the plugin-owned setup-sbt v1.5.7 pins.
+
 
 Plan for the next module-wide Scaladoc rollouts, from a read-only research pass on 2026-10-29 (`main` at `bafc31bef`). Coverage was counted with the repo's `.claude/scripts/scaladoc-coverage.py`, the scope-aware count the streams rollout used.
 

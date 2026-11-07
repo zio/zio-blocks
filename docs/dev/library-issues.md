@@ -13149,6 +13149,49 @@ The same output on Scala 2.13.18 (same file with `//> using scala 2.13.18`). Run
 
 **Suggested fix.** Decide on "pass as is" by whether the field codec is a record or variant codec, not by whether the element has element children; or keep the field element's attributes on the synthetic `<value>` element. In `deriveVariant`, decode the case element itself (`xml`) when it has no children. Add round-trip tests for the three shapes above.
 
+### schema-xml: a record with an `xml.attribute` field inside a `List` does not decode back
+
+Found 2026-11-07 while verifying the RSS example in `docs/reference/schema/built-in-codecs/xml.md` (PR #1965), base `0c6c31d63` (current `origin/main`). Same at 0.0.56: yes, verified against the published artifacts.
+
+**Summary.** A record whose field carries `Modifier.config("xml.attribute", ...)` encodes correctly when it is an element of a `List` (the attribute is written on the `<item>` element), but decoding the output fails with `Missing required attribute`. The record also has child elements, so this is not the case in the entry "A nested record or a sealed-trait case whose fields are all attributes does not decode back": the same record decodes fine when it is a plain field of its parent. The `xml.md` RSS example (an `Item` with a `guid` attribute inside `Channel.items`) fails for this reason.
+
+**Reproducer** (file `Repro.scala` in an empty directory, run `scala-cli run --server=false .`; Scala 2.13.18, `zio-blocks-schema` and `zio-blocks-schema-xml` 0.0.56):
+
+```scala
+//> using scala 2.13.18
+//> using dep dev.zio::zio-blocks-schema:0.0.56
+//> using dep dev.zio::zio-blocks-schema-xml:0.0.56
+import zio.blocks.schema._
+import zio.blocks.schema.xml._
+
+case class Item(@Modifier.config("xml.attribute", "") guid: String, title: String)
+case class Channel(name: String, items: List[Item])
+object Channel {
+  implicit val itemSchema: Schema[Item] = Schema.derived
+  implicit val schema: Schema[Channel]  = Schema.derived
+}
+
+object Repro extends App {
+  val codec = Schema[Channel].derive(XmlFormat)
+  val value = Channel("c", List(Item("1", "t")))
+  val xml   = codec.encodeToString(value)
+  println(xml)
+  // <Channel><name>c</name><items><item guid="1"><title>t</title></item></items></Channel>
+  println(codec.decode(xml))
+  // Left(zio.blocks.schema.SchemaError: Missing required attribute: guid at: .items.at(0))
+}
+```
+
+**Expected.** `Right(Channel(c,List(Item(1,t))))`.
+
+**Root cause.** The record codec reads attributes from the element it is given (`XmlCodecDeriver.scala:196-198`, `attrMap` from `e.attributes`). The sequence decoder hands each element to the element codec as `Xml.Element(XmlName("value"), Chunk.empty, e.children)` (`XmlCodecDeriver.scala:~504`), which drops `e.attributes`, so `attrMap` is empty and `Missing required attribute` is raised (`:232`). The encoder keeps them (`xmlFieldElement`, `:703-708`). The map decoder wraps its values the same way, so the same loss is likely there; not checked.
+
+**Impact.** Any list of records with attribute fields (RSS and Atom feeds, sitemaps with attributes) can be written but not read back by the same codec.
+
+**Test gap.** No test round-trips a record with an `xml.attribute` field as a sequence element or a map value.
+
+**Suggested fix.** Pass the element's attributes through: `Xml.Element(XmlName("value"), e.attributes, e.children)` in the sequence (and map) decoder, and add round-trip tests for a `List` and a `Map` of records with attribute fields.
+
 ### schema-toon: a non-empty `Array` field is left out of the encoded record
 
 Found 2026-11-05 while fact-checking `ToonCodecDeriver.withTransientEmptyCollection` (Task 2b), commit `a7014433f`; same at 0.0.56: yes. Not filed on GitHub yet.
