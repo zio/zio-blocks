@@ -827,7 +827,7 @@ Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-1
 
 | Item | Result |
 |---|---|
-| PR | #1953 (one PR); CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
+| PR | #1953 (one PR), merged 2026-11-07 as `f896d304b`; CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
 | Coverage | maybe 5 / 135 → 135 / 135; combinators 7 / 79 → 79 / 79; context 13 / 37 → 37 / 37 (the script prints 36 / 37 because `ContextHas`'s comment sits above a 3-line `@implicitNotFound`); `--drift` prints one false positive (`def apply`: Scala 3 `Present.apply` paired with Scala 2 `Maybe.apply` by name order) |
 | Examples | 67 `{{{` blocks counting each Scala-version copy (`Unions` marked `// scala-3-only`); the 2 old `ContextHas` blocks now compile; every result comment from a real scala-cli run on 2.13.18 and 3.9.0; `Context` also probed on Scala.js |
 | Tooling | 3 `scaladocCheckedModules` entries; style-guide and AGENTS.md lists (approved); two merges of `main` (list-line conflicts only, both sides kept) |
