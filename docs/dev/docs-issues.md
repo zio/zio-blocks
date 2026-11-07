@@ -14,7 +14,7 @@ Contents:
 
 ## Documentation errors
 
-Pages that contradict the source. None of these were copied into the new guides.
+Pages that contradict the source. None of these were copied into the new guides. None are open as of 2026-11-07 (all fixed by #1964, #1965 and #1967; see Resolved).
 
 ## Docs tooling and examples
 
