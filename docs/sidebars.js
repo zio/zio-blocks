@@ -625,6 +625,7 @@ const sidebars = {
           collapsed: true,
           items: [
             "guides/stream-files-and-sockets",
+            "guides/read-and-write-json-lines",
             "guides/run-streams-without-blocking",
             "guides/wrap-callback-and-future-apis",
             "guides/run-a-mux-over-a-socket",
