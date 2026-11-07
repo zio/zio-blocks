@@ -991,7 +991,7 @@ Every operator and its node:
 | `a.hover`                               | `PseudoClass(inner, pseudoClass)`        | `a:hover`         |
 | `div.before`                            | `PseudoElement(inner, pseudoElement)`    | `div::before`     |
 | `input.withAttribute("type")`           | `Attribute(inner, attribute, matcher)`   | `input[type]`     |
-| `CssSelector.Not(inner, negated)`       | `Not(inner, negated)`                    | `div:not(.hidden)`|
+| `div.not(CssSelector.Class("hidden"))`  | `Not(inner, negated)`                    | `div:not(.hidden)`|
 | `CssSelector.Raw("...")`                | `Raw(value)`                             | verbatim          |
 
 Because the nodes are recursive, a selector built with operators nests rather than flattening:
