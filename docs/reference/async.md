@@ -711,6 +711,8 @@ The semantics are nearly uniform. Each method is lazy and sequential — the clo
 To see the order, the following program records every call and fails the second one. `List.map` and `Array.map` call the function for all three SKUs, while `Vector.map` stops after the failure:
 
 ```scala mdoc
+import zio.blocks.async._
+
 import scala.collection.mutable.ListBuffer
 
 val fetchCalls = ListBuffer.empty[String]

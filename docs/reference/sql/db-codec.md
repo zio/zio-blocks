@@ -269,7 +269,7 @@ nullableCodec.toDbValues(None)
 
 ### `DbCodec.derivedOpaque` — Opaque type derivation
 
-`DbCodec.derivedOpaque` is a lower-priority `inline given` that produces a `DbCodec[A]` for Scala 3 opaque types by reusing the codec of the underlying type. Declare it by name: `given DbCodec[ProductId] = DbCodec.derivedOpaque[ProductId]`. Summoning `DbCodec[ProductId]` without that given does not select it, because the compiler picks `DbCodec.derived`, which reads the underlying value directly and never calls the companion's `apply`; this is a known bug in 0.0.56.
+`DbCodec.derivedOpaque` is a lower-priority `inline given` that produces a `DbCodec[A]` for Scala 3 opaque types by reusing the codec of the underlying type. Declare it by name: `given DbCodec[PartNumber] = DbCodec.derivedOpaque[PartNumber]`. Summoning `DbCodec[PartNumber]` without that given does not select it, because the compiler picks `DbCodec.derived`, which reads the underlying value directly and never calls the companion's `apply`; this is a known bug in 0.0.56.
 
 ```scala
 object DbCodec {
@@ -277,32 +277,35 @@ object DbCodec {
 }
 ```
 
-For the decode direction the opaque type's companion `apply` is called. For the encode direction, if the opaque type is declared as a subtype of its underlying type (`opaque type T <: U = U`), the value is used directly; otherwise the companion must expose an `unwrap` method. With the given declared, a read that the companion's `apply` rejects fails:
+For the decode direction the opaque type's companion `apply` is called. For the encode direction, if the opaque type is declared as a subtype of its underlying type (`opaque type T <: U = U`), the value is used directly; otherwise the companion must expose an `unwrap` method. With the given declared, a read that the companion's `apply` rejects fails. The opaque type lives in its own object, so the alias stays opaque where the given is declared:
 
 ```scala mdoc:reset
 import scala.util.Try
 import zio.blocks.sql._
 
-opaque type ProductId <: String = String
-object ProductId {
-  def apply(value: String): ProductId = {
-    require(value.startsWith("P-"), "not a product id: " + value)
-    value
+object Ids {
+  opaque type PartNumber <: String = String
+  object PartNumber {
+    def apply(value: String): PartNumber = {
+      require(value.startsWith("PN-"), "not a product id: " + value)
+      value
+    }
   }
 }
+import Ids.PartNumber
 
-given DbCodec[ProductId] = DbCodec.derivedOpaque[ProductId]
+given DbCodec[PartNumber] = DbCodec.derivedOpaque[PartNumber]
 
 val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 ```
 
 ```scala mdoc
-transactor.connect(sql"SELECT 'P-7' AS value".query[ProductId])
+transactor.connect(sql"SELECT 'PN-7' AS value".query[PartNumber])
 
-Try(transactor.connect(sql"SELECT 'mug' AS value".query[ProductId])).failed.map(_.getMessage)
+Try(transactor.connect(sql"SELECT 'mug' AS value".query[PartNumber])).failed.map(_.getMessage)
 ```
 
-A `ProductId` field of a derived row type (`derives DbCodec`, `Table.derived`, `Repo.derived`) still skips `apply` in 0.0.56, with or without the given.
+A `PartNumber` field of a derived row type (`derives DbCodec`, `Table.derived`, `Repo.derived`) still skips `apply` in 0.0.56, with or without the given.
 
 :::caution
 `DbCodec.derivedOpaque` is a Scala 3-only macro. The `sql` module requires Scala 3.
