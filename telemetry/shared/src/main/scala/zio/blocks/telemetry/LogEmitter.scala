@@ -19,16 +19,12 @@ package zio.blocks.telemetry
 import scala.util.control.NonFatal
 
 /**
- * Strategy for emitting log records. The Logger dispatches to the emitter
- * chosen at construction time based on processor capabilities.
- *
- * The macro generates code that passes raw field values to Logger.emitRaw(),
- * which delegates to the emitter. The emitter decides the representation:
- *   - StandardLogEmitter builds an immutable LogRecord and passes to processors
- *   - Future emitters (e.g., ZeroCopyLogEmitter) can read the builder's raw
- *     arrays directly for zero-allocation export
+ * Turns the raw values of a `log.*` call into output; each [[Logger]] picks one
+ * when it is created, from its processors.
  */
 private[telemetry] trait LogEmitter {
+
+  /** Emits one log call's values and clears `builder`. */
   def emit(
     timestampNanos: Long,
     severity: Severity,
@@ -46,8 +42,8 @@ private[telemetry] trait LogEmitter {
 }
 
 /**
- * Standard emitter: builds an immutable LogRecord from raw values, then
- * dispatches to all processors via onEmit.
+ * Builds a [[LogRecord]] from the raw values and passes it to every processor,
+ * unless its severity is below `processorMinLevel`.
  */
 private[telemetry] final class StandardLogEmitter(
   processors: Array[LogRecordProcessor],

@@ -18,6 +18,20 @@ package zio.blocks.telemetry
 
 import scala.util.control.NonFatal
 
+/**
+ * A logger bound to one instrumentation scope, created by `LoggerProvider#get`.
+ * Pass one to library code that should log without depending on the global
+ * [[log]].
+ *
+ * Its level methods take attributes as [[AttributeValue]]s and send each record
+ * to the provider's processors, with the trace and span ids of the current
+ * span. Unlike the `log.*` calls, they record no source location or
+ * `log.annotated` pairs, and `log.setMinSeverity` does not filter them: only
+ * the processors' `minimumLevel` does.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/logging/logger/ Logger]]
+ */
 final class Logger private[telemetry] (
   private[telemetry] val instrumentationScope: InstrumentationScope,
   private[telemetry] val resource: Resource,
@@ -26,8 +40,8 @@ final class Logger private[telemetry] (
 ) {
 
   /**
-   * Returns the current SpanContext from the context storage, if any. Used by
-   * macro-generated code for trace correlation.
+   * Returns the span context held by this logger's context storage, or `None`
+   * outside a span. `log.*` calls read it to stamp trace and span ids.
    */
   def currentSpanContext(): Option[SpanContext] = contextStorage.get()
 
@@ -88,6 +102,13 @@ final class Logger private[telemetry] (
     throwable
   )
 
+  /**
+   * Sends `logRecord`, unchanged, to every processor, unless its severity is
+   * below the lowest `minimumLevel` of the processors.
+   *
+   * An exception from a processor is caught and printed to standard error; the
+   * other processors still receive the record.
+   */
   def emit(logRecord: LogRecord): Unit =
     if (logRecord.severity.number >= processorMinLevel) {
       var i = 0
@@ -102,21 +123,39 @@ final class Logger private[telemetry] (
       }
     }
 
+  /**
+   * Logs `body` at `Severity.Trace`, with `attrs` as the record's attributes.
+   */
   def trace(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Trace, body, attrs)
 
+  /**
+   * Logs `body` at `Severity.Debug`, with `attrs` as the record's attributes.
+   */
   def debug(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Debug, body, attrs)
 
+  /**
+   * Logs `body` at `Severity.Info`, with `attrs` as the record's attributes.
+   */
   def info(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Info, body, attrs)
 
+  /**
+   * Logs `body` at `Severity.Warn`, with `attrs` as the record's attributes.
+   */
   def warn(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Warn, body, attrs)
 
+  /**
+   * Logs `body` at `Severity.Error`, with `attrs` as the record's attributes.
+   */
   def error(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Error, body, attrs)
 
+  /**
+   * Logs `body` at `Severity.Fatal`, with `attrs` as the record's attributes.
+   */
   def fatal(body: String, attrs: (String, AttributeValue)*): Unit =
     log(Severity.Fatal, body, attrs)
 

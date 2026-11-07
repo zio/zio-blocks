@@ -16,24 +16,63 @@
 
 package zio.blocks.telemetry
 
-/** Writes formatted log output to a destination. */
+/**
+ * Sends formatted log text to a destination, one line per `write` call.
+ * `log.writer` pairs one with a [[LogFormatter]] to add an output; implement
+ * `write` to send lines somewhere the built-in [[StdoutWriter]],
+ * [[StderrWriter]] and [[NoopWriter]] don't.
+ *
+ * {{{
+ * // scala-3-only
+ * import scala.collection.mutable.ListBuffer
+ *
+ * final class MemoryWriter extends LogWriter {
+ *   val lines = ListBuffer.empty[String]
+ *   def write(content: CharSequence): Unit = lines += content.toString
+ * }
+ *
+ * val memory = new MemoryWriter
+ * log.install(LoggerProvider.builder.build().get("checkout"))
+ * log.writer(JsonLogFormatter, memory)
+ *
+ * log.warn("stock low", "sku" -> "sku-42")
+ *
+ * memory.lines.size // 1
+ * memory.lines.head.contains("\"severityText\":\"WARN\"") // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/logging/log-writer/ LogWriter]]
+ */
 trait LogWriter {
+
+  /**
+   * Writes one formatted record. Each implementation adds the line separator
+   * itself, if its destination needs one.
+   */
   def write(content: CharSequence): Unit
+
+  /** Pushes buffered text to the destination; does nothing by default. */
   def flush(): Unit = ()
+
+  /**
+   * Releases the destination; does nothing by default. `log.clearWriters` and
+   * `log.removeAll` call it.
+   */
   def close(): Unit = ()
 }
 
-/** Writes to System.out (stdout). */
+/** Writes each line, followed by a line separator, to `System.out`. */
 object StdoutWriter extends LogWriter {
   override def write(content: CharSequence): Unit = System.out.println(content)
 }
 
-/** Writes to System.err (stderr). */
+/** Writes each line, followed by a line separator, to `System.err`. */
 object StderrWriter extends LogWriter {
   override def write(content: CharSequence): Unit = System.err.println(content)
 }
 
-/** Discards output. For benchmarking the formatting path. */
+/** Discards every line; use it to measure the cost of formatting alone. */
 object NoopWriter extends LogWriter {
   override def write(content: CharSequence): Unit = ()
 }

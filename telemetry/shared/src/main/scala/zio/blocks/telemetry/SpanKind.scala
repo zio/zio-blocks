@@ -17,55 +17,47 @@
 package zio.blocks.telemetry
 
 /**
- * Represents the kind of span - distinguishes the type of span based on its
- * relationship in a trace.
+ * The role of a span in a trace, as the OpenTelemetry specification defines it:
+ * internal work, one side of a synchronous call, or one side of an asynchronous
+ * message. It lets a backend pair a `Client` span with the `Server` span it
+ * caused in another service. Pass it to `trace.span` or `Tracer#span`; the
+ * default is `Internal`.
  *
- * Follows OpenTelemetry span kind specification.
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/tracing/span-kind/ SpanKind]]
  */
 sealed trait SpanKind
 
+/** The five span kinds. */
 object SpanKind {
 
   /**
-   * Internal span - represents work performed internally in the application.
-   *
-   * No remote parent or child, used for internal instrumentation.
+   * Work inside the application, with no remote parent or child. The default
+   * kind of `trace.span`, `Tracer#span` and [[SpanBuilder]].
    */
   case object Internal extends SpanKind
 
   /**
-   * Server span - represents the server-side of a synchronous RPC
-   * communication.
-   *
-   * The span begins when the server starts processing the RPC and ends when the
-   * server sends the response.
+   * The server side of a synchronous call, from the moment the server starts
+   * handling the request until it sends the response.
    */
   case object Server extends SpanKind
 
   /**
-   * Client span - represents the client-side of a synchronous RPC
-   * communication.
-   *
-   * The span begins when the client sends the RPC request and ends when it
-   * receives the response.
+   * The client side of a synchronous call, from sending the request until the
+   * response arrives.
    */
   case object Client extends SpanKind
 
   /**
-   * Producer span - represents the producer side of an asynchronous message
-   * transmission.
-   *
-   * The span begins when the producer sends the message and ends when the
-   * message is sent.
+   * The sending side of an asynchronous message; it often ends before the
+   * matching `Consumer` span starts.
    */
   case object Producer extends SpanKind
 
   /**
-   * Consumer span - represents the consumer side of an asynchronous message
-   * transmission.
-   *
-   * The span begins when the consumer receives the message and ends when the
-   * consumer finishes processing it.
+   * The receiving side of an asynchronous message, from receiving the message
+   * until it is processed.
    */
   case object Consumer extends SpanKind
 }

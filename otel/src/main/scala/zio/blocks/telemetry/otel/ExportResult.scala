@@ -17,22 +17,53 @@
 package zio.blocks.telemetry.otel
 
 /**
- * Outcome of an OTLP export attempt. `Success` means the collector accepted the
- * payload. `Failure` carries a diagnostic message and a `retryable` flag that
- * tells `BatchProcessor` whether to retry (e.g. HTTP 429/5xx) or drop the batch
- * (e.g. HTTP 400).
+ * The outcome of one export request. [[ExportResult.Success]] means the
+ * collector accepted the payload. [[ExportResult.Failure]] carries a short
+ * message and whether sending the same payload again can succeed: yes for a
+ * throttled or overloaded collector (`429`, `502`, `503`, `504`), no for one
+ * that rejected it (any other status, such as `400`). `fromHttpResponse` makes
+ * this choice from a status code.
+ *
+ * {{{
+ * def classify(status: Int): ExportResult =
+ *   ExportResult.fromHttpResponse(HttpResponse(status, Array.emptyByteArray, Map.empty))
+ *
+ * classify(200) // Success
+ * classify(503) // Failure(true,HTTP 503)
+ * classify(500) // Failure(false,HTTP 500)
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/otel/custom-exporter/ Building an Exporter]]
  */
 sealed trait ExportResult
 
+/** Holds the two outcomes and `fromHttpResponse`. */
 object ExportResult {
   private val retryableStatusCodes: Set[Int] = Set(429, 502, 503, 504)
 
+  /**
+   * Classifies an HTTP response: `Success` for any `2xx` status, a retryable
+   * `Failure` for `429`, `502`, `503` and `504`, and a non-retryable one for
+   * every other status, including `500` and redirects. The message is
+   * `HTTP <status>`; the body and a `Retry-After` header are not read.
+   */
   def fromHttpResponse(response: HttpResponse): ExportResult =
     if (response.statusCode >= 200 && response.statusCode < 300) ExportResult.Success
     else if (retryableStatusCodes.contains(response.statusCode))
       ExportResult.Failure(retryable = true, message = "HTTP " + response.statusCode)
     else ExportResult.Failure(retryable = false, message = "HTTP " + response.statusCode)
 
-  case object Success                                           extends ExportResult
+  /** The collector accepted the payload. */
+  case object Success extends ExportResult
+
+  /**
+   * The export failed.
+   *
+   * @param retryable
+   *   whether sending the same payload again can succeed
+   * @param message
+   *   a short description, such as `HTTP 503`
+   */
   final case class Failure(retryable: Boolean, message: String) extends ExportResult
 }

@@ -17,19 +17,36 @@
 package zio.blocks.telemetry
 
 /**
- * Zero-allocation visitor for iterating over Attributes without boxing
- * primitives.
+ * Receives the entries of [[Attributes]] from `Attributes#accept`, one method
+ * per value type, with `Long`, `Double` and `Boolean` values unboxed.
  *
- * Each `visit*` method is called with the raw unboxed value. Seq variants have
- * default no-op implementations since they are rare.
+ * The four scalar methods are abstract. The `Seq` methods do nothing by
+ * default, so a visitor that does not override them skips those entries
+ * silently.
  */
 trait AttributeVisitor {
+
+  /** Receives a `String` entry. */
   def visitString(key: String, value: String): Unit
+
+  /** Receives a `Long` entry. */
   def visitLong(key: String, value: Long): Unit
+
+  /** Receives a `Double` entry. */
   def visitDouble(key: String, value: Double): Unit
+
+  /** Receives a `Boolean` entry. */
   def visitBoolean(key: String, value: Boolean): Unit
-  def visitStringSeq(key: String, value: Seq[String]): Unit   = ()
-  def visitLongSeq(key: String, value: Seq[Long]): Unit       = ()
-  def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
+
+  /** Receives a `Seq[String]` entry; does nothing by default. */
+  def visitStringSeq(key: String, value: Seq[String]): Unit = ()
+
+  /** Receives a `Seq[Long]` entry; does nothing by default. */
+  def visitLongSeq(key: String, value: Seq[Long]): Unit = ()
+
+  /** Receives a `Seq[Double]` entry; does nothing by default. */
+  def visitDoubleSeq(key: String, value: Seq[Double]): Unit = ()
+
+  /** Receives a `Seq[Boolean]` entry; does nothing by default. */
   def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
 }

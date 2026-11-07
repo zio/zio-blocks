@@ -17,13 +17,15 @@
 package zio.blocks.telemetry
 
 /**
- * Callback used by asynchronous instruments to publish observed values during a
- * collection cycle.
+ * Receives the values that the callback of an observable instrument reports:
+ * the instrument passes a fresh one to its callback on each collection.
  */
 trait ObservableCallback {
 
   /**
-   * Records an observed value with the supplied attribute set.
+   * Reports `value` for the attribute set `attributes`. Each call adds one data
+   * point, even for a set reported before, so report each set once per
+   * collection.
    */
   def record(value: Double, attributes: Attributes): Unit
 }
