@@ -1439,7 +1439,12 @@ lazy val scaladocCheckedModules: Seq[Project] =
     endpoint.jvm,
     maybe.jvm,
     combinators.jvm,
-    context.jvm
+    context.jvm,
+    openapi.jvm,
+    codegen,
+    smithy,
+    mux.jvm,
+    ringbuffer.jvm
   )
 
 lazy val `scaladoc-check` = project

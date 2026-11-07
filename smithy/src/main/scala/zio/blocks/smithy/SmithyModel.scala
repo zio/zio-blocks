@@ -17,25 +17,55 @@
 package zio.blocks.smithy
 
 /**
- * Represents a top-level Smithy model.
+ * A Smithy model: the contents of one Smithy IDL file. It holds the IDL
+ * version, the namespace, the `use` statements, the metadata, the shape
+ * definitions and the `apply` statements. Read IDL text with
+ * [[SmithyModel.parse]], look shapes up with [[SmithyModel#findShape]], build a
+ * model by hand from [[ShapeDefinition]]s, and write it back with
+ * `prettyPrint`.
  *
- * A SmithyModel contains all the shapes, metadata, and configuration for a
- * Smithy API definition. It includes the model version, target namespace, use
- * statements, metadata key-value pairs, a list of shape definitions, and apply
- * statements that attach traits to shapes.
+ * The parser reads a subset of the Smithy IDL: it rejects several Smithy 2.0
+ * constructs, such as mixins, member default values, inline operation input and
+ * output, and text blocks (a known bug).
+ *
+ * {{{
+ * val idl =
+ *   """\$version: "2"
+ *     |namespace com.example.weather
+ *     |
+ *     |structure Forecast {
+ *     |    @required
+ *     |    city: String
+ *     |    celsius: Float
+ *     |}
+ *     |""".stripMargin
+ *
+ * val model = SmithyModel.parse(idl)
+ * model.map(_.allShapeIds) // Right(List(com.example.weather#Forecast))
+ *
+ * model.toOption.flatMap(_.findShape("Forecast")).collect { case ShapeDefinition(_, s: StructureShape) =>
+ *   s.members.map(_.name)
+ * } // Some(List(city, celsius))
+ * }}}
  *
  * @param version
- *   the Smithy specification version (e.g., "2.0")
+ *   the Smithy IDL version, as written in the `\$version` statement (e.g.,
+ *   "2.0"). The parser accepts any string here.
  * @param namespace
  *   the namespace for all shapes in this model (e.g., "com.example.api")
  * @param useStatements
- *   list of ShapeIds imported via use statements
+ *   list of ShapeIds imported via use statements. The parser records them but
+ *   does not use them to resolve names.
  * @param metadata
- *   map of metadata key-value pairs for the model
+ *   map of metadata key-value pairs for the model. Being a `Map`, it does not
+ *   keep the source order; `prettyPrint` writes the entries sorted by key.
  * @param shapes
- *   list of shape definitions in the model
+ *   list of shape definitions in the model, in source order. The parser keeps
+ *   duplicate names.
  * @param applyStatements
  *   list of apply statements that attach traits to shapes
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/ Smithy]]
  */
 final case class SmithyModel(
   version: String,
@@ -48,9 +78,13 @@ final case class SmithyModel(
 
   /**
    * Serializes this model as Smithy IDL text with default 4-space indentation.
+   * Parsing the text back gives the same shapes, except that shape references
+   * in `smithy.api` or in the model's own namespace come back with an empty
+   * namespace, and an apply statement with several traits comes back as one
+   * statement per trait.
    *
    * @return
-   *   a String containing valid Smithy IDL text
+   *   the Smithy IDL text
    */
   def prettyPrint: String = SmithyPrinter.print(this)
 
@@ -60,7 +94,7 @@ final case class SmithyModel(
    * @param indent
    *   the number of spaces to use for indentation within shapes
    * @return
-   *   a String containing valid Smithy IDL text
+   *   the Smithy IDL text
    */
   def prettyPrint(indent: Int): String = SmithyPrinter.print(this, indent)
 
@@ -68,7 +102,7 @@ final case class SmithyModel(
    * Finds a shape by name within this model.
    *
    * Returns the first ShapeDefinition with the given name, or None if not
-   * found.
+   * found. Only the name is compared, not a namespace.
    *
    * @param name
    *   the shape name to search for
@@ -91,10 +125,19 @@ final case class SmithyModel(
     shapes.map(shapeDef => ShapeId(namespace, shapeDef.name))
 }
 
+/** Reads Smithy IDL text into a [[SmithyModel]]. */
 object SmithyModel {
 
   /**
    * Parses a Smithy IDL string into a `SmithyModel`.
+   *
+   * The first statement must be `\$version` (only whitespace and comments may
+   * come before it), and a `namespace` statement is required. Shape references
+   * written without a namespace (`city: String`) get a [[ShapeId]] with an
+   * empty namespace. Trait names written without a namespace always get
+   * `smithy.api`, even when a `use` statement imports them from another
+   * namespace (a known bug). Several Smithy 2.0 constructs fail to parse (a
+   * known bug, see [[SmithyModel]]).
    *
    * @param input
    *   the complete Smithy IDL text to parse
@@ -108,8 +151,9 @@ object SmithyModel {
 /**
  * Represents a named shape within a Smithy model.
  *
- * A ShapeDefinition pairs a shape name with its Shape definition, allowing
- * shapes to be organized and referenced within a model.
+ * A ShapeDefinition pairs a shape name with its Shape definition. The parser
+ * gives both the same name; `prettyPrint` writes the definition's name, not the
+ * shape's.
  *
  * @param name
  *   the shape name (e.g., "User", "Order")
@@ -125,7 +169,7 @@ final case class ShapeDefinition(name: String, shape: Shape)
  * elsewhere, e.g., `apply MyShape @tag("foo")`.
  *
  * @param target
- *   the name of the shape to apply traits to
+ *   the shape to apply traits to, as written after `apply`
  * @param traits
  *   the traits to apply
  */

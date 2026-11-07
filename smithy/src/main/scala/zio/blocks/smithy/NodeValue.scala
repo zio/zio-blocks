@@ -25,6 +25,7 @@ package zio.blocks.smithy
  */
 sealed trait NodeValue
 
+/** The six kinds of [[NodeValue]]. */
 object NodeValue {
 
   /**
@@ -67,7 +68,8 @@ object NodeValue {
   /**
    * An object value, containing a list of key-value pairs.
    *
-   * Each field is a tuple of (String, NodeValue).
+   * Each field is a tuple of (String, NodeValue). The list keeps the source
+   * order.
    *
    * @param fields
    *   the list of (key, value) pairs in the object

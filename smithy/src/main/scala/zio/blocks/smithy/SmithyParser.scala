@@ -17,12 +17,17 @@
 package zio.blocks.smithy
 
 /**
- * Parser for Smithy IDL (Interface Definition Language) version 2.x.
+ * Parser for Smithy IDL (Interface Definition Language) text;
+ * `SmithyModel.parse` calls it.
  *
  * Parses a Smithy IDL text string into a `SmithyModel` AST. The parser handles
- * all Smithy IDL constructs including version declarations, namespaces,
- * metadata, use statements, shape definitions (simple, aggregate, enum,
- * service), trait applications, documentation comments, and apply statements.
+ * version declarations (any version string), namespaces, metadata, use
+ * statements, shape definitions (simple, aggregate, enum, service), trait
+ * applications, documentation comments, and apply statements. It rejects
+ * several Smithy 2.0 constructs, such as mixins, member default values, target
+ * elision, inline operation input and output, text blocks and `set` shapes, and
+ * it resolves every trait name without a namespace to `smithy.api` (known
+ * bugs).
  */
 private[smithy] object SmithyParser {
 

@@ -17,7 +17,9 @@
 package zio.blocks.codegen.ir
 
 /**
- * Represents a Scala import statement in the IR.
+ * Represents a Scala import statement in the IR. `ScalaEmitter.emit` removes
+ * duplicate imports from a file and, when `EmitterConfig.sortImports` is true,
+ * sorts them.
  */
 sealed trait Import {
 
@@ -27,6 +29,7 @@ sealed trait Import {
   def path: String
 }
 
+/** The four import forms: single, wildcard, rename and group. */
 object Import {
 
   /**
@@ -39,7 +42,9 @@ object Import {
    *
    * @example
    *   {{{
-   * val imp = SingleImport("com.example", "Foo")
+   * import zio.blocks.codegen.ir._
+   *
+   * val imp = Import.SingleImport("com.example", "Foo")
    * // Represents: import com.example.Foo
    *   }}}
    */
@@ -53,7 +58,9 @@ object Import {
    *
    * @example
    *   {{{
-   * val imp = WildcardImport("com.example")
+   * import zio.blocks.codegen.ir._
+   *
+   * val imp = Import.WildcardImport("com.example")
    * // Represents: import com.example._ (Scala 2) or import com.example.* (Scala 3)
    *   }}}
    */
@@ -71,14 +78,19 @@ object Import {
    *
    * @example
    *   {{{
-   * val imp = RenameImport("com.example", "Foo", "Bar")
+   * import zio.blocks.codegen.ir._
+   *
+   * val imp = Import.RenameImport("com.example", "Foo", "Bar")
    * // Represents: import com.example.{Foo => Bar} (Scala 2) or import com.example.{Foo as Bar} (Scala 3)
    *   }}}
    */
   final case class RenameImport(path: String, from: String, to: String) extends Import
 
   /**
-   * A group import that imports multiple names from a package.
+   * A group import that imports multiple names from a package. Give it at least
+   * one name: an empty list is emitted as `import path.{}`, and sorting a
+   * file's imports throws `NoSuchElementException` when one of two or more
+   * imports is an empty group (a known bug).
    *
    * @param path
    *   The package path (e.g., "com.example")
@@ -87,7 +99,9 @@ object Import {
    *
    * @example
    *   {{{
-   * val imp = GroupImport("com.example", List("Foo", "Bar"))
+   * import zio.blocks.codegen.ir._
+   *
+   * val imp = Import.GroupImport("com.example", List("Foo", "Bar"))
    * // Represents: import com.example.{Foo, Bar}
    *   }}}
    */

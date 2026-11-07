@@ -17,11 +17,29 @@
 package zio.blocks.smithy
 
 /**
- * Represents a shape definition in a Smithy model.
+ * A shape in a Smithy model: a named type with traits applied to it. Subtypes
+ * cover the shape categories of the Smithy specification: simple shapes
+ * (`StringShape`, `IntegerShape`, ...), enum shapes, aggregate shapes
+ * (`StructureShape`, `ListShape`, `MapShape`, `UnionShape`) and service shapes
+ * (`ServiceShape`, `OperationShape`, `ResourceShape`). Match on the subtype to
+ * read a shape's members.
  *
- * Every shape has a name and a list of traits applied to it. Subtypes represent
- * the different shape categories defined by the Smithy specification: simple
- * shapes, enum shapes, aggregate shapes, and service shapes.
+ * {{{
+ * def describe(shape: Shape): String = shape match {
+ *   case s: StructureShape => "structure with " + s.members.size + " members"
+ *   case s: OperationShape => "operation, input " + s.input.map(_.name).getOrElse("none")
+ *   case _: StringShape    => "string"
+ *   case other             => other.getClass.getSimpleName
+ * }
+ *
+ * describe(StringShape("City")) // string
+ * describe(OperationShape("GetForecast", input = Some(ShapeId("com.example.weather", "GetForecastInput"))))
+ * // operation, input GetForecastInput
+ * describe(BooleanShape("Flag")) // BooleanShape
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#shape-catalog Shape Catalog]]
  */
 sealed trait Shape {
 
@@ -243,7 +261,29 @@ final case class MapShape(
 ) extends Shape
 
 /**
- * A structure shape representing a fixed set of named, heterogeneous members.
+ * A structure shape representing a fixed set of named, heterogeneous members,
+ * like a record or a case class. Operation inputs, outputs and errors are
+ * structures.
+ *
+ * {{{
+ * val forecast = StructureShape(
+ *   "Forecast",
+ *   members = List(
+ *     MemberDefinition("city", ShapeId("smithy.api", "String"), List(TraitApplication.required)),
+ *     MemberDefinition("celsius", ShapeId("smithy.api", "Float"))
+ *   )
+ * )
+ * SmithyModel("2", "com.example.weather", Nil, Map.empty, List(ShapeDefinition("Forecast", forecast))).prettyPrint
+ * // \$version: "2"
+ * //
+ * // namespace com.example.weather
+ * //
+ * // structure Forecast {
+ * //     @required
+ * //     city: String
+ * //     celsius: Float
+ * // }
+ * }}}
  *
  * @param name
  *   the shape name
@@ -251,6 +291,8 @@ final case class MapShape(
  *   the traits applied to this shape
  * @param members
  *   the member definitions
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#aggregate-shapes Aggregate Shapes]]
  */
 final case class StructureShape(
   name: String,
@@ -279,7 +321,25 @@ final case class UnionShape(
 // ---------------------------------------------------------------------------
 
 /**
- * A service shape representing an API service entry point.
+ * A service shape representing an API service entry point: the operations and
+ * resources a client can call, and the errors every operation can return.
+ *
+ * {{{
+ * val weather = ServiceShape(
+ *   "Weather",
+ *   version = Some("2024-06-01"),
+ *   operations = List(ShapeId("com.example.weather", "GetForecast"))
+ * )
+ * SmithyModel("2", "com.example.weather", Nil, Map.empty, List(ShapeDefinition("Weather", weather))).prettyPrint
+ * // \$version: "2"
+ * //
+ * // namespace com.example.weather
+ * //
+ * // service Weather {
+ * //     version: "2024-06-01"
+ * //     operations: [GetForecast]
+ * // }
+ * }}}
  *
  * @param name
  *   the shape name
@@ -293,6 +353,8 @@ final case class UnionShape(
  *   the ShapeIds of resources bound to this service
  * @param errors
  *   the ShapeIds of common errors for the service
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#service-shapes Service Shapes]]
  */
 final case class ServiceShape(
   name: String,
@@ -304,7 +366,31 @@ final case class ServiceShape(
 ) extends Shape
 
 /**
- * An operation shape representing a single API operation.
+ * An operation shape representing a single API operation: its input and output
+ * structures, the errors it can return, and traits such as `@http` that bind it
+ * to a protocol.
+ *
+ * {{{
+ * val getForecast = OperationShape(
+ *   "GetForecast",
+ *   traits = List(TraitApplication(ShapeId("smithy.api", "readonly"), None), TraitApplication.http("GET", "/forecast/{city}")),
+ *   input = Some(ShapeId("com.example.weather", "GetForecastInput")),
+ *   output = Some(ShapeId("com.example.weather", "Forecast")),
+ *   errors = List(ShapeId("com.example.weather", "CityNotFound"))
+ * )
+ * SmithyModel("2", "com.example.weather", Nil, Map.empty, List(ShapeDefinition("GetForecast", getForecast))).prettyPrint
+ * // \$version: "2"
+ * //
+ * // namespace com.example.weather
+ * //
+ * // @readonly
+ * // @http(method: "GET", uri: "/forecast/{city}")
+ * // operation GetForecast {
+ * //     input: GetForecastInput
+ * //     output: Forecast
+ * //     errors: [CityNotFound]
+ * // }
+ * }}}
  *
  * @param name
  *   the shape name
@@ -316,6 +402,8 @@ final case class ServiceShape(
  *   the optional ShapeId of the output structure
  * @param errors
  *   the ShapeIds of errors this operation can return
+ * @see
+ *   [[https://zioblocks.com/reference/smithy/#service-shapes Service Shapes]]
  */
 final case class OperationShape(
   name: String,
@@ -333,7 +421,9 @@ final case class OperationShape(
  * @param traits
  *   the traits applied to this shape
  * @param identifiers
- *   the resource identifiers mapping names to their target ShapeIds
+ *   the resource identifiers mapping names to their target ShapeIds. Being a
+ *   `Map`, it does not keep the source order; `prettyPrint` writes the entries
+ *   sorted by name.
  * @param create
  *   the optional ShapeId of the create lifecycle operation
  * @param read
@@ -376,7 +466,8 @@ final case class ResourceShape(
  * @param name
  *   the member name
  * @param target
- *   the ShapeId of the target type
+ *   the ShapeId of the target type. The parser gives a target written without a
+ *   namespace (`String`) an empty namespace.
  * @param traits
  *   the traits applied to this member
  */
@@ -392,7 +483,8 @@ final case class MemberDefinition(
  * @param name
  *   the enum member name
  * @param value
- *   the optional string value (defaults to the member name if absent)
+ *   the optional string value; None when the IDL gives none, in which case
+ *   Smithy uses the member name
  * @param traits
  *   the traits applied to this enum member
  */

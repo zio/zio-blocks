@@ -17,15 +17,40 @@
 package zio.blocks.ringbuffer
 
 /**
- * A sequential MPMC ring buffer for generic reference types (Scala.js
- * implementation).
+ * A bounded first-in, first-out queue of non-`null` references that any number
+ * of threads may [[offer]] to and [[take]] from at the same time. Neither side
+ * blocks: `offer` returns `false` when no slot is free and `take` returns
+ * `null` when no element is ready.
  *
- * Since Scala.js is single-threaded, this implementation uses plain reads and
- * writes with no memory ordering primitives or locks. It provides the same API
- * surface as the JVM implementation for cross-platform compatibility.
+ * On the JVM it is Dmitry Vyukov's bounded MPMC queue: each slot carries a
+ * sequence number that says whether the slot is ready to be written or read,
+ * and producers and consumers each claim slots with a compare-and-set on their
+ * own index. A thread that has claimed a slot and not finished with it holds
+ * that slot up: until it finishes, `take` returns `null` when the next element
+ * is still being stored and `offer` returns `false` when the next slot is still
+ * being emptied, even if other slots are ready. On Scala.js, which runs one
+ * thread, the class is a plain array-backed queue with the same methods and
+ * results.
+ *
+ * `offer(null)` throws `NullPointerException`.
+ *
+ * {{{
+ * val requests = MpmcRingBuffer[String](2)
+ *
+ * requests.offer("GET /orders/17") // true
+ * requests.offer("GET /orders/18") // true
+ * requests.offer("GET /orders/19") // false: both slots are taken
+ * requests.isFull                  // true
+ * requests.take()                  // GET /orders/17
+ * requests.offer("GET /orders/19") // true
+ * }}}
  *
  * @param capacity
- *   the buffer capacity, must be a power of two >= 2
+ *   the number of slots: a power of two of at least 2 (2, 4, 8, ...), because
+ *   with a single slot the sequence numbers cannot tell a written slot from an
+ *   emptied one; any other value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/mpmc/ MPMC RingBuffer]]
  */
 final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   require(
@@ -39,15 +64,14 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   private var consumerIndex: Long   = 0L
 
   /**
-   * Tries to insert an element into the buffer.
+   * Appends `a` and returns `true` if the next slot is free; returns `false`
+   * when the buffer is full or (JVM only) the next slot is still being emptied
+   * by a consumer. Any number of threads may call it at once: a producer that
+   * loses the compare-and-set for a slot tries again, so the call never blocks,
+   * but it can loop while other producers keep winning.
    *
-   * @param a
-   *   the element to insert; must not be `null`
    * @throws java.lang.NullPointerException
-   *   if the element is `null`
-   * @return
-   *   `true` if the element was successfully inserted, `false` if the buffer is
-   *   full
+   *   if `a` is `null`
    */
   def offer(a: A): Boolean = {
     if (a == null) throw new NullPointerException("offer(null) is not permitted")
@@ -63,10 +87,12 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
   }
 
   /**
-   * Tries to remove an element from the buffer.
-   *
-   * @return
-   *   the element, or `null` if the buffer is empty
+   * Removes and returns the oldest element, or returns `null` when the buffer
+   * is empty or (JVM only) the next element is still being stored by a
+   * producer. Any number of threads may call it at once: a consumer that loses
+   * the compare-and-set for an element tries again, so the call never blocks,
+   * but it can loop while other consumers keep winning. The slot is cleared, so
+   * the taken element is not kept reachable by the buffer.
    */
   def take(): A = {
     val cIdx = consumerIndex
@@ -82,27 +108,37 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
     }
   }
 
-  /** Returns the number of elements currently in the buffer. */
+  /**
+   * Returns the number of elements in the buffer. While other threads offer or
+   * take (JVM only), the result is an estimate: the two indices are read one
+   * after the other, so it can be out of date or larger than `capacity`.
+   */
   def size: Int = (producerIndex - consumerIndex).toInt
 
-  /** Returns `true` if the buffer contains no elements. */
+  /**
+   * Returns `true` when the buffer holds no elements. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
+   */
   def isEmpty: Boolean = producerIndex == consumerIndex
 
-  /** Returns `true` if the buffer is full. */
+  /**
+   * Returns `true` when every slot holds an element. While other threads offer
+   * or take (JVM only), the answer can be out of date by the time it returns.
+   */
   def isFull: Boolean = (producerIndex - consumerIndex).toInt == capacity
 }
 
+/**
+ * Creates [[MpmcRingBuffer]] instances.
+ */
 object MpmcRingBuffer {
 
   /**
-   * Creates a new [[MpmcRingBuffer]] with the given capacity.
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new MpmcRingBuffer[A](capacity)`.
    *
-   * @param capacity
-   *   the buffer capacity, must be a power of two >= 2
-   * @tparam A
-   *   the element type (must be a reference type)
-   * @return
-   *   a new MPMC ring buffer
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 2
    */
   def apply[A <: AnyRef](capacity: Int): MpmcRingBuffer[A] = new MpmcRingBuffer[A](capacity)
 }

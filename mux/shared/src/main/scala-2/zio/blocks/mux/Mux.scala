@@ -17,19 +17,22 @@
 package zio.blocks.mux
 
 /**
- * Multiplexer for ID-multiplexed protocols (HTTP/2, QUIC, etc.).
- *
- * Manages multiple concurrent streams, each identified by a unique ID. Streams
- * are independent and can be opened, closed, or cancelled independently.
- *
- * @tparam Id
- *   Stream identifier type (e.g., Int for HTTP/2)
- * @tparam In
- *   Message type sent on streams
- * @tparam Out
- *   Message type received on streams
+ * Creates [[Mux]] instances.
  */
 object Mux {
+
+  /**
+   * Creates an empty multiplexer that holds at most `capacity` streams at once.
+   *
+   * @tparam Id
+   *   the stream id type, such as `Int` for HTTP/2 stream ids
+   * @tparam In
+   *   the type of the messages the application sends on a stream
+   * @tparam Out
+   *   the type of the messages the application receives on a stream
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is 0 or negative
+   */
   def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out] = {
     require(capacity > 0, s"Mux capacity must be positive, got $capacity")
     PlatformMux.create[Id, In, Out](capacity)
@@ -37,204 +40,274 @@ object Mux {
 }
 
 /**
- * A multiplexer that manages multiple independent streams over a shared
- * transport.
+ * A registry of independent streams that share one transport, each identified
+ * by an `Id`, as in HTTP/2 or QUIC. A protocol layer opens a stream per id,
+ * moves messages between the transport and each stream's two queues, and closes
+ * or cancels streams; the application sends and receives on the [[MuxStream]].
  *
- * Each stream is identified by a unique `Id` and has independent
- * inbound/outbound message queues. The multiplexer enforces a maximum number of
- * concurrent streams (capacity). Attempting to open a stream beyond that limit
- * returns [[MuxError.CapacityExceeded]].
+ * At most `capacity` streams are registered at once: [[open]] returns
+ * [[MuxError.CapacityExceeded]] beyond that, and [[MuxError.ProtocolError]] for
+ * an id that is already registered. A stream leaves the registry when it is
+ * fully closed, cancelled with [[cancel]], or closed by [[closeAll]]; its id
+ * can then be opened again. After `closeAll`, `open` returns
+ * [[MuxError.MuxClosed]] for good.
  *
- * '''Invariants:'''
- *   - Stream IDs must be unique among active streams; opening a duplicate
- *     returns [[MuxError.ProtocolError]].
- *   - `capacity` is fixed at construction and never changes.
- *   - After [[closeAll]], no new streams can be opened ([[MuxError.MuxClosed]]
- *     is returned) and all previously active streams transition to CLOSED with
- *     the supplied error enqueued for any pending receive.
+ * Methods that can fail return `Either[MuxError, X]` on Scala 2 and
+ * `X | MuxError` on Scala 3, where `X` is the success value.
  *
- * '''Thread safety:''' `open`, `get`, `cancel`, `closeAll`, and `activeCount`
- * are safe to call from multiple threads concurrently. Per-stream operations on
- * [[MuxStream]]: `send` and `offerInbound` are multi-thread safe. `receive` and
- * `takeOutbound` must each be called from a single consumer thread at a time
- * (single-consumer contract of the underlying ring buffer).
+ * On the JVM `open`, `get`, `cancel`, `closeAll` and `activeCount` may be
+ * called from any thread: `open`, `cancel` and `closeAll` take one lock, and
+ * `get` and `activeCount` read a concurrent map. On Scala.js, which runs one
+ * thread, the registry is a plain map.
+ *
+ * {{{
+ * // scala-2-only
+ * val mux = Mux[Int, String, String](16)
+ *
+ * mux.open(1) match {
+ *   case Left(err) => println("cannot open: " + err)
+ *   case Right(stream) =>
+ *     stream.send("GET /health")     // the application sends
+ *     println(stream.takeOutbound()) // Right(Some(GET /health)): the protocol takes it
+ *     stream.offerInbound("200 OK")  // the protocol delivers the reply
+ *     println(stream.receive())      // Right(Some(200 OK))
+ * }
+ * println(mux.open(1))     // Left(ProtocolError(Stream 1 already exists))
+ * mux.closeAll(MuxError.MuxClosed)
+ * println(mux.activeCount) // 0
+ * }}}
+ *
+ * {{{
+ * // scala-3-only
+ * val mux = Mux[Int, String, String](16)
+ *
+ * mux.open(1) match {
+ *   case err: MuxError => println("cannot open: " + err)
+ *   case stream: MuxStream[Int, String, String] =>
+ *     stream.send("GET /health")     // the application sends
+ *     println(stream.takeOutbound()) // Some(GET /health): the protocol takes it
+ *     stream.offerInbound("200 OK")  // the protocol delivers the reply
+ *     println(stream.receive())      // Some(200 OK)
+ * }
+ * println(mux.open(1))     // ProtocolError(Stream 1 already exists)
+ * mux.closeAll(MuxError.MuxClosed)
+ * println(mux.activeCount) // 0
+ * }}}
  *
  * @tparam Id
- *   Stream identifier type (e.g., `Int` for HTTP/2 stream IDs)
+ *   the stream id type, such as `Int` for HTTP/2 stream ids
  * @tparam In
- *   Message type sent on streams (outbound from user code)
+ *   the type of the messages the application sends (outbound)
  * @tparam Out
- *   Message type received on streams (inbound to user code)
+ *   the type of the messages the application receives (inbound)
+ * @see
+ *   [[https://zioblocks.com/reference/mux/ Mux]]
  */
 trait Mux[Id, In, Out] {
 
   /**
-   * Open a new stream with the given ID.
+   * Registers a new open stream with the given id and returns it. Returns
+   * [[MuxError.MuxClosed]] after [[closeAll]], [[MuxError.ProtocolError]] when
+   * `id` is already registered (message `Stream <id> already exists`), and
+   * [[MuxError.CapacityExceeded]] when `capacity` streams are registered,
+   * checked in that order.
    *
-   * Transitions: IDLE -> OPEN
-   *
-   * @param id
-   *   Stream identifier
-   * @return
-   *   Either a new MuxStream or an error (e.g., capacity exceeded, mux closed)
+   * Calling `MuxStream#close` on an old handle, after that stream was closed
+   * (by `close`, by both sides finishing, or by `Mux#cancel`) and its id was
+   * opened again, removes the new stream from the registry, a known bug: `get`
+   * then returns `None` for a live stream and `open` accepts the id a second
+   * time.
    */
   def open(id: Id): Either[MuxError, MuxStream[Id, In, Out]]
 
   /**
-   * Get an existing stream by ID.
-   *
-   * @param id
-   *   Stream identifier
-   * @return
-   *   Some(stream) if open, None otherwise
+   * Returns the registered stream with this id, or `None` when no stream with
+   * this id is registered: it was never opened, or it was fully closed,
+   * cancelled or closed by [[closeAll]].
    */
   def get(id: Id): Option[MuxStream[Id, In, Out]]
 
   /**
-   * Cancel a stream by ID with an error reason.
-   *
-   * Transitions: Any -> CLOSED (via RST_STREAM equivalent)
-   *
-   * @param id
-   *   Stream identifier
-   * @param reason
-   *   Error reason
+   * Closes the stream with this id at once and removes it from the registry;
+   * does nothing when no stream with this id is registered. Afterwards the
+   * stream's `receive` returns its queued inbound messages and then `reason`,
+   * while `takeOutbound` returns its queued outbound messages and then
+   * [[MuxError.StreamClosed]]; `send` and `offerInbound` return `StreamClosed`.
+   * Like an HTTP/2 `RST_STREAM`.
    */
   def cancel(id: Id, reason: MuxError): Unit
 
   /**
-   * Close all active streams with an error reason.
-   *
-   * @param reason
-   *   Error reason
+   * Closes every registered stream the way [[cancel]] does, with the same
+   * `reason`, empties the registry, and makes every later [[open]] return
+   * [[MuxError.MuxClosed]].
    */
   def closeAll(reason: MuxError): Unit
 
   /**
-   * Number of currently active streams.
+   * Returns the number of registered streams: open and half-closed ones, not
+   * fully closed ones.
    */
   def activeCount: Int
 }
 
 /**
- * Individual stream within a Mux.
+ * One stream of a [[Mux]], with two queues: the outbound queue, which the
+ * application fills with [[send]] and the protocol layer drains with
+ * [[takeOutbound]], and the inbound queue, which the protocol fills with
+ * [[offerInbound]] and the application drains with [[receive]]. Each queue
+ * holds at most 256 messages; past that `send` and `offerInbound` return
+ * [[MuxError.QueueFull]]. `null` messages are rejected with
+ * [[MuxError.ProtocolError]].
  *
- * Encapsulates the state machine for a single stream (IDLE, OPEN,
- * HALF_CLOSED_LOCAL, HALF_CLOSED_REMOTE, CLOSED). Provides send/receive
- * operations and state queries.
+ * The stream follows the HTTP/2 states: it starts OPEN; [[halfClose]] (this
+ * side is done sending) and [[signalRemoteClose]] (the peer is done sending)
+ * each close one direction, and the second of the two closes the stream;
+ * [[close]], `Mux#cancel` and `Mux#closeAll` close it at once. A fully closed
+ * stream leaves the `Mux` registry at once, while messages already in its
+ * queues can still be taken from this handle.
  *
- * This stream has two separate message queues:
- *   - '''Outbound queue''': messages sent by user code via `send()`, drained by
- *     the mux/protocol via `takeOutbound()`
- *   - '''Inbound queue''': messages delivered by the mux/protocol via
- *     `offerInbound()`, read by user code via `receive()`
+ * Methods that can fail return `Either[MuxError, X]` on Scala 2 and
+ * `X | MuxError` on Scala 3, where `X` is the success value.
+ *
+ * On the JVM any number of threads may call `send` and `offerInbound` at once,
+ * but `takeOutbound` and `receive` must each have one caller thread at a time,
+ * which nothing checks: two threads draining one queue get some messages twice,
+ * lose others, and can leave the queue looking full for good, a known bug. On
+ * Scala.js everything runs on one thread.
+ *
+ * {{{
+ * val mux = Mux[Int, String, String](4)
+ * mux.open(1)
+ * val stream = mux.get(1).get
+ *
+ * stream.send("upload part 1")
+ * stream.halfClose()                   // this side is done sending
+ * stream.send("too late")              // StreamClosed(1)
+ * stream.takeOutbound()                // Some(upload part 1)
+ * stream.offerInbound("upload stored")
+ * stream.signalRemoteClose()           // the peer is done too: the stream closes
+ * stream.isClosed                      // true
+ * mux.get(1)                           // None
+ * stream.receive()                     // Some(upload stored)
+ * stream.receive()                     // StreamClosed(1)
+ * // On Scala 2 the results are wrapped: Left(StreamClosed(1)),
+ * // Right(Some(upload part 1)), and so on.
+ * }}}
  *
  * @tparam Id
- *   Stream identifier type
+ *   the stream id type
  * @tparam In
- *   Message type sent on this stream
+ *   the type of the messages the application sends (outbound)
  * @tparam Out
- *   Message type received on this stream
+ *   the type of the messages the application receives (inbound)
+ * @see
+ *   [[https://zioblocks.com/reference/mux/ Mux]]
  */
 trait MuxStream[Id, In, Out] {
 
   /**
-   * Stream identifier.
+   * Returns the id this stream was opened with.
    */
   def id: Id
 
   /**
-   * Send a message on this stream.
-   *
-   * Places the message into the outbound queue for the mux/protocol to drain.
-   * Fails if stream is closed or in HALF_CLOSED_LOCAL state.
-   *
-   * @param msg
-   *   Message to send
-   * @return
-   *   Either success or an error
+   * Appends `msg` to the outbound queue, for the protocol layer to take with
+   * [[takeOutbound]]. Returns [[MuxError.StreamClosed]] once this side is done
+   * sending (after [[halfClose]], [[close]], `Mux#cancel` or `Mux#closeAll`),
+   * [[MuxError.QueueFull]] when 256 messages are waiting, and
+   * [[MuxError.ProtocolError]] for a `null` message. It still works after
+   * [[signalRemoteClose]].
    */
   def send(msg: In): Either[MuxError, Unit]
 
   /**
-   * Receive a message from the inbound queue.
+   * Removes and returns the next inbound message: `Some(msg)`, or `None` when
+   * no message is waiting. Once the stream is fully closed and its inbound
+   * queue is empty, it returns the stream's terminal error instead: the
+   * `reason` given to `Mux#cancel` or `Mux#closeAll`, or
+   * [[MuxError.StreamClosed]] after [[close]] or after both sides finished.
    *
-   * Returns the next available inbound message, or None if no message is
-   * available yet. Returns Left(error) if the stream is closed.
-   *
-   * @return
-   *   Right(Some(msg)) if a message is available, Right(None) if no message
-   *   yet, Left(error) if closed
+   * After only the peer finished ([[signalRemoteClose]]), it returns `None`
+   * once the queue is empty, the same as "no message yet", until this side also
+   * finishes or the stream is closed, a known bug: `receive` cannot tell the
+   * application that the peer is done. On the JVM call it from one thread at a
+   * time: two threads at once lose and duplicate messages, a known bug.
    */
   def receive(): Either[MuxError, Option[Out]]
 
   /**
-   * Deliver a message to this stream's inbound queue.
-   *
-   * Called by the mux/protocol layer to deliver messages TO this stream.
-   *
-   * @param msg
-   *   Message to deliver
-   * @return
-   *   Either success or an error if the stream is closed
+   * Appends `msg` to the inbound queue, for the application to take with
+   * [[receive]]; the protocol layer calls it. Returns [[MuxError.StreamClosed]]
+   * once the peer is done sending (after [[signalRemoteClose]], [[close]],
+   * `Mux#cancel` or `Mux#closeAll`), [[MuxError.QueueFull]] when 256 messages
+   * are waiting, and [[MuxError.ProtocolError]] for a `null` message. It still
+   * works after [[halfClose]].
    */
   def offerInbound(msg: Out): Either[MuxError, Unit]
 
   /**
-   * Take the next message from the outbound queue.
+   * Removes and returns the next outbound message: `Some(msg)`, or `None` when
+   * no message is waiting; the protocol layer calls it. Once the stream is
+   * fully closed and its outbound queue is empty, it returns
+   * [[MuxError.StreamClosed]], also after `Mux#cancel` with another reason.
    *
-   * Called by the mux/protocol layer to drain messages FROM this stream.
-   * Returns None if no outbound message is available.
-   *
-   * @return
-   *   Right(Some(msg)) if a message is available, Right(None) if empty,
-   *   Left(error) if closed
+   * A fully closed stream leaves the `Mux` registry at once, even with messages
+   * still in its outbound queue, a known bug: a protocol that finds streams
+   * through `Mux#get` never sends them. Keep a reference to each stream and
+   * drain it until `takeOutbound` returns an error. On the JVM call it from one
+   * thread at a time: two threads at once lose and duplicate messages, a known
+   * bug.
    */
   def takeOutbound(): Either[MuxError, Option[In]]
 
   /**
-   * Signal that this side is done sending (END_STREAM equivalent).
-   *
-   * Transitions: OPEN -> HALF_CLOSED_LOCAL or HALF_CLOSED_REMOTE -> CLOSED
-   *
-   * After this, send() will fail. receive() still works.
+   * Marks this side as done sending, like an HTTP/2 `END_STREAM` it sends. From
+   * OPEN the stream becomes half-closed; when the peer has already finished
+   * ([[signalRemoteClose]]), the stream closes and leaves the `Mux` registry,
+   * with any queued outbound messages still takeable from this handle. Has no
+   * effect on a stream that already finished sending or is closed. Afterwards
+   * [[send]] returns [[MuxError.StreamClosed]], while [[receive]] and
+   * [[offerInbound]] keep working.
    */
   def halfClose(): Unit
 
   /**
-   * Signal that the remote side is done sending.
-   *
-   * Transitions: OPEN -> HALF_CLOSED_REMOTE or HALF_CLOSED_LOCAL -> CLOSED
-   *
-   * Called by the mux/protocol layer when the peer signals END_STREAM.
+   * Marks the peer as done sending, like an HTTP/2 `END_STREAM` it receives;
+   * the protocol layer calls it. From OPEN the stream becomes half-closed; when
+   * this side has already finished ([[halfClose]]), the stream closes and
+   * leaves the `Mux` registry. Has no effect on a stream whose peer already
+   * finished or that is closed. Afterwards [[offerInbound]] returns
+   * [[MuxError.StreamClosed]], while [[send]] keeps working. [[receive]] cannot
+   * tell the application that the peer finished, a known bug.
    */
   def signalRemoteClose(): Unit
 
   /**
-   * Check if stream is fully closed.
-   *
-   * @return
-   *   true if state is CLOSED
+   * Returns `true` once the stream is fully closed: both sides finished, or
+   * [[close]], `Mux#cancel` or `Mux#closeAll` closed it.
    */
   def isClosed: Boolean
 
   /**
-   * Check if stream is half-closed (one side done).
-   *
-   * @return
-   *   true if state is HALF_CLOSED_LOCAL or HALF_CLOSED_REMOTE
+   * Returns `true` while exactly one side has finished sending. It does not say
+   * which side; no query method does, and only the result of [[send]] or
+   * [[offerInbound]] (`StreamClosed` for the side that finished) tells them
+   * apart.
    */
   def isHalfClosed: Boolean
 
   /**
-   * Fully close this stream immediately.
+   * Closes the stream at once, from any state, and removes its id from the
+   * `Mux` registry. Afterwards [[send]] and [[offerInbound]] return
+   * [[MuxError.StreamClosed]]; [[receive]] and [[takeOutbound]] return the
+   * messages already queued and then the terminal error (`StreamClosed`, or for
+   * `receive` the reason of an earlier `Mux#cancel`).
    *
-   * Transitions the stream to CLOSED state and enqueues a terminal error. After
-   * this call:
-   *   - `send()` fails with [[MuxError.StreamClosed]].
-   *   - `receive()` drains any already-buffered inbound messages, then returns
-   *     the terminal error once the buffer is empty.
-   *   - `offerInbound()` fails with [[MuxError.StreamClosed]].
+   * It removes whatever stream is registered under its id, a known bug: when
+   * this stream was already closed (by `close`, by both sides finishing, or by
+   * `Mux#cancel`) and its id was opened again, closing the old handle
+   * unregisters the new stream.
    */
   def close(): Unit
 }
