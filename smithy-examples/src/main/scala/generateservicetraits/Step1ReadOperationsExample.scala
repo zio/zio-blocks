@@ -21,8 +21,8 @@ import zio.blocks.smithy._
  */
 object Step1ReadOperationsExample {
   def main(args: Array[String]): Unit = {
-    val path = if (args.length > 0) args(0) else "src/main/smithy/order-service.smithy"
-    val text = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8)
+    val path  = if (args.length > 0) args(0) else "src/main/smithy/order-service.smithy"
+    val text  = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8)
     val model = SmithyModel.parse(text) match {
       case Right(parsed) => parsed
       case Left(error)   => throw new IllegalArgumentException(error.formatMessage)

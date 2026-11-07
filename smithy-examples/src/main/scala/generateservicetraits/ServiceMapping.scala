@@ -6,15 +6,15 @@ import zio.blocks.codegen.ir._
 /**
  * Generate Scala Service Traits from a Smithy Service: the mapping.
  *
- * Maps a Smithy service and its operations to codegen IR: data shapes to
- * case classes and enums, the operation errors to a sealed error type, and
- * each operation to one abstract method of a service trait.
+ * Maps a Smithy service and its operations to codegen IR: data shapes to case
+ * classes and enums, the operation errors to a sealed error type, and each
+ * operation to one abstract method of a service trait.
  */
 object ServiceMapping {
 
   def docOf(traits: List[TraitApplication]): Option[String] =
-    traits.collectFirst {
-      case TraitApplication(ShapeId("smithy.api", "documentation"), Some(NodeValue.String(text))) => text
+    traits.collectFirst { case TraitApplication(ShapeId("smithy.api", "documentation"), Some(NodeValue.String(text))) =>
+      text
     }
 
   def service(model: SmithyModel): ServiceShape =
@@ -36,7 +36,7 @@ object ServiceMapping {
   def typeRefFor(model: SmithyModel, target: ShapeId): TypeRef =
     model.findShape(target.name).map(_.shape) match {
       case Some(_: StructureShape) | Some(_: EnumShape) | Some(_: UnionShape) => TypeRef(target.name)
-      case Some(other)                                                         =>
+      case Some(other)                                                        =>
         throw new IllegalArgumentException(s"Unsupported shape: ${other.name}")
       case None =>
         target.name match {
@@ -83,7 +83,7 @@ object ServiceMapping {
   def errorTypes(model: SmithyModel): List[TypeDefinition] = {
     val errorType  = errorTypeName(service(model))
     val sealedType = SealedTrait(errorType, doc = Some("Every error an operation of the service can return."))
-    val cases = errorNames(model).map { name =>
+    val cases      = errorNames(model).map { name =>
       model.findShape(name).map(_.shape) match {
         case Some(shape: StructureShape) =>
           caseClassFor(model, name, shape, List(TypeRef(errorType)))
@@ -94,9 +94,9 @@ object ServiceMapping {
   }
 
   def methodFor(model: SmithyModel, op: OperationShape): Method = {
-    val errorType = errorTypeName(service(model))
-    val params    = op.input.toList.map(in => ParamList(List(MethodParam("input", TypeRef(in.name)))))
-    val output    = op.output.map(o => TypeRef(o.name)).getOrElse(TypeRef.Unit)
+    val errorType  = errorTypeName(service(model))
+    val params     = op.input.toList.map(in => ParamList(List(MethodParam("input", TypeRef(in.name)))))
+    val output     = op.output.map(o => TypeRef(o.name)).getOrElse(TypeRef.Unit)
     val returnType =
       if (op.errors.isEmpty) output
       else TypeRef.of("Either", TypeRef(errorType), output)

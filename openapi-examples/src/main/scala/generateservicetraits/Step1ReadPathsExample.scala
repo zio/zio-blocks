@@ -22,8 +22,8 @@ import zio.blocks.schema.json._
  */
 object Step1ReadPathsExample {
   def main(args: Array[String]): Unit = {
-    val specPath = if (args.length > 0) args(0) else "src/main/openapi/bookstore-service.json"
-    val specText = new String(Files.readAllBytes(Paths.get(specPath)), StandardCharsets.UTF_8)
+    val specPath     = if (args.length > 0) args(0) else "src/main/openapi/bookstore-service.json"
+    val specText     = new String(Files.readAllBytes(Paths.get(specPath)), StandardCharsets.UTF_8)
     val api: OpenAPI = Json.parse(specText).flatMap(json => OpenAPICodec.openAPICodec.decode(json)) match {
       case Right(parsed) => parsed
       case Left(error)   => throw new IllegalArgumentException(s"Not an OpenAPI document: ${error.getMessage}")
@@ -31,7 +31,9 @@ object Step1ReadPathsExample {
     ServiceMapping.endpoints(api).foreach { e =>
       val params = ServiceMapping.pathParams(e).map(p => s"${p.name}: ${p.typeRef.name}")
       val body   = ServiceMapping.bodyParam(e).map(p => s"${p.name}: ${p.typeRef.name}")
-      println(s"${e.method.toUpperCase} ${e.path} -> ${e.operationId}(${(params ++ body).mkString(", ")}): ${ServiceMapping.successType(e).name}")
+      println(
+        s"${e.method.toUpperCase} ${e.path} -> ${e.operationId}(${(params ++ body).mkString(", ")}): ${ServiceMapping.successType(e).name}"
+      )
     }
   }
 }

@@ -23,8 +23,8 @@ import zio.blocks.codegen.emit._
  */
 object Step2ServiceTraitExample {
   def main(args: Array[String]): Unit = {
-    val specPath = if (args.length > 0) args(0) else "src/main/openapi/bookstore-service.json"
-    val specText = new String(Files.readAllBytes(Paths.get(specPath)), StandardCharsets.UTF_8)
+    val specPath     = if (args.length > 0) args(0) else "src/main/openapi/bookstore-service.json"
+    val specText     = new String(Files.readAllBytes(Paths.get(specPath)), StandardCharsets.UTF_8)
     val api: OpenAPI = Json.parse(specText).flatMap(json => OpenAPICodec.openAPICodec.decode(json)) match {
       case Right(parsed) => parsed
       case Left(error)   => throw new IllegalArgumentException(s"Not an OpenAPI document: ${error.getMessage}")

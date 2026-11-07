@@ -18,9 +18,9 @@ import zio.blocks.codegen.emit._
 /**
  * Generate Scala Service Traits from OpenAPI Paths — Putting It Together
  *
- * Reads an OpenAPI document from a file, maps its paths to a service trait
- * with `ServiceMapping` and writes the Scala 3 source of the trait and its
- * error types to `BookstoreService.scala`.
+ * Reads an OpenAPI document from a file, maps its paths to a service trait with
+ * `ServiceMapping` and writes the Scala 3 source of the trait and its error
+ * types to `BookstoreService.scala`.
  */
 object CompleteExample {
   def main(args: Array[String]): Unit = {
@@ -37,7 +37,8 @@ object CompleteExample {
     Files.createDirectories(Paths.get(outputDir))
     Files.write(
       outputFile,
-      ScalaEmitter.emit(ServiceMapping.serviceTrait(api, "com.example.bookstore"), EmitterConfig.default)
+      ScalaEmitter
+        .emit(ServiceMapping.serviceTrait(api, "com.example.bookstore"), EmitterConfig.default)
         .getBytes(StandardCharsets.UTF_8)
     )
     println(s"Generated ${api.info.title.filter(_.isLetterOrDigit)}Service into $outputFile")

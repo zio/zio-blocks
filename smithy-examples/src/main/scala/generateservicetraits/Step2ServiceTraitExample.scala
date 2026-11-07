@@ -18,13 +18,13 @@ import zio.blocks.codegen.emit._
 /**
  * Generate Scala Service Traits from a Smithy Model — Map Operations to Methods
  *
- * Maps each operation of the order service to a method of the service trait
- * and prints the emitted trait.
+ * Maps each operation of the order service to a method of the service trait and
+ * prints the emitted trait.
  */
 object Step2ServiceTraitExample {
   def main(args: Array[String]): Unit = {
-    val path = if (args.length > 0) args(0) else "src/main/smithy/order-service.smithy"
-    val text = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8)
+    val path  = if (args.length > 0) args(0) else "src/main/smithy/order-service.smithy"
+    val text  = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8)
     val model = SmithyModel.parse(text) match {
       case Right(parsed) => parsed
       case Left(error)   => throw new IllegalArgumentException(error.formatMessage)
