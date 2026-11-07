@@ -83,7 +83,7 @@ The `expectedType` string is derived from the schema's primitive type name. When
 
 `InvalidValue` is also what a failing wrapper type produces: if a newtype's constructor throws while wrapping a successfully-decoded inner value, the thrown exception becomes the `cause`.
 
-`InvalidValue#message` redacts the offending value — printing `<secret>` in its place and dropping the `cause` text — when the key's path looks like it names a secret, using the same name-based check [`ProvenanceMap#dump`](./config-source.md) applies. A field named `db.password` that fails to parse reports the type mismatch without ever printing what was typed:
+`InvalidValue#message` redacts the offending value — printing `<secret>` in its place and dropping the `cause` text — when the key's path looks like it names a secret. It uses the same name-based check as `ProvenanceMap#dump`, so the same limits apply: see [Redaction is name-based only](./config-source.md#dumping-configuration). A key named `password` that fails to parse reports the type mismatch without ever printing what was typed:
 
 ```scala mdoc:silent:reset
 import zio.blocks.config._
@@ -100,10 +100,13 @@ object Db {
 Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults")).left.map(_.head.message)
 ```
 
-The error's fields still carry the raw value — `.message` is what redacts, not the constructor:
+Redaction applies to the rendered message only, which is also what `toString` prints. The `value` field of the error still holds the raw string, so read it only where printing it is safe:
 
 ```scala mdoc
-Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults"))
+Config.load[Db](ConfigSource.fromMap(Map("password" -> "not-a-number"), "defaults")).left.map(_.head match {
+  case e: ConfigError.InvalidValue => e.value
+  case other                       => other.message
+})
 ```
 
 ### ConfigError.ParseError
