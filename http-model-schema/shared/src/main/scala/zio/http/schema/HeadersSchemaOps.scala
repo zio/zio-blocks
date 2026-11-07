@@ -39,6 +39,7 @@ import zio.http.{Header, Headers}
  *
  * {{{
  * import zio.http.{Header, Headers}
+ * import zio.http.schema._
  *
  * val headers = Headers(
  *   "X-Request-Id"   -> "8812",
