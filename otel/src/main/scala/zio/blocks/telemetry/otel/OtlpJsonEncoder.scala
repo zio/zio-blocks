@@ -19,16 +19,18 @@ package zio.blocks.telemetry.otel
 import zio.blocks.telemetry._
 
 /**
- * A named metric descriptor pairing metric metadata with its data.
+ * A metric's data with the name, description and unit that [[OtlpJsonEncoder]]
+ * writes for it. `MetricData` carries no name, so pair each instrument's
+ * `collect()` result with the instrument's name yourself.
  *
  * @param name
- *   the metric name
+ *   the metric name, such as `http.server.duration`
  * @param description
- *   human-readable description
+ *   what the metric measures, for people reading it in a backend
  * @param unit
- *   the unit of measurement
+ *   the unit of the values, such as `ms`, `By` or `1`
  * @param data
- *   the aggregated metric data
+ *   the points, as an instrument's `collect()` or a `MetricReader` returns them
  */
 final case class NamedMetric(
   name: String,
@@ -38,23 +40,86 @@ final case class NamedMetric(
 )
 
 /**
- * Minimal OTLP JSON encoder for traces, metrics, and logs.
+ * Encodes spans, log records and metrics as OTLP/HTTP JSON request bodies,
+ * ready to `POST` to a collector's `/v1/traces`, `/v1/logs` or `/v1/metrics`
+ * with `Content-Type: application/json`. Use it with an [[HttpSender]] to
+ * export telemetry from your own loop; the module's own exporters are internal.
+ * It uses no JSON library.
  *
- * Encodes telemetry data into OTLP JSON format (protobuf JSON mapping) without
- * external JSON library dependencies. Uses StringBuilder internally.
+ * Each call writes one resource and one instrumentation scope, the ones you
+ * pass, for all its items: the `resource` and `instrumentationScope` that a
+ * `SpanData` or a `LogRecord` carries are not written. The output follows the
+ * protobuf JSON mapping: trace and span ids as lowercase hex, 64-bit integers
+ * (timestamps, counts, `intValue` attributes) as quoted strings, enums as
+ * numbers and field names in camelCase. Control characters and every UTF-16
+ * surrogate are written as Unicode escapes, so an emoji becomes an escaped
+ * pair. Attributes are written in order, a repeated key as many times as it
+ * appears.
  *
- * Encoding rules follow the protobuf JSON mapping:
- *   - bytes (traceId, spanId) → lowercase hex strings
- *   - int64/uint64 → quoted string numbers
- *   - enums → integer numbers
- *   - field names → camelCase
+ * A `Double` that is `NaN` or infinite, in a gauge or histogram point or in a
+ * `Double` attribute, is written as a bare `NaN` or `Infinity`, which is not
+ * valid JSON, a known bug.
+ *
+ * {{{
+ * import zio.blocks.telemetry._
+ * import java.nio.charset.StandardCharsets
+ *
+ * val resource = Resource.create(Attributes.of(Attributes.ServiceName, "checkout"))
+ * val bytes    = OtlpJsonEncoder.encodeTraces(Nil, resource, InstrumentationScope("checkout.http", Some("1.4.0")))
+ * new String(bytes, StandardCharsets.UTF_8)
+ * // {"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"checkout"}}]},
+ * //   "scopeSpans":[{"scope":{"name":"checkout.http","version":"1.4.0"},"spans":[]}]}]}
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/otel/custom-exporter/ Building an Exporter]]
  */
 object OtlpJsonEncoder {
 
-  // Re-export for test convenience
+  /**
+   * The top-level [[zio.blocks.telemetry.otel.NamedMetric]], under this object
+   * too.
+   */
   type NamedMetric = zio.blocks.telemetry.otel.NamedMetric
+
+  /**
+   * The companion of the top-level [[zio.blocks.telemetry.otel.NamedMetric]],
+   * under this object too.
+   */
   val NamedMetric: zio.blocks.telemetry.otel.NamedMetric.type = zio.blocks.telemetry.otel.NamedMetric
 
+  /**
+   * Encodes `spans` as an OTLP `ExportTraceServiceRequest` under `resource` and
+   * `scope`, as UTF-8 bytes. Each span keeps its trace and span ids, its parent
+   * span id (`0000000000000000` for a root span), name, kind, start and end
+   * times, attributes, events, links and status.
+   *
+   * {{{
+   * import zio.blocks.telemetry._
+   * import java.nio.charset.StandardCharsets
+   * import scala.collection.mutable.ListBuffer
+   *
+   * val ended = ListBuffer.empty[SpanData]
+   * val tracer = TracerProvider.builder
+   *   .addSpanProcessor(new SpanProcessor {
+   *     def onStart(span: Span): Unit   = ()
+   *     def onEnd(span: SpanData): Unit = ended += span
+   *     def shutdown(): Unit            = ()
+   *     def forceFlush(): Unit          = ()
+   *   })
+   *   .build()
+   *   .get("checkout")
+   * tracer.span("GET /cart", SpanKind.Server) { span =>
+   *   span.setAttribute("http.route", "/cart")
+   *   span.setStatus(SpanStatus.Ok)
+   * }
+   *
+   * val bytes = OtlpJsonEncoder.encodeTraces(ended.toList, Resource.empty, InstrumentationScope("checkout"))
+   * val json  = new String(bytes, StandardCharsets.UTF_8)
+   * json.substring(json.indexOf("\"attributes\":[{"))
+   * // "attributes":[{"key":"http.route","value":{"stringValue":"/cart"}}],"events":[],"links":[],"status":{"code":1}}]}]}]}
+   * }}}
+   */
   def encodeTraces(spans: Seq[SpanData], resource: Resource, scope: InstrumentationScope): Array[Byte] = {
     val sb = new StringBuilder(256)
     sb.append("{\"resourceSpans\":[{")
@@ -67,6 +132,33 @@ object OtlpJsonEncoder {
     sb.toString.getBytes("UTF-8")
   }
 
+  /**
+   * Encodes `metrics` as an OTLP `ExportMetricsServiceRequest` under `resource`
+   * and `scope`, as UTF-8 bytes. A `SumData` becomes a `sum` with integer
+   * points (`asInt`), a `GaugeData` a `gauge` with `asDouble` points, and a
+   * `HistogramData` a `histogram` with explicit bucket bounds. The instruments
+   * set the start time of sum and histogram points to `0`, so their
+   * `startTimeUnixNano` is `"0"`.
+   *
+   * Sums and histograms are written without an `aggregationTemporality`, and
+   * every sum is marked monotonic, the sums of an `UpDownCounter` included, a
+   * known bug. A histogram point that holds no value yet (a series opened by
+   * `Histogram#bind`) is written with a `min` of `Double.MaxValue` and a `max`
+   * of `Double.MinValue`.
+   *
+   * {{{
+   * import zio.blocks.telemetry._
+   * import java.nio.charset.StandardCharsets
+   *
+   * val orders = MeterProvider.builder.build().get("checkout").counterBuilder("orders.placed").build()
+   * orders.add(3L)
+   *
+   * val named = NamedMetric("orders.placed", "Orders placed", "1", orders.collect())
+   * val bytes = OtlpJsonEncoder.encodeMetrics(Seq(named), Resource.empty, InstrumentationScope("checkout"))
+   * val json  = new String(bytes, StandardCharsets.UTF_8)
+   * json.substring(json.indexOf("\"asInt\"")) // "asInt":"3"}],"isMonotonic":true}}]}]}]}
+   * }}}
+   */
   def encodeMetrics(
     metrics: Seq[NamedMetric],
     resource: Resource,
@@ -83,6 +175,31 @@ object OtlpJsonEncoder {
     sb.toString.getBytes("UTF-8")
   }
 
+  /**
+   * Encodes `logs` as an OTLP `ExportLogsServiceRequest` under `resource` and
+   * `scope`, as UTF-8 bytes. The body is always a `stringValue`; a record's
+   * throwable becomes an `exception.stacktrace` attribute holding its stack
+   * trace; a record without a trace or span id gets an empty `traceId` or
+   * `spanId`.
+   *
+   * {{{
+   * import zio.blocks.telemetry._
+   * import java.nio.charset.StandardCharsets
+   *
+   * val record = LogRecord.builder
+   *   .setTimestamp(1755990000000000000L)
+   *   .setObservedTimestamp(1755990000000000000L)
+   *   .setSeverity(Severity.Warn)
+   *   .setBody("payment retried")
+   *   .build
+   * val bytes = OtlpJsonEncoder.encodeLogs(Seq(record), Resource.empty, InstrumentationScope("checkout"))
+   * new String(bytes, StandardCharsets.UTF_8)
+   * // {"resourceLogs":[{"resource":{"attributes":[]},"scopeLogs":[{"scope":{"name":"checkout"},"logRecords":[
+   * //   {"timeUnixNano":"1755990000000000000","observedTimeUnixNano":"1755990000000000000","severityNumber":13,
+   * //   "severityText":"WARN","body":{"stringValue":"payment retried"},"attributes":[],"traceId":"","spanId":"",
+   * //   "flags":0}]}]}]}
+   * }}}
+   */
   def encodeLogs(logs: Seq[LogRecord], resource: Resource, scope: InstrumentationScope): Array[Byte] = {
     val sb = new StringBuilder(256)
     sb.append("{\"resourceLogs\":[{")

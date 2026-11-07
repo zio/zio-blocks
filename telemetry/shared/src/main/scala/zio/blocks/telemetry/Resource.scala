@@ -17,41 +17,51 @@
 package zio.blocks.telemetry
 
 /**
- * Describes the entity producing telemetry (service, container, host, etc.).
+ * Describes what produces the telemetry, the service, host or container, as
+ * [[Attributes]] such as `service.name` and `service.version`. Give one to a
+ * `LoggerProvider` or `TracerProvider` builder, and every log record and span
+ * they create carries it, so a backend can group signals by service.
  *
- * Resources are immutable wrappers around Attributes that identify the
- * application/service generating the telemetry data. A Resource typically
- * includes semantic attributes like service.name, service.version, and
- * deployment environment.
+ * Build it with `Resource.create` and an attributes builder. `merge` keeps both
+ * values of a key that both resources hold, and the exporters write both, so
+ * `Resource.default.merge(...)` with a `service.name` exports `service.name`
+ * twice, `unknown_service` first, a known bug. `zio.blocks.scope` also defines
+ * a `Resource`, so a file that imports both packages with wildcards gets
+ * "reference to Resource is ambiguous", a known bug: import one of them by
+ * name.
+ *
+ * {{{
+ * val resource = Resource.create(
+ *   Attributes.builder
+ *     .put(Attributes.ServiceName, "checkout")
+ *     .put(Attributes.ServiceVersion, "1.4.0")
+ *     .build
+ * )
+ *
+ * resource.attributes.get(Attributes.ServiceName) // Some(checkout)
+ * resource.attributes.size // 2
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/common/resource/ Resource]]
  */
 final case class Resource(attributes: Attributes)
 
+/** Creates [[Resource]]s and holds the standard ones. */
 object Resource {
 
-  /**
-   * An empty Resource with no attributes.
-   */
+  /** The resource with no attributes. */
   val empty: Resource = Resource(Attributes.empty)
 
-  /**
-   * Creates a Resource from attributes.
-   *
-   * @param attrs
-   *   The attributes to wrap
-   * @return
-   *   A Resource containing the given attributes
-   */
+  /** Returns a resource with these attributes. */
   def create(attrs: Attributes): Resource =
     Resource(attrs)
 
   /**
-   * The default Resource with auto-populated standard attributes.
-   *
-   * Includes:
-   *   - service.name = "unknown_service"
-   *   - telemetry.sdk.name = "zio-blocks"
-   *   - telemetry.sdk.language = "scala"
-   *   - telemetry.sdk.version = BuildInfo.version
+   * The resource that `LoggerProvider.builder`, `TracerProvider.builder` and
+   * `MeterProvider.builder` start from: `service.name` is `"unknown_service"`,
+   * `telemetry.sdk.name` is `"zio-blocks"`, `telemetry.sdk.language` is
+   * `"scala"` and `telemetry.sdk.version` is the library version.
    */
   val default: Resource = {
     val attrs = Attributes.builder
@@ -63,18 +73,14 @@ object Resource {
     Resource(attrs)
   }
 
-  /**
-   * Extension method to merge this Resource with another.
-   *
-   * Attributes from the other Resource take precedence on key conflicts,
-   * following the semantics of Attributes.++.
-   *
-   * @param other
-   *   The other Resource to merge
-   * @return
-   *   A new Resource with merged attributes
-   */
+  /** Adds `merge` to [[Resource]]. */
   implicit class ResourceOps(val self: Resource) {
+
+    /**
+     * Returns a resource with the attributes of `self` followed by those of
+     * `other`, with `Attributes#++`: a key in both stays twice. Lookups return
+     * the value from `other`, and the exporters write both entries.
+     */
     def merge(other: Resource): Resource =
       Resource(self.attributes ++ other.attributes)
   }

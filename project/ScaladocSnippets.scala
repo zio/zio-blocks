@@ -87,6 +87,7 @@ object ScaladocSnippets {
   val packageOverrides: Map[String, String] = Map(
     "http-model"         -> "zio.http",
     "http-model-schema"  -> "zio.http.schema",
+    "otel"               -> "zio.blocks.telemetry.otel",
     "schema-messagepack" -> "zio.blocks.schema.msgpack"
   )
 

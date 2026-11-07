@@ -18,6 +18,11 @@ package zio.blocks.telemetry.otel
 
 import zio.blocks.telemetry._
 
+/**
+ * A `SpanProcessor` that queues ended spans and posts them as OTLP JSON to
+ * `<endpoint>/v1/traces`, flushing periodically on the `PlatformExecutor`'s
+ * thread.
+ */
 private[otel] final class OtlpJsonTraceExporter(
   config: ExporterConfig,
   resource: Resource,
