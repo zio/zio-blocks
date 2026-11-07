@@ -23,6 +23,14 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Queues items and passes them to `exportFn` in batches of at most
+ * `maxBatchSize`: every `flushIntervalMillis` on `executor`, and on the
+ * caller's thread in `forceFlush` and `shutdown`. A full queue drops its oldest
+ * item; a retryable failure, or an exception, is retried up to `maxRetries`
+ * times after a delay that doubles from `retryBaseMillis` (at most 30 s), slept
+ * on the exporting thread, and the batch is dropped after that.
+ */
 private[otel] final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
   executor: ScheduledExecutorService,

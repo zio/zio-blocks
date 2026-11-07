@@ -19,10 +19,36 @@ package zio.blocks.telemetry
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Global metrics entry point. Works without setup. Call `install` to wire
- * production exporters.
+ * The global meter. `metric.counter("http.requests")` and the other factories
+ * create an instrument on the meter `default` with no set-up, and
+ * `metric.reader` reads back what every registered instrument recorded.
  *
- * App code uses this directly. Library code should accept `Meter` via DI.
+ * A known bug: each factory call creates and registers a new instrument, even
+ * for a name it has seen before, so two `metric.counter("http.requests")` calls
+ * give two separate series. Create each instrument once and keep it in a `val`.
+ *
+ * `metric.install` replaces the [[MeterProvider]], for instance to set the
+ * [[Resource]] that names the service. Nothing exports metrics by itself: an
+ * exporter reads `metric.reader` on its own schedule. Application code calls
+ * `metric` directly; library code should take a [[Meter]] as a parameter
+ * instead.
+ *
+ * {{{
+ * val requests = metric.counter("http.requests")
+ * requests.add(1L, "method" -> "GET", "status" -> "200")
+ * requests.add(1L, "method" -> "GET", "status" -> "200")
+ * requests.add(1L, "method" -> "POST", "status" -> "201")
+ *
+ * val method = AttributeKey.string("method")
+ * val totals = requests.collect() match {
+ *   case MetricData.SumData(points) => points.map(p => p.attributes.get(method) -> p.value).toMap
+ *   case _                          => Map.empty[Option[String], Long]
+ * }
+ * totals(Some("GET")) // 2
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/telemetry/metrics/ Metrics]]
  */
 object metric {
   private val defaultProvider: MeterProvider = MeterProvider.builder.build()
@@ -31,34 +57,79 @@ object metric {
 
   private def provider: MeterProvider = ref.get()
 
-  /** Returns a named Meter for a specific instrumentation scope. */
+  /**
+   * Returns the [[Meter]] of the installed provider for the scope `name`;
+   * asking again for the same name returns the same meter. A meter taken before
+   * `metric.install` stays with the old provider.
+   */
   def get(name: String): Meter = provider.get(name)
 
-  /** Creates a Counter on the default meter. */
+  /**
+   * Creates a [[Counter]] named `name`, with no description or unit, on the
+   * meter `default` of the installed provider, and registers it so that
+   * `metric.reader` collects it.
+   *
+   * A known bug: every call creates and registers a new counter, even for the
+   * same name, so call it once and keep the counter. Use
+   * `metric.get(...).counterBuilder` to set a description or unit.
+   */
   def counter(name: String): Counter =
     provider.get("default").counterBuilder(name).build()
 
-  /** Creates an UpDownCounter on the default meter. */
+  /**
+   * Creates an [[UpDownCounter]] named `name` on the meter `default` and
+   * registers it, as `metric.counter` does; each call creates a new one.
+   */
   def upDownCounter(name: String): UpDownCounter =
     provider.get("default").upDownCounterBuilder(name).build()
 
-  /** Creates a Histogram on the default meter. */
+  /**
+   * Creates a [[Histogram]] named `name`, with the default bucket boundaries,
+   * on the meter `default` and registers it, as `metric.counter` does; each
+   * call creates a new one.
+   */
   def histogram(name: String): Histogram =
     provider.get("default").histogramBuilder(name).build()
 
-  /** Creates a Gauge on the default meter. */
+  /**
+   * Creates a [[Gauge]] named `name` on the meter `default` and registers it,
+   * as `metric.counter` does; each call creates a new one.
+   */
   def gauge(name: String): Gauge =
     provider.get("default").gaugeBuilder(name).build()
 
-  /** Replaces the default MeterProvider with a user-configured one. */
+  /**
+   * Replaces the provider behind `metric` with `provider`, for every thread.
+   * Instruments and meters created before keep recording into the old provider,
+   * which `metric.reader` no longer reads, so install before creating
+   * instruments. The old provider is not shut down.
+   *
+   * {{{
+   * val provider = MeterProvider.builder
+   *   .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
+   *   .build()
+   * metric.install(provider)
+   *
+   * metric.counter("orders.placed").add(1L)
+   *
+   * metric.reader.eq(provider.reader) // true
+   * metric.reader.collectAllMetrics().size // 1
+   * }}}
+   */
   def install(provider: MeterProvider): Unit = ref.set(provider)
 
   /**
-   * Remove the installed MeterProvider. After this, metrics use the default
-   * provider.
+   * Installs a new, empty provider with `Resource.default`. Instruments created
+   * before keep recording, but `metric.reader` no longer returns their data,
+   * and no call brings the first default provider back. The old provider is not
+   * shut down.
    */
   def removeAll(): Unit = ref.set(MeterProvider.builder.build())
 
-  /** Returns the MetricReader for the current provider. */
+  /**
+   * Returns the [[MetricReader]] of the installed provider:
+   * `collectAllMetrics()` returns one [[MetricData]] per instrument registered
+   * on any of its meters.
+   */
   def reader: MetricReader = provider.reader
 }

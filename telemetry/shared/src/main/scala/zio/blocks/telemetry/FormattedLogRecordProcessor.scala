@@ -19,8 +19,8 @@ package zio.blocks.telemetry
 import scala.util.control.NonFatal
 
 /**
- * Processor that formats LogRecords using a LogFormatter and writes them via a
- * LogWriter. Used by log.writer() to add formatted outputs.
+ * Formats each record with a [[LogFormatter]] and writes the text with a
+ * [[LogWriter]]; `log.writer` adds one.
  */
 private[telemetry] final class FormattedLogRecordProcessor(
   formatter: LogFormatter,
