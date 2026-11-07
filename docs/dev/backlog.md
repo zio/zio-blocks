@@ -677,13 +677,277 @@ Skill update: "Lessons from typeid" in the `scaladoc-rollout` skill's `reference
 
 Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%.
 
-## 13e. Scaladoc: http-model module (in progress)
+## 13e. Scaladoc: http-model module
 
-Session `http-model-scaladoc` (Opus), started 2026-11-04 on `main` `5eb809c8f`. Phase 0: 57 / 1113 (5%); `Header.scala` alone has 648 items (2 documented), the `Status` scala-2/scala-3 pair 66 + 67 (0); `--drift` empty; no `{{{` blocks; http-model's main sources are byte-identical to `v0.0.56`, so probes run against the release; it compiles on 2.13.18 (JVM main and test, JS main), only its tests are missing from `testJVMScala2Command`/`testJSScala2Command` (out of scope). Milad's Phase 1 decisions: one PR (tooling plus all 1,113 members), not waves; tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie`, `ServerSentEvent`, the rest tier 2; the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with a unit test; the AGENTS.md edit approved (scaladoc-check bullet adds http-model and points new modules at `packageOverrides`; downstream line `http-model*` → `scaladoc-check`, `http-model-schema*`, `endpoint*`, `datastar*`, `htmx*`, `docs`).
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 http-model Scaladoc). Session `http-model-scaladoc` (Opus controller; an Opus subagent for tier 1, the existing-comment fact-check and the bug triage; Opus reviewers; Sonnet for tier 2 and the re-review). Milad's Phase 1 decisions:
+- one PR (tooling plus all 1,113 members), not waves;
+- tier 1 = `Request`, `Response`, `Body`, `URL`, `Path`, `QueryParams`, `Headers`, `Header` (with `Header.Codec`), `Method`, `Status`, `Cookie` and `ServerSentEvent`; everything else is tier 2;
+- the checker override is a `packageOverrides` table in `project/ScaladocSnippets.scala` (`"http-model" -> "zio.http"`), used by `moduleImport` and `objectName`, with unit tests;
+- the AGENTS.md edit is approved.
 
-## 13f. Scaladoc: sql and sql-zio modules (in progress)
+Phase 0 ran on `main` `5eb809c8f`. The module's main sources were byte-identical to `v0.0.56`, so every probe ran against the release.
 
-Session `sql-scaladoc` (Opus), started 2026-11-04 on `main` `0c0021d61`. Phase 0: sql 127 / 405 (`sql` 119/369, `sql.query` 8/36), sql-zio 7 / 14; `--drift` empty; sql's `js` has no main sources; 13 `{{{` blocks in 9 files, none compiles standalone; main differs from `v0.0.56` only inside a `Frag.scala` comment; 24 known sql entries in `library-issues.md`; 23 reference pages. Milad's Phase 1 decisions: a new generic Scala-3-only checker project, `scaladoc-check-scala3` (3.9.0 and 3.10.0; module list `scaladocCheckedScala3Modules` = `sql.jvm`, `sql-zio`; settings shared with `scaladoc-check` through one function; CI runs it in `testJVMScala3Command`; `projection`, `htmx` and `datastar` can join later by one list entry); `ScaladocSnippets.moduleImport` emits `import zio.blocks.sql.{zio => _, _}` for `sql`, because with sql-zio on the classpath a plain `zio.blocks.sql._` breaks a later `import zio.blocks.schema._` (sql-zio keeps the default); one PR; tier 1 = `Frag` and the `sql"..."` interpolator, `Transactor`, `JdbcTransactor`, `DbCon`, `DbTx`, `DbCodec`, `Table`, `Repo`, `SqlQuery`, `Rel`, `TransactorZIO`, the rest tier 2 or 3; the AGENTS.md edit approved (downstream rows for `sql*` and `sql-zio`, one paragraph in the Scaladoc bullet). `JoinsDumpExample` is documented briefly as a known bug. Spec and plan committed (`25d37240e`).
+| Item | Result |
+|---|---|
+| PR | #1943 (one PR), merged 2026-11-05 as `4e916c642`. CI green: 23 passed, 0 failed (10 skipped bot jobs), after one rerun of flakes on each head: 6 jobs on the first head (GitHub release downloads of JDK 17 and sbt 2.0.12 timed out with HTTP 504; Landing Lighthouse 0.94), 1 on the merge head (`Docker start fail`). |
+| Coverage | 57 / 1113 (5%) → 1113 / 1113. `Header.scala` 2 → 648; the `Status` scala-2/scala-3 pair 0 → 133 (identical text). `--drift` empty. |
+| Examples | 65 compiled `{{{` blocks (0 before), in the 12 tier-1 types and their key methods; outputs from real runs on 2.13.18 and 3.9.0 against 0.0.56; no `scala-2-only`, `scala-3-only` or `no-check` markers needed |
+| Tooling | `packageOverrides` and `modulePackage` in `ScaladocSnippets`, so existing modules keep their wrapper names; 2 extractor tests; `http-model.jvm` in `scaladocCheckedModules`; `build.sbt` comment; style guide (module list, tier-1 list, `@throws` needs the full name); 2 AGENTS.md lines (Milad approved) |
+| Existing comments | 57 checked: 1 false, 12 imprecise (13, 23%), all fixed. Example: `Method`'s "unique ordinal", but `ANY` and every `Methods` value have -1. |
+| Parallel writing | Task 2 Opus: tier 1 + their files + fact-check, 38 min. Task 3b Sonnet: helper types, 92 members, 3 min. Task 3a Sonnet: typed headers, 635 members, 6 min, written by script. Only Task 2 ran sbt. |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A (headers, cookies): 4 Important + 5 Minor. B (everything else and tooling): 3 Important + 13 Minor. A separate Opus bug-writer turned 9 Sonnet suspects into entries and 6 comment corrections. All applied. The Sonnet re-review found 2 Important + 3 Minor (stray ` / ` and lost `"` from 3a's scripted fix round), applied by the controller. |
+| Bugs | 16 new entries: 12 Library bugs and 3 Usability traps (`library-issues.md`), 1 Documentation error covering 11 statements on `model.md`, `headers.md` and `server-sent-event.md` (`docs-issues.md`). Worst: `URL.parse` searches the whole string for `://`, so `/login?next=https://...` loses `next`. Also: lone-`"` throws in 6 header parsers, which escape through `Headers#get`; locale-dependent case conversion (a Turkish locale breaks `charset=iso-8859-1`, `BASIC` and `X-Frame-Options: SAMEORIGIN`). |
+| Time | about 1 h 50 min from survey to a pushed, gate-green branch: Phase 0+1 20 min, Task 2 38 min (3a/3b and the bug-writer in parallel), parallel review 21 min, fix rounds 2 + 12 min, re-review 7 min, controller fixes + merge + final gates 6 min. Auto mode blocked `gh pr create` twice; it went through once Milad told the session to run it itself. `sql-scaladoc` (#1942) merged first and touched the same tooling lines: three conflicts (AGENTS.md, `scaladoc-style.md`, `ScaladocSnippets.scala`) resolved by keeping both sides (`packageOverrides` plus `sql`'s import case), gates re-run (`scaladoc-check` x3, `scaladoc-check-scala3` x2, lint x2). CI about 50 min per head including the reruns. |
+
+Skill update: "Lessons from http-model" in `references/lessons.md`:
+- `sbt --client` returned exit 0 on a failed `doc` run, so read gates from the logs;
+- `@throws` needs the full name for the 2.13 doc tool;
+- `packageOverrides` for odd packages;
+- a parallel split by file with one sbt owner;
+- Sonnet suspects go to an Opus bug-writer;
+- `/*` inside Scaladoc opens a nested comment.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%.
+
+## 13f. Scaladoc: sql and sql-zio modules
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-04 sql Scaladoc). Session `sql-scaladoc` (Opus controller; two Opus implementers in parallel on disjoint halves of the module in one worktree, only one running sbt; two fresh Opus reviewers; Sonnet re-reviews). Milad's Phase 1 decisions: one PR; a generic Scala-3-only checker `scaladoc-check-scala3` (3.9 + 3.10; `scaladocCheckedScala3Modules` = `sql.jvm`, `sql-zio`; settings shared with `scaladoc-check` through `scaladocCheckSettings`); `sql` examples get the wrapper import `zio.blocks.sql.{zio => _, _}` (the `sql-zio` package-shadowing bug); tier 1 = `Frag` + `sql"..."`, `Transactor`, `JdbcTransactor`, `DbCon`, `DbTx`, `DbCodec`, `Table`, `Repo`, `SqlQuery`, `Rel`, `TransactorZIO`; AGENTS.md diff approved. Phase 0 on `main` `0c0021d61`: `main` differs from `v0.0.56` only in two comment lines of `Frag.scala`, so every probe ran against 0.0.56; `sql/js` has no main sources.
+
+| Item | Result |
+|---|---|
+| PR | #1942 (one PR), merged 2026-11-05 as `fb2996da4`; CI green: 23 pass, 10 skipping, after Landing (Lighthouse performance, min 0.95) failed at 0.94 and 0.93 and passed on a second rerun Milad asked for; the PR changes no website file |
+| Coverage | sql 127 / 405 → 405 / 405 (`sql` 119/369, `sql.query` 8/36 before); sql-zio 7 / 14 → 14 / 14; `--drift` empty |
+| Examples | 13 existing `{{{` blocks (none compiled on its own) rewritten; 80 compiled blocks, no markers, no `// no-check`; shop domain on SQLite; outputs and rendered SQL from real runs against 0.0.56; PostgreSQL claims probed on `postgres:16` in Docker |
+| Tooling | `scaladoc-check-scala3` + shared settings function, in `testJVMScala3Command` and the root aggregate; `moduleImport` case for `sql`; the extractor reads `\$` as `$` (as Scaladoc renders it); 2 extractor tests; style guide and AGENTS.md (approved) |
+| Existing comments | 163 checked (incl. private): 11 false and 41 imprecise (52, 32%), all fixed (Task 1 files 42%, Task 2 files 26%); typical: version notes, invented generality (`PgCodec`), "selected automatically" for givens never picked, rollback claims contradicted by a filed bug |
+| Review (2 Opus, fresh, in parallel on disjoint halves) | 11 Important + 18 Minor; 28 applied, 1 deferred (R11: `scaladoc-check-scala3` in the streams*/scope*/schema* downstream rows of AGENTS.md, beyond the approved diff; follow-up); Sonnet re-reviews of both fix diffs: APPROVE, 0 findings |
+| Sonnet tier 2/3 | not needed: the two Opus implementers reached 405/405 and 14/14 themselves |
+| Bugs | 13 entries: 6 Library bugs + 1 Usability trap (`library-issues.md`), 1 AMEND (schema `NameMapper.SnakeCase` → also `SqlNameMapper.SnakeCase`), 7 reference-page statements in 5 Documentation-error entries (`docs-issues.md`); pasted at `backlog-status` 82bc5b689 and 9167b972e |
+| Time | about 2 h 30 min active from survey to PR (tooling 20 min, Tasks 1 and 2 in parallel 39 / 35 min, parallel reviews 22 / 20 min, fix rounds 10 / 8 min, re-reviews 3–5 min, final gates 10 min); the machine slept ~10 h mid-run; plus about 40 min of CI |
+
+Skill update: "Lessons from sql and sql-zio" in the `scaladoc-rollout` skill's `references/lessons.md` (the Scala-3-only checker; package shadowing on a shared classpath; `$`/`${expr}` warn in comments, write `\$`, extractor unescapes; two implementers in one worktree with one sbt owner; DB probing: SQLite in-memory per connection, Docker Postgres, ZIO effects deadlock in wrapper initializers; machine suspend), and `references/pr0-tooling.md` (Scala-versions and classpath bullets).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%.
+
+## 13g. Scaladoc: schema-avro, schema-bson, schema-csv and schema-thrift
+
+**Merged** 2026-11-05 as `bc5d4fa5a` (#1949).
+
+Session `schema-formats-scaladoc` (Opus), started 2026-11-05 on `main` `ff63582e5`. Phase 0: 44 / 233 (avro 0/53, bson 17/110, csv 20/22, thrift 7/48); `--drift` empty; one copy per file (csv is `CrossType.Pure`); no `{{{` blocks; cross versions match `scaladoc-check`; the third-party jars (avro, bson, libthrift) reach the checker through `dependsOn`, so the build change is four list entries; 11 known entries. Milad's Phase 1 decisions: one PR for all four modules; tier 1 (13 types) = `AvroFormat`, `AvroCodec`, `BsonSchemaCodec` (with `Config`), `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `CsvFormat`, `CsvCodec`, `CsvConfig`, `CsvError`, `ThriftFormat`, `ThriftCodec`; schema-csv JS: only the `schema-csvJS/doc` gate (3.9.0 and 2.13.18), claims probed on the JVM; sample domains: Avro sensor readings, BSON orders, CSV a readings export, Thrift an event log.
+
+- **Coverage:** 44/233 → 233/233 (avro 0/53 → 53/53, bson 17/110 → 110/110, csv 20/22 → 22/22, thrift 7/48 → 48/48). `--drift` empty before and after (one copy of every file). 27 compiled examples (avro 7, thrift 6, bson 7, csv 7) on 2.13.18, 3.9.0 and 3.10.0. Tooling: four `scaladocCheckedModules` entries, no override (packages follow the folder); `AGENTS.md` bullet + downstream line; style-guide module list.
+- **Decisions (Milad):** 13 tier-1 types (`AvroFormat`, `AvroCodec`, `BsonSchemaCodec`+`Config`, `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `CsvFormat`, `CsvCodec`, `CsvConfig`, `CsvError`, `ThriftFormat`, `ThriftCodec`); schema-csv JS = doc build gate only; one PR; sample domain per format (Avro sensor readings, BSON orders, CSV a readings export, Thrift an event log).
+- **Process:** two Opus implementers in parallel on disjoint modules in one worktree (A avro+thrift, the only sbt runner; B bson+csv, scala-cli only, handed back READY_FOR_GATES); two fresh Opus fact-checkers in parallel (one per half, scala-cli only, so three jobs fit in ~7 GB); authors resumed for fix rounds; Sonnet scoped re-reviews. A login/rate-limit outage (~1 h 50 min) killed both implementers mid-write; the controller committed their partial work, merged main, and resumed them with `SendMessage` with no lost work.
+- **Inherited comments:** 20 of 57 wrong or imprecise (35%): bson 6/17, csv 10/22, avro+thrift 4/18 (2 of 9 Scaladoc, 2 of 9 line comments). Typical: config flags documented as working that are never read (`useNativeObjectId`, `CsvConfig.nullValue`, `lineTerminator` on read, `hasHeader` in `writeAll`), wrong counts ("27 primitive types", really 30), `CsvError#column` described as a cell number (it is a character offset in the line), a "fewer allocations" performance claim.
+- **Review:** 33 findings (10 Important, 23 Minor) over two reviews and two re-reviews; 30 applied, 1 rejected with evidence (cross-module `[[zio.blocks.schema...]]` links: the reviewer's `scala-cli doc` on 2.13 warned, the sbt 2.13 `doc` gate did not), 1 optional skipped, 1 info only. Reviewer replacement text was half-right once (M-3: `DateTimeParseException`/`ZoneRulesException`, subclasses of the suggested `DateTimeException`) and narrowed once by the author (I-4: a wrapper of a record really is a `struct`). One boundary claim (libthrift's "Message size exceeds limit") passed the first review and fell to the re-review's off-by-one probe.
+- **Bugs:** 16 new entries (11 library: 6 Thrift, 1 Avro+Thrift `ByteBuffer` slice, 2 BSON, 2 CSV; 1 Test and CI: missing `&&` in `AvroFormatSpec`; 4 docs: `avro.md`, `thrift.md`, `bson.md`, `csv.md`) + 4 AMENDs. Ruling: Avro cross-type decoding is a limitation of Avro binary (no type tags), not a bug; the Thrift equivalent (field type byte ignored) is a codec bug.
+- **Cost:** about 2 h 55 min active (survey to PR, outage excluded): survey + decisions + spec/plan 32 min; implementers ~1 h 15 min active in parallel; parallel reviews ~20 min each; fix rounds 5-8 min; re-reviews ~12 min; gates incl. a post-merge rebuild ~25 min.
+- **Lessons:** (1) codec modules have the highest inherited-error rate so far (bson/csv 41%): probe every config flag's effect, not only its default; (2) gate the sbt 2.13 `doc`, not `scala-cli doc`, for link warnings; (3) a session killed mid-sbt can leave `project/target` truncated (`ClassFormatError: Truncated class file`): `rm -rf .bsp project/target project/project/target` for that worktree only, never `pkill -f sbt` with other sessions running.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%.
+
+## 13h. Scaladoc: schema-toon, schema-xml, schema-yaml
+
+**Merged** 2026-11-06 as `04b56bc92` (#1948).
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 schema-text-formats Scaladoc). Session `schema-text-formats-scaladoc` (Opus controller; three Opus writers in parallel, one per module, for tier 1 and the existing-comment fact-check; Sonnet for tier 2/3 gaps; three fresh Opus reviewers, one per module; Sonnet scoped re-reviews). Milad's Phase 1 decisions: one PR; tier 1 = toon `ToonFormat`, `ToonCodec`, `ToonCodecDeriver`, `ReaderConfig`, `WriterConfig`; xml `Xml`, `XmlCodec`, `XmlFormat`, `syntax`, `XmlSelection`, `XmlPatch`; yaml `Yaml`, `YamlCodec`, `YamlFormat`, `YamlOptions`, the `yaml"..."` interpolator; Scala.js = `JS/doc` gate plus Scala.js probes for number-format claims; AGENTS.md diff and style-guide sentence approved.
+
+| Item | Result |
+|---|---|
+| PR | #1948 (one PR); CI green on the first run (23 pass, 10 skipping); awaiting Milad's merge |
+| Coverage | 184 / 542 → 542 / 542 (toon 37/202, xml 120/223, yaml 27/117 → 100% each); `--drift` empty (xml `syntax.scala` and yaml `package.scala` copies identical) |
+| Examples | 94 compiled `{{{` blocks (xml 46 incl. the 2 existing ones, one of which did not compile; yaml 23, one `// scala-3-only` for `yaml"..."`; toon 17 plus later edits); outputs from real runs on 2.13.18, 3.9.0 and 3.10.0 against 0.0.56 |
+| Tooling | three `scaladocCheckedModules` entries, one extractor test (version dirs `scala-2.12-2.13`/`scala-3` keep the `syntax.scala` wrappers apart), style-guide module list, two AGENTS.md lines (bullet + downstream row) |
+| Existing comments | 199 checked: 11 false and 48 imprecise (59, 30%), all fixed (xml 128: 6 + 18; toon 44: 3 + 19; yaml 27: 2 + 11); typical: span order in `XmlCodecError`/`YamlCodecError` reversed, `@xmlAttribute`/`@xmlNamespace` "work", `ArrayFormat.List` "forces list format", TOON config said to reach every codec |
+| Review (3 Opus, fresh, one per module, in parallel) | 10 Important + 27 Minor, all applied (xml 2 + 6, toon 7 + 10, yaml 1 + 11); 5 new bugs found by reviewers (toon N1–N4, xml attribute-only records) plus 1 xml and 1 yaml AMEND; Sonnet re-reviews of the fix diffs: 2 Important + 4 Minor more (xml 1 + 1, toon 1 + 1, yaml 0 + 2), applied; xml/toon round-2 diffs (3–5 sentences) approved by the controller |
+| Sonnet tier 2/3 | 166 comments (yaml 47, toon 119 in two parallel agents by file); few probes, and they drew most of the toon findings (5 of 7 Important: number output, header parsing, quoted keys, map keys, type members) plus 3 yaml Minor |
+| Bugs | 31 entries: 19 new Library bugs, 4 AMENDs, 3 Usability traps (`library-issues.md`), 5 Documentation errors (`toon.md`, `xml.md`, `yaml.md`; `docs-issues.md`) |
+| Time | about 4 h 05 min of active work from survey to PR (two stops: a login error 13:35–15:55 and a machine shutdown), plus about 30 min of CI. Phase 0/1 + spec 45 min; parallel Opus writers 20–23 min; Sonnet gaps 2 min each; reviews 19–20 min; fix rounds 3–8 min; re-reviews 2–4 min; gates about 45 min of sbt in memory-gated chunks |
+
+## 13i. Scaladoc: html module
+
+Session `html-scaladoc` (Opus), started 2026-11-05 on `main` `a7014433f`. Phase 0: 161 / 1001 (16%); html's main sources are byte-identical to `v0.0.56`; shared sources only (`jvm/` and `js/` hold just `.gitkeep`); the version split is `HtmlElements` (scala-2 302 items, scala-3 262: Scala 2 adds `ScriptArg`/`StyleArg`/`ListArg`/`CellArg` ADTs where Scala 3 uses union types) and `TemplateInterpolators` (9 / 5); `--drift` lists 10 tag helpers in `HtmlElements` (`ol`, `optgroup`, `option` x2, `script`, `select`, `style`, `table`, `tr`, `ul`); one `{{{` block (`DomSelection`); `Escape` is `private[html]`. Milad's Phase 1 decisions: one PR including the tooling (`html.jvm` in `scaladocCheckedModules`); tier 1 = `Dom` and its node types, `DomModifier`, `HtmlElements` as a group, `AttributeKey`/`MultiAttributeKey`, `Css`, `CssSelector`, `DomSelection`, `Js`, and the `html`/`css`/`js`/`selector` interpolators; `Escape` tier 3; Opus for tier 1, the fact-check of all 161 existing comments, bug entries and review, Sonnet for the tag/attribute helpers and the `To*` instances; AGENTS.md edits approved (`html` in the scaladoc-check bullet; downstream row `html*` → `scaladoc-check`, `datastar*`, `htmx*`, `docs`).
+
+| Item | Result |
+|---|---|
+| PR | #1944 (one PR), merged 2026-11-05 as `aa8164217`; CI green: 23 pass, 10 skipping; main merged in twice during the PR (#1942, #1943), both sides kept, gates re-run each time |
+| Coverage | 161 / 1001 → 1001 / 1001; `--drift` 10 → 0 |
+| Examples | 33 compiled blocks on 2.13.18, 3.9.0 and 3.10.0 (`html.jvm` in `scaladocCheckedModules`) |
+| Writing | Opus Task 1: tier 1, the fact-check of all inherited comments, bug entries. In parallel, Sonnet Task 2 wrote the 479 `HtmlElements` one-liners from one table into both copies, and Sonnet Task 3 the 182 `To*`/`CssSelectable` comments |
+| Existing comments | 49 of 161 (30%) false or imprecise (55 of 168 counting 7 the coverage script misses); clustered in escaping, void and boolean rendering, selector matching, and `Double` formatting that holds only on the JVM |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A 4 Important + 6 Minor; B 8 Important + 10 Minor + 5 bug-entry fixes; all applied, each replacement re-probed (JVM, Scala.js 1.22, Chromium); Sonnet re-review APPROVE, 4 Minor (2 applied, 2 no change) |
+| Bugs | 18 entries: 8 Library bugs, 3 Usability traps, 1 amendment (#1764 double escaping), 6 Documentation errors on `html.md` |
+| Time | about 4 h 10 min from brief to PR, including about 1 h lost to an auth failure mid-gate |
+
+Skill update: lessons in the `scaladoc-rollout` skill (`<h1>` breaks the 2.13 doc tool; `\$` before and after #1942; `^` is superscript in Scaladoc; reference-page `compile-only` examples hide run-time failures; stale peer sockets after a restart; cost).
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%.
+
+## 13j. Scaladoc: async module
+
+Session `async-scaladoc` (Opus), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 105 / 144 (`async` 91/123, `async.internal` 14/21); 39 gaps, mostly `private[blocks]` StepFold helpers, internal `Parker` members, the dca `AsyncCpsMonad` and implicit-class wrappers, so the main work is the fact-check of the 105 existing comments; `--drift` lists 7 members (`toFuture`, `fromFuture`, `attempt`, `flatten`, `orElse`, `unit`), all reconcilable; one `async.jvm` list entry is enough (the checker compiles each module's own per-version sources; JS-only files are not compiled, so JS-only examples need `// no-check`); 3 existing `{{{` blocks; main equals `v0.0.56` except a 3-line import change in Scala 3 `AsyncSyntaxVersionSpecific`. Milad's Phase 1 decisions: one PR (build entry, AGENTS.md lines, all docs); tier 1 = `Async` and its companion, `Async.Running`, `Completer`, `Cancelable`, `Failure`, `AsyncSelector`, `AsyncInterop`, `Pollable`; drift: one identical text per member, with real differences stated inline (target: empty `--drift`); the fact-check of all 105 existing comments is kept.
+
+| Item | Result |
+|---|---|
+| PR | #1946 (one PR), merged 2026-11-05 as `380e19bdf`; CI green on `be75cd226`: 23 pass, 10 skipping, no reruns; main merged in three times (#1942, #1943, #1944), both sides kept |
+| Coverage | 105 / 144 (72%; `async` 91/123, `async.internal` 14/21) → 144 / 144; `--drift` 7 → 0; comments-only: 31 files, 0 code changes |
+| Examples | 47 compiled per Scala version (2.13.18, 3.9.0, 3.10.0); none of the 3 old ones had ever compiled. `Async.promise` shows both the `// scala-2-only` `implicit c =>` form and the `// scala-3-only` context-function form |
+| Writing | Task 1a (Opus: shared files and tooling, the only sbt runner) and Task 1b (Opus: jvm/js, macros, internals; scala-cli only) in parallel; Task 2 (Sonnet) wrote 22 tier-3 one-liners |
+| Existing comments | 67 of 311 (22%): 19 false, 48 imprecise; mostly where work runs (JVM `toFuture` runs on `ForkJoinPool.commonPool()`, not `ec`), strict vs lazy inputs (`collectAll`), ready vs pending values (`ensuring`, Scala.js `block`), and `List.map` vs `Vector.map` inside `Async.async`; also 11 inline `//` comments corrected |
+| Review (2 Opus, fresh, in parallel) | A 4 Important + 13 Minor; B 3 Important + 18 Minor; Sonnet scoped re-review 1 Important + 4 Minor; 42 of 43 applied, 1 accepted as is |
+| Bugs | 4 library (`fromCompletionStage` `ExecutionException` unwrapping; Scala 3 `asyncRuntimeAwait` never found; Scala 2 `Tuples` nests a right-hand tuple; a quadratic `flatMap` chain over pending wrappers), 3 docs (`async.md` "Direct Style", "Depth Limits", "Completer"), the cause of the `AsyncInteropSpec` flake, status lines on the "two consumers" and "cancel never reaches" entries |
+| Time | about 4 h 20 min from survey to PR, including a ~20 min login outage and two main merges; green CI about 1 h later after a third main merge |
+
+Skill update: "Lessons from async" in the `scaladoc-rollout` skill's `references/lessons.md`.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%.
+
+## 13k. Scaladoc: jwt module
+
+Session `jwt-scaladoc` (Opus controller), started 2026-11-05 on `main` `3ac1121a9`. Phase 0: 62 / 146 (42%); jwt's main sources are byte-identical to `v0.0.56`; shared sources (9 files, `Jwt.scala` holds 33 of 146 members) plus one backend each in `jvm/` and `js/`; no scala-2/scala-3 splits; cross versions equal `scaladoc-check`'s, so one list entry. Milad's Phase 1 decisions: one PR; tier 1 = `Jwt` (with `JwtSignOptions`, `JwtDecodeOptions`, `JwtLimits`), `JwtClaims`, `JwtHeader`, `Algorithm`, `JwtError`, `JwtAudience`.
+
+| Item | Result |
+|---|---|
+| PR | #1947 (one PR), merged 2026-11-06 as `07f71de18`. CI on `de55fd3ae`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt@v1.5.7`'s AMPEL verify step ("compiling policy: unable to parse a policy, group or policySet from data") on every open PR and on main, not in jwt. Main merged in three times (#1942–#1944, #1946, #1949), both sides kept, scaladoc-check re-run each time |
+| Coverage | 62 / 146 → 146 / 146; `--drift` 0; comments-only: 10 files, 0 code changes |
+| Examples | 13 compiled blocks per Scala version (2.13.18, 3.9.0, 3.10.0; `jwt.jvm` in `scaladocCheckedModules`); the one old `...` block now compiles |
+| Writing | Task 1 (Opus, the only sbt runner): tooling, tier 1, fact-check of all inherited comments, bug entries. In parallel Task 2 (Sonnet, no sbt): the 20 gaps in `JwtValue`, `Base64Url` and both backends; its 5 suspected bugs triaged by Task 1 |
+| Existing comments | 25 of 83 (30%) false or imprecise (4 false, 21 imprecise); Task 2's 19 new comments: 1 false, 2 imprecise. False ones: audience mismatch as `InvalidToken` (it is `InvalidClaim("aud", ...)`), `JwtSignOptions.limits` "header JSON validation", "no values are dropped" (a repeated field keeps the last), a nonexistent `Num.toLong` |
+| Review (2 Opus, fresh, in parallel on disjoint files) | A 5 Important + 8 Minor; B 3 Important + 11 Minor; all applied but one style-guide reorder (already resolved in a merge); each replacement re-probed (JVM, Scala.js 1.22). Sonnet scoped re-review (re-running every bug reproducer): 1 Important + 2 Minor, all applied |
+| Bugs | 10 entries plus amendments: `crit` ignored, a token accepted at the second its `exp` names, `maxDepth` object-vs-array off by one, the `alg` field holding a backend message, the Scala.js backend lacking key-type, size and curve checks, a Scala.js unreadable key reported as `InvalidToken`, `Num` accepting any text, the JSON parser accepting RFC-forbidden input, and 2 errors on `jwt.md` |
+| Time | about 5 h 45 min from brief to PR, including a login outage and a reboot; CI took about a day longer because of runner and setup failures |
+
+Skill lessons: probing the "who verifies what" boundary (`decode` vs `decodeWithoutVerification`, sign vs decode) found most Important findings.
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, jwt 30%.
+
+## 13l. Scaladoc: maybe, combinators and context
+
+Spec and plan in `docs/superpowers/specs/` and `docs/superpowers/plans/` (2026-11-05 maybe-combinators-context Scaladoc). Session `maybe-combinators-context-scaladoc` (Opus controller; one Opus writer for all three modules, Milad's choice; two fresh Opus reviewers in parallel on disjoint files; Sonnet re-review). Milad's Phase 1 decisions: one PR; tier 1 = `Maybe` (with `Present`/`Absent`), `MaybeSyntax`, `Concat`, `Tuples`, `Eithers`, `Unions`, `Context`, `ContextHas`; AGENTS.md diff approved (module list and downstream rows for `maybe*`, `combinators*`, `context*`). Phase 0 on `main` `c2e4a39fd`: module sources identical to `v0.0.56`, so every probe ran against 0.0.56; drift 3 (`Present`, `present`, `Absent`); 2 `{{{` blocks (`ContextHas`), neither compiled.
+
+| Item | Result |
+|---|---|
+| PR | #1953 (one PR); CI on `20908bffc`: 21 pass, 10 skipping; Build Docs (and the `ci` aggregate) fails in `sbt/setup-sbt`'s AMPEL verify step before any build step, on every branch since 2026-11-05 (see Test and CI in `library-issues.md`); not caused by this PR |
+| Coverage | maybe 5 / 135 → 135 / 135; combinators 7 / 79 → 79 / 79; context 13 / 37 → 37 / 37 (the script prints 36 / 37 because `ContextHas`'s comment sits above a 3-line `@implicitNotFound`); `--drift` prints one false positive (`def apply`: Scala 3 `Present.apply` paired with Scala 2 `Maybe.apply` by name order) |
+| Examples | 67 `{{{` blocks counting each Scala-version copy (`Unions` marked `// scala-3-only`); the 2 old `ContextHas` blocks now compile; every result comment from a real scala-cli run on 2.13.18 and 3.9.0; `Context` also probed on Scala.js |
+| Tooling | 3 `scaladocCheckedModules` entries; style-guide and AGENTS.md lists (approved); two merges of `main` (list-line conflicts only, both sides kept) |
+| Existing comments | 25 counted by the script: 1 false (`Context#prune`) and 9 imprecise (10, 40%), all fixed; plus uncounted ones (the Scala 3 `unsafeGet` cost claim; `ContextEntries` load factor; "used by schema codecs"); typical: claims true on one Scala version only ("zero allocation" for `Present` while primitives box; `Concat` on Scala 3 is always `L \| R`) |
+| Review (2 Opus, fresh, in parallel) | 7 Important + 13 Minor (A maybe+context 4 + 7; B combinators+tooling 3 + 6), nearly all per-Scala-version overclaims; 20 / 20 applied, each suggested sentence re-probed first; Sonnet re-review of the fix diff: APPROVE, 2 Minor (1 fixed, 1 cosmetic left) |
+| Bugs | 11 entries: 5 Library bugs and 1 amendment to the Scala 2 `Tuples` entry, 2 Usability traps (`library-issues.md`), 2 Documentation errors (`combinators.md`, `maybe.md`) and 1 Docs tooling entry (coverage-script blind spots) (`docs-issues.md`) |
+| Time | about 1 h 50 min active, across two machine reboots and a usage-limit stop; plus CI |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%.
+
+## 13m. Scaladoc: schema-messagepack and http-model-schema
+
+Session `msgpack-http-schema-scaladoc` (Sonnet), started 2026-11-05 on `main` `aa8164217`. Phase 0: 11 / 189 (schema-messagepack 5/134, http-model-schema 6/55); `--drift` empty; no `{{{` blocks; packages `zio.blocks.schema.msgpack` and `zio.http.schema` need `packageOverrides` entries (from #1943); `moduleOf` already tells `http-model-schema` apart from `http-model`; 5 known entries (4 http-model-schema, 1 msgpack `DynamicSchema`). Milad's Phase 1 decisions: one PR for both modules; tier 1 = `MessagePackFormat`, `MessagePackCodec`, `QueryCodec`, `HeaderCodec`, the `Request`/`Response`/`Headers`/`QueryParams` schema extension methods, `StringDecoder`; the AGENTS.md diff approved.
+
+| Module | Members before | After | Inherited comments wrong or imprecise | Examples (2.13.18/3.9.0/3.10.0) | Bug entries |
+|---|---|---|---|---|---|
+| schema-messagepack | 5/134 (3%) | 134/134 | 2 of 7 | 7 | 5 Library bugs, 1 Usability trap, 1 amendment, 1 docs error |
+| http-model-schema | 6/55 (10%) | 55/55 | 2 of 6 | 7 | 3 Library bugs, 1 Usability trap, 1 docs error, 4 amendments |
+| Total | 11/189 | 189/189 | 4 of 13 (31%) | 14 | |
+
+PR #1950 (one PR), merged 2026-11-06 as `20f4c3131`; CI green on `0dfbf8261`: 23 pass, 10 skipping. Tooling: `packageOverrides` entries `schema-messagepack` → `zio.blocks.schema.msgpack` and `http-model-schema` → `zio.http.schema`; both modules in `scaladocCheckedModules`; AGENTS.md Scaladoc bullet and two downstream rows (approved). Comments only. Gates: scaladoc-check 32 tests on 3 versions; 8 doc runs; `check`, `headerCheckAll`, `scalafmtAll`. Reviews (fresh Opus): 3 false + 15 imprecise claims + 1 style note; 18 of 19 applied; Sonnet re-review APPROVE. Every reproducer re-run by a reviewer. Time: about 2.5 h of working time over two reboots. Skill lessons: re-run scaladoc-check after merging main into the tooling lists; fsync the bug-entries file (a reboot truncated it once).
+
+## 13n. Scaladoc: endpoint module
+
+Session `endpoint-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 65 / 314 (20%); `--drift` lists 1 (`trait ErrorBuilder`, scala-2 vs scala-3 `EndpointUnionErrorBuilder.scala`); `CrossType.Full`, shared sources only plus scala-2/scala-3 and `scala-3.7` dirs (`EndpointGroupMacro`, `EndpointGroupSyntax`), which `BuildHelper.findApplicableScala3MinorDirs` picks on 3.9 and 3.10; package `zio.blocks.endpoint` fits `moduleImport`, so one list entry; 1 `{{{` block (`Endpoint.scala`); no endpoint-specific known bugs (related: the `Method.ANY` expansion and the Scala 3 `Unions.separate` trap). Milad's Phase 1 decisions: one PR (checker entry and all docs); tier 1 = `Endpoint`, `HttpCodec`, `PathCodec`, `SegmentCodec`, `RoutePattern`, `RouteTree`, `AuthType`, the Scala 3.7 group syntax and macro; AGENTS.md: endpoint in the scaladoc-check list and `endpoint*` downstream rows (exact diff shown before commit).
+
+| Item | Result |
+|---|---|
+| PR | #1957 (one PR), merged 2026-11-06 as `9c04ebf63`; main with #1950 and #1956 merged in; the PR's CI was 14 pass / 9 pending (no failure) at the merge |
+| Coverage | 65 / 314 (20%) → 314 / 314; `--drift` 1 → 0; 19 files, comments only |
+| Examples | 36 compiled (2 `// scala-3-only`); one `scaladocCheckedModules` entry |
+| Existing comments | Task 1 (Opus) checked 83 claims: 55 true, 18 imprecise, 9 false, 1 stale (34% needed a fix); Task 2 (Sonnet) corrected 4 more (the Scala 2 `ErrorBuilder` drift, "never allocates", a roadmap sentence, "ever") |
+| Review | 2 Opus fact-checks in parallel (7 Important + 18 Minor) and a Sonnet re-review (3 Minor), all applied; Task 2's comments drew 3 Important-class findings |
+| Bugs | 8 Library bugs, 5 Usability traps, 3 Documentation errors, amendments to the `Unions.separate` and `Method.ANY` entries |
+| Time | about 2 h 40 min from brief to PR |
+
+Lessons: macro group examples (`endpoints { val x = ... }`) always give non-fatal "unused local definition" warnings in the snippet checker; split sbt gate chains and check `free -g` between rounds; endpoint `main` is not byte-identical to the release even where behaviour is, so cite lines at the base commit.
+
+## 13o. Scaladoc: schema core, remaining members
+
+Session `schema-core-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Phase 0: 3232 / 3775; the 543 gaps are 521 implementations of documented parents, whose doc the doc tool already inherits (checked in `schemaJVM/doc` HTML on 3.9.0 and 2.13.18, e.g. `PrimitiveValue.Unit#primitiveType`, `Register.Boolean#set`), and 22 macro `*Impl` methods in `schema.migration`; no real gaps, confirming the waves' judgement (§11). By file: `PrimitiveValue` 118, `Reflect` 110, `DynamicSchemaExpr` 89, `PrimitiveType` 77, `SchemaExpr` 43, `Register` 30, `DynamicValue` 18, others small. Milad's Phase 1 decision: document all 543 in one PR (no tier-1 types, no new examples); per-case text only where an implementation adds something (order, `typeIndex`, `toJsonString` values), never a copy of the parent doc.
+
+| Item | Result |
+|---|---|
+| PR | #1956 (one PR), merged 2026-11-06 as `121cb1024` |
+| Coverage | 3232 / 3775 (85%) → 3775 / 3775: `schema` 1478 → 1948 / 1948, `binding` 429 → 471, `migration` 154 → 176, `json` 865 → 872, `codec` 19 → 21; comments only (18 files); `--drift` empty; no new examples |
+| Inheritance check | the doc tool shows the parent's text on 2.13.18 and 3.9.0 (generated HTML), so the new comments add only per-case facts |
+| Reviews | data model: 0 Important, 2 Minor, 167 probe checks; expressions and bindings: 2 Important, 6 Minor, all fixed or answered; scoped re-review APPROVE |
+| False existing comments fixed | `OpticCheck` message paths; `eval`/`convert` `Left` vs throw on NaN; `Float`/`DoubleToInt`/`Long` out of range; the Scala 2 `MigrationBuilder` completeness claim |
+| `docs/dev` mentions in Scaladoc | 13 replaced by "a known bug"; 8 other schema files still point to `docs/dev/issues.md` (Docs tooling entry) |
+| Bugs | 4 new entries and 2 amendments |
+| Gates | scaladoc-check on 2.13.18, 3.9.0 and 3.10.0 (33 tests each, after the main merge); doc JVM/JS on 3.9.0 and 2.13.18; `check`, `headerCheckAll`. The session's CI watcher died under memory pressure, so it did not see the final CI result before the merge |
+| Time | about 2 h 45 min active |
+
+## 13p. Scaladoc: openapi, codegen, smithy, mux and ringbuffer
+
+Session `tools-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: openapi 43/130, codegen 73/107, smithy 55/64, mux 43/46, ringbuffer 82/122; drift: mux 5 (scala-2 `Either[MuxError, X]` vs scala-3 `X | MuxError` signatures, one shared text names both), ringbuffer 30 in 4 files (the JS copies are separate implementations); old `{{{` blocks: codegen 8 files, smithy 1. Milad's Phase 1 decisions: one PR for all five modules; tier 1 = openapi `OpenAPI`, `OpenAPICodec`, `OpenAPIGen`, `Operation`, `PathItem`, `Components`, `ReferenceOr`; codegen `ScalaEmitter`, `EmitterConfig`, `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `TypeRef`, `Field`; smithy `SmithyModel`, `SmithyPrinter`, `ShapeId`, `Shape`, `StructureShape`, `ServiceShape`, `OperationShape`; mux `Mux`, `MuxStream`, `MuxError`; ringbuffer `SpscRingBuffer`, `MpscRingBuffer`, `SpmcRingBuffer`, `MpmcRingBuffer`; AGENTS.md: the five modules added to the scaladoc-check list only.
+
+| Item | Result |
+|---|---|
+| PR | #1960 (one PR); CI green at `0643e15be` (23 pass) after one rerun of Landing (Lighthouse 0.94) and a cancelled lint |
+| Coverage | openapi 43/130 → 130/130; codegen 73/107 → 107/107; smithy 55/64 → 64/64; mux 43/46 → 46/46; ringbuffer 82/122 → 122/122; total 296/469 (63%) → 469/469; `--drift` mux 5 and ringbuffer 30 → empty |
+| Examples | 44 compiled on 2.13.18, 3.9.0 and 3.10.0 (27 old ones in codegen and smithy, none compiled before, plus 17 new) |
+| Existing comments | openapi/codegen/smithy 43 of 177 wrong or imprecise (24%; 7 false); mux/ringbuffer 28 of 98 (29%; 8 false) |
+| Review | 2 fresh Opus fact-checks (mux+ringbuffer 2 Important + 6 Minor; openapi+codegen+smithy 2 Important + 10 Minor), a fix round each, 2 scoped Sonnet re-reviews APPROVE; 1 finding not applied (a JS `Thread` example) |
+| Bugs | 13: mux 1, ringbuffer 2 (1 trap), 2 docs errors, codegen 4, smithy 1, openapi 2, and an amendment to the codegen "accepted but never emitted" entry |
+| Machine | 3 sbt rounds plus 1 post-merge round, each capped at 6 GB |
+
+## 13q. Scaladoc: projection, dataMigration, htmx and datastar
+
+Session `scala3-web-modules-scaladoc` (Sonnet), started 2026-11-06 on `main` `07f71de18`. Coverage: projection 167/256, dataMigration 50/61, htmx 96/418, datastar 77/252 (390 / 987); Scala 3 only, so the examples go to `scaladoc-check-scala3`; dataMigration (`zio.blocks.data.migration`), htmx (`zio.http.htmx`) and datastar (`zio.http.datastar`) need `packageOverrides` entries. Phase 0: no drift; projection is JVM only, the others JS+JVM, all on 3.9/3.10; 9 old `{{{` blocks (projection 5, dataMigration 1, datastar 3); one dataMigration file is in package `zio.blocks.sql`. Milad's Phase 1 decisions: one PR; tier 1 = projection `Projection`, `ProjectionEngine`, `EventStore`, `ProjectionStore`, `EventTag`, `TagResolver`, `FieldUpdate`, `TestEngine`, `SQLiteProjectionStore`; dataMigration `SmallMigrator`, `LargeMigrator`, `TinyMigrator`, `ShadowTable`, `QueueTable`, `TargetStrategy`; htmx `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, `HxSync`, `HtmxHeaders`, `HxLocation` and the attribute-value types; datastar `DatastarEvent`, `Signal`, `DataOn`, `DatastarAttributes`, `EventModifier`; AGENTS.md: the `scaladoc-check-scala3` sentence names the four modules.
+
+PR #1959 (one PR), opened 2026-11-06 with main `121cb1024` merged in (two conflicts, both sides kept). Gates after the merge: `scaladoc-check-scala3` on 3.9.0 and 3.10.0, `scaladoc-check/test` on 3.9.0 (35 tests), 7 `doc` builds on 3.9.0, `check`, `headerCheckAll`.
+
+| Module | Documented before → after | Inherited comments wrong or imprecise | Examples | Review (Important / Minor) | Bugs filed |
+|---|---|---|---|---|---|
+| projection | 167/256 → 256/256 | 44/167 (26%) | 11 compiled | 0 / 8 (review A, with dataMigration) | 5 library + 1 docs |
+| dataMigration | 50/61 → 61/61 | 18/55 (33%) | 8 compiled | (in review A) | 1 library |
+| htmx | 96/418 → 418/418 | 19/96 (20%) | 13 compiled | 0 / 5 (review B) | 4 library + 2 docs |
+| datastar | 77/252 → 251/252 (the script misses a doc above a multi-line `@implicitNotFound`) | 20/92 (22%) | 29 (15 compiled; 14 `// no-check` on Scala 3.10, a known bug) | 3 / 3 (review B) | 3 library + 1 usability trap + 3 docs, and the Scala 3.10 `ToDatastarExpr`/`NotString` bug |
+| Total | 390/987 → 986/987 | 101/410 (25%) | 61 | 3 / 16, all fixed; Sonnet re-review APPROVE | 21 entries |
+
+Time: about 3.3 h active from brief to PR (2 h of writers and reviews in parallel, about 25 min of sbt).
+
+## 13r. Scaladoc: markdown module
+
+Session `markdown-scaladoc` (Sonnet), started 2026-11-06 on `main` `04b56bc92`. Coverage 91 / 107 (package `zio.blocks.docs`, so a `packageOverrides` entry `markdown` → `zio.blocks.docs`); `--drift` empty; old `{{{` blocks: 6 in 5 files (`Parser`, `Doc`, `package` ×2, `ToMarkdown`, `Renderer`), all flattened into run-on lines by an earlier scalafmt pass, so none can compile; only `MdInterpolator` has scala-2/scala-3 copies; sources byte-identical to `v0.0.56`. Milad's Phase 1 decisions: one PR (tooling and all Scaladoc); tier 1 = `Doc`, `Block`, `Inline`, `Parser`, `HtmlRenderer`, `TerminalRenderer`, `ToMarkdown`, `Renderer`, the `md"..."` interpolator, each with an overview, one compiled example and `@see` to `docs/reference/docs.md`; AGENTS.md: markdown in the scaladoc-check list and a `markdown*` downstream row (dependents checked in build.sbt).
+
+| Item | Result |
+|---|---|
+| PR | #1958 (one PR), opened 2026-11-06; two merges of main |
+| Coverage | 91 / 107 (85%) → 107 / 107; 16 files, comments only; `packageOverrides` `markdown` → `zio.blocks.docs` |
+| Examples | 14 compiled (checker on 2.13.18, 3.9.0, 3.10.0); the 6 old blocks rewritten on their own lines, which survive scalafmt |
+| Existing comments | 91 fact-checked; e.g. "output can be re-parsed to an equal AST" was false in three ways (unescaped text, backtick code, centred table columns); normalisation claims hold per class only |
+| Review | Opus fact-check 5 Important + 10 Minor, all fixed; Sonnet re-review APPROVE with 3 optional notes, applied |
+| Bugs | 11 entries (5 Library bugs, 6 Usability traps) and an addition to the openapi `md"..."` round-trip entry (its root cause, `Doc#normalize`) |
+| Time | about 2 h 45 min active |
+
+Lessons: single-line `{{{ x }}}` blocks get flattened by scalafmt; `md"..."` parts are raw, so `"\n"` in a single-line literal stays two characters; check every bug entry's test-gap sentence against the spec assertions, not the test names.
+
+## 13s. Scaladoc: telemetry and otel
+
+Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1024`. Coverage: telemetry 203/567, otel 17/33; otel's package is `zio.blocks.telemetry.otel` (needs a `packageOverrides` entry). telemetry needs JDK 21+ even to compile (its jar is class file 65 and its `log.*` macros run in the compiler), and CI runs telemetry/otel tests and docs only via `whenJdkAtLeast(25, ...)`, so the examples need a JDK-gated checker; options for Milad: a separate `scaladoc-check-jdk21` project (recommended), a JDK-dependent `scaladoc-check`, or `// no-check`. Phase 0: `--drift` 1 (`ContextStorage`, jvm vs js; one shared text will state the difference). Milad's Phase 1 decisions: (a) a new project `scaladoc-check-jdk21` sharing `scaladocCheckSettings`, listing `telemetry.jvm` and `otel`, run via `whenJdkAtLeast(25, ...)` in the testJVM aliases like telemetry's tests (`scaladoc-check` and the JDK 17 jobs untouched); one PR; tier 1 = `log`, `trace`, `metric`, `Span`, `Tracer`, `Meter`, `Counter`, `Histogram`, `Resource`, `Attributes`, `Severity`, `LogWriter`, and otel `OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, `OtlpJsonMetricExporter`, `ExporterConfig`, `W3CTraceContextPropagator`, `B3Propagator`, `BatchProcessor`; AGENTS.md: one sentence in the Scaladoc bullet naming `scaladoc-check-jdk21`, its JDK 21+ requirement and the check command.
+
+| Item | Result |
+|---|---|
+| PR | #1961 (one PR); CI green, including testJVM on JDK 17 and 25, no reruns |
+| Coverage | telemetry 203/567 (35%) → 567/567; otel 17/33 → 33/33; total 220/600 → 600/600; `--drift` empty |
+| Tooling | new checker `scaladoc-check-jdk21` (run only via `whenJdkAtLeast(25, ...)`, like telemetry's tests; `scaladoc-check` and the JDK 17 jobs untouched); otel `packageOverrides` entry with a unit test |
+| Examples | most `log.*` examples are `// scala-3-only` (the known 2.13 `log.*` bug); the OTLP exporters and `BatchProcessor` are `private[otel]`, so tier 3 |
+| Existing comments | about 252 checked: 14 wrong, 2 stale, 69 imprecise (about 34%) |
+| Review | fresh fact-check: 5 Important + 12 Minor, all Important and factual Minor fixed; scoped re-review APPROVE |
+| Bugs | 21: 11 Library bugs, 5 Usability traps, 4 Documentation errors, and an addition to the `fromHex` entry |
+| Gates | `scaladoc-check` (35) and `scaladoc-check-jdk21` on 3.9.0, 3.10.0 and 2.13.18; `check`, `headerCheckAll`; `telemetryJVM/test` 222 and `otel/test` 199 pass |
+
+Running total of wrong or imprecise inherited comments: chunk 19%, scope 31%, config 36%, typeid 24%, sql 32%, http-model 23%, html 30%, async 22%, schema-avro/bson/csv/thrift 35%, schema-messagepack/http-model-schema 31%, jwt 30%, maybe/combinators/context 40%, endpoint 34%, projection/dataMigration/htmx/datastar 25%, openapi/codegen/smithy/mux/ringbuffer 24–29%, telemetry/otel 34%.
+
+## 13t. Scaladoc: mediatype (skipped)
+
+Skipped by Milad's decision on 2026-11-06 ("I would rather skip adding Scaladoc for this module"): mediatype stays at 0 / 2634. Notes for a later attempt, from the Phase 0 of session `mediatype-scaladoc` (on `main` `121cb1024`): 2,622 items are `lazy val`s in the generated `MediaTypes.scala`, so the comments would come from `project/GenerateMediaTypes.scala`; the committed file matches mime-db commit `6abfe5f81` (2026-02-01) exactly (2,595 types), while mime-db `master` has 6 more (`application/aas+zip`, `explicit-registration-response+jwt`, `measured-component+cbor`, `measured-component+json`, `trust-mark-status-response+jwt`, `audio/soundfont`), and the generator fetches `master`, so plain regeneration is not comments-only; pin the fetch to a commit first. The generator also drops multi-line `extensions` arrays (see the library entry).
 
 ## 13. Scaladoc: next modules
 
@@ -738,6 +1002,7 @@ Follow the `scaladoc-rollout` skill (`~/.claude/skills/scaladoc-rollout/SKILL.md
 | 16 | openapi / codegen / smithy | 43/130, 73/107, 55/64 | 33 / 68 / 85 | 27 / 7,116 | none |
 | 16 | markdown / mux / ringbuffer | 91/107, 43/46, 82/122 | 85 / 93 / 67 | 35 / 6,160 | markdown needs an override (`zio.blocks.docs`) |
 | 17 | mediatype | 0 / 2634 | 0 | 5 / 12,676 | 2,622 items are in the generated `MediaTypes.scala`: document through the generator |
+| 18 | schema (core, rest) | 3232 / 3775 (`schema` package 1478/1948, `schema.json` 865/872, `schema.binding` 429/471, `schema.migration` 154/176) | 85 | — | none; already in `scaladoc-check` |
 
 All modules other than schema and streams: 2,375 / 10,197 documented (23%), or 31% without mediatype.
 
