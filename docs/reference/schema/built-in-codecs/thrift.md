@@ -333,7 +333,7 @@ All 30 primitives of ZIO Blocks Schema are supported:
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
 - Special: `UUID`, `Currency`, `Unit`
 
-`Float` is written as a Thrift `double`. `UUID`, `Currency` and most of the `java.time` types are Thrift strings. A `DynamicValue` can be encoded but not decoded.
+`Float` is written as a Thrift `double`. `UUID`, `Currency` and most of the `java.time` types are Thrift strings. A `DynamicValue` cannot be decoded.
 
 ### Record Type Support
 
