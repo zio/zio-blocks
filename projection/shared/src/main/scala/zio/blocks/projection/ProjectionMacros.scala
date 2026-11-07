@@ -19,8 +19,16 @@ package zio.blocks.projection
 // $COVERAGE-OFF$
 import scala.quoted.*
 
+/**
+ * Scala 3 macro implementations behind `HandlerBuilder.update` and
+ * `FromBuilder.routedByField`.
+ */
 object ProjectionMacros {
 
+  /**
+   * Implements `HandlerBuilder.update`: expands to `updateWithField` with the
+   * snake_case column name of the selected field.
+   */
   def updateImpl[A: Type, E: Type](
     builder: Expr[HandlerBuilder[E, A]],
     selector: Expr[A => Any],
@@ -28,6 +36,10 @@ object ProjectionMacros {
   )(using Quotes): Expr[Projection[A]] =
     '{ $builder.updateWithField(${ FieldSelectorMacros.extractAndMapFieldImpl[A](selector) }, $f) }
 
+  /**
+   * Implements `FromBuilder.routedByField`: expands to `routedBy` with a key
+   * function that calls `toString` on the selected value.
+   */
   def routedByFieldImpl[A: Type, E: Type](
     builder: Expr[FromBuilder[A]],
     selector: Expr[E => Any]

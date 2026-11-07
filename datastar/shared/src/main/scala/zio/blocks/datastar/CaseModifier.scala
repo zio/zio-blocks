@@ -17,45 +17,50 @@
 package zio.http.datastar
 
 /**
- * Modifies how a Datastar attribute key is cased when rendered by the DSL.
- *
- * Case modifiers contribute a `__case.*` suffix to attribute names when the
- * selected case differs from the default case for that attribute builder.
+ * The case of a name in a Datastar attribute key. HTML attribute names are not
+ * case-sensitive, so the builders write names in kebab case and add a
+ * `__case.*` suffix that tells Datastar which case to turn the name back into.
+ * The suffix is left out when the case is the builder's default: kebab for
+ * [[DataOn]], camel for [[DataSignalsBuilder]].
  */
 sealed trait CaseModifier extends Product with Serializable {
 
-  /** Renders the explicit Datastar `__case.*` suffix for this modifier. */
+  /** Returns the `__case.*` suffix, such as `__case.camel`. */
   def render: String
 
-  /**
-   * Renders this modifier's suffix unless it matches the builder's default case
-   * modifier.
-   */
+  /** Returns [[render]], or `""` when this case is `default`. */
   def suffix(default: CaseModifier): String =
     if (this == default) "" else render
 }
 
+/** The four cases that Datastar supports. */
 object CaseModifier {
 
-  /** Standard case modifiers supported by the Datastar attribute DSL. */
-
-  /** Requests camel-case rendering. */
+  /** Camel case, as in `myEvent`. */
   case object Camel extends CaseModifier {
+
+    /** Returns `__case.camel`. */
     def render: String = "__case.camel"
   }
 
-  /** Requests kebab-case rendering. */
+  /** Kebab case, as in `my-event`. */
   case object Kebab extends CaseModifier {
+
+    /** Returns `__case.kebab`. */
     def render: String = "__case.kebab"
   }
 
-  /** Requests snake-case rendering. */
+  /** Snake case, as in `my_event`. */
   case object Snake extends CaseModifier {
+
+    /** Returns `__case.snake`. */
     def render: String = "__case.snake"
   }
 
-  /** Requests PascalCase rendering. */
+  /** Pascal case, as in `MyEvent`. */
   case object Pascal extends CaseModifier {
+
+    /** Returns `__case.pascal`. */
     def render: String = "__case.pascal"
   }
 }

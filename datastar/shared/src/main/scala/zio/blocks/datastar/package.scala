@@ -16,6 +16,14 @@
 
 package zio.http
 
+/**
+ * Datastar support: `import zio.http.datastar._` brings in the `data*`
+ * attribute methods of [[DatastarAttributes]], [[Signal]], [[DatastarEvent]]
+ * and the other types of the module.
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/datastar/ Datastar]]
+ */
 package object datastar extends DatastarAttributes {
 
   private[datastar] def toKebabCase(s: String): String = {

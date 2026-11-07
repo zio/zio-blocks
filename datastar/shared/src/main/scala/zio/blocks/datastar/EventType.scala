@@ -17,10 +17,9 @@
 package zio.http.datastar
 
 /**
- * Datastar event types emitted via the SSE `event:` field.
- *
- * The rendered string returned by [[render]] is the protocol-level event name
- * sent on the wire.
+ * The two Datastar event names written in the SSE `event:` field. The
+ * [[DatastarEvent]] constructors pick the right one: element patches, script
+ * runs and removals use `PatchElements`, and signal patches use `PatchSignals`.
  */
 sealed trait EventType extends Product with Serializable {
 
@@ -28,17 +27,20 @@ sealed trait EventType extends Product with Serializable {
   def render: String
 }
 
+/** The Datastar SSE event names. */
 object EventType {
 
-  /** Standard Datastar SSE event kinds. */
-
-  /** Emits the `datastar-patch-elements` SSE event type. */
+  /** The event that patches elements. */
   case object PatchElements extends EventType {
+
+    /** Returns `datastar-patch-elements`. */
     def render: String = "datastar-patch-elements"
   }
 
-  /** Emits the `datastar-patch-signals` SSE event type. */
+  /** The event that patches signals. */
   case object PatchSignals extends EventType {
+
+    /** Returns `datastar-patch-signals`. */
     def render: String = "datastar-patch-signals"
   }
 }
