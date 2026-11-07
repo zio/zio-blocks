@@ -1433,7 +1433,8 @@ lazy val scaladocCheckedModules: Seq[Project] =
     jwt.jvm,
     `schema-toon`.jvm,
     `schema-xml`.jvm,
-    `schema-yaml`.jvm
+    `schema-yaml`.jvm,
+    endpoint.jvm
   )
 
 lazy val `scaladoc-check` = project
@@ -1527,7 +1528,7 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.4",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.42.1",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.42.3",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.10.0",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",

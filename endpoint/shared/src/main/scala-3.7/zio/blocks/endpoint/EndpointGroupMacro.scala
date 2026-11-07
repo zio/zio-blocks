@@ -19,6 +19,11 @@ package zio.blocks.endpoint
 import scala.quoted.*
 import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
+/**
+ * The macros behind `endpoints { ... }` and the prefix syntax `codec /
+ * endpoints { ... }`: they read the block's statements, name the members, put
+ * prefixes in front of each route and build the named tuple.
+ */
 private[endpoint] object EndpointGroupMacro {
   def build(body: Expr[Any])(using Quotes): Expr[Any] =
     buildGroupTree(body, Nil)
@@ -505,7 +510,7 @@ private[endpoint] object EndpointGroupMacro {
           walk(withOutTerm.tpe)
         }
 
-        // Fold codecs left-to-right building precise PC chain; track precise A type via TypeRepr
+        // Prepend the prefixes, innermost first, building a precise PC chain; track precise A type via TypeRepr
         val composedPCWithType: (Expr[PathCodec[?]], TypeRepr) =
           prefixRefs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) {
             case ((acc, accATpe), codecExpr) =>
