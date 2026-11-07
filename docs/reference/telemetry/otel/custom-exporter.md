@@ -51,7 +51,7 @@ The output follows the protobuf JSON mapping rather than a naive rendering, whic
 | `int64` / `uint64`        | Quoted strings, not JSON numbers                |
 | Enums                     | Integers                                        |
 | Field names               | camelCase                                       |
-| Control characters        | `\uXXXX` escapes, including lone surrogates      |
+| Control characters        | `\uXXXX` escapes, and every UTF-16 surrogate      |
 
 The quoted-integer rule is the one that surprises people: OTLP timestamps are `uint64`, so they appear as `"1755990000000000000"` rather than a bare number. A collector expects that; a hand-written comparison usually does not.
 
@@ -70,7 +70,7 @@ val payload: Array[Byte] = OtlpJsonEncoder.encodeTraces(
 )
 ```
 
-`trace.collectedSpans` returns everything recorded so far, so a real exporter tracks what it has already sent rather than re-encoding the whole list on every flush.
+`trace.collectedSpans` returns the last 1024 ended spans, oldest first, so a flush loop that lets more than 1024 spans end between flushes loses the oldest ones; a real exporter tracks what it has already sent rather than re-encoding the whole list on every flush.
 
 ### Encoding Logs
 
@@ -199,7 +199,7 @@ The internal `BatchProcessor` does four things a hand-rolled flush does not, and
 - **Bounded queueing.** It caps the queue at `ExporterConfig#maxQueueSize` and evicts the oldest record when full, so recording never blocks and memory never grows without bound. A naive accumulator has neither property.
 - **Chunking.** It splits a drained queue into `ExporterConfig#maxBatchSize` pieces, so one flush after a traffic spike becomes several right-sized requests instead of one oversized one.
 - **Interval flushing.** It flushes every `ExporterConfig#flushIntervalMillis` regardless of how full the batch is, which is what bounds how stale exported data can be.
-- **Retry on retryable failures.** It re-queues a batch whose `ExportResult` was `Failure(retryable = true)` and drops one that was not.
+- **Retry on retryable failures.** It retries a batch whose `ExportResult` was `Failure(retryable = true)` (or whose export threw) up to five more times, waiting 1, 2, 4, 8 and 16 seconds on the flushing thread, and drops it after that or at once when the failure is not retryable.
 
 `ExporterConfig` carries all three sizing fields even though nothing public reads them, so use them as the source of truth for your own loop rather than inventing separate numbers. See [the module overview](./index.md) for what each field means.
 

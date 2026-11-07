@@ -586,7 +586,7 @@ Built-in primitive support includes:
 
 ### UUID
 
-- **`java.util.UUID`** — Parsed via `java.util.UUID.fromString(string)`, error on invalid format (must be standard UUID format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+- **`java.util.UUID`** — Parsed via `java.util.UUID.fromString(string)`, error on invalid format. On the JVM, `java.util.UUID.fromString` also accepts shortened groups such as `1-2-3-4-5`
 
 ### Error Messages
 

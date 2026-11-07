@@ -196,7 +196,7 @@ val ep = Endpoint(Method.GET / "users")
   .out(Status.Created, MediaTypes.text.`plain`, Schema.int)
 ```
 
-Multiple `Endpoint#out` calls produce alternatives. The output type widens from `Unit` to the first schema type, then to a nested `Either` for each additional alternative.
+Multiple `Endpoint#out` calls produce alternatives. In 0.0.56 the first `Endpoint#out` call gives `Either[A, Unit]`, not `A`: the empty `Unit` output stays as an alternative (a known bug). A second call gives `Either[Either[B, A], Unit]`, and each further alternative adds a nested `Either` layer.
 
 ### Response headers
 
@@ -233,7 +233,7 @@ val ep = Endpoint(Method.GET / "users")
   .outError(Status.BadRequest, Schema.string)
 ```
 
-Each `Endpoint#outError` call widens `Err` by one nested `Either` layer.
+Each `Endpoint#outError` call widens `Err` by one nested `Either` layer. As with `Endpoint#out`, the first call gives `Either[A, Unit]` in 0.0.56 (a known bug), and the second gives `Either[Either[B, A], Unit]`.
 
 ### `Endpoint#orOutError` — Scala 3 union errors
 

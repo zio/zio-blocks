@@ -78,7 +78,11 @@ Processing is asynchronous. The engine applies events on background fibers, so a
 
 ## InMemoryProjectionStore
 
-A `ProjectionStore[A]` backed by a `Ref[Map[String, A]]`. It supports every store operation: insert, upsert, `updateFields`, delete, truncate, the watermark and the schema hash. A `FieldUpdate` is applied by decoding the stored row into a `DynamicValue`, changing the field, and encoding it back, so counters behave as they do in SQLite.
+A `ProjectionStore[A]` backed by a `Ref[Map[String, A]]`. It supports every store operation: insert, upsert, `updateFields`, delete, truncate, the watermark and the schema hash. A `FieldUpdate` is applied by decoding the stored row into a `DynamicValue`, changing the field, and encoding it back. For rows without `Option` fields and with valid column names, counters behave as they do in SQLite. In 0.0.56 the in-memory store differs in these cases, which are known bugs:
+
+- A row type with an `Option` field: a missing row cannot be created, a `Set` of that field fails, and an `Increment` of a `None` field does nothing.
+- An unknown column name: SQLite fails, while the in-memory store ignores it.
+- A `Set` with a value of the wrong type: SQLite stores it and reads back `0` for an `Int` column, while the in-memory store fails with `Expected Int`.
 
 ```scala
 object InMemoryProjectionStore {

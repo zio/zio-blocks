@@ -74,7 +74,7 @@ An unset variable is absent. An empty string is present — `FOO=""` resolves to
 `SysPropSource` reads JVM system properties using the dotted path directly, with no translation.
 
 :::info[Scala.js behavior]
-On Scala.js, `EnvSource` reads `process.env` when it is available and returns absent for everything when it is not. `SysPropSource` always returns empty results, since JS has no system properties.
+On Scala.js, `EnvSource` reads `process.env` when it is available and returns absent for everything when it is not. `SysPropSource` always returns empty results, even for properties set with `System.setProperty`, which Scala.js emulates: the source never reads them.
 :::
 
 ### From a File Format

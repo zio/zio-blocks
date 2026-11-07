@@ -34,8 +34,8 @@ keywords:
 | `DbInstant`       | `java.time.Instant`         | `TIMESTAMPTZ`         | `TEXT`     |
 | `DbDuration`      | `java.time.Duration`        | `INTERVAL`            | `TEXT`     |
 | `DbUUID`          | `java.util.UUID`            | `UUID`                | `TEXT`     |
-| `DbArray`         | `(String, IndexedSeq[Any])` | *(not in typeName)*   | *(not in typeName)* |
+| `DbArray`         | `(String, IndexedSeq[Any])` | `TEXT[]`              | `TEXT`     |
 
-`DbNull` is what `DbParam[Option[A]]` produces for `None` and `DbParam[Maybe[A]]` produces for `Maybe.absent`; `DbCodec` matches on it to decode nullable columns, throwing `IllegalStateException` if a non-optional codec hits it. `DbArray` is the one variant with two fields (`elementType`, `elements`) instead of `value`, used for collection-typed columns and not currently covered by `SqlDialect#typeName`.
+`DbNull` is what `DbParam[Option[A]]` produces for `None` and `DbParam[Maybe[A]]` produces for `Maybe.absent`; `DbNull` appears only on the write side: decoding never sees a `DbValue`, because codecs read from a result reader and detect `NULL` themselves. A non-optional codec does not fail on `NULL` either, except for `BigDecimal` and a derived `Char`: `Int` reads `0` and `String` reads `null`. `DbArray` is the one variant with two fields (`elementType`, `elements`) instead of `value`, used for collection-typed columns and mapped by `SqlDialect#typeName` to `TEXT[]` on PostgreSQL and `TEXT` on SQLite.
 
 See [Frag](./frag.md), [DbCodec](./db-codec.md), and the [SQL module index](./index.md).

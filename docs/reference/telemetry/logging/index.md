@@ -147,7 +147,7 @@ log.setMinSeverity("com.acme.noisy", Severity.Warn)     // quiet a chatty depend
 log.setMinSeverity("com.example.orders", Severity.Debug) // more detail where you're debugging
 ```
 
-These floors stay in effect until you change them. When you only need extra detail around a specific operation, `withMinSeverity(severity) { … }` lowers the floor for just that block and restores it afterward — no cleanup needed.
+These floors stay in effect until you change them. When you only need extra detail around a specific operation, `withMinSeverity(severity) { … }` lowers the floor, for every thread, while the block runs, then puts back the logging set-up from before the block. A known bug in 0.0.56: anything the block itself changes, such as a processor added with `log.addProcessor`, is undone too.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._

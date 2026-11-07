@@ -430,7 +430,7 @@ val prefixedInt = new QueryCodec[Int] {
 val codec = Schema[Int].deriving(QueryCodecDeriver).instance(TypeId.int, prefixedInt).derive
 ```
 
-The override applies wherever that type appears, so the custom rendering is used on both sides:
+The override applies when the overridden type is the whole schema, so the custom rendering is used on both sides. A record's fields of that type ignore the override in 0.0.56, a known bug:
 
 ```scala mdoc
 codec.encodeToQueryParams(42)

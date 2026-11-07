@@ -119,7 +119,7 @@ div(
 
 `HxSwapOob` represents the `hx-swap-oob` attribute, enabling out-of-bounds swaps that update content outside the primary request target. This allows a single response to update multiple DOM regions simultaneously.
 
-Use `HxSwapOob(true)` or `HxSwapOob(false)` for boolean flags:
+Use `HxSwapOob(true)` for the boolean flag. `HxSwapOob(false)` does not turn the out-of-band swap off: htmx still swaps out of band (a known bug in 0.0.56):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -277,40 +277,14 @@ The module provides instances for common types out of the box:
 - **HTMX domain types:** `HxSwap`, `HxTarget`, `HxTrigger`, `HxParams`, etc. render via their `render` methods
 - **Schema-backed types:** `Schema[A]` instances enable `HxVals.from()` to encode any data to JSON
 
-#### Extending with Custom Types
+#### The Closed Set of Keys
 
-Define your own `ToHtmxValue` instance to make custom domain types work in the HTMX DSL:
-
-```scala mdoc:silent
-import zio.http.htmx._
-
-sealed trait Priority
-object Priority {
-  case object Low extends Priority
-  case object Medium extends Priority
-  case object High extends Priority
-  
-  implicit val toHtmxValue: ToHtmxValue[Priority] = new ToHtmxValue[Priority] {
-    def toHtmxValue(value: Priority): String = value match {
-      case Low    => "low"
-      case Medium => "medium"
-      case High   => "high"
-    }
-  }
-}
-```
-
-Use `Priority` values directly in HTMX attributes through the `ToHtmxValue` type class:
+The type class is for rendering the built-in value types. Each HTMX attribute key is created with a fixed value type, and `:=` takes exactly that type, so defining a `ToHtmxValue` instance for your own type does not make it assignable to any key. To render a domain value, convert it to a `String` (or to the key's value type) yourself, or call `ToHtmxValue#toHtmxValue` by hand:
 
 ```scala mdoc:compile-only
-import zio.blocks.html._
 import zio.http.htmx._
 
-button(
-  hxPost := "/api/task",
-  hxOn.click := Js(s"console.log('Priority: ${Priority.High.toString()}')"),
-  "Create High Priority Task"
-)
+val rendered: String = ToHtmxValue[String].toHtmxValue("hello")
 ```
 
 #### Implicit Resolution
@@ -327,8 +301,6 @@ div(hxSwap := HxSwap.InnerHTML)
 // Implicit ToHtmxValue[String] is summoned
 div(hxPost := "/endpoint")
 ```
-
-If you get an error like "No `ToHtmxValue` instance found for type X," implement the type class for your custom type as shown above.
 
 ## Integration
 

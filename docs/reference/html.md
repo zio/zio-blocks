@@ -47,7 +47,7 @@ case class CssSelector.Class(name: String) extends CssSelector
 // Css variants
 sealed trait Css
 case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration]) extends Css
-case class Css.Declaration(property: String, value: String) extends Css
+final case class Css.Declaration private (property: String, value: String) // not a Css; built through Css.Declaration.apply
 ```
 
 ## Motivation
@@ -89,7 +89,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-html" % "@VERSION@"
 Supported Scala versions: 2.13.x and 3.x
 
 :::note
-The `html` module depends transitively on `zio-blocks-schema` and `zio-blocks-chunk`. The schema dependency enables `ToJs` auto-derivation via JSON encoding — if your type has a `Schema` instance, it automatically becomes usable in `js"..."` expressions.
+The `html` module depends directly on `zio-blocks-schema` and `zio-blocks-chunk`. The schema dependency enables `ToJs` auto-derivation via JSON encoding — if your type has a `Schema` instance, it automatically becomes usable in `js"..."` expressions.
 :::
 
 ## Overview: How They Work Together
@@ -144,9 +144,9 @@ The module is organized around five core subsystems that compose together:
 
 The `Dom` sealed trait is the core data model. Everything in the module works with or produces `Dom` nodes.
 
-### The Five Node Types
+### The Node Types
 
-A `Dom` tree is composed of five node types:
+A `Dom` tree is composed of seven node types, described below: `Text`, `Generic`, `Script`, `Style`, `Doctype`, `Empty` and `Dom.Element.Void` (a node type of its own, described in [Dom.Element.Void](#domelementvoid)):
 
 #### Dom.Text
 
@@ -237,7 +237,7 @@ val tree = div(p("A"), span("B"), p("C"))
 val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
 ```
 
-**`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
+**`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. A failing child is removed from its parent together with its subtree; when the root itself fails, the result is `Dom.Empty`. Matching elements have their children recursively filtered:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -342,9 +342,9 @@ val link = a(
 
 ### Multi-Valued Attributes: Override vs Accumulate
 
-For attributes that can have multiple values (`class`, `rel`, `accept`), you can override or accumulate:
+For attributes that can have multiple values (`class`, `rel`), you can override or accumulate:
 
-- **`:=` (override)** — Replaces any previous value. Last assignment wins:
+- **`:=` (override)** — Replaces any earlier `:=` value, so the last `:=` wins. Values added with `+=` are always appended, so `className += "sale", className := "card"` renders `class="card sale"`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -617,11 +617,11 @@ val name = "Alice"
 val age = 30
 
 // name is in content position → ToElements[String]
-// age is in attribute position → ToAttrValue[Int]
-val elem = html"""<div id="user-$age" class="profile">User: $name</div>"""
+// age is in attribute position (the whole value) → ToAttrValue[Int]
+val elem = html"""<div id=$age class="profile">User: $name</div>"""
 ```
 
-**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3):
+**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3). Whitespace around the root counts too: a template that starts or ends with a newline has three top-level nodes, so begin the template with the root tag and end it right after the closing tag. A `$` inside a quoted attribute value, such as `id="user-$age"`, is not supported in 0.0.56 (a known bug); interpolate the whole value instead, as in `id=$age`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -688,17 +688,15 @@ val code = js"console.log($message); alert($count);"
 Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Always use `ToJs[String]` (which automatically quotes and escapes) for any untrusted input.
 :::
 
-The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes:
+The interpolator renders a `String` value as a quoted JavaScript literal, writing `<` and `>` as Unicode escapes:
 
-```scala mdoc:compile-only
+```scala mdoc:nest
 import zio.blocks.html._
 
 val userInput = "if (x < y) alert('<script>');"
 val code = js"let check = $userInput"
 
 println(code.value)
-// let check = "if (x < y) alert('<script>');"
-// (with < and > characters escaped as < and > in actual output)
 ```
 
 ### `selector""` Interpolator
@@ -1066,7 +1064,7 @@ println(mediaQuery.render)
 ```
 
 :::tip
-Prefer `Css.Rule` and `Css.Sheet` over `Css.Raw` when possible — structured CSS enables future optimization and prevents CSS injection. Use `Css.Raw` only for trusted, hardcoded CSS.
+Prefer `Css.Rule` and `Css.Sheet` over `Css.Raw` when possible — structured CSS enables future optimization. Declaration values are not checked, so validate values that come from users. Use `Css.Raw` only for trusted, hardcoded CSS.
 :::
 
 ### CSS Comments
@@ -1149,24 +1147,15 @@ safe.render
 
 ### JavaScript String Escaping
 
-The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` → backslash-u-0-0-3-c (the six-character Unicode escape sequence `<`)
-- `>` → backslash-u-0-0-3-e (the six-character Unicode escape sequence `>`)
-- `&` → backslash-u-0-0-2-6 (the six-character Unicode escape sequence `&`)
-- `"` → `\"`, `'` → `\'`, `\` → `\\`
-- Newlines, carriage returns, and Unicode line/paragraph separators are escaped
+`ToJs[String]` renders a string as a quoted JavaScript literal. The characters `<`, `>` and `&` are written as `\u003c`, `\u003e` and `\u0026`, quotes and backslashes get a backslash, and line breaks are written as escapes. For example:
 
-This protects against `</script>` injection:
-
-```scala mdoc:compile-only
+```scala mdoc:nest
 import zio.blocks.html._
 
 val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// let payload = "</script><script>alert('XSS');</script>"
-// (with < and > characters escaped as Unicode in actual output)
 ```
 
 ### URL Sanitization
@@ -1243,20 +1232,20 @@ val page = userList(List("Alice", "Bob", "Charlie"))
 
 Combine interpolators and DSL for flexibility:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
-val title = "My Page"
-val content = "Welcome to my site"
+val pageTitle = "My Page"
+val pageContent = "Welcome to my site"
 
-val page = html"""
-<html>
-  <head><title>$title</title></head>
+val page = html"""<html>
+  <head><title>$pageTitle</title></head>
   <body>
-    ${div(p(content))}
+    ${div(p(pageContent))}
   </body>
-</html>
-"""
+</html>"""
+
+println(page.render)
 ```
 
 ### Querying for Tests

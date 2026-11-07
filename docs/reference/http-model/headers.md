@@ -311,7 +311,7 @@ base.remove("content-length").toList
 (base ++ Headers("content-length" -> "300")).toList
 ```
 
-Every method returns a new `Headers`; the class is immutable and the arrays are never mutated in place.
+Every method returns a new `Headers`; the header names and values are never changed in place. The only in-place write is the parse cache slot that a typed read fills (see [The Parse Cache](#the-parse-cache)).
 
 ### `Headers.apply` and `Headers.empty`
 
@@ -566,7 +566,7 @@ Both model the header as an unparsed string; structured cookie handling lives in
 | `Header.Connection`        | `connection`         | ADT: `Close`, `KeepAlive`, `Other`                                       |
 | `Header.Upgrade`           | `upgrade`            | `protocol: String`                                                      |
 | `Header.Te`                | `te`                 | `value: String`                                                         |
-| `Header.Trailer`           | `trailer`            | `value: String`                                                         |
+| `Header.Trailer`           | `trailer`            | `headers: Chunk[String]`                                                |
 | `Header.TransferEncoding`  | `transfer-encoding`  | ADT: `Chunked`, `Compress`, `Deflate`, `GZip`, `Identity`, `Multiple`    |
 
 ### Security

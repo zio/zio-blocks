@@ -99,7 +99,7 @@ button(
 )
 ```
 
-**`next(selector: String)`** targets the next sibling matching the selector:
+**`next(selector: String)`** targets the next element matching the selector. htmx scans the whole document in order, starting after the current element, so the match need not be a sibling (the bare `next` form is the sibling):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -124,7 +124,7 @@ button(
 )
 ```
 
-**`previous(selector: String)`** targets the previous sibling matching the selector:
+**`previous(selector: String)`** targets the previous element matching the selector. htmx scans the whole document backwards from the current element, so the match need not be a sibling (the bare `previous` form is the sibling):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._

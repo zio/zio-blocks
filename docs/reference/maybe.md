@@ -61,7 +61,7 @@ See also [How to Avoid Allocation on Hot Paths](../guides/avoid-allocation-on-ho
 
 When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` provides an alternative with different trade-offs depending on your Scala version.
 
-**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and a top-level `Absent` sentinel. The type is an opaque alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence. Flat reference values (non-nested, non-null) are stored raw with zero allocation, while a primitive is stored as its JVM box, which allocates unless the JVM caches it; only present-of-absent values allocate a `Present` wrapper (`Maybe.present(Maybe.absent)` → `Present(Absent)`, `Maybe.present(null)` → `Present(null)`). This gives you a dedicated API (`map`, `flatMap`, `filter`, etc.) with minimal runtime overhead. `case Absent` is a stable-identifier pattern that works directly.
+**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and a top-level `Absent` sentinel. The type is an opaque alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence. Flat reference values (non-nested, non-null) are stored raw with zero allocation, while a primitive is stored as its JVM box, which allocates unless the JVM caches it; only present-of-absent values, a present `null` and an already-present `Maybe` allocate a `Present` wrapper (`Maybe.present(Maybe.absent)` → `Present(Absent)`, `Maybe.present(null)` → `Present(null)`, `Maybe.present(Present(x))` → `Present(Present(x))`). This gives you a dedicated API (`map`, `flatMap`, `filter`, etc.) with minimal runtime overhead. `case Absent` is a stable-identifier pattern that works directly.
 
 **On Scala 2.13:** `Maybe[A]` is implemented as a sealed trait (`Present[A]` | `Absent`). Present values allocate a wrapper, so the allocation savings versus `Option` are less pronounced. However, the unified API and interoperability benefits still apply.
 
@@ -81,14 +81,16 @@ The API surface is consistent across Scala 2.13 and Scala 3, but the underlying 
 | ----------------- | -------------------------------------------------------------------------- | ------------------------------------- |
 | Encoding          | `opaque type Maybe[+A] = A \| Absent.type \| Present[A]`                   | Sealed trait `Present[A]` \| `Absent` |
 | Flat allocation   | **0** for a reference or `Absent`; a primitive keeps its JVM box           | **1** (wrapper object)                |
-| Nested allocation | **1** (`Present(Absent)` only)                                             | **1** (wrapper object)                |
+| Nested allocation | **1** (`Present(Absent)` or `Present(Present(x))`)                             | **1** (wrapper object)                |
 | `Present` type    | Public `final class Present[+A]` with manual companion (`apply`/`unapply`) | `MaybeValue.Present[A]` (sealed)      |
 | Nesting guard     | **Removed** (nesting now sound via `Present`)                              | N/A (never existed)                   |
 
 ### Behavior Differences
 
-- **`Maybe.present(null)`**: On Scala 3, produces `Present(null)` (present-of-absent). On Scala 2.13, produces `MaybeValue.Present(null)` (also present-of-absent). Both are distinguishable from `Maybe.absent`.
+- **`Maybe.present(null)`**: On Scala 3, produces `Present(null)`, a present `null`. On Scala 2.13, produces `MaybeValue.Present(null)`, also a present `null`. Both are distinguishable from `Maybe.absent`, and `isPresent` is `true` and `isAbsent` is `false` for them.
 - **`Maybe.fromOption(Some(null))`**: Routes through `present`, so same behavior as above.
+- **`Maybe(Maybe.absent)`**: absent on Scala 3, present on Scala 2.
+- **`toString` and `==`**: `Maybe.present(8080)` prints `8080` on Scala 3 and equals `8080` only when compared as `Any` (a direct `Maybe.present(8080) == 8080` does not compile there); on Scala 2 it prints `Present(8080)`. `Maybe.absent` prints `zio.blocks.maybe.Absent$@<hash>` on Scala 3 and `Absent` on Scala 2.
 - **Pattern matching**: On Scala 3, `Present(v)` matches both present shapes (a raw value and a `Present(...)` wrapper); absent matches `case Absent` (stable-identifier pattern, no `case _` required inside the package; external two-case matches also compile without exhaustivity warning). On Scala 2.13, `MaybeValue.Present(v)` / `MaybeValue.Absent` are the compiler-checked native patterns.
 
 ## Pattern Matching
@@ -289,7 +291,7 @@ val result: Either[String, Int] = value.toRight("Value not found")
 
 `Maybe[A]` integrates with the broader Scala and ZIO ecosystem:
 
-- **Option interoperability**: Convert bidirectionally with `toOption` and `Maybe#fromOption`; a `Conversion[Option[A], Maybe[A]]` is provided for implicit conversions
+- **Option interoperability**: Convert bidirectionally with `toOption` and `Maybe#fromOption`; on Scala 3 a `Conversion[Option[A], Maybe[A]]` is provided for implicit conversions; on Scala 2 the conversion is `Maybe.optionToMaybe`, which needs `import Maybe._`
 - **Schema support**: Schema codecs use private unsafe methods (`unsafeIsAbsent`, `unsafeGet`, `unsafeWrap`) for efficient serialization and deserialization
 - **For-comprehensions**: Supports `withFilter` for guard clauses in for-expressions
 - **Collections**: Convert to `List`, `Seq`, or `Iterator` for bulk operations
@@ -388,7 +390,7 @@ Test whether a `Maybe` is present or absent:
 
 #### isPresent, isDefined, nonEmpty
 
-All three are equivalent—return true if the value is non-null:
+All three are equivalent—return true if the value is not the `Absent` object (a present `null` counts as present):
 
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
@@ -401,7 +403,7 @@ println(value.nonEmpty)   // true
 
 #### isAbsent, isEmpty
 
-Both return true if the value is `null`:
+Both return true if the value is the `Absent` object (a present `null` is not absent):
 
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
@@ -664,7 +666,7 @@ import zio.blocks.maybe._
 
 val value: Maybe[String] = Maybe.present("hello")
 val seq: Seq[String]     = value.toSeq
-println(seq)  // Seq("hello")
+println(seq)  // List(hello)
 ```
 
 #### iterator
