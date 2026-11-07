@@ -64,6 +64,29 @@ def _strip_annotations(code):
     return code
 
 
+def _after_annotation(code, depth):
+    """Returns the text after the bracket that brings `depth` open brackets back to zero, or None."""
+    masked = re.sub(r'"(?:\\.|[^"\\])*"', lambda m: '"' + " " * (len(m.group(0)) - 2) + '"', code)
+    for pos, ch in enumerate(masked):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+            if depth == 0:
+                return code[pos + 1 :].strip()
+    return None
+
+
+def _is_annotation_close(line):
+    """True if `line` closes a multi-line annotation and nothing follows the closing bracket (`"0.1")`, `)`).
+
+    A line such as `"1") def f = 1` also closes one, but it declares `f`, so it is not a close for doc lookup.
+    """
+    code = line.strip()
+    net = -_open_parens(code)
+    return net > 0 and _after_annotation(code, net) == ""
+
+
 def _is_annotation_line(line):
     code = line.strip()
     return code.startswith("@") and not _DECL.match(_strip_annotations(code))
@@ -82,7 +105,9 @@ def _annotation_start(lines, j):
         if depth > 0:
             return None
         if depth == 0:
-            return k if lines[k].strip().startswith("@") else None
+            opener = lines[k].strip()
+            annotated = opener.startswith("@") and not _DECL.match(_strip_annotations(opener))
+            return k if annotated else None
     return None
 
 
@@ -97,7 +122,7 @@ def _doc_before(lines, i):
         if _is_annotation_line(lines[j]):
             j -= 1
             continue
-        start = _annotation_start(lines, j) if lines[j].strip().startswith(")") else None
+        start = _annotation_start(lines, j) if _is_annotation_close(lines[j]) else None
         if start is None:
             break
         j = start - 1
@@ -126,6 +151,7 @@ def scan(text):
     in_comment = False
     in_string = False
     annotation_depth = 0  # open parentheses of a multi-line annotation being skipped
+    annotation_line = 0  # index of the line that opens that annotation
     for i, line in enumerate(lines):
         code = line.strip()
         if in_string:
@@ -142,12 +168,22 @@ def scan(text):
         in_string = line.count('"""') % 2 == 1
         indent = len(line) - len(line.lstrip())
         # A multi-line annotation is skipped whole: its arguments are not declarations, and its closing `)`
-        # line is not a parameter list. The declaration it annotates follows it.
+        # line is not a parameter list. The declaration it annotates follows it, and its Scaladoc sits above
+        # the annotation's first line (`doc_line`).
+        doc_line = i
         if annotation_depth:
-            annotation_depth += _open_parens(code)
-            continue
-        if code.startswith("@") and _open_parens(code) > 0 and not _DECL.match(_strip_annotations(code)):
+            depth = annotation_depth + _open_parens(code)
+            if depth > 0:
+                annotation_depth = depth
+                continue
+            code = _after_annotation(code, annotation_depth) or ""  # `"1") def f = 1` declares `f`
+            annotation_depth = 0
+            if not code:
+                continue
+            doc_line = annotation_line
+        elif code.startswith("@") and _open_parens(code) > 0 and not _DECL.match(_strip_annotations(code)):
             annotation_depth = _open_parens(code)
+            annotation_line = i
             continue
         while stack and stack[-1].indent > indent:
             stack.pop()
@@ -169,7 +205,9 @@ def scan(text):
             hidden = hidden_parent or bool(_HIDDEN.search(m.group("mods")))
             if in_api and not hidden:
                 owner = tuple(s.name for s in stack if s.name)
-                decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, i), owner))
+                decls.append(
+                    Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, doc_line), owner)
+                )
             is_type = m.group("kind") in _TYPE_KINDS
             # A `private[pkg] trait` is mixed into a public object (`object Schema extends ... with DocsSchemas`):
             # the trait itself is hidden, but its members are API members of that object.
