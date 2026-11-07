@@ -690,7 +690,7 @@ Never interpolate untrusted user input directly into `js""`. The interpolator es
 
 The interpolator renders a `String` value as a quoted JavaScript literal, writing `<` and `>` as Unicode escapes:
 
-```scala mdoc
+```scala mdoc:nest
 import zio.blocks.html._
 
 val userInput = "if (x < y) alert('<script>');"
@@ -1149,7 +1149,7 @@ safe.render
 
 `ToJs[String]` renders a string as a quoted JavaScript literal. The characters `<`, `>` and `&` are written as `\u003c`, `\u003e` and `\u0026`, quotes and backslashes get a backslash, and line breaks are written as escapes. For example:
 
-```scala mdoc
+```scala mdoc:nest
 import zio.blocks.html._
 
 val userInput = "</script><script>alert('XSS');</script>"
