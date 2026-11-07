@@ -13,7 +13,7 @@ keywords:
 
 In this guide, we generate a Scala service trait from a Smithy service and from an OpenAPI document. Each operation becomes one abstract method, each set of errors becomes a sealed type, and the generator writes the result as Scala 3 source. The Smithy walkthrough comes first in full, and the OpenAPI version follows with the places where it differs.
 
-The generators in [Generate Scala Code from a Smithy Model](./generate-scala-code-from-smithy.md) and [Generate Scala Types from an OpenAPI Spec at Build Time](./generate-scala-types-from-openapi.md) stop at data types. This guide adds the step after them: the reader maps operations to methods, and the codegen IR writes the trait.
+The generators in [Generate Scala Code from a Smithy Model](./generate-scala-code-from-smithy.md) and [Generate Scala Types from an OpenAPI Spec at Build Time](./generate-scala-types-from-openapi.md) stop at data types. This guide adds the step after them: we map operations to methods, and the codegen IR writes the trait.
 
 ## The Problem
 
@@ -37,7 +37,7 @@ trait OrderService {
 }
 ```
 
-This trait compiles today. When the model gains an operation or an error, nothing tells you the trait is stale: the compiler accepts the old version, and the gap shows up later, when a client calls the operation that is missing. In this guide, the model is the only place the operations are written, and the trait is generated from it on every build.
+When the model gains an operation or an error, nothing tells you the trait is stale: the compiler accepts the old version, and the gap shows up later, when a client calls the operation that is missing. In this guide, the model is the only place the operations are written, and the trait is generated from it on every build.
 
 ## Prerequisites
 
@@ -372,7 +372,7 @@ All runnable code from the Smithy part is in [`smithy-examples/src/main/scala/ge
 
 ## Generate Service Traits from OpenAPI Paths
 
-OpenAPI has no service or operation shapes. Each path item holds up to five operations, one per HTTP method, and each operation has an `operationId`, which names it. Its parameters, its request body and its responses sit inside the operation, and each response is keyed by its status code. The mapping follows the same shape as the Smithy one, with three differences: the path parameters become method parameters, the request body becomes a `body` parameter, and the non-2xx responses become the error type of that one operation.
+OpenAPI has no service or operation shapes. Each path item holds up to eight operations, one per HTTP method, and each operation has an `operationId`, which names it. The generator reads `get`, `put`, `post`, `delete` and `patch`. Its parameters, its request body and its responses sit inside the operation, and each response is keyed by its status code. The mapping follows the same shape as the Smithy one, with three differences: the path parameters become method parameters, the request body becomes a `body` parameter, and the non-2xx responses become the error type of that one operation.
 
 The spec below is the bookstore's paths, with the schemas reduced to their names. The trait depends only on the paths and the names of the schemas they refer to, so the output is the same as for the full spec in `openapi-examples/src/main/openapi/bookstore-service.json`:
 
@@ -539,7 +539,7 @@ def endpoints(api: OpenAPI): List[Endpoint] =
   }
 ```
 
-Each `operationId` becomes the method name, so an operation without one cannot be mapped, and the generator stops with an error. Printing the endpoints shows the method, the path and the parameters each one gets:
+Each `operationId` becomes the method name, so an operation without one cannot be mapped, and the generator stops with an error. The next functions read a method's parameters and its success type from the spec:
 
 ```scala mdoc:silent
 def componentName(schema: ReferenceOr[SchemaObject]): String = schema match {
@@ -567,6 +567,8 @@ def successType(e: Endpoint): TypeRef =
       jsonSchema(response.content.toList).map(s => TypeRef(componentName(s))).getOrElse(TypeRef.Unit)
   }.getOrElse(TypeRef.Unit)
 ```
+
+Printing the endpoints shows the method, the path, the parameters and the success type each one gets:
 
 ```scala mdoc
 endpoints(api).foreach { e =>
@@ -639,7 +641,7 @@ The package is passed in, because the trait belongs next to the data types that 
 println(ScalaEmitter.emit(serviceTrait(api, "com.example.bookstore"), EmitterConfig.default))
 ```
 
-The trait refers to `Order`, `CancelRequest` and `ApiError`, which come from the data types of the same spec. Generate those with the [OpenAPI data types generator](./generate-scala-types-from-openapi.md) from the same file, and both outputs compile together in one package.
+The trait refers to `Order`, `CancelRequest` and `ApiError`, which come from the data types of the same spec. Generate those with the [OpenAPI data types generator](./generate-scala-types-from-openapi.md) from the same file. Its output derives `Schema` for each case class, which the `Status` cases need, and both outputs compile together in one package.
 
 ## What the OpenAPI Mapping Leaves Out
 
@@ -654,6 +656,7 @@ The table lists what the generator reads from a spec, and what it does not.
 | Non-2xx responses                      | Yes     | A case per status code in an error type of the operation    |
 | Inline schemas in bodies or responses  | No      | Fails the build: name the schema in `components`            |
 | `default` response                     | No      | Ignored                                                     |
+| `options`, `head` and `trace` operations | No    | Ignored                                                     |
 | Query, header and cookie parameters    | No      | Ignored                                                     |
 | Security requirements, callbacks       | No      | Ignored                                                     |
 
