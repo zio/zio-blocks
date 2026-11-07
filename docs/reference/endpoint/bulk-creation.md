@@ -5,7 +5,7 @@ title: "Bulk Endpoint Creation"
 
 ## Bulk endpoint creation with `endpoints { ... }`
 
-The `endpoints` macro (Scala 3.8+ with `-experimental` for `NamedTuple`, also works on Scala 3.7 with `-experimental`) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed. All examples below assume `import zio.blocks.endpoint.*` and `scalacOptions += "-experimental"`.
+The `endpoints` macro (Scala 3 only; it is not in `zio-blocks-endpoint` 0.0.56, so add `zio-blocks-next-endpoint` and `-experimental` as described in [the endpoint overview](./index.md)) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed. All examples below assume `import zio.blocks.endpoint.*` and `scalacOptions += "-experimental"`.
 
 String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `zio.blocks.endpoint.*` — there is no String-specific `/` operator; constant prefixes auto-convert and use the same grouping `/` as capturing prefixes.
 
@@ -37,13 +37,14 @@ val c: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = api.customer
 val h: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = api.`GET /health`
 ```
 
-Auto-naming follows `RoutePattern.render` exactly:
+Auto-naming follows `RoutePattern.render` for the shapes it supports: a method followed by one literal or one capture, or by one literal and one capture:
 
 - `GET /user/{userId}` for path variables (RFC 6570 `{var}`)
 - `GET#|POST /orders` for multi-method
-- `v{major}` for `~` concat segments
 - `...` for trailing segments
-- `.unused` renders as `{name}`
+- `.unused` renders as `{name}` when it is the only segment after the method
+
+Other shapes stop the compile with "cannot auto-name this endpoint; assign it to a val": two literals (`GET / "notes" / "latest"`), two captures, a literal after a capture, `.unused` after a literal, a `~` segment anywhere, and a route that starts from a `RoutePattern` value. This is a known bug in 0.0.56. Assign such an endpoint to a `val` and the `val` name becomes the member name.
 
 Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the description level; grouping nodes have no path themselves:
 
@@ -93,4 +94,4 @@ val lookup: Endpoint[(Int, Int), Unit, Unit, Unit, AuthType.None.type] = ordersB
 
 Variable prefixes should be bound to an explicit `val` — the val names the subgroup whose members you access through it (`byId.get`, `ordersById.o`). Constant-prefix and capturing-prefix subgroups can be freely nested inside each other: `"api" / endpoints { PathCodec.int("id") / endpoints { ... } }` composes both prefixes into every leaf route at compile time.
 
-The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ with `-experimental` for named tuples). All examples above compile against the `endpoint` module on Scala 3.9.0 with `scalacOptions += "-experimental"`.
+The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only; see [the endpoint overview](./index.md) for the artifact, the Scala version and the `-experimental` rule.

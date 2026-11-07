@@ -44,7 +44,7 @@ The typed HTMX DSL catches these mistakes at compile time:
 - Strategy names are exhaustive case objects: `HxSwap.InnerHTML`, `HxSwap.AfterBegin`, etc.
 - Modifier methods enforce correct grouping: repeated calls within the same modifier group (`swap()` or `settle()`) replace earlier values, while different groups (`swap`, `settle`, `transition`) can be combined
 - Type-safe attributes like `hxTarget` prevent passing raw strings where structured selectors belong
-- Extensible type class `ToHtmxValue` lets custom domain values render themselves to HTMX syntax
+- The `ToHtmxValue` type class renders the built-in value types to HTMX syntax
 
 ## Installation
 
@@ -92,7 +92,7 @@ Each type in the module addresses a specific HTMX concern:
 
 **Request Control:** `HxParams` filters which form fields are submitted (all, none, only listed, all except listed). `HxUrlUpdate` controls whether the URL bar updates after the request. `HxEncoding` and `HxSync` handle multi-step request concerns.
 
-**Infrastructure:** `HtmxAttrKey` is the typed attribute key binding a name to a value type. `ToHtmxValue` is the type class rendering domain values to HTMX attribute strings, enabling custom types to participate in the DSL.
+**Infrastructure:** `HtmxAttrKey` is the typed attribute key binding a name to a value type. `ToHtmxValue` is the type class rendering domain values to HTMX attribute strings, for the built-in value types. The set of attribute keys is closed, so a custom instance does not make a new type assignable to a key.
 
 ## How They Work Together
 
@@ -244,7 +244,7 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With `zio.blocks.schema` for JSON encoding:** For domain values, use `HxVals.from(...)` and `HxHeadersValue.from(...)` to encode values via their `Schema` to JSON. This allows schema-backed types to be automatically JSON-encoded in HTMX attributes.
 
-**With CSS selectors:** Attributes that accept selectors (hxTarget, hxSelect, hxDisabledElt, hxIndicator) accept `CssSelector` from `zio.blocks.html`, providing type-safe selector construction.
+**With CSS selectors:** Attributes that accept selectors (hxSelect, hxSelectOob, hxDisabledElt, hxIndicator) accept `CssSelector` from `zio.blocks.html`, providing type-safe selector construction. `hxTarget` takes an `HxTarget` instead.
 
 **With JavaScript:** Attributes that accept raw JavaScript expressions (`hxOn:*`, `hxTrigger.filter()`) accept the `Js` type, making it explicit that you're writing unescaped JavaScript code. This prevents accidental XSS while allowing intentional dynamic behavior.
 
@@ -252,7 +252,7 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **In a tutorial:** [Add Interactivity to a Page with HTMX](../../guides/add-interactivity-with-htmx.md) builds a live book search with these attributes, step by step.
 
-**Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
+**Custom types:** A `ToHtmxValue[MyType]` instance does not make `MyType` usable in an attribute: each key takes a fixed value type. Convert a domain value to the key's value type (usually a `String`) before assigning it.
 
 ## Running the Examples
 

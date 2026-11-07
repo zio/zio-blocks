@@ -5,7 +5,7 @@ title: "Avro Codec Module"
 
 `zio-blocks-schema-avro` is a **schema-driven Avro codec module** for serializing and deserializing Scala types to and from Avro binary format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. Core types: `AvroCodec`, `AvroCodecDeriver`, `AvroFormat`.
 
-The module integrates with Apache Avro to provide native binary serialization with automatic schema generation and support for recursive data structures with cycle detection.
+The module integrates with Apache Avro to provide native binary serialization with automatic schema generation and support for recursive types, such as trees.
 
 See also the [How to Encode and Decode Records with Avro](../../../guides/encode-and-decode-records-with-avro.md) guide, which writes the `.avsc` schema for a sealed trait, streams records, lists how each Scala type maps to Avro, and reads the bytes with Apache Avro.
 
@@ -14,9 +14,9 @@ See also the [How to Encode and Decode Records with Avro](../../../guides/encode
 Avro is a powerful serialization format prevalent in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
 - Full Avro type support (records, unions, arrays, maps, nested structures)
 - Automatic Avro schema generation from Scala types
-- Configurable sum type handling (union fields with discriminators)
+- Sum types as Avro unions, one record per case
 - Precise error reporting with location traces showing the path to errors
-- Recursive type support with automatic cycle detection
+- Recursive type support, such as trees
 - Multiple encoding paths: ByteBuffer, byte arrays, and streams
 - Multiple decoding paths: ByteBuffer, byte arrays, and streams
 - JVM support (not available for Scala.js)
@@ -40,7 +40,7 @@ The module provides a complete pipeline for Avro codec derivation and usage:
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `Schema#derive` with `AvroFormat` to obtain an `AvroCodec[A]`
 3. **Encode or decode** — Call `codec.encode(value)` or `codec.decode(bytes)`
-4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
+4. **Handle errors** — `decode` returns the `SchemaError`, with the path to the bad value, in a `Left`
 
 The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module automatically generates Avro schemas and handles encoding/decoding without manual configuration.
 
@@ -56,7 +56,7 @@ The Avro codec pipeline flows through these layers:
 3. AvroCodecDeriver derives Encoder and Decoder implementations
    - For primitives: type-specific Avro encoders/decoders
    - For records: field-by-field composition with Avro record schema
-   - For variants: union type encoding with discriminator support
+   - For variants: a union of the case records, written as the branch index and the case
    - For sequences: array encoding/decoding
    - For maps: map encoding/decoding
                  ↓
@@ -74,7 +74,7 @@ The Avro codec pipeline flows through these layers:
    Useful for compatibility checks and schema documentation
                  ↓
 7. Errors include location traces
-   Shows path (.field[index].nested) to error location
+   Shows path (.field.at(index).nested) to error location
 ```
 
 **Typical workflow:**
@@ -99,7 +99,7 @@ Handle SchemaError with location trace on failure
 - **`AvroCodec[A]`** — Main public API; contains encoder and decoder for bidirectional serialization
 - **`AvroCodecDeriver`** — Configuration and derivation system; generates codecs from Schema
 - **`AvroFormat`** — Integration with ZIO Blocks Schema format system; enables `Schema[A].derive(AvroFormat)`
-- **`SchemaError`** — Error type with location traces; renders as paths like `.field[0].nested`
+- **`SchemaError`** — Error type with location traces; renders as `DynamicOptic` paths like `.field.at(0).nested`
 
 ## Common Patterns
 
@@ -175,7 +175,7 @@ println(avroSchema.toString)
 
 ### Pattern 4: Handle Recursive Types
 
-Recursive types (types that reference themselves) are fully supported with automatic cycle detection.
+Recursive types (types that reference themselves) are supported: the Avro schema refers to the record by name. The codec does not detect cycles in values, and a case class value cannot be cyclic anyway.
 
 To define and encode a recursive data structure:
 
@@ -320,7 +320,9 @@ val result = codec.decode(input)
 
 ### Decoding Trusts the Reader's Schema
 
-Avro binary carries no field names and no type name, so `AvroCodec#decode` reads the bytes with the schema of the type that you asked for. It does not check that the bytes were written for that type. Bytes written for `Shipped(orderId: Long, carrier: String)` decode without error as `Priority(orderId: Long, priority: Int)` and return wrong values. This is a known bug in 0.0.56, not a choice of the format. Keep the writer and the reader on the same schema version, and check a version field before you decode when the two sides can drift apart.
+Avro binary carries no field names and no type name, so `AvroCodec#decode` reads the bytes with the schema of the type that you asked for. It does not check that the bytes were written for that type. Bytes written for `Shipped(orderId: Long, carrier: String)` decode without error as `Priority(orderId: Long, priority: Int)` and return wrong values. Avro binary has no type information to check, so the codec cannot detect this, and zio-blocks adds no check of its own (a known limitation in 0.0.56). Keep the writer and the reader on the same schema version, and check a version field before you decode when the two sides can drift apart.
+
+A known bug in 0.0.56: `AvroCodec#decode(ByteBuffer)` on a sliced heap buffer (one with a non-zero array offset) reads the wrong bytes, because the codec ignores `ByteBuffer#arrayOffset`; pass an array or an unsliced buffer.
 
 A second known bug in 0.0.56: `AvroCodec#decode` decodes one value and returns `Right` without checking that the input is used up. A message with extra bytes at the end decodes as the first record, and the extra bytes are ignored. Until the bug is fixed, the codec cannot reject such input, so check the message length in your own code when a message must be exact.
 
@@ -508,7 +510,7 @@ Avro decoding errors include location traces showing the path through nested str
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
+Errors render as `DynamicOptic` paths such as `.field.at(0).nested.value`: a record field is `.name`, a sequence index is `.at(0)`, a map value is `.atKey(...)` and a variant case is `.when[Case]`. The path shows exactly where decoding failed:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._

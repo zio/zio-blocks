@@ -57,7 +57,7 @@ The module provides a complete pipeline for CSV codec derivation and usage:
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `CsvFormat` to obtain a `CsvCodec[A]`
 3. **Parse or serialize** — Call `CsvCodec#decode` or `CsvCodec#encode`
-4. **Handle errors** — Catch `CsvError` for malformed input, and `SchemaError` for a cell that doesn't convert to its field's type
+4. **Handle errors** — `CsvReader` returns a `CsvError` in a `Left`; `CsvCodec#decode` returns a `SchemaError` in a `Left` for a malformed row, a wrong number of cells or a cell that doesn't convert to its field's type. Nothing throws either error
 
 The derivation process is automatic for supported types (all 30 primitives and flat records). Unsupported types (sealed traits, `Option` fields, sequences, maps) are rejected at derivation time, when `Schema#derive` runs, with an `UnsupportedOperationException`.
 
@@ -99,7 +99,7 @@ Use codec.headerNames for column names
 Use codec.encode(person, buffer) to serialize
 Use codec.decode(buffer) to deserialize
     ↓
-Handle CsvError.ParseError or SchemaError on failure
+Handle the Left: CsvError (CsvReader) or SchemaError (CsvCodec#decode)
 ```
 
 ## Common Patterns
@@ -536,7 +536,9 @@ Printing `codec.headerNames` shows one header per `Address` field:
 println(codec.headerNames)
 ```
 
-A field whose type is another case class is not rejected, but it does not become separate columns either. A known bug in 0.0.56: the deriver writes the nested record as one cell, including its `\r\n` line terminator, so the cell spans two lines in a spreadsheet. Flatten a nested record into separate fields before you derive the codec.
+A field whose type is another case class is not rejected, but it does not become separate columns either. A known bug in 0.0.56: the deriver writes the nested record as one cell, including its `\r\n` line terminator, so the cell spans two lines in a spreadsheet. Flatten a nested record into separate fields before you derive the codec. A field of an `AnyVal` case class type counts as a nested record too, because `Schema.derived` gives a value class a record schema, so a typed id such as `case class UserId(value: Long) extends AnyVal` breaks the export in the same way; a schema built with `Schema#transform` is a wrapper and is written as a plain cell.
+
+A known bug in 0.0.56: the derived codec ignores `Modifier.rename` and `Modifier.transient`. The header is always the Scala field name, and a transient field is still written and read as a column.
 
 ### Unsupported Types
 

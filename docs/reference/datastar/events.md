@@ -159,7 +159,7 @@ Fires when the element becomes visible, which is the basis for infinite scroll a
 | `half` | Require 50% visibility |
 | `full` | Require 100% visibility |
 | `exit` | Fire on leaving rather than entering |
-| `threshold(pct)` | Require an explicit visibility fraction |
+| `threshold(pct)` | Require `pct` percent visibility, as a whole number such as `25` |
 | `delay(ms)`, `debounce(ms)`, `throttle(ms)` | Timing control |
 | `DataOnIntersect#viewTransition` | Wrap the patch in a view transition |
 

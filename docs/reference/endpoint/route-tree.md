@@ -59,7 +59,7 @@ val tree = RouteTree.empty[String]
 val result: Option[String] = tree.get(Method.GET, Path("/users/42"))
 ```
 
-HEAD requests automatically fall back to the GET subtree if no HEAD handler is registered, matching the HTTP specification.
+A HEAD request with no matching HEAD route falls back to the GET subtree, matching the HTTP specification. The fallback also applies when a HEAD route exists but none of them matches the path.
 
 ## Merging
 

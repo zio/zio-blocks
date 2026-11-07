@@ -8,7 +8,7 @@ keywords:
   - "SuccessEvent ErrorEvent"
 ---
 
-`SqlLogger` is a callback interface that reports SQL execution events. Every statement calls either `onSuccess` or `onError` with details about the execution: rendered SQL, bound parameters, duration, and row count.
+`SqlLogger` is a callback interface that reports SQL execution events. Each `Frag` operation, and each `Repo` operation (one event for a whole batch, with empty `params`), calls either `onSuccess` or `onError` with details about the execution: rendered SQL, bound parameters, duration, and row count. Savepoint, commit and rollback statements report nothing.
 
 Key points:
 

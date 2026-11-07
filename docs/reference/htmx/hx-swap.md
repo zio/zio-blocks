@@ -133,7 +133,7 @@ div(hxSwap := HxSwap.InnerHTML.show(HxSwap.ShowPosition.Top))
 
 ## Focus & Title Management
 
-**`focusScroll(enabled: Boolean)`** sets the `focusScroll:` modifier to control whether focus moves during swap. Pass `true` to focus the swapped element, `false` to disable focus movement:
+**`focusScroll(enabled: Boolean)`** adds `focusScroll:true` or `focusScroll:false`, which is meant to control whether the browser scrolls to a focused input after the swap. It does not control whether focus moves. htmx 2 spells the modifier `focus-scroll:` and ignores the `focusScroll:` token this method renders (a known bug in 0.0.56):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._

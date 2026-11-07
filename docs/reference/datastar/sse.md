@@ -107,9 +107,9 @@ Eight modes decide where the content lands relative to the target. Each renders 
 
 | Mode | Effect |
 | ---- | ------ |
-| `Outer` | Replace the target element itself *(default)* |
-| `Inner` | Replace the target's children |
-| `Replace` | Replace using replacement semantics |
+| `Outer` | Morph the target element into the new content *(default)* |
+| `Inner` | Morph the target's children |
+| `Replace` | Replace the target element without morphing |
 | `Prepend` | Insert before the target's existing children |
 | `Append` | Insert after the target's existing children |
 | `Before` | Insert immediately before the target |
