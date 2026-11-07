@@ -483,7 +483,7 @@ The ten P0 items, in the order to write them. As of 2026-10-20 all ten are done,
 9. **H-03 How to override the codec for one type everywhere.** Its example already exists, and it answers a classic "custom date format" question for every format at once.
 10. **M-06 Coming from PureConfig, Typesafe Config or zio-config.** Scala 3 users are still stuck on PureConfig derivation, and config-hocon reads their existing files.
 
-**Next 10 (2026-10-29 backlog refresh), in order:** 1. H-54 (skipped); 2. H-55 (skipped); 3. H-56 (skipped); 4. H-57; 5. H-58; 6. H-59; 7. H-60; 8. H-61; 9. H-62 (skipped); 10. H-63 (see §5.13). The list above is the original, finished Top 10.
+**Next 10 (2026-10-29 backlog refresh), in order:** 1. H-54 (skipped); 2. H-55 (skipped); 3. H-56 (skipped); 4. H-57; 5. H-58; 6. H-59; 7. H-60; 8. H-61 (skipped, Milad 2026-11-07); 9. H-62 (skipped); 10. H-63 (see §5.13). The list above is the original, finished Top 10.
 
 ## 10. Sources
 
