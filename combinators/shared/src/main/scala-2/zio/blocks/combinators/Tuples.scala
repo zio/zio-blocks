@@ -19,19 +19,90 @@ package zio.blocks.combinators
 import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
+/**
+ * Combines two values into one flat tuple, and splits such a tuple back into
+ * its two parts. `Tuples.combine(8080, "localhost")` is `(8080, "localhost")`,
+ * and combining that with `true` appends to it instead of nesting it:
+ * `(8080, "localhost", true)`. A `Unit` on either side disappears.
+ *
+ * Use it to build an API that collects values one at a time (path segments,
+ * query parameters, zipped results) and hands the caller one flat tuple. The
+ * `Tuples.Tuples` type class does the work, and its `Out` member is the result
+ * type.
+ *
+ * The Scala versions differ when the right side is a tuple. On Scala 3 it is
+ * concatenated: `(8080, "localhost")` with `(true, 3)` is
+ * `(8080, "localhost", true, 3)`; `EmptyTuple` disappears like `Unit`, and the
+ * result can be longer than 22 elements. On Scala 2 it stays one nested
+ * element, `(8080, "localhost", (true, 3))` (a known bug); a result longer than
+ * 22 elements does not compile, and neither does a `Tuple1` on the left.
+ *
+ * {{{
+ * Tuples.combine(8080, "localhost")         // (8080,localhost)
+ * Tuples.combine((8080, "localhost"), true) // (8080,localhost,true)
+ * Tuples.combine((), 8080)                  // 8080
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/combinators/ Combinators]]
+ */
 object Tuples {
 
+  /**
+   * The type class behind `Tuples.combine`: `combine` merges an `L` and an `R`
+   * into `Out`, and `separate` splits an `Out` back into `(L, R)`. The compiler
+   * derives an instance for the `L` and `R` of a call, except for `Unit` with
+   * `Unit` and, on Scala 2, for a `Tuple1` or a 22-element tuple on the left;
+   * ask for one as an implicit parameter, as `Tuples.combine` does.
+   *
+   * {{{
+   * def roundTrip[L, R](l: L, r: R)(implicit t: Tuples.Tuples[L, R]): (L, R) =
+   *   t.separate(t.combine(l, r))
+   *
+   * roundTrip((8080, "localhost"), true) // ((8080,localhost),true)
+   * }}}
+   *
+   * @tparam L
+   *   the left value's type
+   * @tparam R
+   *   the right value's type
+   */
   trait Tuples[L, R] {
+
+    /**
+     * The combined type: `(Int, String, Boolean)` for `L = (Int, String)` and
+     * `R = Boolean`, `R` when `L` is `Unit`.
+     */
     type Out
 
+    /** Merges `l` and `r` into one value of type `Out`. */
     def combine(l: L, r: R): Out
 
+    /**
+     * Splits a combined value back into its two parts, so
+     * `separate(combine(l, r))` is `(l, r)`. On Scala 3, when both sides are
+     * tuples and either one holds a nested tuple, the part comes back flattened
+     * and reading it throws a `ClassCastException` (a known bug).
+     */
     def separate(out: Out): (L, R)
   }
 
+  /**
+   * Holds the `Tuples` instances; `WithOut` names an instance by its result
+   * type.
+   */
   object Tuples extends TuplesLowPriority1 {
+
+    /**
+     * A `Tuples` instance whose result type is `O`, for a signature that needs
+     * to name the result.
+     */
     type WithOut[L, R, O] = Tuples[L, R] { type Out = O }
 
+    /**
+     * Drops a `Unit` on the left: `combine((), r)` is `r`. Combining `()` with
+     * `()` does not compile, because this instance and `rightUnit` both apply.
+     */
     implicit def leftUnit[A]: WithOut[Unit, A, A] =
       new Tuples[Unit, A] {
         type Out = A
@@ -39,6 +110,7 @@ object Tuples {
         def separate(out: A): (Unit, A) = ((), out)
       }
 
+    /** Drops a `Unit` on the right: `combine(l, ())` is `l`. */
     implicit def rightUnit[A]: WithOut[A, Unit, A] =
       new Tuples[A, Unit] {
         type Out = A
@@ -47,12 +119,31 @@ object Tuples {
       }
   }
 
+  /**
+   * Holds the macro-derived instance, which has lower priority than the `Unit`
+   * instances.
+   */
   trait TuplesLowPriority1 {
+
+    /**
+     * Derives the instance for `L` and `R` with a macro. A tuple on the left
+     * gets `R` appended as one more element; any other `L` gives the pair
+     * `(L, R)`.
+     */
     implicit def combineTuple[L, R]: Tuples[L, R] = macro TuplesMacros.tuplesImpl[L, R]
   }
 
+  /**
+   * Combines `l` and `r` into one flat value with the derived `Tuples.Tuples`
+   * instance.
+   *
+   * {{{
+   * Tuples.combine("localhost", 8080) // (localhost,8080)
+   * }}}
+   */
   def combine[L, R](l: L, r: R)(implicit c: Tuples[L, R]): c.Out = c.combine(l, r)
 
+  /** The Scala 2 macro that derives `Tuples.Tuples` instances. */
   private[combinators] object TuplesMacros {
 
     private def isTuple(c: whitebox.Context)(tpe: c.universe.Type): Boolean = {

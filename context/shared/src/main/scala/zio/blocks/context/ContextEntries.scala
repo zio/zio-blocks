@@ -24,9 +24,10 @@ import zio.blocks.typeid.TypeId
  * hashCode (cached in TypeId.Impl) for bucket selection and reference equality
  * fast path for key comparison.
  *
- * The table uses linear probing with a load factor ~0.5 for fast lookups. Since
- * Context sizes are small (typically 1-10 entries), the table stays compact and
- * cache-friendly.
+ * The table uses linear probing. A rebuild sizes it to a load factor of at most
+ * 0.5, and `updated` inserts into a copy of the table, without rehashing, while
+ * the load stays at or below 0.75. A second, insertion-ordered array serves
+ * iteration and subtype lookups.
  */
 private[context] final class ContextEntries private (
   // Parallel arrays: keys[i] / values[i] form a slot. null key = empty slot.

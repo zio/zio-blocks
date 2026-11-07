@@ -16,6 +16,15 @@
 
 package zio.blocks.maybe
 
+/**
+ * Defines the version-specific type aliases of the `zio.blocks.maybe` package;
+ * the package object mixes it in.
+ */
 trait MaybeCompat extends MaybeSyntaxCompat {
+
+  /**
+   * The type `withFilter` returns: `MaybeValue.MaybeWithFilter` on Scala 2 and
+   * `Maybe.WithFilter` on Scala 3.
+   */
   type MaybeWithFilter[A] = Maybe.WithFilter[A]
 }

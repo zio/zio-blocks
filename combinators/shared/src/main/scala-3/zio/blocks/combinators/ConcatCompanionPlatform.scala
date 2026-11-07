@@ -17,6 +17,12 @@
 package zio.blocks.combinators
 
 private[combinators] trait ConcatCompanionPlatform {
+
+  /**
+   * Derives the instance for `L` and `R`. On Scala 3, `Out` is `L | R` and the
+   * instance is identity-like. On Scala 2, a macro picks the supertype that
+   * `Concat` describes, or fails so that the `Either[L, R]` fallback applies.
+   */
   implicit def derive[L, R]: Concat.WithOut[L, R, L | R] =
     new Concat[L, R] {
       type Out = L | R
