@@ -3,14 +3,14 @@ id: messagepack
 title: "MessagePack Codec Module"
 ---
 
-`zio-blocks-schema-messagepack` is a **schema-driven MessagePack codec module** for serializing and deserializing Scala types to and from MessagePack binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `MessagePackCodec`, `MessagePackCodecDeriver`, `MessagePackFormat`.
+`zio-blocks-schema-messagepack` is a **schema-driven MessagePack codec module** for serializing and deserializing Scala types to and from MessagePack binary format. It provides comprehensive encoding and decoding with support for 30 primitive types, records, variants, sequences, maps, and recursive types. Core types: `MessagePackCodec`, `MessagePackCodecDeriver`, `MessagePackFormat`.
 
 The module integrates with MessagePack specification to provide compact binary serialization with automatic schema generation and optimized reader/writer pools for high-performance streaming.
 
 ## Motivation
 
-MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It appears widely across distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
-- Full MessagePack type support (all fixint, fixarray, fixmap, ext types, strings, numbers)
+MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It appears widely across distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Blocks Schema. You describe your data shape once, and the module handles:
+- Support for the MessagePack types that Scala values map to (fixint, fixarray, fixmap, strings, binary, floats, integers); the extension (`ext`) types are not supported
 - Automatic schema generation from Scala types
 - Highly optimized encoding with minimal overhead
 - Reader/writer pool management for efficient coding
@@ -45,9 +45,9 @@ The module provides a complete pipeline for MessagePack codec derivation and usa
 1. **Define your type** — Any Scala type with a `Schema` instance
 2. **Derive a codec** — Use `Schema.derive(MessagePackFormat)` to obtain a `MessagePackCodec[A]`
 3. **Encode or decode** — Call `codec.encode(value)` or `codec.decode(bytes)`
-4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
+4. **Handle errors** — `decode` returns the `SchemaError`, with a path to the bad value, in a `Left`
 
-The derivation process is automatic for all supported types (all 27 primitives, records, variants, sequences, maps). The module automatically generates MessagePack-compatible formats and handles encoding/decoding without manual configuration.
+The derivation process is automatic for all supported types (all 30 primitives, records, variants, sequences, maps). The module automatically generates MessagePack-compatible formats and handles encoding/decoding without manual configuration.
 
 ## How They Work Together
 
@@ -79,7 +79,7 @@ The MessagePack codec pipeline flows through these layers:
    - Automatic format detection and type-specific optimization
                  ↓
 7. Errors include location traces
-   Shows path (.field[index].nested) to error location
+   Shows path (.field.at(index).nested) to error location
 ```
 
 **Typical workflow:**
@@ -103,10 +103,10 @@ Handle SchemaError with location trace on failure
 
 - **`MessagePackCodec[A]`** — Main public API; contains encoder and decoder for bidirectional serialization
 - **`MessagePackCodecDeriver`** — Configuration and derivation system; generates codecs from Schema
-- **`MessagePackFormat`** — Integration with ZIO Schema format system; enables `Schema[A].derive(MessagePackFormat)`
+- **`MessagePackFormat`** — Integration with the ZIO Blocks Schema format system; enables `Schema[A].derive(MessagePackFormat)`
 - **`MessagePackReader`** — Low-level binary parsing; stateful format-aware decoder
 - **`MessagePackWriter`** — Low-level binary encoding; optimized format-aware encoder
-- **`SchemaError`** — Error type with location traces; renders as paths like `.field[0].nested`
+- **`SchemaError`** — Error type with location traces; renders as `DynamicOptic` paths like `.field.at(0).nested`
 
 ## Common Patterns
 
@@ -321,7 +321,7 @@ Configuration and derivation system for creating `MessagePackCodec[A]` instances
 
 ### Overview
 
-`MessagePackCodecDeriver` implements the schema-driven derivation of MessagePack codecs. It automatically handles 27 primitive types and complex types (records, variants, sequences, maps), generating appropriate MessagePack encoders and decoders.
+`MessagePackCodecDeriver` implements the schema-driven derivation of MessagePack codecs. It automatically handles 30 primitive types and complex types (records, variants, sequences, maps), generating appropriate MessagePack encoders and decoders.
 
 ### How Derivation Works
 
@@ -342,7 +342,7 @@ val codec = Person.schema.derive(MessagePackFormat)
 
 ### Primitive Type Support
 
-All 27 ZIO Schema primitives are supported:
+All 30 primitives of ZIO Blocks Schema are supported:
 - Numeric: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`
 - Logical: `Boolean`, `Char`, `String`
 - Temporal: `Instant`, `LocalDate`, `LocalDateTime`, `LocalTime`, `Duration`, `Period`, `Year`, `YearMonth`, `MonthDay`, `Month`, `DayOfWeek`, `ZonedDateTime`, `OffsetDateTime`, `OffsetTime`, `ZoneId`, `ZoneOffset`
@@ -367,7 +367,7 @@ val codec = Address.schema.derive(MessagePackFormat)
 
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as MessagePack maps with discriminator fields:
+A sealed trait is encoded as two consecutive MessagePack values: the index of the case (an integer, in declaration order) followed by the case's own encoding. The case name is not written. Only `Either` is a map (`{"left": ...}` or `{"right": ...}`), and `Option` is an array of zero or one element. Writing the index and the case as two separate values is a known bug in 0.0.56; the layout is not a single value per variant:
 
 ```scala
 import zio.blocks.schema._
@@ -388,7 +388,7 @@ val codec = Status.schema.derive(MessagePackFormat)
 
 ## MessagePackFormat
 
-Integration point with ZIO Schema's format system. Provides `BinaryFormat[MessagePackCodec]` to enable `Schema[A].derive(MessagePackFormat)` for any supported type.
+Integration point with the ZIO Blocks Schema format system. Provides `BinaryFormat[MessagePackCodec]` to enable `Schema[A].derive(MessagePackFormat)` for any supported type.
 
 ### Using MessagePackFormat
 
@@ -417,7 +417,7 @@ Low-level binary parser implementing MessagePack format with type-specific optim
 
 ### Overview
 
-`MessagePackReader` provides stateful reading of MessagePack-encoded data with automatic format detection and efficient handling of all MessagePack types (fixint, fixarray, fixmap, ext, string, binary, float, etc.).
+`MessagePackReader` provides stateful reading of MessagePack-encoded data with automatic format detection and efficient handling of the MessagePack types that Scala values map to (fixint, fixarray, fixmap, string, binary, float, etc.). It does not accept extension types: the typed readers fail with `Expected ... value, got: 212`, `MessagePackReader#skipValue` with `Unknown MessagePack type: ...`, and the `DynamicValue` codec with `Unsupported MessagePack type for DynamicValue: 212`.
 
 ### Reading Primitives
 
@@ -477,7 +477,7 @@ MessagePack decoding errors include location traces showing the path through nes
 
 ### Understanding Error Traces
 
-Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
+Errors render as `DynamicOptic` paths such as `.emails.at(1)`: a record field is `.name`, a sequence index is `.at(1)`, a map value is `.atKey(...)` and a variant case is `.when[Case]`. The path shows exactly where decoding failed:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
