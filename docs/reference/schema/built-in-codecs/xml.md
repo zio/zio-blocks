@@ -190,16 +190,16 @@ import zio.blocks.schema.xml.XmlName
 
 // Local name only
 val simple = XmlName("person")
-simple.localName     // "person"
-simple.namespace     // None
-simple.prefix        // None
+val localName = simple.localName     // "person"
+val namespace = simple.namespace     // None
+val prefix = simple.prefix        // None
 
 // With namespace URI
 val ns = XmlName("person", "http://example.com/ns")
 
 // With prefix (for prefixed elements like atom:feed)
 val prefixed = XmlName("feed", Some("atom"), None)
-prefixed.localName              // "feed"
+val prefixedName = prefixed.localName              // "feed"
 prefixed.prefix.contains("atom") // true
 ```
 
@@ -546,10 +546,10 @@ Position options control where new content is inserted relative to the target:
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml.XmlPatch.Position
 
-Position.Before         // Insert before the target element
-Position.After          // Insert after the target element
-Position.PrependChild   // Insert as first child of target
-Position.AppendChild    // Insert as last child of target
+val before = Position.Before         // Insert before the target element
+val after = Position.After          // Insert after the target element
+val prepend = Position.PrependChild   // Insert as first child of target
+val append = Position.AppendChild    // Insert as last child of target
 ```
 
 ### Applying Patches
@@ -913,14 +913,14 @@ Learn by examining practical examples of XML codecs in action:
 
 ### RSS Feed Parsing
 
-Parse RSS feeds by defining a schema and decoding XML:
+Parse an RSS-style feed by defining a schema and decoding XML. The codec writes each element of a list as an `item` element under the field's element, and decoding ignores the `rss:` namespace, so the input below decodes into a `Channel`:
 
 ```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
 case class Item(
-  @Modifier.config("xml.attribute", "") guid: String,
+  guid: String,
   title: String,
   link: String,
   pubDate: String,
@@ -947,12 +947,13 @@ val feedXml = """<rss:Channel xmlns:rss="http://www.rss.org/">
   <link>https://example.com</link>
   <description>Latest tech articles</description>
   <items>
-    <Item guid="1">
+    <item>
+      <guid>1</guid>
       <title>Functional Programming in Scala</title>
       <link>https://example.com/fp</link>
       <pubDate>2024-01-01</pubDate>
       <description>Deep dive into FP concepts</description>
-    </Item>
+    </item>
   </items>
 </rss:Channel>"""
 
@@ -964,7 +965,7 @@ println(result)
 
 ### Atom Feed with Advanced Features
 
-Work with Atom feeds using attributes, multiple entries, and custom configurations:
+Work with Atom feeds using attributes, multiple entries, and custom configurations. The output below shows that each list element is written as an `item` element, and that the nested record repeats the `xmlns:atom` declaration:
 
 ```scala mdoc:reset
 import zio.blocks.schema._
