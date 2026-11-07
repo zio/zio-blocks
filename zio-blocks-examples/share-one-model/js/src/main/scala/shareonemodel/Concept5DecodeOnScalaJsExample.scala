@@ -2,7 +2,7 @@
 package shareonemodel
 
 import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.scalajs.js
 import scala.scalajs.js.Thenable.Implicits.thenable2future
 import zio.blocks.schema._

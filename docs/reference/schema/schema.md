@@ -692,3 +692,5 @@ When a type does not satisfy the grammar, the user gets a precise compile-time e
 See the [`Allows` reference](./allows.md) for the full grammar node table, union syntax, `Self` for recursive types, newtypes, and error message examples.
 
 See also the [Your First Schema](../../guides/your-first-schema.md) tutorial for a hands-on introduction to deriving a `Schema` and round-tripping a type through JSON.
+
+See also the [Share One Model Between a Scala.js Page and a JVM Server](../../guides/share-one-model-between-scala-js-and-the-jvm.md) tutorial for deriving one `Schema` that a JVM server encodes with and a Scala.js client decodes with.

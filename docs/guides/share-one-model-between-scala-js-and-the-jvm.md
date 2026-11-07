@@ -17,7 +17,7 @@ Welcome! This tutorial is for Scala developers who already know the basics of ZI
 
 By the end of this tutorial, you will understand:
 
-- Why a web app that uses one model on both sides needs only one `Schema`
+- Why a web app that uses one model on both sides needs only one [`Schema`](../reference/schema/schema.md)
 - How the JVM server encodes a value to JSON with `toJsonString`
 - How the Scala.js client decodes that JSON with `fromJson`, using the same `Schema`
 - How a decode error looks when the two sides disagree about the shape of the data
@@ -91,7 +91,12 @@ To send this text over HTTP, the server only needs to encode the list and write 
 
 </details>
 
-The server runs until you press Ctrl+C. The `/tasks` handler encodes the list on each request and sends the JSON as `application/json`.
+The code above:
+
+- `HttpServer.create(new InetSocketAddress("localhost", 8090), 0)` creates the built-in server on port 8090.
+- `server.createContext("/tasks", ...)` registers the handler that runs on each request to `/tasks`.
+- `Sample.list.toJsonString` encodes the shared list from the schema, and the handler writes those bytes with status 200 and the `application/json` content type.
+- `server.start()` starts serving, and the server runs until you press Ctrl+C.
 
 ## 5. Decode in Scala.js
 
@@ -106,6 +111,7 @@ The code above:
 - `r.text()` returns the response body as a string, and the `Thenable` import turns the JavaScript promises into Scala `Future`s.
 - `json.fromJson[TaskList]` decodes the text with the shared schema and returns an `Either`, the same call that [Your First Schema](./your-first-schema.md) introduces.
 - The `Right` branch prints the owner and each task, with `x` for finished tasks.
+- The `Left` branch prints `Decode failed:` and the error message, and `body.failed` prints `Request failed:` when the server cannot be reached.
 
 When you run the client against the server, it prints the same list that the server encoded:
 
@@ -152,7 +158,7 @@ cd zio-blocks-examples
 sbt "shareOneModelJVM/runMain shareonemodel.Concept4ServeJsonExample"
 ```
 
-Then run the client in a second terminal. It needs Node.js installed, and it prints the list:
+Then run the client in a second terminal. It needs Node.js 18 or newer, because it calls the global `fetch`, and it prints the list:
 
 ```bash
 cd zio-blocks-examples
