@@ -628,6 +628,7 @@ const sidebars = {
             "guides/read-and-write-json-lines",
             "guides/run-streams-without-blocking",
             "guides/wrap-callback-and-future-apis",
+            "guides/turn-a-paginated-api-into-a-stream",
             "guides/run-a-mux-over-a-socket",
           ]
         },
