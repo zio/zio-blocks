@@ -187,24 +187,24 @@ None of them can finish until the innermost one answers, so all of them are held
 
 Most effect systems avoid that with a trampoline: rather than calling its child directly, each step returns a small object meaning *"do this next"* to a loop that keeps running steps until one produces a value. One loop frame serves any depth. The price is paid on every step of every poll — an object allocated to describe the step, and a dispatch through the loop instead of a direct call.
 
-There is no third option, so the choice was between the two:
+The choice for the general case was between the two, with one refinement described below for chains built in a loop:
 
 | Approach     | Depth                     | Cost per step                                      |
 |--------------|---------------------------|----------------------------------------------------|
 | Trampoline   | Unlimited                 | An object allocated, and a dispatch, on every poll |
 | Direct calls | Limited by the call stack | Nothing                                            |
 
-`Async` takes the second. That is why nothing is allocated while polling, and it is also why a long enough chain over a waiting value ends in a `StackOverflowError` rather than a slowdown — the ceiling is the bill for the speed, not an oversight.
+`Async` takes the second. That is why nothing is allocated while polling, and it is also why recursion through `flatMap` over a waiting value ends in a `StackOverflowError` rather than a slowdown — the ceiling is the bill for the speed, not an oversight. A spine of `map` and `flatMap` wrappers that was built iteratively is the exception: the library polls it in a loop instead of recursing, as the list below explains.
 
-You are unlikely to meet it by hand. A handful of `map` and `flatMap` calls around a network request is nowhere near the limit. It becomes a real risk when the length of the chain is decided by *data* — one `flatMap` per row, per file, per retry — because then the depth is however large the input happens to be, and code that is comfortable in a test can overflow in production on a bigger batch.
+You are unlikely to meet it by hand. A handful of `map` and `flatMap` calls around a network request is nowhere near the limit. It becomes a real risk when the length of the chain is decided by *data* — one `flatMap` per row, per file, per retry — because then the depth is however large the input happens to be, and recursive code that is comfortable in a test can overflow in production on a bigger batch.
 
 Whether you are anywhere near the limit comes down to a single question: is the chain being built on top of a value that is still waiting?
 
 - **On a value that is already there, chains are safe at any length.** Each step runs as you write it and gives back a plain value again, so nothing is left holding anything open. A loop like `var fa = …; while (…) fa = fa.flatMap(g)` stays flat no matter how many times it goes round — the suite takes it to a million.
-- **On a value that is still waiting, a long chain is not safe.** Every `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the one before it, so asking for the result opens one call per wrapper before anything can answer, and the program runs out of stack somewhere around 50,000–100,000 on a default JVM. How you wrote the loop makes no difference — a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` build the same stack of wrappers.
+- **On a value that is still waiting, an iterative chain is safe, and a recursive one is not.** A spine of `map` and `flatMap` wrappers built in a loop (`fa = fa.map(g)`, or `fa = fa.flatMap(g)` where `g` returns a plain or ready value) is interpreted by a loop rather than by nested calls, so a chain of 1,000,000 over a pending `Completer` completes without a `StackOverflowError`. Recursion through `flatMap`, where each continuation builds the next wrapper (`def loop(n) = src.flatMap(_ => loop(n - 1)).map(_ + 1)`), still opens one call per level and runs out of stack somewhere above 100,000 levels on a default JVM. A chain whose continuations return new pending wrappers (`fa = fa.flatMap(_ => src.flatMap(…))` over a still-pending `src`) does not overflow either, but each step walks the chain again, so its time grows with the square of the length: a known bug in 0.0.56.
 - **`Async.collectAll` and a `while` loop inside `Async.async` stay safe even when the values are still waiting** — both are tested at 50,000 such steps. `collectAll` is a single step that walks the collection itself, stacking no wrappers at all, and the direct-style loop runs one turn each time it is asked rather than building the whole chain in advance.
 
-So for long, wait-heavy work, reach for `collectAll` or an `Async.async` `while` loop instead of a hand-built tower of `flatMap`. `Future` never runs into this, but only because it sends every `flatMap` through an `ExecutionContext`; `Async` skips that hop to stay fast and takes the depth limit instead.
+So for long, wait-heavy work whose depth comes from recursion, reach for `collectAll` or an `Async.async` `while` loop instead of a hand-built tower of `flatMap`. `Future` never runs into this, but only because it sends every `flatMap` through an `ExecutionContext`; `Async` skips that hop to stay fast and takes the depth limit instead.
 
 ### Pending Suspensions Differ by Platform
 
@@ -706,7 +706,31 @@ val names: Async[List[String]] = Async.async {
 
 Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported everywhere. Lazy collections are outside the set entirely — force them to a strict collection first.
 
-The semantics are uniform across all of them. Each is lazy and sequential: the closure for element *n+1* runs only after element *n*'s `await` has completed, so a `List(a, b, c).map(fetch(_).await)` performs three fetches one after another rather than at once — use `Async.collectAll` when you want them overlapped. A failed `await` short-circuits the remainder, and the result keeps the receiver's collection type.
+The semantics are nearly uniform. Each method is lazy and sequential — the closure for element *n+1* runs only after element *n*'s `await` has completed — with one exception: `map` over a `List` or an `Array` applies the closure to every element first, so every call in it happens before the first `await` resolves, and only then awaits the results left to right, failing fast. A `List(a, b, c).map(fetch(_).await)` therefore starts all three fetches before it waits on the first, while `Vector(a, b, c).map(fetch(_).await)` performs them one after another. A failed `await` short-circuits the remaining awaits, and the result keeps the receiver's collection type. Use `Async.collectAll` when you want lazy receivers' calls overlapped.
+
+To see the order, the following program records every call and fails the second one. `List.map` and `Array.map` call the function for all three SKUs, while `Vector.map` stops after the failure:
+
+```scala mdoc
+import scala.collection.mutable.ListBuffer
+
+val fetchCalls = ListBuffer.empty[String]
+
+def fetchPrice(sku: Int): Async[Int] = {
+  fetchCalls += s"fetch $sku"
+  if (sku == 2) Async.fail(new IllegalStateException(s"sku $sku: price service down"))
+  else Async.succeed(sku * 10)
+}
+
+def traceCalls(label: String)(body: => Async[Any]): Unit = {
+  fetchCalls.clear()
+  val result = body.either.block
+  println(s"$label: $result; ${fetchCalls.mkString(", ")}")
+}
+
+traceCalls("List.map  ")(Async.async(List(1, 2, 3).map(sku => fetchPrice(sku).await)))
+traceCalls("Array.map ")(Async.async(Array(1, 2, 3).map(sku => fetchPrice(sku).await).toList))
+traceCalls("Vector.map")(Async.async(Vector(1, 2, 3).map(sku => fetchPrice(sku).await)))
+```
 
 Where a collection method would throw on its own, it still does: `reduce` over an empty receiver fails with `UnsupportedOperationException`, which arrives as an ordinary `Async` failure you can `catchAll`.
 
@@ -1085,7 +1109,7 @@ final class Completer[A] extends Pollable[A] {
 }
 ```
 
-`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result collapses to a plain ready value and no `Pollable` is allocated at all. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result is a plain ready value: drivers and combinators see no `Pollable`. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
 
 ```scala
 // Scala 2 — the completer is an ordinary function parameter
@@ -1200,7 +1224,7 @@ Prefer this version. Write the completer out by hand when the registration does 
 
 The once-only guarantee earns its keep in code like this. You are trusting a third-party library to call your handler correctly; if a buggy or retrying implementation calls `completed` twice, or calls both `completed` and `failed`, the first call still decides the outcome and the rest are ignored. You do not have to defend against it yourself.
 
-`Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `delayed` helper under [How They Work Together](#how-they-work-together).
+`Completer#peek` returns the outcome if the completer is already complete, and the `Completer` itself — still pending — as an `Async[A]` otherwise, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `delayed` helper under [How They Work Together](#how-they-work-together).
 
 ## Controlling In-Flight Work
 
