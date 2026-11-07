@@ -223,7 +223,8 @@ trait Deriver[TC[_]] { self =>
    * An override by optic or by field name wins over this one for the nodes it
    * targets. For the same type, a later `withInstance` wins over an earlier
    * one, and this override wins over one given to `DerivationBuilder#instance`
-   * for the same derivation, which is then ignored without a warning (a known bug in 0.0.56).
+   * for the same derivation, which is then ignored without a warning (a known
+   * bug in 0.0.56).
    *
    * Derivation never looks for an implicit `TC[A]` in scope.
    * `Schema#jsonCodec`, `Schema#getInstance` and the `toJsonString` and

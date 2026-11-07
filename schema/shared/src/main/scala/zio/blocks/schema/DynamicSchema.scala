@@ -1412,7 +1412,8 @@ object DynamicSchema extends TypeIdSchemas {
    * Converts `ds` to a [[DynamicValue]], to store or send it. The structure,
    * type ids, docs, modifiers, `Validation` constraints, stored default values
    * and examples are kept. It follows every `Reflect.Deferred`, so a schema of
-   * a recursive type never ends and throws `StackOverflowError` (a known bug in 0.0.56).
+   * a recursive type never ends and throws `StackOverflowError` (a known bug in
+   * 0.0.56).
    */
   def toDynamicValue(ds: DynamicSchema): DynamicValue = reflectToDynamicValue(ds.reflect)
 

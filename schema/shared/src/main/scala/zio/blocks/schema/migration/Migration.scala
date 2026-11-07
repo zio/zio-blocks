@@ -30,7 +30,8 @@ import zio.blocks.schema.{Schema, SchemaError}
  *
  * Build one with [[Migration.newBuilder]], whose `build` checks at compile time
  * that every field of `B` is provided and every field of `A` is handled. On
- * Scala 2 the builder does not compile outside ZIO Blocks (a known bug in 0.0.56); build a [[DynamicMigration]] and wrap it with
+ * Scala 2 the builder does not compile outside ZIO Blocks (a known bug in
+ * 0.0.56); build a [[DynamicMigration]] and wrap it with
  * [[Migration.fromDynamic]] instead. On Scala 3 either schema can be a
  * structural one (JVM only), so an old version can be described without keeping
  * its case class.

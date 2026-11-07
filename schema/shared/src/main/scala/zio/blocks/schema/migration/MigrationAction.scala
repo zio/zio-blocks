@@ -149,8 +149,9 @@ object MigrationAction {
    * the value of `default`, evaluated against the whole value the action runs
    * on, unwraps a `Some`, and leaves any other value as it is. A `Some` unwraps
    * to the record that holds its `value` field rather than to the value itself,
-   * so a typed migration from `Option[A]` to `A` fails for every `Some` (a known bug in 0.0.56). Its reverse is an [[OptionalizeField]], which has
-   * the same problem the other way round.
+   * so a typed migration from `Option[A]` to `A` fails for every `Some` (a
+   * known bug in 0.0.56). Its reverse is an [[OptionalizeField]], which has the
+   * same problem the other way round.
    *
    * @param at
    *   the path of the optional value

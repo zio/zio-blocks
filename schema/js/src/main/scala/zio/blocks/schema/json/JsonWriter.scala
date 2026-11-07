@@ -3757,8 +3757,8 @@ object JsonWriter {
    * `x`, so `0.1` gives `0.1` and not the binary value
    * `0.1000000000000000055511151231257827021181583404541015625`. The value is
    * exact, but the scale varies: `100.0` gives `1E+2`, `49.99` gives `49.990`
-   * (a known bug in 0.0.56), and `10.0` gives `10.0` on the JVM
-   * but `10` on Scala.js. `0.0` and `-0.0` give `0`.
+   * (a known bug in 0.0.56), and `10.0` gives `10.0` on the JVM but `10` on
+   * Scala.js. `0.0` and `-0.0` give `0`.
    *
    * @throws java.lang.IllegalArgumentException
    *   with the message `Infinity or NaN` when `x` is not finite

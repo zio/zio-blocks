@@ -832,8 +832,8 @@ final class JsonReader private[json] (
    * Reads a JSON number into the nearest `Double`. A number beyond the `Double`
    * range reads as `Double.PositiveInfinity` or `Double.NegativeInfinity`, and
    * one too close to zero reads as `0.0` (or `-0.0` when negative), without an
-   * error, although [[JsonWriter]] then rejects the infinity (a known bug in 0.0.56). `NaN` and `Infinity` are not JSON numbers and are
-   * rejected.
+   * error, although [[JsonWriter]] then rejects the infinity (a known bug in
+   * 0.0.56). `NaN` and `Infinity` are not JSON numbers and are rejected.
    *
    * @throws JsonCodecError
    *   `illegal number` when the next token is not a JSON number (for example
