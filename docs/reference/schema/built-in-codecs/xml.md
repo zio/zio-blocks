@@ -191,8 +191,8 @@ import zio.blocks.schema.xml.XmlName
 // Local name only
 val simple = XmlName("person")
 simple.localName     // "person"
-simple.namespace     // ""
-simple.prefix        // ""
+simple.namespace     // None
+simple.prefix        // None
 
 // With namespace URI
 val ns = XmlName("person", "http://example.com/ns")
@@ -218,15 +218,12 @@ val doc = XmlBuilder.element("person")
   .child(XmlBuilder.element("age").text("30").build)
   .build
 
-// Result:
-// <person id="123" status="active">
-//   <name>Alice</name>
-//   <age>30</age>
-// </person>
+// Result (compact; nothing pretty-prints it unless you ask):
+// <person id="123" status="active"><name>Alice</name><age>30</age></person>
 
 // Create other node types
 val textNode = XmlBuilder.text("content")
-val cdataNode = XmlBuilder.cdata("<![CDATA[raw content]]>")
+val cdataNode = XmlBuilder.cdata("raw content")
 val commentNode = XmlBuilder.comment("comment text")
 ```
 
@@ -242,7 +239,7 @@ Use `WriterConfig` to control XML output formatting:
 import zio.blocks.schema.xml.WriterConfig
 
 // Compact output (default)
-val compact = WriterConfig
+val compact = WriterConfig.default
 // <Person><name>Alice</name></Person>
 
 // Pretty-printed with 2-space indentation
@@ -298,15 +295,15 @@ val custom = ReaderConfig(
 
 ## Attributes
 
-Encode case class fields as XML attributes using the `@xmlAttribute` annotation:
+A field is encoded as an XML attribute when it carries `Modifier.config("xml.attribute", name)`; an empty name uses the field name:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
 case class Person(
-  @xmlAttribute() id: String,
-  @xmlAttribute("status") active: String,
+  @Modifier.config("xml.attribute", "") id: String,
+  @Modifier.config("xml.attribute", "status") active: String,
   name: String,
   age: Int
 )
@@ -319,26 +316,31 @@ val codec = Schema[Person].derive(XmlFormat)
 val person = Person("123", "active", "Alice", 30)
 ```
 
-Encode the person with attributes:
+Encode the person; `id` and `status` are attributes of `Person`:
 
 ```scala mdoc
 val xml = codec.encodeToString(person)
 ```
 
-The `@xmlAttribute` annotation accepts an optional custom name:
+The value of the modifier is the attribute name:
 
-- `@xmlAttribute()` - Uses the field name as the attribute name
-- `@xmlAttribute("customName")` - Uses the provided name as the attribute name
+- `@Modifier.config("xml.attribute", "")` uses the field name as the attribute name
+- `@Modifier.config("xml.attribute", "customName")` uses the provided name as the attribute name
+
+:::warning[`@xmlAttribute` has no effect in 0.0.56]
+The `@xmlAttribute` and `@xmlNamespace` annotations exist, but `Schema.derived` records only `Modifier` annotations, so it drops them: a field marked `@xmlAttribute()` is still written as a child element. This is a known bug in 0.0.56. Use the `Modifier.config` form shown on this page, which the codec reads. On decoding, a missing attribute becomes `None` for an `Option` field and fails with `Missing required attribute: <name>` otherwise.
+:::
 
 ## Namespaces
 
-Support for XML namespaces with the `@xmlNamespace` annotation:
+A record is written in an XML namespace when it carries the modifiers `Modifier.config("xml.namespace.uri", uri)` and, optionally, `Modifier.config("xml.namespace.prefix", prefix)`:
 
 ```scala mdoc:silent:nest
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+@Modifier.config("xml.namespace.uri", "http://www.w3.org/2005/Atom")
+@Modifier.config("xml.namespace.prefix", "atom")
 case class Feed(
   title: String,
   updated: String
@@ -352,16 +354,16 @@ val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog", "2024-01-01T00:00:00Z")
 ```
 
-Encode the feed with a namespace prefix:
+Encode the feed with a namespace prefix. The element is `atom:Feed` and carries an `xmlns:atom` attribute:
 
 ```scala mdoc
 val xml = codec.encodeToString(feed)
 ```
 
-Without a prefix (default namespace):
+Without a prefix, the record gets a default `xmlns` attribute:
 
 ```scala mdoc:silent:nest
-@xmlNamespace(uri = "http://www.w3.org/2005/Atom")
+@Modifier.config("xml.namespace.uri", "http://www.w3.org/2005/Atom")
 case class Feed(title: String)
 
 object Feed {
@@ -372,15 +374,18 @@ val codec = Schema[Feed].derive(XmlFormat)
 val feed = Feed("My Blog")
 ```
 
-Encode the feed with default namespace:
+Encode the feed with the default namespace:
+
 
 ```scala mdoc
 val xml = codec.encodeToString(feed)
 ```
 
+Decoding does not check or resolve namespaces, and a namespaced element does not round-trip through `XmlReader` (a known bug in 0.0.56).
+
 ## XmlSelection
 
-`XmlSelection` provides a fluent API for navigating and querying XML structures:
+`XmlSelection` provides a fluent API for navigating and querying XML structures. `Xml#select` selects the root element itself, so `get(name)` looks at the root's children: for a `<library>` document, start with `get("books")`, not `get("library")`.
 
 ### Navigation
 
@@ -405,10 +410,10 @@ val xml = XmlReader.read("""
 """)
 
 // Navigate to child elements
-val books = xml.select.get("library").get("books")
+val books = xml.select.get("books")
 
-// Navigate by index
-val firstBook = books.get("book")(0)
+// Pick the first of the selected books
+val firstBook = XmlSelection.succeed(books.get("book").toChunk.head)
 ```
 
 Extract text content from the first book:
@@ -416,6 +421,8 @@ Extract text content from the first book:
 ```scala mdoc
 val title: Either[SchemaError, String] = firstBook.get("title").text
 ```
+
+`XmlSelection#apply(index)` is not "the nth selected value": it returns the child at that index of every selected element. To pick one element of a selection, take it from `toChunk` as above.
 
 You can also navigate descendants recursively:
 
@@ -496,7 +503,7 @@ val withFallback = selection1.orElse(selection2)
 
 ## XmlPatch
 
-`XmlPatch` provides composable XML modification operations:
+`XmlPatch` provides composable XML modification operations. A patch path starts at the children of the root element, as `XmlSelection` does: for `<person>...</person>`, `DynamicOptic.root` is the `<person>` element itself and `p".name"` is its `<name>` child. A path that starts with the root's own name, such as `p".person"`, fails with `Element 'person' not found`.
 
 ### Creating Patches
 
@@ -506,7 +513,8 @@ Create patches for add, remove, replace, and attribute operations:
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-val path = p".library.books.book"
+// Patch paths start at the children of the root element; DynamicOptic.root is the root itself
+val path = p".books.book"
 
 // Add content
 val addPatch = XmlPatch.add(
@@ -553,7 +561,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
 val xml = XmlReader.read("<person><name>Alice</name></person>")
-val patch = XmlPatch.setAttribute(p".person", "active", "true")
+val patch = XmlPatch.setAttribute(DynamicOptic.root, "active", "true")
 
 // Apply the patch
 val result: Either[SchemaError, Xml] = patch(xml)
@@ -567,9 +575,9 @@ Combine multiple patches to apply transformations in sequence:
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-val patch1 = XmlPatch.setAttribute(p".person", "id", "123")
+val patch1 = XmlPatch.setAttribute(DynamicOptic.root, "id", "123")
 val patch2 = XmlPatch.add(
-  p".person",
+  DynamicOptic.root,
   XmlBuilder.element("email").text("alice@example.com").build,
   XmlPatch.Position.AppendChild
 )
@@ -684,10 +692,10 @@ All standard ZIO Blocks Schema types are supported:
 
 **Composite Types**:
 - Records (case classes)
-- Variants (sealed traits)
+- Variants (sealed traits), at the top level only: a sealed trait inside a record, sequence or map loses its case name and does not decode back (a known bug in 0.0.56)
 - Sequences (`List`, `Vector`, `Set`, etc.)
 - Maps (`Map[K, V]`)
-- Options (`Option[A]`)
+- Options (`Option[A]`), except inside a sequence or a map, where an `Option` does not decode back (a known bug in 0.0.56)
 - Wrappers (newtypes)
 
 ## XmlCodec
@@ -725,7 +733,7 @@ val decoded: Person = codec.decodeValue(xml)
 
 ## Error Handling
 
-All decoding operations return `Either[SchemaError, A]` or `Either[SchemaError, A]`. The `SchemaError` type provides detailed error information:
+All decoding operations return `Either[SchemaError, A]`. The `SchemaError` type provides detailed error information:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -746,7 +754,7 @@ result match {
   case Right(person) => println(s"Decoded: $person")
   case Left(error) =>
     println(s"Error: ${error.getMessage}")
-    // Error information includes parse location and context
+    // Malformed XML reports (line: L, column: C); a decoding error reports a path such as `at: .age`
 }
 ```
 
@@ -804,9 +812,10 @@ Define a schema with attributes and namespaces, then encode and decode:
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+@Modifier.config("xml.namespace.uri", "http://www.w3.org/2005/Atom")
+@Modifier.config("xml.namespace.prefix", "atom")
 case class Entry(
-  @xmlAttribute() id: String,
+  @Modifier.config("xml.attribute", "") id: String,
   title: String,
   updated: String,
   author: Author
@@ -835,7 +844,7 @@ Encode the entry with pretty printing:
 val xmlStr = codec.encodeToString(entry, WriterConfig.pretty)
 ```
 
-Decode the XML back to a typed value:
+Decode the XML back to a typed value. Decoding ignores the namespace, so it reads the `atom:Entry` element as an `Entry`:
 
 ```scala mdoc
 val decoded = codec.decode(xmlStr)
@@ -843,9 +852,9 @@ val decoded = codec.decode(xmlStr)
 
 ### Navigation and Transformation
 
-Find elements, extract data, and apply patches to modify XML:
+Find elements, extract data, and apply patches to modify XML. Selections and patch paths start below the root element, so the `<library>` name does not appear in them:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
@@ -867,7 +876,7 @@ val xmlString = """
 val xml = XmlReader.read(xmlString)
 
 // Find all books
-val books = xml.select.get("library").get("books").get("book")
+val books = xml.select.get("books").get("book")
 
 // Extract all titles
 val titles = books.get("title").toChunk.map { titleElem =>
@@ -876,11 +885,10 @@ val titles = books.get("title").toChunk.map { titleElem =>
     case _ => ""
   }
 }
-// Chunk("Functional Programming", "Advanced Scala")
 
 // Apply a patch to add a new book
 val patch = XmlPatch.add(
-  p".library.books",
+  p".books",
   XmlBuilder.element("book")
     .attr("id", "3")
     .child(XmlBuilder.element("title").text("ZIO Essentials").build)
@@ -892,6 +900,13 @@ val patch = XmlPatch.add(
 val updated = patch(xml)
 ```
 
+The extracted titles and the patched document:
+
+```scala mdoc
+println(titles)
+println(updated.map(_.print))
+```
+
 ## Real-World Examples
 
 Learn by examining practical examples of XML codecs in action:
@@ -900,20 +915,20 @@ Learn by examining practical examples of XML codecs in action:
 
 Parse RSS feeds by defining a schema and decoding XML:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
 case class Item(
-  @xmlAttribute() guid: String,
+  @Modifier.config("xml.attribute", "") guid: String,
   title: String,
   link: String,
   pubDate: String,
   description: String
 )
 
-@xmlNamespace(uri = "http://www.rss.org/", prefix = "rss")
+@Modifier.config("xml.namespace.uri", "http://www.rss.org/")
+@Modifier.config("xml.namespace.prefix", "rss")
 case class Channel(
   title: String,
   link: String,
@@ -943,28 +958,32 @@ val feedXml = """<rss:Channel xmlns:rss="http://www.rss.org/">
 
 val codec = Schema[Channel].derive(XmlFormat)
 val result: Either[SchemaError, Channel] = codec.decode(feedXml)
+
+println(result)
 ```
 
 ### Atom Feed with Advanced Features
 
 Work with Atom feeds using attributes, multiple entries, and custom configurations:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+@Modifier.config("xml.namespace.uri", "http://www.w3.org/2005/Atom")
+@Modifier.config("xml.namespace.prefix", "atom")
 case class Entry(
-  @xmlAttribute() id: String,
+  @Modifier.config("xml.attribute", "") id: String,
   title: String,
   author: String,
   updated: String,
-  @xmlAttribute("href") link: String
+  @Modifier.config("xml.attribute", "href") link: String
 )
 
-@xmlNamespace(uri = "http://www.w3.org/2005/Atom", prefix = "atom")
+@Modifier.config("xml.namespace.uri", "http://www.w3.org/2005/Atom")
+@Modifier.config("xml.namespace.prefix", "atom")
 case class Feed(
-  @xmlAttribute() id: String,
+  @Modifier.config("xml.attribute", "") id: String,
   title: String,
   updated: String,
   entries: List[Entry]
@@ -993,6 +1012,8 @@ val feed = Feed(
 
 val codec = Schema[Feed].derive(XmlFormat)
 val xmlOutput = codec.encodeToString(feed, WriterConfig.pretty)
+
+println(xmlOutput)
 ```
 
 ### Sitemap XML
