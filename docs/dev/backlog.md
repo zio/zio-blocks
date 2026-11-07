@@ -934,7 +934,7 @@ Session `telemetry-otel-scaladoc` (Sonnet), started 2026-11-06 on `main` `121cb1
 
 | Item | Result |
 |---|---|
-| PR | #1961 (one PR); CI green, including testJVM on JDK 17 and 25, no reruns |
+| PR | #1961 (one PR), merged 2026-11-07 as `42a96ab0f`; CI green, including testJVM on JDK 17 and 25, no reruns |
 | Coverage | telemetry 203/567 (35%) → 567/567; otel 17/33 → 33/33; total 220/600 → 600/600; `--drift` empty |
 | Tooling | new checker `scaladoc-check-jdk21` (run only via `whenJdkAtLeast(25, ...)`, like telemetry's tests; `scaladoc-check` and the JDK 17 jobs untouched); otel `packageOverrides` entry with a unit test |
 | Examples | most `log.*` examples are `// scala-3-only` (the known 2.13 `log.*` bug); the OTLP exporters and `BatchProcessor` are `private[otel]`, so tier 3 |
