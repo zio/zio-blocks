@@ -627,6 +627,7 @@ const sidebars = {
             "guides/stream-files-and-sockets",
             "guides/run-streams-without-blocking",
             "guides/wrap-callback-and-future-apis",
+            "guides/turn-a-paginated-api-into-a-stream",
             "guides/run-a-mux-over-a-socket",
           ]
         },
