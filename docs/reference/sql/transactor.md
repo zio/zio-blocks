@@ -37,7 +37,7 @@ The no-arg `transact` preserves the driver’s default isolation level and `read
 class JdbcTransactor(
   connectionFactory: () => java.sql.Connection,
   val dialect: SqlDialect,
-  val sqlLogger: SqlLogger
+  val sqlLogger: SqlLogger = SqlLogger.noop
 ) extends Transactor
 
 object JdbcTransactor {
@@ -87,7 +87,7 @@ val users: List[User] = transactor.connect {
 
 ## Construction / Creating Instances
 
-We can create a `JdbcTransactor` from a `DataSource`, from a JDBC URL, or using database-specific convenience factories. In every case the third constructor parameter `sqlLogger` defaults to `SqlLogger.noop`, so it can be omitted unless query logging is required.
+We can create a `JdbcTransactor` from a `DataSource`, from a JDBC URL, or using database-specific convenience factories. The factory methods always use `SqlLogger.noop`; to log statements, call the constructor with a `SqlLogger` as the third argument (it defaults to `SqlLogger.noop`).
 
 ### `JdbcTransactor.fromDataSource` — Create from a DataSource
 

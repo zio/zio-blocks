@@ -277,7 +277,7 @@ The generic `SpscRingBuffer[A]` stores `AnyRef` slots, which boxes Java primitiv
 | `Int`    | `IntSpscRingBuffer`    | one `Long` per slot: high 32 bits hold an occupancy tag (`0` = empty, `1` = data, `2` = DONE sentinel), low 32 bits hold the `Int` payload. The whole 64-bit word is `0L` when empty, so any tagged value is non-zero regardless of the payload bits. |
 | `Long`   | `LongSpscRingBuffer`   | one `Long` per slot. `Long.MinValue` is reserved as the empty marker and `Long.MinValue + 1L` as the in-band DONE sentinel; offering either value throws `IllegalArgumentException`. All other `Long` values pass through unchanged. |
 | `Float`  | `FloatSpscRingBuffer`  | one `Long` per slot: high 32 bits tag (`0` = empty, `1` = data, `2` = DONE), low 32 bits hold `floatToRawIntBits(value)`. The whole word is `0L` when empty. Every `Float` (including `0.0f`, `NaN`, `±Inf`) is representable. |
-| `Double` | `DoubleSpscRingBuffer` | one `Long` per slot. `doubleToRawLongBits(value)` is stored directly; two reserved non-canonical `NaN` bit patterns mark empty (`0xFFF8_0000_0000_0001L`) and DONE (`0xFFF8_0000_0000_0002L`). Any `NaN` payload is canonicalized to `Double.NaN` on offer so it can never collide with the reserved markers. |
+| `Double` | `DoubleSpscRingBuffer` | one `Long` per slot. `doubleToRawLongBits(value)` is stored directly; two reserved non-canonical `NaN` bit patterns mark empty (`0xFFF8_0000_0000_0001L`) and DONE (`0xFFF8_0000_0000_0002L`). A value whose bits equal one of the two reserved patterns is stored as `Double.NaN` (`0x7ff8000000000000L`) so it can never collide with the markers; every other value, every other `NaN` payload included, is stored bit for bit. |
 
 All four use the same FastFlow algorithm as the generic version — single backing `Array[Long]`, padded indices, look-ahead cache — and expose the same core operations (`offer`, `take`, `peek`, `isEmpty`, `isFull`, `size`, `capacity`). The only API difference is that `take` returns a primitive instead of `AnyRef`, so callers should check `peek()` first to know whether the next read will be a real value or just the empty marker. (The generic `drain`/`fill` batch helpers are not provided on the primitive variants; loop `peek`/`take` directly.)
 
@@ -304,7 +304,7 @@ if (longs.peek()) {
 }
 
 val doubles = new DoubleSpscRingBuffer(16)
-doubles.offer(Double.NaN)      // canonicalized to Double.NaN's bit pattern on offer
+doubles.offer(Double.NaN)      // stored as is: Double.NaN is not one of the reserved patterns
 ```
 
 These variants underpin the primitive-specialized concurrent stream operators (`mapPar`, `mergeAll`, `flatMapPar`) so primitive streams do not box during cross-thread handoff.

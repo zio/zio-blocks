@@ -96,7 +96,7 @@ byRoute.add(1, "GET", "200")
 
 ## Read Aggregated Snapshots
 
-Read every registered instrument as a `MetricData` snapshot — a fresh value each call, though a histogram point hands you its `boundaries` and `bucketCounts` arrays directly, so treat them as read-only.
+Read every registered instrument as a `MetricData` snapshot — a fresh value on each call, including fresh copies of a histogram's `boundaries` and `bucketCounts` arrays.
 
 ```scala
 object metric {

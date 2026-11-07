@@ -27,7 +27,7 @@ These four types describe every signal, across all three telemetry pillars — t
 All four types are designed for hot-path telemetry code:
 
 - **`Attributes`** stores `Long`, `Double`, and `Boolean` values unboxed in a parallel primitive array via bit-casting. Reading a value back boxes it — through `get`, `foreach`, or a conversion to `Map` — so hot paths that only write stay allocation-free.
-- **`AttributeKey`** is a small case class carrying the name and the value type, so a typo in a name or a mismatched type is a compile error rather than a silently separate series.
+- **`AttributeKey`** ties a name to a value type, so `Attributes#get` returns a typed `Option`. Define each key once as a `val` and reuse it: two keys with the same name read the same attribute whatever their type.
 - **`Resource`** is immutable and stamped onto a signal when it is created, not at export: `Tracer` puts it on every span and `Logger` on every log record. Metric instruments do not carry it — a `MeterProvider` holds a `Resource`, but the `Meter` and the collected `MetricData` never see it.
 - **`InstrumentationScope`** is constructed once per scope by the provider and referenced from all signals that scope creates.
 

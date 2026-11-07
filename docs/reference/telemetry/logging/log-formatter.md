@@ -14,7 +14,7 @@ sidebar_label: "LogFormatter"
 
 ## Built-in Formatters
 
-Two singletons cover the usual output formats — both safe to share across threads, with `TextLogFormatter` caching its timestamp prefix for the current second:
+Two singletons cover the usual output formats — both can be shared across threads; `TextLogFormatter` caches its timestamp prefix for the current second, and a known bug in 0.0.56 lets a line logged at a second boundary from another thread carry the wrong second:
 
 | Formatter          | Output                                                                                                                                       |
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
