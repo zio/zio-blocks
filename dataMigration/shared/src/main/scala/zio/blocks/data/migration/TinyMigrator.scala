@@ -19,26 +19,47 @@ package zio.blocks.data.migration
 import zio.blocks.sql.*
 
 /**
- * A-Tiny: startup migration that runs schema DDL within a single transaction.
+ * The Tiny tier: schema statements (DDL) that run at application startup, in
+ * one transaction. Extend it, put the statements in [[run]], and call
+ * [[migrate]] before the application serves requests. It converts no rows; use
+ * [[SmallMigrator]] or [[LargeMigrator]] for that.
  *
- * Usage:
+ * If `run` throws, `migrate` rolls the transaction back and rethrows the
+ * exception. On databases whose DDL is transactional, such as PostgreSQL and
+ * SQLite, the rollback also undoes the statements that already ran. The class
+ * keeps no record of having run, so write statements that are safe to repeat,
+ * such as `CREATE TABLE IF NOT EXISTS`.
+ *
  * {{{
- * class MyStartupMigrations(transactor: Transactor) extends TinyMigrator(transactor) {
+ * import zio.blocks.sql.{zio => _, _}
+ *
+ * class CreateInvoices(transactor: Transactor) extends TinyMigrator(transactor) {
  *   def run()(using tx: DbTx): Unit = {
- *     Ddl.createTable("users", IndexedSeq(
- *       ColumnDef("id", "BIGSERIAL", nullable = false),
- *       ColumnDef("email", "TEXT", nullable = false)
+ *     Ddl.createTable("invoices", IndexedSeq(
+ *       ColumnDef("id", "BIGINT", nullable = false),
+ *       ColumnDef("total_cents", "BIGINT", nullable = false)
  *     )).update
  *   }
  * }
+ *
+ * def migrateAtStartup(transactor: Transactor): Unit = new CreateInvoices(transactor).migrate()
  * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/data-migration/ Data Migration]]
  */
 abstract class TinyMigrator(transactor: Transactor) {
 
-  /** Override to define DDL operations. Runs inside transactor.transact. */
+  /**
+   * The schema statements to run, inside the transaction that [[migrate]]
+   * opens.
+   */
   def run()(using tx: DbTx): Unit
 
-  /** Executes the migration at startup. Wraps run() in transactor.transact. */
+  /**
+   * Runs [[run]] in one `Transactor#transact` block, which commits when it
+   * returns and rolls back when it throws.
+   */
   final def migrate(): Unit =
     transactor.transact((tx: DbTx) ?=> run()(using tx))
 }

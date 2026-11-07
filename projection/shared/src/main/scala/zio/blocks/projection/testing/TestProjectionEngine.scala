@@ -19,8 +19,19 @@ package zio.blocks.projection.testing
 import zio.*
 import zio.blocks.projection.{ProjectionAction, ProjectionContext, Projection, ProjectionStore}
 
+/**
+ * Runs a projection's handlers on events by hand, with no event store and no
+ * fibers, for unit tests of a [[zio.blocks.projection.Projection]]. The methods
+ * that take an event find its handler with `Projection#dispatch`, without
+ * naming a source.
+ */
 class TestProjectionEngine {
 
+  /**
+   * Returns the action the projection's handler gives for `event`, or `Noop` if
+   * no handler matches. A handler that throws makes the task die, rather than
+   * fail.
+   */
   def processEvent[E, A](
     spec: Projection[A],
     event: E,
@@ -28,6 +39,10 @@ class TestProjectionEngine {
   ): Task[ProjectionAction[A]] =
     ZIO.succeed(spec.dispatch(event, ctx).getOrElse(ProjectionAction.Noop))
 
+  /**
+   * Runs the handlers on each event in order and discards the actions, so it
+   * only shows that no handler throws.
+   */
   def processEvents[E, A](
     spec: Projection[A],
     events: List[(E, ProjectionContext)]
@@ -36,6 +51,10 @@ class TestProjectionEngine {
       processEvent(spec, event, ctx).unit
     }
 
+  /**
+   * Runs the handlers on each event in order and applies each action to
+   * `store`, stopping at the first failure.
+   */
   def processEvents[E, A](
     spec: Projection[A],
     events: List[(E, ProjectionContext)],
@@ -48,12 +67,18 @@ class TestProjectionEngine {
       } yield ()
     }
 
+  /** Returns the action for each event, in order, without applying any. */
   def processEventsWithActions[E, A](
     spec: Projection[A],
     events: List[(E, ProjectionContext)]
   ): Task[List[ProjectionAction[A]]] =
     ZIO.foreach(events) { case (event, ctx) => processEvent(spec, event, ctx) }
 
+  /**
+   * Applies `action` to `store` the way
+   * [[zio.blocks.projection.ProjectionEngine]] does: the actions that need a
+   * row ID use `ctx.entityId`.
+   */
   def applyAction[A](
     store: ProjectionStore[A],
     action: ProjectionAction[A],
@@ -68,6 +93,7 @@ class TestProjectionEngine {
       case ProjectionAction.Noop         => ZIO.unit
     }
 
+  /** Runs the handler on `event`, applies the action, and returns it. */
   def processAndApply[E, A](
     spec: Projection[A],
     event: E,
@@ -80,7 +106,9 @@ class TestProjectionEngine {
     } yield action
 }
 
+/** Creates [[TestProjectionEngine]]s. */
 object TestProjectionEngine {
 
+  /** Creates a new [[TestProjectionEngine]]; it holds no state. */
   def make: TestProjectionEngine = new TestProjectionEngine()
 }

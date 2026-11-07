@@ -16,4 +16,16 @@
 
 package zio.http
 
+/**
+ * A typed DSL for htmx 2 attributes and headers, on top of [[zio.blocks.html]]
+ * and the `zio.http` model.
+ *
+ * `import zio.http.htmx._` brings the attribute keys of [[HtmxAttributes]]
+ * (`hxGet`, `hxSwap`, `hxTrigger`, ...) and the value types ([[HxSwap]],
+ * [[HxTarget]], [[HxTrigger]], [[HxParams]], ...) into scope. The typed `HX-*`
+ * request and response headers are in [[zio.http.htmx.headers]].
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/htmx/ HTMX]]
+ */
 package object htmx extends HtmxAttributes

@@ -34,6 +34,8 @@ import scala.reflect.ClassTag
  * it also determines the projection's [[ProjectionScope]].
  */
 sealed trait RoutingMode
+
+/** The three routing modes of a [[SourceBinding]]. */
 object RoutingMode {
 
   /**
@@ -44,9 +46,10 @@ object RoutingMode {
   case object RouteToSelf extends RoutingMode
 
   /**
-   * Applies every event to the same store, whichever entity it belongs to. It
-   * produces no routing key. Use it for totals and other global aggregates,
-   * together with `Projection.global`.
+   * Produces no routing key for the event. In a projection without a `routedBy`
+   * source, the event goes to the projection's one store, like any other, and
+   * an update or delete still changes the row of `ctx.entityId`. Use it for
+   * totals and other global aggregates, together with `Projection.global`.
    */
   case object RouteToAll extends RoutingMode
 
@@ -61,7 +64,8 @@ object RoutingMode {
 
     /**
      * Runs the extractor on an event whose type is only known as `Any`. The
-     * cast is unchecked, so an event of the wrong type fails at runtime.
+     * cast is unchecked, so an event of another type can fail at runtime with a
+     * `ClassCastException`.
      */
     def extractAny(value: Any): String = extractor.asInstanceOf[Any => String](value)
   }
@@ -78,23 +82,30 @@ object RoutingMode {
  * the store lives in.
  */
 sealed trait ProjectionScope
+
+/** The three scopes a [[Projection]] can have. */
 object ProjectionScope {
 
-  /** One row per entity ID. This is the default. */
+  /**
+   * All rows in the projection's one store, one row per entity ID. This is the
+   * default.
+   */
   case object PerEntity extends ProjectionScope
 
   /**
-   * One shared store for the whole projection, kept in its own `global/`
-   * folder. Used for totals and counters.
+   * One shared store for the whole projection, which the engine's own factories
+   * put in the `global/` folder. Used for totals and counters.
    */
   case object Global extends ProjectionScope
 
   /**
    * Events are grouped into shards by a key read from the event, so one shard
-   * can hold data from many entities.
+   * can hold rows of many entities. Each shard is a store of its own, and the
+   * engine creates it when it first routes an event to it.
    *
    * @param routedBy
-   *   reads the shard key from an event
+   *   reads the shard key from an event; it is the key function of the first
+   *   `routedBy` source
    */
   final case class CrossEntity(routedBy: Any => String) extends ProjectionScope
 }
@@ -108,15 +119,15 @@ object ProjectionScope {
  * and its [[ProjectionContext]] to a [[ProjectionAction]] on the projected type
  * `A`.
  *
- * Handlers are created by [[HandlerBuilder]], not by hand. They contain no
- * effects: a handler only describes the change, and the engine applies it.
+ * Handlers are created by [[HandlerBuilder]], not by hand. A handler returns a
+ * description of the change, not a ZIO effect, and the engine applies it.
  *
  * @param eventClass
  *   the runtime class used to recognise events this handler is for
  * @param schema
  *   the schema of the event type
  * @param tag
- *   the name of the event type, used in messages
+ *   the name of the event type, used in the messages of [[Projection#validate]]
  * @param fn
  *   turns an event into the action to apply
  */
@@ -129,7 +140,8 @@ final case class Handler[E, A](
 
   /**
    * Runs the handler on an event whose type is only known as `Any`. The cast is
-   * unchecked, so call [[matches]] first.
+   * unchecked, so call [[matches]] first: an event of another type can fail
+   * with a `ClassCastException` inside `fn`.
    */
   def runAny(event: Any, ctx: ProjectionContext): ProjectionAction[A] =
     fn(event.asInstanceOf[E], ctx)
@@ -173,20 +185,37 @@ final case class SourceBinding[E, A](
  * does to `A`.
  *
  * A `Projection` is immutable data and does nothing by itself. Every builder
- * call returns a new `Projection`, and an engine (such as `ProjectionEngine`)
- * later reads it to process events. Handlers only describe changes as
- * [[ProjectionAction]]s, so they cannot perform effects.
+ * call returns a new `Projection`, and an engine (such as [[ProjectionEngine]])
+ * later reads it to process events. Handlers return [[ProjectionAction]]s,
+ * descriptions of a change that the engine applies, not ZIO effects.
  *
  * Create one with `Projection[A](name)` (one row per entity) or
  * `Projection.global[A](name)` (shared totals), then chain `from`, a routing
  * call, and `on`:
  *
  * {{{
- * val greetings = Projection[Greeting]("greetings")
+ * import java.time.Instant
+ * import zio.blocks.schema.{Modifier, Schema}
+ *
+ * case class PersonGreeted(name: String)
+ * object PersonGreeted {
+ *   implicit val schema: Schema[PersonGreeted] = Schema.derived[PersonGreeted]
+ * }
+ *
+ * case class Greeting(@Modifier.id personId: String, message: String)
+ * object Greeting {
+ *   implicit val schema: Schema[Greeting]         = Schema.derived[Greeting]
+ *   implicit val entityPath: EntityPath[Greeting] = EntityPath.derived[Greeting]
+ * }
+ *
+ * val greetings: Projection[Greeting] = Projection[Greeting]("greetings")
  *   .from("people")
  *   .routeToSelf
  *   .on[PersonGreeted]
- *   .insert((e, ctx) => Greeting(ctx.entityId, s"Hello, ${e.name}!"))
+ *   .insert((e, ctx) => Greeting(ctx.entityId, "Hello, " + e.name + "!"))
+ *
+ * greetings.handle(PersonGreeted("Ada"), ProjectionContext("person-1", Instant.EPOCH, 1L))
+ * // Some(Insert(Greeting(person-1,Hello, Ada!)))
  * }}}
  *
  * Further `from(...)` calls add more sources, and further `on[...]` calls add
@@ -196,8 +225,12 @@ final case class SourceBinding[E, A](
  *
  * Call [[validate]] before starting an engine to catch an empty projection.
  *
+ * @see
+ *   [[https://zioblocks.com/reference/projection/projection/ Projection]]
+ *
  * @param name
- *   the projection's name, which also names its store file
+ *   the projection's name. The engine's own factories also use it as the name
+ *   of the store file, `<name>.db`
  * @param schema
  *   the schema of the projected type `A`
  * @param entityPath
@@ -296,6 +329,10 @@ final class Projection[A] private[projection] (
    * projection has several sources, so that an event is not handled by another
    * source's handler.
    *
+   * [[ProjectionEngine]] calls it without `source`. That is a known bug: when
+   * two sources of a projection have handlers for the same event class, the
+   * engine runs the first source's handler for the events of both.
+   *
    * @param event
    *   the event to handle
    * @param ctx
@@ -353,7 +390,9 @@ final class Projection[A] private[projection] (
    * and returns a message for each. The list is empty if none are found.
    *
    * It reports a projection with no sources, one with no handlers, a source
-   * with an empty name, and a handler with a null event class.
+   * with an empty name, and a handler with a null event class. For example,
+   * `Projection[A]("e").validate()` returns
+   * `List("Projection e has no bindings", "Projection e has no handlers")`.
    */
   def validate(): List[String] = {
     val warnings = scala.collection.mutable.ListBuffer.empty[String]
@@ -372,11 +411,12 @@ final class Projection[A] private[projection] (
     s"Projection(name=$name, isGlobal=$isGlobal, bindings=${bindings.size}, handlers=${allHandlers.size})"
 }
 
+/** Creates empty projections, to fill with `from` and `on`. */
 object Projection {
 
   /**
-   * Creates a per-entity projection. The `EntityPath` says where its store
-   * lives and which field of `A` is the ID.
+   * Creates an empty per-entity projection. The `EntityPath` says where its
+   * store lives and which field of `A` is the ID.
    *
    * @param name
    *   the projection's name
@@ -385,9 +425,10 @@ object Projection {
     new Projection[A](name, summon[Schema[A]], Some(summon[EntityPath[A]]), isGlobal = false, Nil)
 
   /**
-   * Creates a global projection, whose events all go to one shared store
-   * (`global/<name>.db`). Use it with `routeToAll` for totals and counters. It
-   * needs no `EntityPath`.
+   * Creates an empty global projection, whose events all go to one shared
+   * store, `global/<name>.db` when the engine creates it. Use it with
+   * `routeToAll` for totals and counters. It needs no `EntityPath`, and its
+   * scope stays [[ProjectionScope.Global]] even with a `routedBy` source.
    *
    * @param name
    *   the projection's name
@@ -430,11 +471,15 @@ final class HandlerBuilder[E, A] private[projection] (
   private def add(fn: (E, ProjectionContext) => ProjectionAction[A]): Projection[A] =
     spec.addHandler(Handler[E, A](eventClass, schemaE, tag, fn))
 
-  /** Inserts the row that `f` builds from the event and its context. */
+  /**
+   * Inserts the row that `f` builds from the event and its context. A row with
+   * the same ID makes the insert fail, and the engine logs and skips the event;
+   * a rebuild replays it as an upsert instead, so there the last insert wins.
+   */
   def insert(f: (E, ProjectionContext) => A): Projection[A] =
     add((e, ctx) => ProjectionAction.Insert(f(e, ctx)))
 
-  /** Deletes the entity's row. */
+  /** Deletes the row of the entity the event was recorded under. */
   def delete: Projection[A] =
     add((_, _) => ProjectionAction.Delete)
 
@@ -447,7 +492,8 @@ final class HandlerBuilder[E, A] private[projection] (
 
   /**
    * Applies the same [[FieldUpdate]] every time this event arrives, whatever
-   * the event contains. Typically used for counters on a global projection.
+   * the event contains, to the row of the entity the event was recorded under.
+   * Typically used for counters on a global projection.
    */
   def aggregate(update: FieldUpdate): Projection[A] =
     add((_, _) => ProjectionAction.Update(Chunk(update)))
@@ -461,15 +507,23 @@ final class HandlerBuilder[E, A] private[projection] (
 
   /**
    * Sets the named column to the value that `f` computes from the event. The
-   * name is used exactly as written, so it must already be the column name.
+   * name is used exactly as written, so it must already be the column name, in
+   * snake_case.
+   *
+   * Nothing checks the name before the engine runs. On a
+   * [[SQLiteProjectionStore]], a name that is not a column throws an
+   * `IllegalArgumentException` that the engine does not catch, which is a known
+   * bug: during catch-up it makes `start` die, and on a live event it stops the
+   * source from applying any later event.
    */
   def updateWithField(fieldName: String, f: (E, ProjectionContext) => Any): Projection[A] =
     add((e, ctx) => ProjectionAction.Update(Chunk(FieldUpdate.Set(fieldName, f(e, ctx)))))
 
   /**
    * Sets one field to the value that `f` computes from the event. The field is
-   * picked with a selector such as `_.email`, checked at compile time, and
-   * mapped to its `snake_case` column name.
+   * picked with a selector such as `_.email`, and the name of the last member
+   * it reads is mapped to its `snake_case` column name at compile time (see
+   * [[FieldSelectorMacros]] for what a selector may be).
    */
   inline def update(inline selector: A => Any)(f: (E, ProjectionContext) => Any): Projection[A] =
     ${ ProjectionMacros.updateImpl[A, E]('this, 'selector, 'f) }
@@ -495,8 +549,9 @@ final class FromBuilder[A] private[projection] (
 
   /**
    * Routes each event by a key that `selector` reads from it, so that events
-   * with the same key are applied to the same group. This makes the projection
-   * [[ProjectionScope.CrossEntity]].
+   * with the same key are applied to the same shard. This makes the projection
+   * [[ProjectionScope.CrossEntity]], unless it was made with
+   * `Projection.global`.
    */
   def routedBy[E](selector: E => String): Projection[A] =
     spec.addBinding(
@@ -504,19 +559,25 @@ final class FromBuilder[A] private[projection] (
     )
 
   /**
-   * Like `routedBy`, but picks the key with a field selector such as
-   * `_.ownerId`, checked at compile time. The field's value is turned into the
-   * key with `toString`.
+   * Like `routedBy`, but the selector, such as `_.ownerId`, can return any
+   * type: its value is turned into the key with `toString`.
    */
   inline def routedByField[E](inline selector: E => Any): Projection[A] =
     ${ ProjectionMacros.routedByFieldImpl[A, E]('this, 'selector) }
 
-  /** Applies every event from this source to the same store. */
+  /**
+   * Gives the events of this source no routing key (see
+   * [[RoutingMode.RouteToAll]]). In a cross-entity projection, the engine still
+   * puts such an event in a shard: the one whose key the first `routedBy`
+   * function reads from it, or else the one named by its entity ID.
+   */
   def routeToAll: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToAll, Nil))
 
   /**
-   * Applies each event to the entity it was recorded under (`ctx.entityId`).
+   * Applies each event to the entity it was recorded under (`ctx.entityId`). In
+   * a cross-entity projection, the engine picks the shard the same way as for
+   * `routeToAll`.
    */
   def routeToSelf: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToSelf, Nil))

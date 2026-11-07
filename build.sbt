@@ -1466,7 +1466,11 @@ lazy val `scaladoc-check` = project
 lazy val scaladocCheckedScala3Modules: Seq[Project] =
   Seq(
     sql.jvm,
-    `sql-zio`
+    `sql-zio`,
+    projection.jvm,
+    dataMigration.jvm,
+    htmx.jvm,
+    datastar.jvm
   )
 
 lazy val `scaladoc-check-scala3` = project

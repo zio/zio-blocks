@@ -19,69 +19,97 @@ package zio.http.datastar
 import zio.blocks.maybe.Maybe
 
 /**
- * Modifier ADT used by `data-on-intersect` builders.
- *
- * Intersect modifiers encode visibility thresholds, timing behavior, and view
- * transitions into the attribute name. Composition preserves left-to-right
- * ordering, while normalization collapses conflicting threshold/timing choices.
+ * A modifier of a `data-on-intersect` attribute, rendered as a `__` suffix.
+ * [[DataOnIntersect]] builds these values and combines them with
+ * [[IntersectModifier.And]].
  */
 sealed trait IntersectModifier extends Product with Serializable {
 
-  /** Renders the Datastar modifier suffix for this intersect modifier. */
+  /** Returns the attribute-name suffix, such as `__once`. */
   def render: String
 }
 
+/** The `data-on-intersect` modifiers. */
 object IntersectModifier {
 
-  /** Constructors and normalization rules for intersect-trigger modifiers. */
-
-  /** Fires at most once. */
+  /** Runs the expression only the first time. */
   case object Once extends IntersectModifier {
+
+    /** Returns `__once`. */
     def render: String = "__once"
   }
 
-  /** Fires when the element is at least half visible. */
+  /** Runs the expression when half of the element is visible. */
   case object Half extends IntersectModifier {
+
+    /** Returns `__half`. */
     def render: String = "__half"
   }
 
-  /** Fires when the element is fully visible. */
+  /** Runs the expression when all of the element is visible. */
   case object Full extends IntersectModifier {
+
+    /** Returns `__full`. */
     def render: String = "__full"
   }
 
-  /** Fires when the element exits the intersection area. */
+  /** Runs the expression when the element leaves the viewport. */
   case object Exit extends IntersectModifier {
+
+    /** Returns `__exit`. */
     def render: String = "__exit"
   }
 
-  /** Fires when the intersection ratio crosses the provided threshold. */
+  /**
+   * Runs the expression when `pct` percent of the element is visible; Datastar
+   * reads the value as a percentage from 0 to 100.
+   */
   final case class Threshold(pct: Double) extends IntersectModifier {
+
+    /**
+     * Returns `__threshold.<pct>`, with the number written without trailing
+     * zeros.
+     *
+     * @throws java.lang.NumberFormatException
+     *   if `pct` is `NaN` or infinite
+     */
     def render: String = "__threshold." + BigDecimal(pct).underlying().stripTrailingZeros().toPlainString
   }
 
-  /** Delays intersect handling by the specified interval. */
+  /** Runs the expression `millis` milliseconds late. */
   final case class Delay(millis: Long) extends IntersectModifier {
+
+    /** Returns `__delay.<millis>ms`. */
     def render: String = "__delay." + millis + "ms"
   }
 
-  /** Debounces intersect handling by the specified interval. */
+  /** Debounces the trigger by `millis` milliseconds. */
   final case class Debounce(millis: Long) extends IntersectModifier {
+
+    /** Returns `__debounce.<millis>ms`. */
     def render: String = "__debounce." + millis + "ms"
   }
 
-  /** Throttles intersect handling by the specified interval. */
+  /** Throttles the trigger to once every `millis` milliseconds. */
   final case class Throttle(millis: Long) extends IntersectModifier {
+
+    /** Returns `__throttle.<millis>ms`. */
     def render: String = "__throttle." + millis + "ms"
   }
 
-  /** Wraps the intersect action in a view transition when supported. */
+  /**
+   * Runs the expression inside a view transition where the browser supports it.
+   */
   case object ViewTransition extends IntersectModifier {
+
+    /** Returns `__viewTransition`. */
     def render: String = "__viewTransition"
   }
 
-  /** Concatenates two intersect modifier suffixes in order. */
+  /** Two modifiers together. */
   final case class And(left: IntersectModifier, right: IntersectModifier) extends IntersectModifier {
+
+    /** Returns the left suffix followed by the right one. */
     def render: String = left.render + right.render
   }
 
