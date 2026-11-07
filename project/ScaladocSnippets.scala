@@ -160,19 +160,30 @@ object ScaladocSnippets {
   // `Stream` in `zio.blocks.streams.Stream` is qualified, so it does not count.
   private val mentionedIdentifier = """(?<![\w.])[A-Za-z_]\w*""".r
 
-  // A name an import line brings into scope: an identifier not followed by `.` (a path segment) or
-  // `=>` (a rename, whose left side is hidden). `Stream` in `import a.b.Stream` and in `import a.{Stream, X}` counts.
-  private val importedIdentifier = """(?<!\w)[A-Za-z_]\w*(?!\w)(?!\s*\.)(?!\s*=>)""".r
+  // A name an import line brings into scope: an identifier not followed by `.` (a path segment), by `=>` or by
+  // Scala 3 `as` (a rename, whose left side is hidden). `Stream` in `import a.b.Stream` and in `import a.{Stream, X}`
+  // counts.
+  private val importedIdentifier = """(?<!\w)[A-Za-z_]\w*(?!\w)(?!\s*\.)(?!\s*=>)(?!\s+as\b)""".r
 
-  // A declaration: `class X`, `object X`, `def x`, ... with optional non-private modifiers. Matched on a
-  // trimmed line, so `private` and `private[pkg]` declarations never match.
+  // A declaration: `class X`, `object X`, `def x`, ..., after optional annotations (`@deprecated`), an optional
+  // one-line `extension (...)` and optional non-private modifiers. Matched from the start of a line, so `private` and
+  // `private[pkg]` declarations never match.
   private val declaration =
-    """(?:(?:final|sealed|abstract|case|implicit|inline|open|opaque|override|lazy|transparent|infix|erased)\s+)*(?:class|trait|object|type|enum|def|val|var)\s+([A-Za-z_]\w*)""".r
+    """(?:@\w+(?:\([^)]*\))?\s+)*(?:extension\s*\([^)]*\)\s*)?(?:(?:final|sealed|abstract|case|implicit|inline|open|opaque|override|lazy|transparent|infix|erased)\s+)*(?:class|trait|object|type|enum|def|val|var)\s+([A-Za-z_]\w*)""".r
 
-  // Matches from the start of `line`: callers pass the line as it is for a top-level declaration
-  // (column 0), or trimmed for one inside a block.
   private def declaredName(line: String): List[String] =
     declaration.findPrefixMatchOf(line).map(_.group(1)).toList
+
+  // A line that can sit in the header of a file, before its first declaration: a package clause, an import, a comment
+  // or a blank line. `takeWhile` over these reads a file's package clauses without reading past the header.
+  private def isHeaderLine(trimmed: String): Boolean =
+    trimmed.isEmpty || trimmed.startsWith("package ") || trimmed.startsWith("import ") ||
+      trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")
+
+  // A file whose members a reader uses without naming them: one that defines an implicit class or def, an extension or
+  // a package object, or a trait (a package object mixes traits in, as `package object html extends HtmlElements`).
+  // Its indented declarations count as names of the package (see `fileNames`).
+  private val membersProvider = """(?:implicit\s+(?:final\s+)?(?:class|def)\b|extension\b|package object\b)""".r
 
   /**
    * The names that the files of one module, for one Scala version, contribute
@@ -192,29 +203,47 @@ object ScaladocSnippets {
    * needs one only through the wrapper's import fails to compile, so it then
    * needs its own import.
    */
-  def moduleNames(sources: Seq[(String, String)]): Set[String] =
-    sources.flatMap { case (path, content) =>
-      val lines = content.split("\n", -1).toList.map(_.trim)
-      val full  = lines.flatMap(packageClause).foldLeft("")((acc, c) => if (acc.isEmpty) c else acc + "." + c)
-      val pkg   = modulePackage(path)
-      if (full == pkg) lines.flatMap(declaredName)
-      else if (full.startsWith(pkg + ".")) List(full.drop(pkg.length + 1).takeWhile(_ != '.'))
-      else Nil
-    }.toSet
+  def packageNames(sources: Seq[(String, String)]): Map[String, Set[String]] =
+    sources.flatMap { case (_, content) => fileNames(content) }.groupBy { case (pkg, _) => pkg }.map {
+      case (pkg, pairs) => pkg -> pairs.map { case (_, name) => name }.toSet
+    }
 
-  // The name a `package` or `package object` clause adds to the package, or Nil for other lines. In Scala 2 a
-  // file may nest clauses (`package zio.http` then `package datastar`), so `moduleNames` joins them.
+  // The (package, name) pairs one file contributes: the names it declares in its package, and the name of each
+  // package between the root and its own package (`zio` and `blocks` for `zio.blocks.streams.io`, so that `io` is
+  // reached from `zio.blocks.streams`). Scala 2 nests clauses (`package zio.http` then `package datastar`), and Scala 3
+  // allows `package a.b:` with a colon, so the clauses are read from the header and joined.
+  private def fileNames(content: String): List[(String, String)] = {
+    val raw     = content.split("\n", -1).toList
+    val trimmed = raw.map(_.trim)
+    val clauses = trimmed.takeWhile(isHeaderLine).flatMap(packageClause)
+    if (clauses.isEmpty) Nil
+    else {
+      val full    = clauses.mkString(".")
+      val members =
+        // A declaration in a file that defines implicit members counts at any indentation, as the members of an
+        // implicit class, an extension or a package object are used without their names. Elsewhere only a column-0
+        // declaration counts: a method's local `val x` is not a name of the package.
+        if (trimmed.exists(line => membersProvider.findPrefixOf(line).isDefined) || raw.exists(_.startsWith("trait ")))
+          trimmed.flatMap(declaredName)
+        else raw.flatMap(declaredName)
+      val segments  = full.split('.').toList
+      val ancestors = (1 until segments.length).toList.map(i => (segments.take(i).mkString("."), segments(i)))
+      members.map(name => (full, name)) ++ ancestors
+    }
+  }
+
+  // The name a `package` or `package object` clause adds to the package, or Nil for other lines.
   private def packageClause(trimmed: String): List[String] = {
     val name =
       if (trimmed.startsWith("package object ")) Some(trimmed.stripPrefix("package object "))
       else if (trimmed.startsWith("package ")) Some(trimmed.stripPrefix("package "))
       else None
-    name.map(_.trim.takeWhile(c => !c.isWhitespace && c != '{')).filter(_.nonEmpty).toList
+    name.map(_.trim.takeWhile(c => !c.isWhitespace && !"{:;}".contains(c))).filter(_.nonEmpty).toList
   }
 
   /**
    * Whether the wrapper of `snippet` needs its module import: the example uses
-   * one of the module's names (`moduleNames`) that it does not bind itself, by
+   * one of the module's names (`packageNames`) that it does not bind itself, by
    * an import or a declaration of its own (those shadow the wrapper's import,
    * so the wrapper's import is then unused). An example that uses none of them,
    * or imports its module package with `importsModule`, gets no module import,
@@ -223,7 +252,7 @@ object ScaladocSnippets {
    * The check errs towards keeping the import: a name it cannot tell apart
    * keeps the import, which is then used or at worst warns as before. The one
    * way to drop it wrongly is a name the example reaches without naming it,
-   * which `moduleNames` does not list: a given or an anonymous implicit. That
+   * which `packageNames` does not list: a given or an anonymous implicit. That
    * fails to compile loudly, so the example then needs its own import.
    */
   def needsModuleImport(snippet: Snippet, moduleNames: Set[String]): Boolean = {
@@ -239,7 +268,7 @@ object ScaladocSnippets {
   /**
    * The source file that wraps `snippet` in an object. The module import of
    * `moduleImport` is written only when `needsModuleImport` is true for the
-   * module's `moduleNames`.
+   * module's `packageNames`.
    */
   def render(snippet: Snippet, moduleNames: Set[String]): String = {
     val moduleImportLines =
@@ -257,17 +286,17 @@ object ScaladocSnippets {
   /**
    * Turns `(path, content)` source files into `(fileName, fileContent)` wrapper
    * files for a compiler of the given major Scala version. `sources` must be
-   * the files of the modules for that version, so that `moduleNames` of each
-   * module reads the names the compiler sees.
+   * the files of the modules for that version, so that `packageNames` reads the
+   * names the compiler sees. The names come from every module, not only the
+   * example's own, because a wildcard import of a package also brings in the
+   * sub-packages that other modules add to it.
    */
   def generate(sources: Seq[(String, String)], scalaMajor: Int): Seq[(String, String)] = {
-    val namesByModule = sources.groupBy { case (path, _) => moduleOf(path) }.map { case (module, files) =>
-      module -> moduleNames(files)
-    }
-    val files = sources.flatMap { case (path, content) => extract(path, content) }
+    val namesByPackage = packageNames(sources)
+    val files          = sources.flatMap { case (path, content) => extract(path, content) }
       .filter(_.onlyScalaMajor.forall(_ == scalaMajor))
       .map { snippet =>
-        val names = namesByModule.getOrElse(moduleOf(snippet.sourcePath), Set.empty[String])
+        val names = namesByPackage.getOrElse(modulePackage(snippet.sourcePath), Set.empty[String])
         (objectName(snippet.sourcePath, snippet.line) + ".scala", render(snippet, names))
       }
     files.groupBy(_._1).collectFirst {

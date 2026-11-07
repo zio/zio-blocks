@@ -385,8 +385,15 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       )
     },
     test("render keeps the module import when an import renames away the module name the example uses") {
-      val snippet =
-        ScaladocSnippets.Snippet(path, 4, List("import zio.blocks.streams.{Stream => S}", "val a = Stream"), None)
+      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val snippet     = ScaladocSnippets
+        .Snippet(streamsPath, 4, List("import zio.blocks.streams.{Stream => S}", "val a = Stream"), None)
+      assertTrue(ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
+    },
+    test("render keeps the module import when a Scala 3 rename with as hides the name the example uses") {
+      val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
+      val snippet     = ScaladocSnippets
+        .Snippet(streamsPath, 4, List("import zio.blocks.streams.{Stream as S}", "val a = Stream"), None)
       assertTrue(ScaladocSnippets.needsModuleImport(snippet, Set("Stream")))
     },
     test("render drops the module import when the example binds the name it uses itself") {
@@ -396,11 +403,10 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
       assertTrue(
         !needs(Set("Stream"), "import zio.blocks.streams.Stream", "val a = Stream.empty"),
         !needs(Set("Reader"), "final case class Reader(x: Int)", "val r = Reader(1)"),
-        !needs(Set("Stream"), "import zio.blocks.streams._", "val a = Stream.empty"),
         !needs(Set("Stream"), "val a = zio.blocks.streams.Stream.empty")
       )
     },
-    test("moduleNames reads the top-level and indented declarations and the sub-packages of a module package") {
+    test("packageNames reads the top-level declarations and the sub-packages of a package") {
       val streams        = "streams/shared/src/main/scala/zio/blocks/streams/Stream.scala"
       val io             = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
       val streamsContent = source(
@@ -412,54 +418,69 @@ object ScaladocSnippetsSpec extends ZIOSpecDefault {
         "  def indented = 1",
         "object Stream"
       )
+      val names = ScaladocSnippets.packageNames(
+        Seq(streams -> streamsContent, io -> "package zio.blocks.streams.io\n\ntrait Reader")
+      )
       assertTrue(
-        ScaladocSnippets.moduleNames(
-          Seq(streams -> streamsContent, io -> "package zio.blocks.streams.io\n\ntrait Reader")
-        ) == Set("Stream", "io", "indented")
+        names("zio.blocks.streams") == Set("Stream", "io"),
+        names("zio.blocks") == Set("streams")
       )
     },
-    test("moduleNames reads the members of a package object at any indentation") {
-      val pkg = "streams/shared/src/main/scala/zio/blocks/streams/package.scala"
-      assertTrue(
-        ScaladocSnippets.moduleNames(
-          Seq(pkg -> source("package zio.blocks", "package object streams {", "  def helper = 1", "}"))
-        ) == Set("helper")
-      )
+    test("packageNames reads indented declarations only from a file that defines implicit members") {
+      val docPath   = "markdown/shared/src/main/scala/zio/blocks/docs/package.scala"
+      val plainPath = "markdown/shared/src/main/scala/zio/blocks/docs/Plain.scala"
+      val names     = ScaladocSnippets.packageNames(
+        Seq(
+          docPath -> source(
+            "package zio.blocks.docs",
+            "implicit class Interp(sc: StringContext) {",
+            "  def md = 1",
+            "}"
+          ),
+          plainPath -> source("package zio.blocks.docs", "object Plain {", "  val local = 1", "}")
+        )
+      )("zio.blocks.docs")
+      assertTrue(names == Set("Interp", "md", "Plain"))
     },
-    test("moduleNames reads a file by its package clause, not its directory") {
+    test("packageNames reads the members of a package object at any indentation") {
+      val pkg   = "streams/shared/src/main/scala/zio/blocks/streams/package.scala"
+      val names = ScaladocSnippets.packageNames(
+        Seq(pkg -> source("package zio.blocks", "package object streams {", "  def helper = 1"))
+      )
+      assertTrue(names("zio.blocks.streams") == Set("helper"))
+    },
+    test("packageNames reads a file by its package clause, not its directory") {
       val signal = "datastar/shared/src/main/scala/zio/blocks/datastar/Signal.scala"
       val extra  = "datastar/shared/src/main/scala/zio/blocks/datastar/Extra.scala"
+      val names  = ScaladocSnippets.packageNames(
+        Seq(signal -> source("package zio.http.datastar", "final class Signal"), extra -> "package zio.http")
+      )
       assertTrue(
-        ScaladocSnippets.moduleNames(
-          Seq(signal -> source("package zio.http.datastar", "final class Signal"), extra -> "package zio.http")
-        ) == Set("Signal")
+        names("zio.http.datastar") == Set("Signal"),
+        names("zio.http") == Set("datastar")
       )
     },
-    test("moduleNames reads a package object whose package is nested in two clauses") {
-      val pkg = "datastar/shared/src/main/scala/zio/blocks/datastar/package.scala"
-      assertTrue(
-        ScaladocSnippets.moduleNames(
-          Seq(pkg -> source("package zio.http", "package object datastar extends Attrs {", "  def dataSignals = 1"))
-        ) == Set("dataSignals")
+    test("packageNames reads a package object whose package is nested in two clauses") {
+      val pkg   = "datastar/shared/src/main/scala/zio/blocks/datastar/package.scala"
+      val names = ScaladocSnippets.packageNames(
+        Seq(pkg -> source("package zio.http", "package object datastar extends Attrs {", "  def dataSignals = 1"))
       )
+      assertTrue(names("zio.http.datastar") == Set("dataSignals"))
     },
-    test("moduleNames reads a member of an implicit class, which an interpolator example uses") {
-      val docPath = "markdown/shared/src/main/scala/zio/blocks/docs/package.scala"
+    test("packageNames reads a Scala 3 package clause with a colon, an annotation and a one-line extension") {
+      val path    = "streams/shared/src/main/scala/zio/blocks/streams/Api.scala"
       val content = source(
-        "package zio.blocks.docs",
+        "package zio.blocks.streams:",
         "",
-        "implicit class Interp(sc: StringContext) {",
-        "  def md(args: Any*): Doc = ???",
-        "}"
+        "@deprecated def old = 1",
+        "extension (s: String) def shout = s"
       )
-      val names = ScaladocSnippets.moduleNames(Seq(docPath -> content))
-      assertTrue(
-        names.contains("md"),
-        ScaladocSnippets.needsModuleImport(
-          ScaladocSnippets.Snippet(docPath, 4, List("val d = md\"# Title\""), None),
-          names
-        )
-      )
+      assertTrue(ScaladocSnippets.packageNames(Seq(path -> content))("zio.blocks.streams") == Set("old", "shout"))
+    },
+    test("packageNames stops at the end of a braced package clause, so a sibling clause is not joined to it") {
+      val path    = "a/shared/src/main/scala/a/X.scala"
+      val content = source("package a {", "object X", "}", "package c {", "object Y", "}")
+      assertTrue(ScaladocSnippets.packageNames(Seq(path -> content)).keySet == Set("a"))
     },
     test("render drops the module import for a Scala 3 wildcard import of the module package") {
       val streamsPath = "streams/shared/src/main/scala/zio/blocks/streams/io/Reader.scala"
