@@ -17,45 +17,83 @@
 package zio.blocks.mux
 
 /**
- * Error type for Mux operations.
+ * The errors that [[Mux]] and [[MuxStream]] operations return, as the `Left` of
+ * an `Either` on Scala 2 and as a member of a union type on Scala 3. The
+ * library creates `StreamClosed`, `CapacityExceeded`, `QueueFull`, `MuxClosed`
+ * and `ProtocolError`; `Cancelled` is never created by the library and is meant
+ * as a `reason` for `Mux#cancel` or `Mux#closeAll`, which then comes back from
+ * `MuxStream#receive`.
  *
- * The `id` field in [[MuxError.StreamClosed]] and [[MuxError.Cancelled]] is
- * typed as `Any` to keep `MuxError` non-generic. Parameterizing the sealed
- * hierarchy on the stream ID type would make pattern matching and error
- * handling unwieldy across different Mux instances. Callers can recover the
- * concrete ID type via pattern matching at the use site.
+ * The `id` of [[MuxError.StreamClosed]] and [[MuxError.Cancelled]] is typed
+ * `Any`, so that `MuxError` needs no type parameter; match on it to recover the
+ * concrete id.
+ *
+ * {{{
+ * val mux = Mux[Int, String, String](1)
+ * mux.open(1)
+ * println(mux.open(1)) // ProtocolError(Stream 1 already exists)
+ * println(mux.open(2)) // CapacityExceeded(1)
+ * mux.closeAll(MuxError.MuxClosed)
+ * println(mux.open(3)) // MuxClosed
+ * // On Scala 2 each error is wrapped in Left(...).
+ *
+ * def retryLater(error: MuxError): Boolean = error match {
+ *   case MuxError.QueueFull(_) | MuxError.CapacityExceeded(_) => true
+ *   case _                                                    => false
+ * }
+ * retryLater(MuxError.QueueFull(256)) // true
+ * }}}
+ *
+ * @see
+ *   [[https://zioblocks.com/reference/mux/ Mux]]
  */
 sealed trait MuxError
 
+/**
+ * The [[MuxError]] cases.
+ */
 object MuxError {
 
   /**
-   * Stream is closed or does not exist.
+   * The stream `id` is closed in the direction asked for. [[MuxStream]] returns
+   * it from `send` once its side is done sending, from `offerInbound` once the
+   * peer is done, and from `takeOutbound` (and `receive`, unless a cancel
+   * reason was given) once the stream is fully closed and the queue is empty.
+   * It is not returned for an id that was never opened: `Mux#get` returns
+   * `None` and `Mux#cancel` does nothing for those.
    */
   final case class StreamClosed(id: Any) extends MuxError
 
   /**
-   * Maximum number of concurrent streams reached (mux-level capacity).
+   * Returned by `Mux#open` when `limit` streams, the `capacity` the [[Mux]] was
+   * created with, are already registered.
    */
   final case class CapacityExceeded(limit: Int) extends MuxError
 
   /**
-   * Per-stream message queue is full (backpressure).
+   * Returned by `MuxStream#send` and `MuxStream#offerInbound` when the queue
+   * already holds `queueCapacity` messages (256); retry after the other side
+   * has taken some.
    */
   final case class QueueFull(queueCapacity: Int) extends MuxError
 
   /**
-   * Stream was cancelled by peer or local error.
+   * A cancellation with an explanation, for callers to pass as the `reason` of
+   * `Mux#cancel` or `Mux#closeAll`; `MuxStream#receive` then returns it once
+   * the inbound queue is empty. The library itself never creates it.
    */
   final case class Cancelled(id: Any, reason: String) extends MuxError
 
   /**
-   * Mux itself is closed.
+   * Returned by `Mux#open` after `Mux#closeAll`.
    */
   case object MuxClosed extends MuxError
 
   /**
-   * Protocol error (e.g., invalid state transition).
+   * A misuse of the API: returned by `Mux#open` for an id that is already
+   * registered (`Stream <id> already exists`), and by `MuxStream#send` and
+   * `MuxStream#offerInbound` for a `null` message (`null message`). Callers may
+   * also pass it as a `reason` to `Mux#cancel` or `Mux#closeAll`.
    */
   final case class ProtocolError(message: String) extends MuxError
 }

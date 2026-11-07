@@ -40,29 +40,32 @@ private[ringbuffer] class FloatSpscPad2 extends FloatSpscConsumerFields {
 }
 
 /**
- * High-performance non-blocking SPSC ring buffer specialized for `Float`.
+ * A bounded first-in, first-out queue of `Float` values, stored without boxing,
+ * for one producer thread and one consumer thread, with an in-band
+ * end-of-stream marker. Call [[offer]] and [[offerDone]] from one producer
+ * thread only, and [[take]], [[pollPacked]] and [[peek]] from one consumer
+ * thread only; nothing checks this. Like [[SpscRingBuffer]], neither side
+ * blocks and the slot itself tells each side whether it is free. JVM only.
  *
- * Layout: a single `Array[Long]`. Each slot packs both the data and the
- * occupancy/control signal into one 64-bit word:
- *   - bits 32..63: tag (`0` = empty, `1` = data, `2` = done)
- *   - bits 0..31: `Float.floatToRawIntBits(value)` (only meaningful when tag ==
- *     1)
+ * Each slot is one `Long`: the high 32 bits are a tag (`0` = empty, `1` =
+ * value, `2` = end marker) and the low 32 bits hold `floatToRawIntBits` of the
+ * value. An empty slot is `0L` and a filled slot never is, so every `Float` is
+ * stored bit for bit, `0.0f`, `-0.0f`, infinities and every `NaN` payload
+ * included.
  *
- * The packed slot itself is the FastFlow signal; one memory-ordered op per
- * insert/remove, one cache line per slot. All `Float` values are representable
- * (including `0.0f`, `NaN`, `+/-Inf`); the non-zero tag guarantees a stored
- * slot is never zero.
- *
- * In-band "done" sentinel: producers can call `offerDone()` to insert an
- * end-of-stream marker after the last data value. Consumers reading via
- * `pollPacked()` receive `EMPTY_PACKED` for empty, `DONE_PACKED` for the
- * sentinel, or a `TAG_FULL | float bits` value for data. This removes the need
- * for a separate control queue alongside the data queue.
- *
- * SPSC: one producer thread, one consumer thread.
+ * The producer ends the stream with [[offerDone]]. The consumer reads with
+ * [[pollPacked]] to tell the cases apart: it returns
+ * [[FloatSpscRingBuffer.EMPTY_PACKED]] when the buffer is empty,
+ * [[FloatSpscRingBuffer.DONE_PACKED]] for the end marker, and otherwise a
+ * tagged `Long` whose low 32 bits are the value's bits
+ * (`java.lang.Float.intBitsToFloat(packed.toInt)`). [[take]] returns `0.0f` for
+ * an empty buffer, for the end marker and for the value `0.0f` alike.
  *
  * @param capacity
- *   must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spsc/ SPSC RingBuffer]]
  */
 final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -73,6 +76,10 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
   private val data: Array[Long]   = new Array[Long](capacity)
   private val lookAheadStep: Long = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
+  /**
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. Call it from the producer thread only.
+   */
   def offer(a: Float): Boolean = {
     val pIdx = producerIndex
     if (pIdx >= producerLimit) {
@@ -86,8 +93,11 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
   }
 
   /**
-   * Insert the in-band done sentinel. Returns `false` if the buffer is full;
-   * the caller is expected to retry until it succeeds.
+   * Appends the end-of-stream marker and returns `true` if a slot is free;
+   * returns `false`, without waiting, when the buffer is full, and the caller
+   * retries. The marker takes a slot and counts in [[size]]; [[pollPacked]]
+   * returns `DONE_PACKED` for it. Call it from the producer thread only, after
+   * the last value.
    */
   def offerDone(): Boolean = {
     val pIdx = producerIndex
@@ -100,11 +110,21 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
     true
   }
 
+  /**
+   * Returns `true` when the next slot holds a value or the end marker, without
+   * removing it. Call it from the consumer thread only.
+   */
   def peek(): Boolean = {
     val offset = (consumerIndex & mask).toInt
     (LONG_HANDLE.getAcquire(data, offset): Long) != 0L
   }
 
+  /**
+   * Removes and returns the next value, or returns `0.0f` when the buffer is
+   * empty. When the next slot holds the end marker, it removes the marker and
+   * returns `0.0f` as well, so use [[pollPacked]] when `0.0f`, "empty" and
+   * "done" must be told apart. Call it from the consumer thread only.
+   */
   def take(): Float = {
     val cIdx   = consumerIndex
     val offset = (cIdx & mask).toInt
@@ -116,12 +136,12 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
   }
 
   /**
-   * Atomically polls the next slot and returns the raw packed value:
-   *   - `EMPTY_PACKED` (`0L`) — slot is empty; consumer index is NOT advanced.
-   *   - `DONE_PACKED` — in-band done sentinel; consumer index advanced.
-   *   - any other value — packed data (`TAG_FULL | floatToRawIntBits`);
-   *     consumer index advanced. The payload is
-   *     `Float.intBitsToFloat(packed.toInt)`.
+   * Removes the next slot's content and returns it as a raw `Long`:
+   * [[FloatSpscRingBuffer.EMPTY_PACKED]] (`0L`) when the buffer is empty, in
+   * which case nothing is removed; [[FloatSpscRingBuffer.DONE_PACKED]] for the
+   * end marker; otherwise the tagged value, decoded with
+   * `java.lang.Float.intBitsToFloat(packed.toInt)`. Call it from the consumer
+   * thread only.
    */
   def pollPacked(): Long = {
     val cIdx   = consumerIndex
@@ -133,18 +153,34 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
     packed
   }
 
+  /**
+   * Returns `true` when the buffer holds neither values nor the end marker.
+   * While the other thread offers or takes, the answer can be out of date by
+   * the time it returns.
+   */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     pIdx == cIdx
   }
 
+  /**
+   * Returns `true` when every slot holds a value or the end marker. While the
+   * other thread offers or takes, the answer can be out of date by the time it
+   * returns.
+   */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     (pIdx - cIdx).toInt == capacity
   }
 
+  /**
+   * Returns the number of slots in use, the end marker included. While the
+   * other thread offers or takes, the result is an estimate: the two indices
+   * are read one after the other, so it can be out of date, negative, or larger
+   * than `capacity`.
+   */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -168,12 +204,20 @@ final class FloatSpscRingBuffer(val capacity: Int) extends FloatSpscPad2 {
   }
 }
 
+/**
+ * Creates [[FloatSpscRingBuffer]] instances and holds its marker values.
+ */
 object FloatSpscRingBuffer {
 
-  /** Packed value returned by `pollPacked()` when the next slot is empty. */
+  /**
+   * The value `pollPacked` returns when the buffer is empty: `0L`.
+   */
   final val EMPTY_PACKED: Long = 0L
 
-  /** Packed value returned by `pollPacked()` for the in-band done sentinel. */
+  /**
+   * The value `pollPacked` returns for the end-of-stream marker that
+   * `offerDone` appends: `2L << 32`.
+   */
   final val DONE_PACKED: Long = 2L << 32
 
   private final val TAG_FULL: Long   = 1L << 32
@@ -191,5 +235,12 @@ object FloatSpscRingBuffer {
 
   private val LONG_HANDLE: VarHandle = MethodHandles.arrayElementVarHandle(classOf[Array[Long]])
 
+  /**
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new FloatSpscRingBuffer(capacity)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
+   */
   def apply(capacity: Int): FloatSpscRingBuffer = new FloatSpscRingBuffer(capacity)
 }

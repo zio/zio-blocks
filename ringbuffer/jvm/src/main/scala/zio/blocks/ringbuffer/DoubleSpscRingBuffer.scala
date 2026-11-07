@@ -40,35 +40,33 @@ private[ringbuffer] class DoubleSpscPad2 extends DoubleSpscConsumerFields {
 }
 
 /**
- * High-performance non-blocking SPSC ring buffer specialized for `Double`.
+ * A bounded first-in, first-out queue of `Double` values, stored without
+ * boxing, for one producer thread and one consumer thread, with an in-band
+ * end-of-stream marker. Call [[offer]] and [[offerDone]] from one producer
+ * thread only, and [[take]], [[pollPacked]] and [[peek]] from one consumer
+ * thread only; nothing checks this. Like [[SpscRingBuffer]], neither side
+ * blocks and the slot itself tells each side whether it is free. JVM only.
  *
- * Layout: a single `Array[Long]` storing raw `doubleToRawLongBits`. The
- * FastFlow signal uses two reserved NaN bit patterns: `EMPTY_BITS`
- * (`0xFFF8_0000_0000_0001L`) is the empty marker, `DONE_BITS`
- * (`0xFFF8_0000_0000_0002L`) is the in-band end-of-stream marker. If the user
- * offers a `Double` whose raw bits happen to equal either reserved pattern, it
- * is canonicalized to `Double.NaN`'s standard bit pattern
- * (`0x7FF8_0000_0000_0000L`) on insertion.
+ * Each slot holds `doubleToRawLongBits` of the value. Two `NaN` bit patterns
+ * are reserved: [[DoubleSpscRingBuffer.EMPTY_BITS]] (`0xfff8000000000001L`)
+ * marks an empty slot and [[DoubleSpscRingBuffer.DONE_BITS]]
+ * (`0xfff8000000000002L`) is the end marker. A value with either of these bit
+ * patterns is stored as the bits of `Double.NaN` (`0x7ff8000000000000L`), so
+ * its payload is lost, which [[pollPacked]] shows; it still reads back as a
+ * `NaN`. Every other value, including every other `NaN` payload, is stored bit
+ * for bit.
  *
- * **This canonicalization is unobservable**: IEEE 754 guarantees `NaN != NaN`,
- * all NaNs compare equal under reference NaN semantics, and there is no
- * portable Scala/Java way to round-trip a specific NaN payload through
- * arithmetic. The remapping only affects two specific raw bit patterns, which
- * the user could not have meaningfully produced through normal floating-point
- * operations.
- *
- * In-band "done" sentinel: producers can call `offerDone()` to insert the
- * end-of-stream marker after the last data value. Consumers reading via
- * `pollPacked()` receive `EMPTY_BITS` for empty, `DONE_BITS` for the sentinel,
- * or the raw `doubleToRawLongBits` value for data. This removes the need for a
- * separate control queue alongside the data queue.
- *
- * One memory-ordered op per insert/remove, one cache line per slot.
- *
- * SPSC: one producer thread, one consumer thread.
+ * The producer ends the stream with [[offerDone]]. The consumer reads with
+ * [[pollPacked]] to tell the cases apart: it returns `EMPTY_BITS` when the
+ * buffer is empty, `DONE_BITS` for the end marker, and otherwise the value's
+ * raw bits (`java.lang.Double.longBitsToDouble(bits)`). [[take]] returns a
+ * `NaN` for an empty buffer, for the end marker and for a stored `NaN` alike.
  *
  * @param capacity
- *   must be a positive power of two
+ *   the number of slots: a power of two of at least 1 (1, 2, 4, ...); any other
+ *   value throws `IllegalArgumentException`
+ * @see
+ *   [[https://zioblocks.com/reference/ringbuffer/spsc/ SPSC RingBuffer]]
  */
 final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
   require(capacity > 0 && (capacity & (capacity - 1)) == 0, s"capacity must be a positive power of 2, got: $capacity")
@@ -83,6 +81,12 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
   }
   private val lookAheadStep: Long = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
+  /**
+   * Appends `a` and returns `true` if a slot is free; returns `false`, without
+   * waiting, when the buffer is full. A value whose bits are `EMPTY_BITS` or
+   * `DONE_BITS` is stored as `Double.NaN`. Call it from the producer thread
+   * only.
+   */
   def offer(a: Double): Boolean = {
     val pIdx = producerIndex
     if (pIdx >= producerLimit) {
@@ -97,8 +101,11 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
   }
 
   /**
-   * Insert the in-band done sentinel. Returns `false` if the buffer is full;
-   * the caller is expected to retry until it succeeds.
+   * Appends the end-of-stream marker and returns `true` if a slot is free;
+   * returns `false`, without waiting, when the buffer is full, and the caller
+   * retries. The marker takes a slot and counts in [[size]]; [[pollPacked]]
+   * returns `DONE_BITS` for it. Call it from the producer thread only, after
+   * the last value.
    */
   def offerDone(): Boolean = {
     val pIdx = producerIndex
@@ -111,11 +118,22 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
     true
   }
 
+  /**
+   * Returns `true` when the next slot holds a value or the end marker, without
+   * removing it. Call it from the consumer thread only.
+   */
   def peek(): Boolean = {
     val offset = (consumerIndex & mask).toInt
     (LONG_HANDLE.getAcquire(data, offset): Long) != EMPTY_BITS
   }
 
+  /**
+   * Removes and returns the next value, or returns a `NaN` (with the bits
+   * `EMPTY_BITS`) when the buffer is empty. When the next slot holds the end
+   * marker, it removes the marker and returns a `NaN` with the bits
+   * `DONE_BITS`, so use [[pollPacked]] to tell values, "empty" and "done"
+   * apart. Call it from the consumer thread only.
+   */
   def take(): Double = {
     val cIdx   = consumerIndex
     val offset = (cIdx & mask).toInt
@@ -127,11 +145,11 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
   }
 
   /**
-   * Atomically polls the next slot and returns the raw bits:
-   *   - `EMPTY_BITS` — slot is empty; consumer index is NOT advanced.
-   *   - `DONE_BITS` — in-band done sentinel; consumer index advanced.
-   *   - any other value — `doubleToRawLongBits(value)` for the payload;
-   *     consumer index advanced. Decode with `Double.longBitsToDouble`.
+   * Removes the next slot's content and returns its raw bits:
+   * [[DoubleSpscRingBuffer.EMPTY_BITS]] when the buffer is empty, in which case
+   * nothing is removed; [[DoubleSpscRingBuffer.DONE_BITS]] for the end marker;
+   * otherwise the value's bits, decoded with
+   * `java.lang.Double.longBitsToDouble`. Call it from the consumer thread only.
    */
   def pollPacked(): Long = {
     val cIdx   = consumerIndex
@@ -143,18 +161,34 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
     bits
   }
 
+  /**
+   * Returns `true` when the buffer holds neither values nor the end marker.
+   * While the other thread offers or takes, the answer can be out of date by
+   * the time it returns.
+   */
   def isEmpty: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     pIdx == cIdx
   }
 
+  /**
+   * Returns `true` when every slot holds a value or the end marker. While the
+   * other thread offers or takes, the answer can be out of date by the time it
+   * returns.
+   */
   def isFull: Boolean = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
     (pIdx - cIdx).toInt == capacity
   }
 
+  /**
+   * Returns the number of slots in use, the end marker included. While the
+   * other thread offers or takes, the result is an estimate: the two indices
+   * are read one after the other, so it can be out of date, negative, or larger
+   * than `capacity`.
+   */
   def size: Int = {
     val cIdx = CONSUMER_INDEX.getAcquire(this).asInstanceOf[Long]
     val pIdx = PRODUCER_INDEX.getAcquire(this).asInstanceOf[Long]
@@ -178,12 +212,22 @@ final class DoubleSpscRingBuffer(val capacity: Int) extends DoubleSpscPad2 {
   }
 }
 
+/**
+ * Creates [[DoubleSpscRingBuffer]] instances and holds its marker values.
+ */
 object DoubleSpscRingBuffer {
 
-  /** Reserved NaN bit pattern used as the empty-slot marker. */
+  /**
+   * The bits [[DoubleSpscRingBuffer#pollPacked]] returns when the buffer is
+   * empty, a `NaN` pattern: `0xfff8000000000001L`.
+   */
   final val EMPTY_BITS: Long = 0xfff8000000000001L
 
-  /** Reserved NaN bit pattern used as the in-band done sentinel. */
+  /**
+   * The bits of the end-of-stream marker that
+   * [[DoubleSpscRingBuffer#offerDone]] appends, a `NaN` pattern:
+   * `0xfff8000000000002L`.
+   */
   final val DONE_BITS: Long = 0xfff8000000000002L
 
   // Canonical NaN bit pattern (matches `Double.NaN`).
@@ -201,5 +245,12 @@ object DoubleSpscRingBuffer {
 
   private val LONG_HANDLE: VarHandle = MethodHandles.arrayElementVarHandle(classOf[Array[Long]])
 
+  /**
+   * Creates an empty buffer with `capacity` slots, the same as
+   * `new DoubleSpscRingBuffer(capacity)`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `capacity` is not a power of two of at least 1
+   */
   def apply(capacity: Int): DoubleSpscRingBuffer = new DoubleSpscRingBuffer(capacity)
 }

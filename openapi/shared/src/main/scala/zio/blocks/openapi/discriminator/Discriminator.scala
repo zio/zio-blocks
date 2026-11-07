@@ -22,12 +22,29 @@ import zio.blocks.schema.binding.{Binding, Constructor, Deconstructor, Registers
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.typeid.TypeId
 
+/**
+ * Names the property whose value tells which schema a payload matches, for
+ * schemas combined with `oneOf`, `anyOf` or `allOf`.
+ *
+ * @param propertyName
+ *   the name of the property that carries the discriminating value; the codec
+ *   requires it on decode.
+ * @param mapping
+ *   maps property values to schema names or references; the codec omits it from
+ *   the JSON when empty.
+ */
 final case class Discriminator(
   propertyName: String,
   mapping: ChunkMap[String, String] = ChunkMap.empty
 )
 
+/** Holds the `Schema` of [[Discriminator]]. */
 object Discriminator {
+
+  /**
+   * The `Schema` of [[Discriminator]], built by hand as a record of
+   * `propertyName` and `mapping`. Its JSON codec leaves out an empty `mapping`.
+   */
   implicit val schema: Schema[Discriminator] = new Schema(
     reflect = new Reflect.Record[Binding, Discriminator](
       fields = Vector(

@@ -29,10 +29,11 @@ package zio.blocks.smithy
  */
 final case class TraitApplication(id: ShapeId, value: Option[NodeValue])
 
+/** Factories for common `smithy.api` traits. */
 object TraitApplication {
 
   /**
-   * Creates the `@required` trait, which marks a shape as required.
+   * Creates the `@required` trait, which marks a structure member as required.
    *
    * This is a convenience factory for the smithy.api#required trait, which
    * takes no configuration value.
@@ -92,7 +93,8 @@ object TraitApplication {
    * shape as an error and specifies its classification.
    *
    * @param value
-   *   the error classification (typically "client" or "server")
+   *   the error classification: Smithy allows "client" or "server". The value
+   *   is not checked.
    * @return
    *   a TraitApplication for the @error trait
    */
