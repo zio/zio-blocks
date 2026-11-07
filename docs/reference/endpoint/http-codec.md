@@ -218,7 +218,7 @@ val digest: HttpCodec[CodecKind.Request, Header.Authorization.Digest] = HttpCode
 val proxy: HttpCodec[CodecKind.Request, Header.ProxyAuthorization]    = HttpCodec.proxyAuthorization
 ```
 
-These codecs use `Schema.transform` internally to parse the raw `Authorization` header string into the typed zio-http auth model, surfacing a `SchemaError` if the scheme does not match.
+These codecs use `Schema.transform` internally to parse the raw `Authorization` header string into the typed zio-http auth model, surfacing a `SchemaError` if the scheme does not match. The message names the class of the parsed header, for example `... but found Bearer`, or `Unparsed` for an unknown scheme.
 
 ## Metadata Fields
 

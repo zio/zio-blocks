@@ -107,7 +107,7 @@ This is the only constructor that takes `Option`. The accessors return `Maybe`, 
 
 ## Setting Metadata
 
-Four methods produce a modified copy. Each returns a new envelope; nothing mutates.
+Five methods produce a modified copy. Each returns a new envelope; nothing mutates.
 
 | Method                        | Effect                                    |
 | ----------------------------- | ----------------------------------------- |
@@ -273,7 +273,7 @@ For a JSON payload, encode to a `String` with the JSON codec and reuse `SseDataE
 
 ## Equality and Rendering as Text
 
-`ServerSentEvent#equals` compares the payload and all three metadata fields, so two envelopes are equal when they would render identically. `ServerSentEvent#hashCode` agrees with it.
+`ServerSentEvent#equals` compares the payload and all three metadata fields, so two envelopes are equal when their payloads are equal (`==`) and their metadata is equal. Two envelopes can render the same text and still be unequal, such as `ServerSentEvent("a")` and `ServerSentEvent(Chunk("a"))`. `ServerSentEvent#hashCode` agrees with it.
 
 `ServerSentEvent#toString` is a diagnostic rendering, not the wire format — absent fields appear as `null` and no `data:` prefixes are added:
 

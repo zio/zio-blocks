@@ -131,7 +131,7 @@ val scopedEndpoint = Endpoint(Method.GET / "admin")
 
 ## Unauthorized Status
 
-By default, `AuthType` returns `Status.NotFound` when the client does not meet the auth requirement (to avoid leaking endpoint existence). To change this, use `Endpoint#unauthorizedStatus` or call `AuthType#withUnauthorizedStatus` directly:
+`AuthType#unauthorizedStatus` is `Status.NotFound` by default (to avoid leaking endpoint existence). Nothing in the module returns a status itself: a server built on the endpoint should answer with this value when the client does not meet the auth requirement. To change it, use `Endpoint#unauthorizedStatus` or call `AuthType#withUnauthorizedStatus` directly:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
