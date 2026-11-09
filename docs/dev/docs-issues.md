@@ -59,10 +59,6 @@ Changing the second fence to `scala mdoc:silent:reset` makes the run pass.
 
 **Workaround.** Start any fix block that redefines a name with `mdoc:silent:reset`, not `compile-only`. Always read the rendered `// error:` lines of every `mdoc:fail` block.
 
-### Example projects' tests never run in CI
-
-Found 2026-10-20 while writing H-47. CI's "Compile example projects" step (`project/CiWorkflow.scala:360`, generated into `.github/workflows/ci.yml`) runs `sbt compile` in each `*-examples/` build, so `src/test` sources are never compiled or run. `sql-examples` is the first examples build with tests (H-47's `BookshopSpec`, 4 tests, passing locally against 0.0.56). Switching the step to `sbt test` (and regenerating `ci.yml`) would cover them. This is a CI change for the maintainer to decide; H-47's attempt to make it was blocked by a permission check, so it was left alone.
-
 ### Docs build memory with many sbt servers
 
 Seen 2026-10-20: a full `sbt check` was OOM-killed while several worktrees each ran an sbt server (about 4 GB free). Shut down idle servers in finished worktrees with `sbt --client shutdown`.
@@ -111,6 +107,7 @@ Found 2026-10-28 in one local run by the `remove-stale-datastar` session (worktr
 
 ## Resolved
 
+- Example projects' tests now run in CI, fixed in #1980 (merge `d639bff4e`, 2026-11-09): the step is now "Compile and test example projects" and runs `sbt test` in each `*-examples` build on the 3.9.x job. `sql-examples` got the same JDK 21 test-source guard that `telemetry-examples` and `capstone-examples` already had (the published `streams` jar is class file 65), so all three builds' tests run on the JDK 25 job only and skip with a warning on JDK 17. First CI run: sql-examples 8, telemetry-examples 11, capstone-examples 5 tests passed.
 - `scaladoc-coverage.py` fixed in #1974 (merge `66b1f66eb`, 2026-11-09): `_doc_before` now walks back over a balanced multi-line annotation, so `ContextHas` and `ToDatastarExpr` count as documented (context 36/37 → 37/37, datastar 251/252 → 252/252; streams-benchmark 11 → 19 of 373, JMH classes under a multi-line `@Fork(...)`; no module lost a doc), and `--drift` keys members by enclosing type, so `maybe` no longer reports `def apply` and no other module's drift output changed. Known limitation, left open: a triple-quoted string inside an annotation's arguments is not parsed.
 - `scaladoc-check` wrapper unused-import warnings fixed in #1977 (merge `bd2d13ea9`, 2026-11-09): the wrapper's module import is now written only when the example uses a name from the module's package that it does not import or declare itself. Wrapper-line warnings went from 84 to 0 on 2.13.18, 36 to 0 on 3.9.0 and 105 to 0 on 3.10.0 (the Scala 3 counts include both checker projects, which overlap); no unused-import warning of any kind is left, and nothing is suppressed. Eleven examples that compiled only through the wrapper import got their own import (config-hocon, config-json, config-yaml, http-model-schema, sql-zio, openapi).
 - Docs tooling entries closed on 2026-11-07: the schema-xml `syntax` examples' 18 unused-import warnings in `scaladoc-check` and the three example builds missing from the root build (`config-examples`, `sql-examples`, `html-examples`) fixed in #1969 (merge `97744f3c0`); `streams-examples` not compiling on Scala 2.13 fixed in #1897 (`be371b36f`); the two "no scalafmt setup" entries for `schema-examples` and `streams-examples` closed by Milad's decision to keep the documented `scala-cli fmt --scalafmt-conf` workflow (AGENTS.md "Example Projects"), with no plugin added.
