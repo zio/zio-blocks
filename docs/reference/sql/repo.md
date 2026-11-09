@@ -490,6 +490,8 @@ val rowsAffected: Int = repo.insertBatch(users)
 
 `Repo#insertBatch` and `Repo#insertAll` solve different problems: `Repo#insertBatch` uses JDBC's batch protocol (one prepared statement, one `addBatch` call per entity, and a single `executeBatch` call) and returns a row count; `Repo#insertAll` constructs a single multi-row `VALUES (…), (…)` SQL statement (one round-trip) and returns the primary keys in input order. For large collections or when relying on database-generated keys, prefer `insertBatch`. For moderate-sized collections where the caller controls the keys and wants a single SQL statement, prefer `insertAll`.
 
+See also the [How to Insert and Update Many Rows in Batches](../../guides/insert-and-update-many-rows-in-batches.md) guide, which shows how to write many rows with `Repo#insertBatch` and `Repo#insertOrUpdateBatch`.
+
 #### `insertAll` — Multi-Row Insert Returning Primary Keys
 
 `Repo#insertAll` assembles a single `INSERT INTO "<table>" ("<columns>") VALUES (?, …, ?), …, (?, …, ?)` statement covering all rows and executes it in one database round-trip. It then extracts the primary keys from the input entities via `getId` and returns them in input order.
