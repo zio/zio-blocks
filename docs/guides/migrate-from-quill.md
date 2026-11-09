@@ -95,7 +95,7 @@ The table below lists the constructs you use every day, with the name each libra
 | Dynamic query            | `dynamicQuery`, `filterIf`                                 | ordinary Scala building a `Frag`                                     |
 | ZIO integration          | `quill-jdbc-zio`: `Quill.Sqlite`, `Quill.DataSource`       | `zio-blocks-sql-zio`: `TransactorZIO`, `TransactorZIO.layer`         |
 | SQL built at compile time | every static `quote`                                      | none; `sql(table)` checks names at compile time                      |
-| Query probing            | `QueryProbing` against a live database                     | none                                                                 |
+| Query probing            | `QueryProbing` (Scala 2 build only, not in Scala 3)        | none                                                                 |
 
 ## The Shared Clinic
 
@@ -292,7 +292,7 @@ object ClinicPatient {
 println(Table.derived[ClinicPatient].createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite))
 ```
 
-Quill's `schemaMeta`, which makes a mapping implicit for every query, has the same replacement: the annotations apply wherever the entity is used. The checked `sql(table)` form reads names from the case class fields, so it ignores `@Modifier.rename`; see [sql(table) Checked Interpolation](./sql-checked-interpolation.md) before you rely on both together.
+Quill's `schemaMeta`, which makes a mapping a `given` instance for every query, has the same replacement: the annotations apply wherever the entity is used. The checked `sql(table)` form reads names from the case class fields, so it ignores `@Modifier.rename`; see [sql(table) Checked Interpolation](./sql-checked-interpolation.md) before you rely on both together.
 
 ## Inserts, Updates and Deletes
 
@@ -407,7 +407,7 @@ A left join, Quill's `leftJoin`, is `SqlQuery#leftJoin`; [How to Write Joins and
 
 ## Raw SQL
 
-Quill's `sql"..."` interpolator, which replaces the deprecated `infix`, splices SQL into a quote and gives it a type with `.as`:
+Quill's `sql"..."` interpolator, which replaces `infix` (deprecated in Quill's changelog), splices SQL into a quote and gives it a type with `.as`:
 
 ```scala
 // Before: Quill 4.8.6 (not compiled here)
@@ -501,7 +501,7 @@ Methods that take `(using DbCon)` run in either block, and a method that needs a
 
 ## ZIO Integration
 
-`quill-jdbc-zio` gives you contexts such as `Quill.Sqlite`, whose `run` returns a `ZIO` that needs a `DataSource`. You build a `DataSource` layer, then a context layer on top of it:
+`quill-jdbc-zio` gives you contexts such as `Quill.Sqlite`. You build a `DataSource` layer, then a context layer on top of it that captures the `DataSource`; the context's `run` returns a `ZIO[Any, SQLException, T]`:
 
 ```scala
 // Before: Quill 4.8.6 with quill-jdbc-zio (not compiled here)
@@ -558,11 +558,11 @@ Quill's `ctx.transaction` inside a ZIO program becomes `TransactorZIO#transact`.
 
 ## What Does Not Carry Over
 
-Quill's defining feature has no counterpart in ZIO Blocks. Quill reads the Scala inside a `quote` at compile time, rewrites it into SQL and checks it, so a static query costs nothing to build at run time and a wrong query is a compile error. ZIO Blocks has no quoted queries: its `sql"..."` interpolator and `SqlQuery` take SQL text and `Frag`s, and build the SQL string when the program runs. Three consequences follow.
+Quill's defining feature has no counterpart in ZIO Blocks. Quill reads the Scala inside a `quote` at compile time, rewrites it into SQL and checks it, so a static query costs almost nothing to build at run time and a wrong query is a compile error. ZIO Blocks has no quoted queries: its `sql"..."` interpolator and `SqlQuery` take SQL text and `Frag`s, and build the SQL string when the program runs. Three consequences follow.
 
 - **The compiler no longer type-checks your predicates.** In Quill, `p.birthYear < lift(year)` fails to compile when `birthYear` isn't an `Int`. In ZIO Blocks, `"birth_year < " + year` is SQL, and the database tells you at run time if it's wrong.
 - **Names can still be checked, but only names.** The `sql(table)` form, written `StringContext(...).sql(table)(args)`, checks every table and column name in the SQL against the `Table` values you pass, with a did-you-mean suggestion. It doesn't type-check expressions, and it doesn't see through aliases or subqueries. [sql(table) Checked Interpolation](./sql-checked-interpolation.md) lists its limits.
-- **No compile-time database check.** Quill's documentation describes query probing, an opt-in `QueryProbing` mix-in that validates static queries against a live database while compiling. ZIO Blocks never connects to a database at compile time. The nearest feature is `Dump`: it writes the SQL of your `SqlQuery` and `Table` values to `.sql` files at compile time when the `zib.sql.dumpDir` system property is set, so you can review the SQL in a pull request. It shows the SQL; it doesn't check it. See [Dump](../reference/sql/dump.md).
+- **No compile-time database check.** Quill's documentation describes query probing, an opt-in `QueryProbing` mix-in that validates static queries against a live database while compiling, but only the Scala 2 build implements it; Quill on Scala 3 has no query probing. ZIO Blocks never connects to a database at compile time. The nearest feature is `Dump`: it writes the SQL of your `SqlQuery` and `Table` values to `.sql` files at compile time when the `zib.sql.dumpDir` system property is set, so you can review the SQL in a pull request. It shows the SQL; it doesn't check it. See [Dump](../reference/sql/dump.md).
 
 Compile-time errors in Quill that were really type errors become test failures in ZIO Blocks, so port your queries together with tests that run them against SQLite. [How to Test Database Code Against SQLite](./test-database-code-against-sqlite.md) shows how.
 
@@ -580,7 +580,7 @@ Things that work differently, or don't exist yet:
 - **Scala 3 only**, as Quill on Scala 3 is, but there is no Scala 2.13 build to fall back on.
 - **Two dialects.** `SqlDialect` supports PostgreSQL and SQLite. Quill also supports MySQL, H2, SQL Server and Oracle contexts.
 - **No query language in Scala.** Filters, sorting and joins are SQL text or `SqlQuery` builder calls with string column names.
-- **No compile-time SQL generation and no query probing.** See the section above.
+- **No compile-time SQL generation.** See the section above.
 - **Direct style.** Database methods run on the calling thread and throw exceptions, where `quill-jdbc-zio` returns `ZIO` values; ZIO code wraps the calls with `TransactorZIO`.
 - **Results.** Queries return `List`, and a single result is a `Maybe` rather than an `Option`.
 - **No generated primary keys in DDL.** `Table#createTable` declares no `PRIMARY KEY`; write the DDL for tables with generated IDs yourself.
