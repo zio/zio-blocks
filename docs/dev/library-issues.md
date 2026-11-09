@@ -23397,6 +23397,10 @@ Found 2026-11-09 by the H-67 session (batch writes guide, PR #1981) on `main` at
 
 **Suggested fix.** Add two tests per batch method: a batch with one row violating `UNIQUE` (or `NOT NULL`) run inside `transact` leaves the table unchanged; the same batch run outside `transact` leaves the rows the driver committed (assert the SQLite behaviour, and note that other drivers may differ).
 
+### CI: `testJVM (25, JVM, 3.9.x)` stalled for 30 minutes after a schema-bson spec and hit the 40-minute job timeout
+
+Seen once, 2026-11-09, on PR #1980 (CI workflow change only; no library code touched). The job printed nothing after 12:02 UTC; its last output was a schema-bson spec, and the job was killed at its 40-minute timeout. A rerun passed. Not on the known-flaky list. If it happens again, record the run id and the last spec printed, and check whether a test hangs (no per-test timeout fired, so the stall may be outside a ZIO test, e.g. in sbt or a forked JVM).
+
 ## Resolved
 
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
