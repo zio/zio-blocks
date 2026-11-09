@@ -93,7 +93,7 @@ val dbFile     = Files.createTempFile("sensors", ".db")
 val transactor = JdbcTransactor.fromUrl(s"jdbc:sqlite:$dbFile", SqlDialect.SQLite)
 ```
 
-We create the table ourselves, with the primary key written out. `Table#createTable` emits no `PRIMARY KEY`, which is a known bug in 0.0.56, and the upsert and batch methods need one. The [upsert guide](./upsert-and-paginate-with-keyset-cursors.md#create-a-table-with-a-real-primary-key) explains the same workaround in more detail.
+We create the table ourselves, with the primary key written out. `Table#createTable` emits no `PRIMARY KEY`, which is a known bug in 0.0.56, and the upsert and batch methods need one. The [upsert guide](./upsert-and-paginate-with-keyset-cursors.md#create-a-table-with-a-real-primary-key) explains the failure in more detail. Here is the table:
 
 ```scala mdoc:silent
 transactor.connect {
@@ -133,7 +133,7 @@ transactor.transact {
 }
 ```
 
-The counts agree, so the choice is about speed and about what you need back. `insertBatch` returns a count, not IDs, and it is the one that scales. `insertAll` returns the IDs from `Repo#getId`, in input order, which the batch method doesn't; its SQL grows with the number of rows, so it suits moderate batches. The [Repo reference](../reference/sql/repo.md) compares the two in detail.
+The counts agree, so the choice is about speed and about what you need back. `Repo#insertBatch` returns a count, not IDs, and it is the one that scales. `Repo#insertAll` returns the IDs from `Repo#getId`, in input order, which the batch method doesn't; its SQL grows with the number of rows, so it suits moderate batches. The [Repo reference](../reference/sql/repo.md) compares the two in detail.
 
 We timed the three on a file-backed SQLite database, one transaction per run, with `System.nanoTime`. This is one run on one Linux machine with sqlite-jdbc 3.53.4.0, so read the ratios, not the milliseconds:
 
@@ -144,10 +144,10 @@ rows     loop of insert   insertBatch   insertAll
 10,000       239.2 ms        62.3 ms      98.1 ms
 ```
 
-The loop was run in one transaction too, so the gap is the per-statement cost. Running each insert in its own transaction is much worse: 1,000 readings took 19,018.7 ms that way, against 113.5 ms in one transaction. The timing program is `TimingExample` in the companion examples.
+The loop was run in one transaction too, so the gap is the per-statement cost. Running each insert in its own transaction is much worse: 1,000 readings took 19,018.7 ms that way, against 113.5 ms in one transaction. The timing program is `Step5TimingExample` in the companion examples.
 
 :::tip
-For a few rows, any of the three is fine. For thousands, use `insertBatch`. If you need the generated IDs of a few thousand rows, `insertAll` with a chunk size (see below) keeps the SQL to a sensible size.
+For a few rows, any of the three is fine. For thousands, use `insertBatch`. If you need the generated IDs of a few thousand rows, `Repo#insertAll` with a chunk size (see below) keeps the SQL to a sensible size.
 :::
 
 ## Importing in Chunks
@@ -159,11 +159,9 @@ The library has no chunking helper, so we split the list ourselves with `grouped
 ```scala mdoc:silent
 // Inserts rows in chunks of chunkSize, each chunk in its own transaction
 def importInChunks(rows: List[Reading], chunkSize: Int): Int = {
-  var written = 0
-  rows.grouped(chunkSize).foreach { chunk =>
-    written += transactor.transact(repo.insertBatch(chunk))
+  rows.grouped(chunkSize).foldLeft(0) { (written, chunk) =>
+    written + transactor.transact(repo.insertBatch(chunk))
   }
-  written
 }
 ```
 
@@ -221,7 +219,7 @@ Outside a transaction, the rows before the failing one stay: IDs 1 and 2 were wr
 
 ## Updating Many Rows
 
-The library has `Repo#update`, which updates one row by its ID, and `Repo#insertOrUpdateBatch`, which upserts many rows in one JDBC batch. It has no `updateBatch`, and there is no public way to run a custom `UPDATE` as a JDBC batch. The `sql"..."` interpolator returns a `Frag`, and a `Frag` runs one statement. So for "update many rows", you pick one of three approaches.
+The library has `Repo#update`, which updates one row by its ID, and `Repo#insertOrUpdateBatch`, which upserts many rows in one JDBC batch. It has no `updateBatch`, and no `Repo` or `Frag` method runs a custom `UPDATE` as a JDBC batch: the `sql"..."` interpolator returns a `Frag`, and a `Frag` runs one statement. Batching your own statement means working one level down, with the `prepareStatement`, `addBatch` and `executeBatch` methods of `DbCon#connection`, which is what `Repo#insertBatch` uses; this guide doesn't cover that route. So for "update many rows", you pick one of three approaches.
 
 The three examples below share a table of twelve readings, so we reset it first:
 
@@ -247,7 +245,7 @@ transactor.transact {
 }
 ```
 
-This is the fastest option when it fits, because the rows never leave the database. It doesn't fit a change that depends on each row's own values, which is where the next two come in.
+This is the fastest option when it fits, because the rows never leave the database. It doesn't fit a change that depends on each row's own values, which is where the next two come in: use `Repo#update` in a loop inside `transact` for a few rows with different values, and `Repo#insertOrUpdateBatch` inside `transact` for many full entities, accepting that it also inserts missing rows.
 
 ### A Loop of `Repo#update` in One Transaction
 
@@ -262,11 +260,11 @@ transactor.transact {
 }
 ```
 
-Each `update` is a separate statement, so this costs one round trip per row. It is still one transaction, so a failure rolls back the whole loop.
+Each `Repo#update` is a separate statement, so this costs one round trip per row. It is still one transaction, so a failure rolls back the whole loop.
 
 ### `Repo#insertOrUpdateBatch` as a Batch Update
 
-When each row is a full entity and you have every column's new value, `Repo#insertOrUpdateBatch` sends all of them as one JDBC batch, and it updates the rows that exist. It also inserts the rows that don't, so use it when a missing row is acceptable. The upsert guide covers how the `ON CONFLICT` clause picks the row.
+When each row is a full entity and you have every column's new value, `Repo#insertOrUpdateBatch` sends all of them as one JDBC batch, and it updates the rows that exist. It also inserts the rows that don't, so use it when a missing row is acceptable. We add one row with a new ID to the batch to show the insert side:
 
 ```scala mdoc
 val recalibratedAgain = recalibrated.map(r => r.copy(celsius = r.celsius + 0.5)) :+
@@ -283,30 +281,15 @@ transactor.connect {
 }
 ```
 
-Four of the five rows existed, so they were updated; ID 99 didn't, so it was inserted. The count is 13 (12 loaded, plus 99), and the statement's count of 5 can't tell the two apart, which is the same caveat the upsert guide gives for single rows.
-
-## Choosing an Update Method
-
-- **One condition, one value:** a single `UPDATE` with `WHERE`. One statement, no rows leave the database.
-- **A different value per row, few rows:** `Repo#update` in a loop inside `transact`. Simple, one round trip per row.
-- **A different value per row, many rows, full entities:** `Repo#insertOrUpdateBatch` inside `transact`. One JDBC batch, with the insert side effect.
+Four of the five rows existed, so they were updated; ID 99 didn't, so it was inserted. The count is 13 (12 loaded, plus 99), and the statement's count of 5 can't tell the two apart, which is the same caveat the [upsert guide](./upsert-and-paginate-with-keyset-cursors.md) gives for single rows.
 
 ## Running the Examples
 
-The companion examples in `sql-examples/src/main/scala/batchwritesmanyrows/` run the same code as the sections above, with the output printed to the terminal:
-
-- `BatchChoiceExample` runs the loop, `insertBatch` and `insertAll`
-- `ChunkedImportExample` runs the chunked import with a bad chunk
-- `FailedBatchExample` runs one failing batch with and without `transact`
-- `UpdateManyExample` runs the three update approaches
-- `TimingExample` times the insert methods; its numbers depend on your machine
-- `CompleteExample` imports 10,000 readings in chunks, flags the hot ones, applies a recalibration batch and ends with a late bad chunk
-
-From the `sql-examples` directory, run one with `sbt "runMain batchwritesmanyrows.CompleteExample"`.
+All runnable code from this guide is in `sql-examples/src/main/scala/batchwritesmanyrows/`. Run any object from the `sql-examples` directory with `sbt "runMain batchwritesmanyrows.<ObjectName>"`, for example `sbt "runMain batchwritesmanyrows.Step4UpdateManyExample"`. `Step5TimingExample` prints numbers that depend on your machine.
 
 ## Going Further
 
-- The [Repo reference](../reference/sql/repo.md) documents `insertBatch`, `insertAll`, `insertOrUpdateBatch` and `update`, with their empty-input and failure behaviour.
+- The [Repo reference](../reference/sql/repo.md) documents `Repo#insertBatch`, `Repo#insertAll`, `Repo#insertOrUpdateBatch` and `Repo#update`, with their empty-input and failure behaviour.
 - [How to Upsert Rows and Paginate with Keyset Cursors](./upsert-and-paginate-with-keyset-cursors.md) covers the `PRIMARY KEY` requirement, `Upsert.insertDoNothing` and `Upsert.insertDoUpdate`, and the batch upsert used for the nightly feed.
 - [How to Stream Large Query Results](./stream-large-query-results.md) covers the read side of a large table, with the same care about memory.
 - [How to Migrate Table Rows Online](./migrate-table-rows-online.md) shows batches of rows in a migration, where each batch also has to record progress.
