@@ -5,6 +5,8 @@ Utility scripts for documentation maintenance and quality assurance.
 ## Scaladoc Coverage Report
 
 - **scaladoc-coverage.py** — Reports the share of documented API members per package of a module (declarations at the top level or inside types; locals in method bodies and members of private or protected types do not count, except those of a `private[pkg]` trait, which a public object mixes in), and with `--drift` lists members whose Scaladoc differs between `scala-2/` and `scala-3/` (or `jvm/` and `js/`) copies. It reports only and never fails a build.
+  - An annotation may span several lines (`@implicitNotFound(` … `)`): the Scaladoc above it still counts for the declaration below. Parentheses inside string literals are ignored when matching the lines.
+  - `--drift` pairs members by their enclosing types first (`Maybe.apply` with `Maybe.apply`, never with `Present.apply`). Members left unpaired are paired by their innermost enclosing type, so a version-specific wrapper (Scala 2 `object MaybeValue { final class Present }` against a top-level Scala 3 `Present`) does not hide them. Each report names the enclosing type, for example `MaybeValue.Present.def get`.
 - **test_scaladoc_coverage.py** — Unit tests for it.
 
 ```bash
