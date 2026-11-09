@@ -47,6 +47,7 @@ trait ConfigSourceHoconPlatformSyntax {
      * {{{
      * import java.nio.file.Files
      * import zio.blocks.config._
+     * import zio.blocks.config.hocon._
      *
      * val dir  = Files.createTempDirectory("app")
      * Files.write(dir.resolve("db.conf"), "host = db.internal\nport = 5432".getBytes("UTF-8"))

@@ -39,6 +39,7 @@ import zio.blocks.schema.binding.Binding
  *
  * {{{
  * import zio.http.QueryParams
+ * import zio.http.schema._
  *
  * val params = QueryParams(
  *   "order"   -> "550e8400-e29b-41d4-a716-446655440000",

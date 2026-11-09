@@ -42,6 +42,7 @@ trait ConfigSourceHoconSyntax {
      *
      * {{{
      * import zio.blocks.config._
+     * import zio.blocks.config.hocon._
      *
      * val source = ConfigSource.fromHocon(
      *   """

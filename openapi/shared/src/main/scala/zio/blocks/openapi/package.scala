@@ -34,6 +34,7 @@ package object openapi {
    * [[SchemaObject]] and to a `#/components/schemas/...` reference.
    *
    * {{{
+   * import zio.blocks.openapi._
    * import zio.blocks.schema.Schema
    *
    * final case class Owner(name: String)
