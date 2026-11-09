@@ -210,9 +210,9 @@ jobs:
     - name: Run benchmarks tests
       if: ${{ matrix.scala == '3.9.x' }}
       run: sbt ++3.9.0 benchmarks/test
-    - name: Compile example projects
+    - name: Compile and test example projects
       if: ${{ matrix.scala == '3.9.x' }}
-      run: for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt compile) || exit 1; done
+      run: for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt test) || exit 1; done
   testJS:
     name: testJS
     runs-on: ubuntu-latest

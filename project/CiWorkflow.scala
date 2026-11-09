@@ -363,10 +363,10 @@ object CiWorkflow {
           run = Some("sbt ++3.9.0 benchmarks/test")
         ),
         SingleStep(
-          name = "Compile example projects",
+          name = "Compile and test example projects",
           condition = Some(expr("matrix.scala == '3.9.x'")),
           run = Some(
-            """for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt compile) || exit 1; done"""
+            """for dir in *-examples; do [ -f "$dir/build.sbt" ] || continue; (cd "$dir" && sbt test) || exit 1; done"""
           )
         )
       )
