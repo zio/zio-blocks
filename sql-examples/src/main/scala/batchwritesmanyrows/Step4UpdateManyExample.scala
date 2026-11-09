@@ -12,9 +12,9 @@ import batchwritesmanyrows.Readings.*
  * batch.
  *
  * Run with: cd sql-examples && sbt "runMain
- * batchwritesmanyrows.UpdateManyExample"
+ * batchwritesmanyrows.Step4UpdateManyExample"
  */
-object UpdateManyExample {
+object Step4UpdateManyExample {
 
   def main(args: Array[String]): Unit = {
     val transactor = newTransactor()

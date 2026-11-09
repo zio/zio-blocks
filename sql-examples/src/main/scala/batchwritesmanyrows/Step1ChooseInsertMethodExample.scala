@@ -10,9 +10,9 @@ import batchwritesmanyrows.Readings.*
  * with insertAll, and prints what each returns.
  *
  * Run with: cd sql-examples && sbt "runMain
- * batchwritesmanyrows.BatchChoiceExample"
+ * batchwritesmanyrows.Step1ChooseInsertMethodExample"
  */
-object BatchChoiceExample {
+object Step1ChooseInsertMethodExample {
 
   def main(args: Array[String]): Unit = {
     val transactor = newTransactor()

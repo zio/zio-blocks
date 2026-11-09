@@ -12,9 +12,9 @@ import batchwritesmanyrows.Readings.*
  * transact, the whole batch is rolled back.
  *
  * Run with: cd sql-examples && sbt "runMain
- * batchwritesmanyrows.FailedBatchExample"
+ * batchwritesmanyrows.Step3FailedBatchExample"
  */
-object FailedBatchExample {
+object Step3FailedBatchExample {
 
   def main(args: Array[String]): Unit = {
     val transactor = newTransactor()

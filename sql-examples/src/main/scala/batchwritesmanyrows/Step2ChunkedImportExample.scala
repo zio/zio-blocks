@@ -12,19 +12,17 @@ import batchwritesmanyrows.Readings.*
  * two chunks before it stay committed.
  *
  * Run with: cd sql-examples && sbt "runMain
- * batchwritesmanyrows.ChunkedImportExample"
+ * batchwritesmanyrows.Step2ChunkedImportExample"
  */
-object ChunkedImportExample {
+object Step2ChunkedImportExample {
 
   /**
    * Inserts `rows` in chunks of `chunkSize`, each chunk in its own transaction.
    */
   def importInChunks(transactor: JdbcTransactor, rows: List[Reading], chunkSize: Int): Int = {
-    var written = 0
-    rows.grouped(chunkSize).foreach { chunk =>
-      written += transactor.transact(repo.insertBatch(chunk))
+    rows.grouped(chunkSize).foldLeft(0) { (written, chunk) =>
+      written + transactor.transact(repo.insertBatch(chunk))
     }
-    written
   }
 
   def main(args: Array[String]): Unit = {

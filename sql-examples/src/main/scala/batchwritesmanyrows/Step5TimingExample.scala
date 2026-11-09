@@ -10,9 +10,9 @@ import batchwritesmanyrows.Readings.*
  * database, each run in a fresh table. The numbers depend on the machine, the
  * disk and the SQLite build, so treat them as a shape, not a benchmark.
  *
- * Run with: cd sql-examples && sbt "runMain batchwritesmanyrows.TimingExample"
+ * Run with: cd sql-examples && sbt "runMain batchwritesmanyrows.Step5TimingExample"
  */
-object TimingExample {
+object Step5TimingExample {
 
   def timeMs[A](body: => A): (A, Double) = {
     val start  = System.nanoTime()
