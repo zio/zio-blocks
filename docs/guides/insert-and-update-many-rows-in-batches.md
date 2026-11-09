@@ -147,7 +147,7 @@ rows     loop of insert   insertBatch   insertAll
 The loop was run in one transaction too, so the gap is the per-statement cost. Running each insert in its own transaction is much worse: 1,000 readings took 19,018.7 ms that way, against 113.5 ms in one transaction. The timing program is `Step5TimingExample` in the companion examples.
 
 :::tip
-For a few rows, any of the three is fine. For thousands, use `insertBatch`. If you need the generated IDs of a few thousand rows, `Repo#insertAll` with a chunk size (see below) keeps the SQL to a sensible size.
+For a few rows, any of the three is fine. For thousands, use `Repo#insertBatch`. If you need the generated IDs of a few thousand rows, `Repo#insertAll` with a chunk size (see below) keeps the SQL to a sensible size.
 :::
 
 ## Importing in Chunks
@@ -183,7 +183,7 @@ transactor.connect {
 }
 ```
 
-The first two chunks, IDs 1 to 8, are committed. The third chunk, which holds the repeated ID 3, rolls back completely, so none of IDs 9 to 11 are written either. The exception stops the import, so the rest of the feed is never tried. If you want to keep going past a bad chunk, catch the exception inside the `foreach`, log the chunk, and continue. Pick the chunk size from how much you can afford to redo: a few thousand rows is a common range, and the time each chunk takes is the measure to check.
+The first two chunks, IDs 1 to 8, are committed. The third chunk, which holds the repeated ID 3, rolls back completely, so none of IDs 9 to 11 are written either. The exception stops the import, so the rest of the feed is never tried. If you want to keep going past a bad chunk, catch the exception inside the `foldLeft` function, log the chunk, and continue. Pick the chunk size from how much you can afford to redo: a few thousand rows is a common range, and the time each chunk takes is the measure to check.
 
 :::warning
 The chunk boundaries are not a resume point by themselves. If the process dies between chunks, the table holds the chunks that committed. To resume, record the last committed ID and skip the rows before it, or upsert the feed so that running it again is safe; the [upsert guide](./upsert-and-paginate-with-keyset-cursors.md) shows how.
