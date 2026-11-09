@@ -339,7 +339,7 @@ transactor.transact {
 ```
 
 :::warning
-`Repo#insertReturning` also reads generated keys, but it can read the wrong column when the ID isn't the first column of the table, a known bug in 0.0.56. Prefer `Frag#updateReturningKeys` for generated IDs.
+`Repo#insertReturning` also reads generated keys, but it can read the wrong column, a known bug in 0.0.56. On SQLite it reads the `rowid`, which is the ID only when the ID column is declared `INTEGER PRIMARY KEY`, and on PostgreSQL it reads the table's first column, which is the ID only when the ID is the first column. Prefer `Frag#updateReturningKeys` for generated IDs.
 :::
 
 ### Batch Actions
