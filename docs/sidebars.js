@@ -607,6 +607,7 @@ const sidebars = {
             "guides/sql-checked-interpolation",
             "guides/write-joins-and-inspect-generated-sql",
             "guides/upsert-and-paginate-with-keyset-cursors",
+            "guides/insert-and-update-many-rows-in-batches",
             "guides/build-a-query-from-optional-search-filters",
             "guides/map-custom-column-types",
             "guides/stream-large-query-results",
