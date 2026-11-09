@@ -732,6 +732,7 @@ const sidebars = {
         "guides/config-library-migration",
         "guides/streaming-library-migration",
         "guides/migrate-from-magnum-or-doobie",
+        "guides/migrate-from-quill",
       ]
     },
     {

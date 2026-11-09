@@ -334,3 +334,4 @@ Queries can also stream: `Frag#queryStream` and `Frag#queryChunked` return a `zi
 - **[Build a Small JSON Backend from Blocks](../../guides/small-json-backend-from-blocks.md)** — Capstone tutorial that combines `schema`, `config`, `scope`, `sql`, `http-model` and `telemetry` into one small JSON backend.
 - **[How to Use the sql Module from a ZIO Application](../../guides/sql-from-zio.md)** — Guide to running queries and transactions as ZIO effects with `TransactorZIO`.
 - **[Coming from Magnum or doobie](../../guides/migrate-from-magnum-or-doobie.md)** — Migration guide that maps Magnum and doobie entities, transactors, queries and streams onto the `sql` module.
+- **[Coming from Quill](../../guides/migrate-from-quill.md)** — Migration guide that maps Quill contexts, quoted queries, actions and ZIO layers onto the `sql` module, and names what has no equivalent.
