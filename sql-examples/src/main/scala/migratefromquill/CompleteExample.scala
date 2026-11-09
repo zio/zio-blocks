@@ -12,8 +12,8 @@ import scala.util.{Failure, Success, Try}
  * Repo in place of `query[Patient]`, a SqlQuery in place of `filter`/`sortBy`/
  * `take`, a Rel join in place of a for-comprehension join, a batch insert in
  * place of `liftQuery(...).foreach`, generated keys in place of
- * `returningGenerated`, a custom column type in place of a `MappedEncoding`
- * and a transaction that rolls back.
+ * `returningGenerated`, a custom column type in place of a `MappedEncoding` and
+ * a transaction that rolls back.
  *
  * Run with: cd sql-examples && sbt "runMain migratefromquill.CompleteExample"
  */
