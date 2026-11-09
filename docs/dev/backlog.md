@@ -447,7 +447,7 @@ High-value topics that need library or build work before a supported guide can b
 
 | ID | Topic | Blocker | What would unblock it | Backlog items waiting |
 |---|---|---|---|---|
-| X-01 | Export telemetry to an OpenTelemetry Collector, Jaeger or Tempo | §9.5 #1: `OtlpJson*Exporter` and `BatchProcessor` are `private[otel]`; the metric exporter has no background thread | Public exporter constructors and a scheduled metric export. Then write "How to export telemetry to an OpenTelemetry Collector" (demand: [otel4s OTLP guide](https://typelevel.org/otel4s-sdk/guides/otlp.html)) | M-13; extends T-12, H-43 |
+| X-01 | Export telemetry to an OpenTelemetry Collector, Jaeger or Tempo | §9.5 #1: `OtlpJson*Exporter` and `BatchProcessor` are `private[otel]`; the metric exporter has no background thread | Public exporter constructors and a scheduled metric export. Then write "How to export telemetry to an OpenTelemetry Collector" (demand: [otel4s OTLP guide](https://typelevel.org/otel4s-sdk/guides/otlp.html)) | M-13, H-70; extends T-12, H-43 |
 | X-02 | Generate an OpenAPI document from `Endpoint` values | §9.5 #3: no interpreter exists, although the docs claim one does | An endpoint-to-OpenAPI interpreter. Until then, H-39 can show hand assembly from `RoutePattern.render` + `toOpenAPISchema`, labelled as glue | M-12, H-39 |
 | X-03 | Serve an `Endpoint` with typed request and response decoding | §9.5 #2: `HttpCodec` has no decode or encode, only path decoding | `HttpCodec` decode/encode plus a server adapter (JDK or zio-http) | M-12, T-15, H-38 |
 | X-04 | Call an API through a typed client built from an `Endpoint` | §9.5 #2 | A client interpreter | M-12 |
