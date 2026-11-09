@@ -170,6 +170,7 @@ def importInChunks(rows: List[Reading], chunkSize: Int): Int = {
 We run it on a feed of twelve readings in chunks of four. The feed repeats ID 3 in its third chunk, so that chunk fails:
 
 ```scala mdoc
+transactor.connect(repo.clear())
 val feed = sample(1L, 8) ++ sample(3L, 1) ++ sample(9L, 3)
 println(s"feed has ${feed.size} readings, chunks of 4")
 
@@ -221,6 +222,18 @@ Outside a transaction, the rows before the failing one stay: IDs 1 and 2 were wr
 ## Updating Many Rows
 
 The library has `Repo#update`, which updates one row by its ID, and `Repo#insertOrUpdateBatch`, which upserts many rows in one JDBC batch. It has no `updateBatch`, and there is no public way to run a custom `UPDATE` as a JDBC batch. The `sql"..."` interpolator returns a `Frag`, and a `Frag` runs one statement. So for "update many rows", you pick one of three approaches.
+
+The three examples below share a table of twelve readings, so we reset it first:
+
+```scala mdoc:silent
+def reset(rows: List[Reading]): Unit = transactor.connect {
+  repo.clear()
+  repo.insertBatch(rows)
+  ()
+}
+
+reset(sample(1L, 12))
+```
 
 ### One Set-Based Statement
 
