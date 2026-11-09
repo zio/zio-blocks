@@ -397,7 +397,7 @@ The Top 10 of the backlog-refresh research (session `backlog-refresh`, Opus), ad
 
 ### 5.14 Added by the 2026-11-07 backlog refresh
 
-Milad's pick (2026-11-07) from the Top 10 of the second research pass (session `backlog-research-1107`, Haiku; full report in `docs/dev/backlog-refresh-2026-11-07.md`). That pass mostly re-scored the 2026-10-29 candidates the first pass left out; every candidate is P2 or lower, and no outside user opened an issue or PR since 2026-10-29. Held back: H-new-11 (static files) and H-new-12 (CORS), until other work they depend on is done; the rest of its Top 10 is blocked or waiting (see the report).
+Milad's pick (2026-11-07) from the Top 10 of the second research pass (session `backlog-research-1107`, Haiku; full report in `docs/dev/backlog-refresh-2026-11-07.md`). That pass mostly re-scored the 2026-10-29 candidates the first pass left out; every candidate is P2 or lower, and no outside user opened an issue or PR since 2026-10-29. Held back: H-new-11 (static files) and H-new-12 (CORS), until other work they depend on is done; the rest of its Top 10 is blocked or waiting (see the report). Skipped by Milad: H-new-24 (2026-11-07) and H-new-23, Scala 2.13 compile errors and ambiguous imports (2026-11-09).
 
 | ID | Title | Module(s) | Goal | Prerequisites | Priority | Feasibility / blockers | Demand evidence | Existing assets to reuse |
 |---|---|---|---|---|---|---|---|---|
