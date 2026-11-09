@@ -23389,6 +23389,14 @@ On 2026-11-05 the same step failed while fetching the attestation file (`ampel-v
 
 Seen 2026-11-06 on #1945 (a `docs/dev`-only PR, so not caused by its change), run 42275276244, job `testJVM (17, JVM, 3.9.x)`: 12,762 tests passed and this one failed (`- unfoldAsync - cancellation closes and rejects a late callback state commit`). Rerun with `gh run rerun <id> --failed`. Not investigated; like the other `unfoldAsync` and `AsyncInteropSpec` flakes, it races a cancellation against a late callback, so the assertion may depend on thread timing. Suggested fix: make the test wait on a latch for the callback before asserting, or force the ordering.
 
+### sql: no test checks what a failing `Repo#insertBatch` leaves behind, inside or outside `transact`
+
+Found 2026-11-09 by the H-67 session (batch writes guide, PR #1981) on `main` at `66b1f66eb`. Test gap, not a bug; from source plus one SQLite run.
+
+**Summary.** `RepoUpsertSpec` (`sql/jvm/src/test/scala/zio/blocks/sql/RepoUpsertSpec.scala`, around `:360`) only asserts that an upsert violating a `UNIQUE` constraint throws. No test checks which rows a failed `insertBatch` or `insertOrUpdateBatch` left in the table. `insertBatch` opens no transaction of its own, so outside `transact` the result depends on the JDBC driver: on SQLite the rows before the bad one stayed written; inside `transact` the whole batch rolled back. The H-67 guide documents this from running its example, not from a test, so a change in the driver or in `Repo` would go unnoticed.
+
+**Suggested fix.** Add two tests per batch method: a batch with one row violating `UNIQUE` (or `NOT NULL`) run inside `transact` leaves the table unchanged; the same batch run outside `transact` leaves the rows the driver committed (assert the SQLite behaviour, and note that other drivers may differ).
+
 ## Resolved
 
 - schema: on Scala 3.10, direct optic access (`Person.name`) on a `DerivedOptics` companion stopped compiling outside `zio.blocks.schema`, because the `given Conversion` behind it needed the `private[schema]` `OpticsFor`; Scala 3.9 only warned. `OpticsFor` is now public. Fixed in #1743. The `DerivedOptics` Scaladoc no longer warns about it (wave 4 of the schema Scaladoc).
