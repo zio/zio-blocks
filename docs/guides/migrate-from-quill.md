@@ -13,7 +13,7 @@ keywords:
 
 This guide moves a data-access layer written with [Quill](https://zio.dev/zio-quill/) to the ZIO Blocks `sql` module. By the end, you will have a clinic's patients and appointments stored, queried, joined and updated through ZIO Blocks, and a checklist for porting the rest of your code.
 
-The two libraries differ in one big way. Quill turns quoted Scala into SQL at compile time, and ZIO Blocks builds SQL at run time from SQL text. Most of this guide renames things, but that difference decides what you can and can't carry over, so the [last section before the checklist](#what-does-not-carry-over) spells it out.
+The two libraries differ in one big way. Quill turns quoted Scala into SQL at compile time, and ZIO Blocks builds SQL at run time from SQL text. Most of this guide renames things, but that difference decides what you can and can't carry over, so the [What Does Not Carry Over](#what-does-not-carry-over) section spells it out.
 
 The guide covers:
 
@@ -94,7 +94,7 @@ The table below lists the constructs you use every day, with the name each libra
 | Transaction              | `ctx.transaction { ... }`                                  | `transactor.transact { ... }`                                        |
 | Dynamic query            | `dynamicQuery`, `filterIf`                                 | ordinary Scala building a `Frag`                                     |
 | ZIO integration          | `quill-jdbc-zio`: `Quill.Sqlite`, `Quill.DataSource`       | `zio-blocks-sql-zio`: `TransactorZIO`, `TransactorZIO.layer`         |
-| SQL built at compile time | every static `quote`                                      | none; `sql(table)` checks names at compile time                      |
+| Compile-time SQL         | every static `quote`                                       | none; `sql(table)` checks names at compile time                      |
 | Query probing            | `QueryProbing` (Scala 2 build only, not in Scala 3)        | none                                                                 |
 
 ## The Shared Clinic
@@ -605,7 +605,7 @@ Work through these steps in order; each one leaves the project compiling:
 
 ## Putting It Together
 
-The complete example below is the clinic after the migration: entities, repositories, a hand-written query, a `SqlQuery` page, a join, a batch insert, generated keys, a custom column type and a transaction that rolls back, all on SQLite:
+The complete example below is the clinic after the migration, in one program on SQLite: entities, repositories, a hand-written query, a `SqlQuery` page, a join, a batch insert, generated keys, a custom column type and a transaction that rolls back. It differs from the sections in five ways. It wraps the code in `object CompleteExample extends App`. It creates both tables and inserts all seven rows in one `transact` block. It inserts a patient named Dee, not Eli, to show the generated key, and rolls back an insert for Eli, not Jo. It reads the phones without an `ORDER BY`. It ends by printing the names of all the patients left:
 
 ```scala mdoc:embed:sql-examples/src/main/scala/migratefromquill/CompleteExample.scala
 ```
