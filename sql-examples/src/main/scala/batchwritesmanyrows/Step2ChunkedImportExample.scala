@@ -19,11 +19,10 @@ object Step2ChunkedImportExample {
   /**
    * Inserts `rows` in chunks of `chunkSize`, each chunk in its own transaction.
    */
-  def importInChunks(transactor: JdbcTransactor, rows: List[Reading], chunkSize: Int): Int = {
+  def importInChunks(transactor: JdbcTransactor, rows: List[Reading], chunkSize: Int): Int =
     rows.grouped(chunkSize).foldLeft(0) { (written, chunk) =>
       written + transactor.transact(repo.insertBatch(chunk))
     }
-  }
 
   def main(args: Array[String]): Unit = {
     val transactor = newTransactor()
