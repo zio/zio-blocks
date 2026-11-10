@@ -77,3 +77,33 @@ Compile / unmanagedSources := {
     case _            => sources
   }
 }
+
+// `service-app` compiles the service trait that the H-66 guide generates from `order-service.smithy`. The generator
+// writes the data types, the error type and the trait into one file, so CI compiles every generated line. Like the
+// apps above, nothing in this project is compiled on Scala 2.13.
+lazy val serviceApp = (project in file("service-app"))
+  .settings(
+    publish / skip := true,
+    run / fork     := true,
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq.empty
+        case _            => (Compile / sources).value
+      }
+    },
+    libraryDependencies += zioBlocks("schema").value,
+    Compile / sourceGenerators += Def.task {
+      val model     = (generator / baseDirectory).value / "src" / "main" / "smithy" / "order-service.smithy"
+      val outputDir = (Compile / sourceManaged).value / "smithy"
+      val classpath = (generator / Compile / fullClasspath).value.files
+      (generator / Compile / runner).value
+        .run(
+          "generateservicetraits.CompleteExample",
+          classpath,
+          Seq(model.getPath, outputDir.getPath),
+          streams.value.log
+        )
+        .get
+      (outputDir ** "*.scala").get
+    }.taskValue
+  )

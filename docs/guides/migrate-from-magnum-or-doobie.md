@@ -687,6 +687,7 @@ sbt compile
 ## Going Further
 
 - [Build Your First Database Repository on SQLite](./your-first-sqlite-repository.md) teaches the basics this guide builds on.
+- [Coming from Quill](./migrate-from-quill.md) maps Quill's contexts, quoted queries and ZIO integration onto the same module.
 - [SQL Transactions](./sql-transactions.md) covers isolation levels, read-only transactions and nested transactions with savepoints.
 - [sql(table) Checked Interpolation](./sql-checked-interpolation.md) explains the compile-time query check in detail.
 - [Repo](../reference/sql/repo.md) and [Frag](../reference/sql/frag.md) list every repository and fragment operation.

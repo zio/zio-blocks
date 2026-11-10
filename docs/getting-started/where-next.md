@@ -39,6 +39,7 @@ The tutorials are the natural next step. Each one builds a small program from sc
 | Render a web page                              | [Render Your First Server-Side HTML Page](../guides/your-first-html-page.md)                                         |
 | Add logs, traces and metrics                   | [Instrument a Program with Logs, Traces and Metrics](../guides/instrument-a-program-with-logs-traces-and-metrics.md) |
 | Combine several blocks into one small service  | [Build a Small JSON Backend from Blocks](../guides/small-json-backend-from-blocks.md)                                |
+| Share one model between a server and Scala.js  | [Share One Model Between a Scala.js Page and a JVM Server](../guides/share-one-model-between-scala-js-and-the-jvm.md) |
 
 ## Get Help
 

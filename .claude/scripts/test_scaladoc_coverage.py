@@ -34,6 +34,79 @@ class ScanTest(unittest.TestCase):
         text = '/** Old. */\n@deprecated("use b", "0.1")\ndef a: Int = 1\n'
         self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def a", True)])
 
+    def test_multi_line_annotation_keeps_the_doc_above_it(self):
+        text = textwrap.dedent('''\
+            /** A context requirement. */
+            @implicitNotFound(
+              "Context[${Ctx}] does not provide ${A}. Compare the two types."
+            )
+            trait ContextHas[Ctx, A]
+            ''')
+        self.assertEqual([(d.name, d.doc) for d in sc.scan(text)], [("trait ContextHas", "A context requirement.")])
+
+    def test_multi_line_annotation_with_nested_parentheses_and_strings(self):
+        text = textwrap.dedent('''\
+            object O {
+              /** Old. */
+              @deprecated(
+                message = f("a (b"),
+                since = g(h(1), "close ) paren")
+              )
+              def old = 1
+              @deprecated(
+                "unbalanced ( in a string"
+              )
+              def undocumented = 2
+            }
+            ''')
+        self.assertEqual(
+            [(d.name, d.doc is not None) for d in sc.scan(text)],
+            [("object O", False), ("def old", True), ("def undocumented", False)],
+        )
+
+    def test_multi_line_annotation_arguments_are_not_declarations(self):
+        text = textwrap.dedent('''\
+            @deprecated(
+              "def fake = 1"
+            )
+            def real = 1
+            ''')
+        self.assertEqual([d.name for d in sc.scan(text)], ["def real"])
+
+    def test_closing_paren_of_a_parameter_list_does_not_borrow_a_doc(self):
+        text = textwrap.dedent("""\
+            /** Doc for f. */
+            def f(
+              a: Int
+            )
+            def g = 1
+            """)
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def f", True), ("def g", False)])
+
+    def test_multi_line_annotation_whose_last_line_is_not_a_bare_paren(self):
+        text = textwrap.dedent('''\
+            /** Old. */
+            @deprecated("msg",
+              "0.1")
+            def a = 1
+            ''')
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def a", True)])
+
+    def test_declaration_on_the_line_that_closes_an_annotation_is_counted(self):
+        text = '/** Doc. */\n@deprecated(\n  "1") def f(x: Int) = 1\ndef h = 2\n'
+        self.assertEqual([(d.name, d.doc is not None) for d in sc.scan(text)], [("def f", True), ("def h", False)])
+
+    def test_declaration_with_a_parameter_list_is_not_an_annotation_opener(self):
+        # `@tailrec def f(` opens a declaration, so the `)` that closes its parameters must not give `g` the doc of `f`.
+        text = textwrap.dedent("""\
+            /** f doc. */
+            @tailrec def f(
+              a: Int
+            )
+            def g = 1
+            """)
+        self.assertEqual([(d.name, d.doc) for d in sc.scan(text)], [("def f", "f doc."), ("def g", None)])
+
     def test_private_protected_override_and_nested_members_are_skipped(self):
         text = textwrap.dedent("""\
             object O {
@@ -212,6 +285,49 @@ class DriftTest(unittest.TestCase):
             self.assertEqual(
                 sc.drift(root),
                 ["shared/src/main/{scala-2,scala-3}/zio/blocks/schema/Y.scala: def f #2"],
+            )
+
+    def _write_maybe(self, root, scala2, scala3):
+        for version, text in (("scala-2", scala2), ("scala-3", scala3)):
+            d = pathlib.Path(root, "shared/src/main", version, "zio/blocks/maybe")
+            d.mkdir(parents=True)
+            (d / "Maybe.scala").write_text(text)
+
+    def test_drift_pairs_members_of_the_same_enclosing_type_only(self):
+        # Scala 3 has a second `apply` in `Present`, which Scala 2 lacks: it must not pair with `Maybe.apply`.
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+                "object Present {\n  /** Uno. */\n  def apply = 1\n}\n"
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+            )
+            self.assertEqual(sc.drift(root), [])
+
+    def test_drift_reports_a_difference_between_members_of_the_same_type(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object Maybe {\n  /** Same. */\n  def apply = 1\n}\n",
+                "object Present {\n  /** Uno. */\n  def apply = 1\n}\n"
+                "object Maybe {\n  /** Other. */\n  def apply = 1\n}\n",
+            )
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/maybe/Maybe.scala: Maybe.def apply"],
+            )
+
+    def test_drift_pairs_leftovers_by_innermost_type_across_a_version_wrapper(self):
+        # Scala 2 nests `Present` in `MaybeValue`; Scala 3 declares it at the top level.
+        with tempfile.TemporaryDirectory() as root:
+            self._write_maybe(
+                root,
+                "object MaybeValue {\n  final class Present {\n    /** One. */\n    def get = 1\n  }\n}\n",
+                "final class Present {\n  /** Uno. */\n  def get = 1\n}\n",
+            )
+            self.assertEqual(
+                sc.drift(root),
+                ["shared/src/main/{scala-2,scala-3}/zio/blocks/maybe/Maybe.scala: MaybeValue.Present.def get"],
             )
 
 

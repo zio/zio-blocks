@@ -28,6 +28,7 @@ import zio.blocks.sql.*
  * `import zio.blocks.sql.zio._`.
  *
  * {{{
+ * import zio.blocks.sql.zio._
  * import zio._
  * import zio.blocks.sql._
  *

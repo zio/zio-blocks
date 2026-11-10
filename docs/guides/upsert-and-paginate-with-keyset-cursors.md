@@ -544,6 +544,7 @@ sbt compile
 
 ## Going Further
 
+- [How to Insert and Update Many Rows in Batches](./insert-and-update-many-rows-in-batches.md) shows how to size batches and write many rows with `insertBatch` and `insertOrUpdateBatch`.
 - [Repo](../reference/sql/repo.md) documents `insertOrUpdate`, `insertOrUpdateBatch` and `pageAfter` alongside the rest of the repository API.
 - [Frag](../reference/sql/frag.md) covers building, combining and running SQL fragments.
 - [Table](../reference/sql/table.md) and [Ddl](../reference/sql/ddl.md) explain what `createTable` generates, and why it has no primary key.

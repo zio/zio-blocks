@@ -532,6 +532,7 @@ const sidebars = {
         "guides/your-first-html-page",
         "guides/instrument-a-program-with-logs-traces-and-metrics",
         "guides/small-json-backend-from-blocks",
+        "guides/share-one-model-between-scala-js-and-the-jvm",
         "guides/nested-data-with-optics",
         "guides/one-type-many-formats",
         "guides/add-interactivity-with-htmx",
@@ -606,6 +607,7 @@ const sidebars = {
             "guides/sql-checked-interpolation",
             "guides/write-joins-and-inspect-generated-sql",
             "guides/upsert-and-paginate-with-keyset-cursors",
+            "guides/insert-and-update-many-rows-in-batches",
             "guides/build-a-query-from-optional-search-filters",
             "guides/map-custom-column-types",
             "guides/stream-large-query-results",
@@ -730,6 +732,7 @@ const sidebars = {
         "guides/config-library-migration",
         "guides/streaming-library-migration",
         "guides/migrate-from-magnum-or-doobie",
+        "guides/migrate-from-quill",
       ]
     },
     {

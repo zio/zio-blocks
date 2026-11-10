@@ -70,3 +70,33 @@ lazy val bookstoreApp = (project in file("bookstore-app"))
       (outputDir ** "*.scala").get
     }.taskValue
   )
+
+// `service-app` compiles the service trait that the H-66 guide generates from `bookstore-service.json`. The trait
+// refers to types of the same spec, so the data types generator runs on that spec first and both outputs land in
+// package `com.example.bookstore`. Like the apps above, nothing in this project is compiled on Scala 2.13.
+lazy val serviceApp = (project in file("service-app"))
+  .settings(
+    publish / skip := true,
+    run / fork     := true,
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq.empty
+        case _            => (Compile / sources).value
+      }
+    },
+    libraryDependencies += zioBlocks("schema").value,
+    Compile / sourceGenerators += Def.task {
+      val spec      = (generator / baseDirectory).value / "src" / "main" / "openapi" / "bookstore-service.json"
+      val outputDir = (Compile / sourceManaged).value / "openapi"
+      val classpath = (generator / Compile / fullClasspath).value.files
+      val generate  = (generator / Compile / runner).value
+      val log       = streams.value.log
+      generate
+        .run("generatescalatypesfromopenapi.CompleteExample", classpath, Seq(spec.getPath, outputDir.getPath), log)
+        .get
+      generate
+        .run("generateservicetraits.CompleteExample", classpath, Seq(spec.getPath, outputDir.getPath), log)
+        .get
+      (outputDir ** "*.scala").get
+    }.taskValue
+  )

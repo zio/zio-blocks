@@ -34,6 +34,7 @@ class Decl:
     name: str
     line: int
     doc: Optional[str]
+    owner: tuple = ()  # names of the enclosing types, outermost first (`("Maybe",)` for `Maybe.apply`)
 
 
 @dataclasses.dataclass
@@ -42,6 +43,7 @@ class _Scope:
     is_type: bool  # a class, trait, object, enum, extension or package object: its members are API members
     hidden: bool  # this scope or an enclosing one is private, protected or override
     in_params: bool = False  # inside a multi-line constructor parameter list
+    name: Optional[str] = None  # the type's name, which a member's `owner` records
 
 
 def _normalise(comment_lines):
@@ -55,18 +57,75 @@ def _open_parens(code):
     return code.count("(") + code.count("[") - code.count(")") - code.count("]")
 
 
-def _is_annotation_line(line):
-    code = line.strip()
+def _strip_annotations(code):
+    """Removes the single-line annotations (`@deprecated("x", "1") `) from the start of `code`."""
     while _ANNOTATION.match(code):
         code = _ANNOTATION.sub("", code, count=1)
-    return line.strip().startswith("@") and not _DECL.match(code)
+    return code
+
+
+def _after_annotation(code, depth):
+    """Returns the text after the bracket that brings `depth` open brackets back to zero, or None."""
+    masked = re.sub(r'"(?:\\.|[^"\\])*"', lambda m: '"' + " " * (len(m.group(0)) - 2) + '"', code)
+    for pos, ch in enumerate(masked):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+            if depth == 0:
+                return code[pos + 1 :].strip()
+    return None
+
+
+def _is_annotation_close(line):
+    """True if `line` closes a multi-line annotation and nothing follows the closing bracket (`"0.1")`, `)`).
+
+    A line such as `"1") def f = 1` also closes one, but it declares `f`, so it is not a close for doc lookup.
+    """
+    code = line.strip()
+    net = -_open_parens(code)
+    return net > 0 and _after_annotation(code, net) == ""
+
+
+def _is_annotation_line(line):
+    code = line.strip()
+    return code.startswith("@") and not _DECL.match(_strip_annotations(code))
+
+
+def _annotation_start(lines, j):
+    """Returns the index of the line that opens the multi-line annotation closed on line `j`, or None.
+
+    Walks upwards, counting parentheses (string literals are ignored by `_open_parens`), until the count
+    balances. The balancing line must start with `@`; otherwise line `j` closes a parameter list, not an
+    annotation.
+    """
+    depth = 0
+    for k in range(j, -1, -1):
+        depth += _open_parens(lines[k])
+        if depth > 0:
+            return None
+        if depth == 0:
+            opener = lines[k].strip()
+            annotated = opener.startswith("@") and not _DECL.match(_strip_annotations(opener))
+            return k if annotated else None
+    return None
 
 
 def _doc_before(lines, i):
-    """Returns the normalised Scaladoc above line `i`, skipping annotation lines, or None if there is none."""
+    """Returns the normalised Scaladoc above line `i`, skipping annotations, or None if there is none.
+
+    An annotation can span several lines (`@implicitNotFound(` / `"..."` / `)`); a closing `)` line sends the
+    walk back to the line that opens it.
+    """
     j = i - 1
-    while j >= 0 and _is_annotation_line(lines[j]):
-        j -= 1
+    while j >= 0:
+        if _is_annotation_line(lines[j]):
+            j -= 1
+            continue
+        start = _annotation_start(lines, j) if _is_annotation_close(lines[j]) else None
+        if start is None:
+            break
+        j = start - 1
     if j < 0 or not lines[j].strip().endswith("*/"):
         return None
     k = j
@@ -91,6 +150,8 @@ def scan(text):
     stack = []
     in_comment = False
     in_string = False
+    annotation_depth = 0  # open parentheses of a multi-line annotation being skipped
+    annotation_line = 0  # index of the line that opens that annotation
     for i, line in enumerate(lines):
         code = line.strip()
         if in_string:
@@ -106,6 +167,24 @@ def scan(text):
             continue
         in_string = line.count('"""') % 2 == 1
         indent = len(line) - len(line.lstrip())
+        # A multi-line annotation is skipped whole: its arguments are not declarations, and its closing `)`
+        # line is not a parameter list. The declaration it annotates follows it, and its Scaladoc sits above
+        # the annotation's first line (`doc_line`).
+        doc_line = i
+        if annotation_depth:
+            depth = annotation_depth + _open_parens(code)
+            if depth > 0:
+                annotation_depth = depth
+                continue
+            code = _after_annotation(code, annotation_depth) or ""  # `"1") def f = 1` declares `f`
+            annotation_depth = 0
+            if not code:
+                continue
+            doc_line = annotation_line
+        elif code.startswith("@") and _open_parens(code) > 0 and not _DECL.match(_strip_annotations(code)):
+            annotation_depth = _open_parens(code)
+            annotation_line = i
+            continue
         while stack and stack[-1].indent > indent:
             stack.pop()
         top = stack[-1] if stack else None
@@ -125,15 +204,22 @@ def scan(text):
             # (`class Patch[S] private[schema] (...)`) does not hide the class.
             hidden = hidden_parent or bool(_HIDDEN.search(m.group("mods")))
             if in_api and not hidden:
-                decls.append(Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, i)))
+                owner = tuple(s.name for s in stack if s.name)
+                decls.append(
+                    Decl(f'{m.group("kind")} {m.group("name")}', i + 1, _doc_before(lines, doc_line), owner)
+                )
             is_type = m.group("kind") in _TYPE_KINDS
             # A `private[pkg] trait` is mixed into a public object (`object Schema extends ... with DocsSchemas`):
             # the trait itself is hidden, but its members are API members of that object.
             mixin = m.group("kind") == "trait" and re.search(r"\b(private|protected)\[", m.group("mods"))
             scope_hidden = hidden_parent if mixin else hidden
-            stack.append(_Scope(indent, is_type, scope_hidden, is_type and _open_parens(code) > 0))
-        elif re.match(r"^extension\b", code) or re.match(r"^package\s+object\b", code):
-            stack.append(_Scope(indent, True, hidden_parent))
+            stack.append(
+                _Scope(indent, is_type, scope_hidden, is_type and _open_parens(code) > 0, m.group("name"))
+            )
+        elif re.match(r"^extension\b", code):
+            stack.append(_Scope(indent, True, hidden_parent, name="extension"))
+        elif re.match(r"^package\s+object\b", code):
+            stack.append(_Scope(indent, True, hidden_parent, name="package object"))
         elif not re.match(r"^(package|import)\b", code):
             stack.append(_Scope(indent, False, hidden_parent))
     return decls
@@ -168,15 +254,50 @@ def coverage(root):
 _PAIRS = ((r"/scala-2/", "/scala-3/", "{scala-2,scala-3}"), (r"^jvm/", "js/", "{jvm,js}"))
 
 
-def _keyed(decls):
-    """Key each declaration by (name, occurrence index) so overloads are compared pairwise."""
+def _full_path(owner):
+    return owner
+
+
+def _innermost(owner):
+    return owner[-1:]
+
+
+def _keyed(decls, scope):
+    """Key each declaration by (scope, kind and name, occurrence index), so overloads pair up pairwise.
+
+    `scope` picks the part of the enclosing path that must match: the whole path, or the innermost type only.
+    """
     seen = {}
     keyed = {}
     for d in decls:
-        k = seen.get(d.name, 0)
-        seen[d.name] = k + 1
-        keyed[(d.name, k)] = d.doc
+        group = (scope(d.owner), d.name)
+        k = seen.get(group, 0)
+        seen[group] = k + 1
+        keyed[(group, k)] = d
     return keyed
+
+
+def _differing(decls_a, decls_b):
+    """Returns (owner, name, index) of each declaration whose Scaladoc differs between two copies of a file.
+
+    Declarations pair up by their full enclosing path first. Those left over pair up by innermost enclosing
+    type, so a version-specific wrapper (`object MaybeValue { final class Present { def get } }` against a
+    top-level `final class Present { def get }`) does not hide the members. The wrapped type itself does not pair
+    this way, because its own owner differs. Members of different types never pair.
+    """
+    report = []
+    for scope in (_full_path, _innermost):
+        a = _keyed(decls_a, scope)
+        b = _keyed(decls_b, scope)
+        matched = a.keys() & b.keys()
+        for key in sorted(matched):
+            if a[key].doc != b[key].doc:
+                report.append((a[key].owner, a[key].name, key[1]))
+        done_a = {id(a[key]) for key in matched}
+        done_b = {id(b[key]) for key in matched}
+        decls_a = [d for d in decls_a if id(d) not in done_a]
+        decls_b = [d for d in decls_b if id(d) not in done_b]
+    return sorted(report)
 
 
 def drift(root):
@@ -190,13 +311,12 @@ def drift(root):
             if other not in files:
                 continue
             with open(files[rel], encoding="utf-8") as a, open(files[other], encoding="utf-8") as b:
-                docs_a = _keyed(scan(a.read()))
-                docs_b = _keyed(scan(b.read()))
+                decls_a = scan(a.read())
+                decls_b = scan(b.read())
             shown = re.sub(left, "/" + label + "/" if left.startswith("/") else label + "/", rel, count=1)
-            for key in sorted(docs_a.keys() & docs_b.keys()):
-                if docs_a[key] != docs_b[key]:
-                    name, k = key
-                    report.append(f"{shown}: {name}" + (f" #{k + 1}" if k else ""))
+            for owner, name, k in _differing(decls_a, decls_b):
+                prefix = "".join(f"{t}." for t in owner)
+                report.append(f"{shown}: {prefix}{name}" + (f" #{k + 1}" if k else ""))
     return report
 
 

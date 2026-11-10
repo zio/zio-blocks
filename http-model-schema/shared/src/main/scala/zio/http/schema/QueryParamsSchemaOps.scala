@@ -43,6 +43,7 @@ import zio.http.QueryParams
  *
  * {{{
  * import zio.http.QueryParams
+ * import zio.http.schema._
  *
  * val params = QueryParams.fromEncoded("status=shipped&page=2&tag=gift&tag=rush&limit=abc")
  *

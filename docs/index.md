@@ -245,6 +245,7 @@ val updated = Person.age.replace(person, 31)
 - [Your First Schema](./guides/your-first-schema.md) — a getting-started tutorial: describe a type once, round-trip it through JSON, and read decode errors
 - [Evolve Your Data](./guides/evolve-your-data.md) — a tutorial that validates incoming data with `Into`, converts between versions with `As`, and renames a stored field with a compile-checked `Migration`
 - [One Type, Many Formats](./guides/one-type-many-formats.md) — a tutorial that exports one catalog as JSON, YAML, XML, TOON, MessagePack, Avro and CSV from the same schema
+- [Share One Model Between a Scala.js Page and a JVM Server](./guides/share-one-model-between-scala-js-and-the-jvm.md) — a tutorial that encodes one `Schema`-derived model to JSON on the JVM and decodes it in Scala.js
 - [How to Encode and Decode Records with Avro](./guides/encode-and-decode-records-with-avro.md) — a how-to guide that writes the `.avsc` schema for a sealed trait, streams Avro records, maps each Scala type to its Avro type, and reads the bytes with Apache Avro
 - [How to Store Case Classes in MongoDB](./guides/store-case-classes-in-mongodb.md) — a how-to guide that derives a BSON codec, uses `ObjectId` as the `_id`, chooses how sealed traits and options are stored, and inserts and queries tickets with the MongoDB Java driver
 - [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
@@ -513,6 +514,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 - [Build Your First Database Repository on SQLite](./guides/your-first-sqlite-repository.md) - Connect to SQLite, derive a table and `Repo` from one schema, write your own queries, and roll back a transaction
 - [Instrument a Program with Logs, Traces and Metrics](./guides/instrument-a-program-with-logs-traces-and-metrics.md) - Add structured logs, nested spans, a counter and a histogram to a batch job, switch to JSON logs, and test the spans
 - [Build a Small JSON Backend from Blocks](./guides/small-json-backend-from-blocks.md) - Capstone: combine schema, config, scope, SQL, the HTTP model and telemetry into one small JSON backend
+- [Share One Model Between a Scala.js Page and a JVM Server](./guides/share-one-model-between-scala-js-and-the-jvm.md) - Describe one model with `Schema`, encode it on a JVM server and decode it in Scala.js
 
 These six follow the learning path, from installing the library to a small working backend. The [guides index](https://zioblocks.com/guides/) on the website lists every tutorial, how-to guide, migration guide and deep dive.
 
