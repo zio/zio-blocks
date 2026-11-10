@@ -34,7 +34,7 @@ val zioBlocksVersion = "0.0.56"
 def zioBlocks(module: String) = Def.setting {
   val prefix = CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, minor)) if minor >= 10 => "zio-blocks-next"
-    case _                              => "zio-blocks"
+    case _                               => "zio-blocks"
   }
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
@@ -43,5 +43,5 @@ libraryDependencies ++= Seq(
   zioBlocks("streams").value,
   zioBlocks("chunk").value,
   "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-  "dev.zio"     %% "zio-sbt-source" % "0.8.6"
+  "dev.zio"     %% "zio-sbt-source" % "0.8.7"
 )
