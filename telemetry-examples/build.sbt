@@ -15,7 +15,7 @@ scalacOptions ++= {
   }
 }
 
-val zioBlocksVersion = "0.0.56"
+val zioBlocksVersion = "0.017"
 
 // Scala 3.9+ artifacts are published as `zio-blocks-next-*`; older Scala versions use `zio-blocks-*`.
 def zioBlocks(module: String) = Def.setting {
