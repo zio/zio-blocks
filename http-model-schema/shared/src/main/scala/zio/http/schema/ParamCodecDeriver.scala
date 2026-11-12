@@ -18,13 +18,14 @@ package zio.http.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, HasBinding, Register, Registers}
+import zio.blocks.schema.binding.{Binding, HasBinding, Register, Registers, SeqConstructor}
 import zio.blocks.schema.codec.Codec
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import zio.blocks.schema.{DynamicOptic, Lazy, Modifier, PrimitiveType, Reflect, SchemaError, Term}
 import zio.blocks.typeid.TypeId
 
 import scala.collection.immutable.::
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 private[schema] object ParamCodecDeriver {
@@ -44,6 +45,193 @@ private[schema] object ParamCodecDeriver {
    * directly or through a customized child.
    */
   trait Customized
+
+  def buildFieldCodec[F[_, _], A](reflect: Reflect[F, A], fieldName: String)(implicit
+    F: HasBinding[F]
+  ): Either[String, FieldCodec] =
+    primitiveFieldCodec(reflect)
+      .orElse(optionalFieldCodec(reflect, fieldName))
+      .orElse(sequenceFieldCodec(reflect, fieldName))
+      .orElse(wrapperFieldCodec(reflect, fieldName))
+      .toRight {
+        if (reflect.isRecord) s"Nested records are not supported for field '$fieldName'"
+        else s"Unsupported schema type for field '$fieldName'"
+      }
+
+  def buildOptionalCodec[F[_, _], A](inner: Reflect[F, A], fieldName: String)(implicit
+    F: HasBinding[F]
+  ): Either[String, FieldCodec] =
+    buildFieldCodec(inner, fieldName).map(OptionalValue.apply)
+
+  def buildSequenceCodec[F[_, _], C[_], A](
+    element: Reflect[F, A],
+    constructor: SeqConstructor[C],
+    fieldName: String
+  )(implicit F: HasBinding[F]): Either[String, FieldCodec] =
+    buildFieldCodec(element, fieldName).map(SequenceValue(constructor, _))
+
+  private def primitiveFieldCodec[F[_, _], A](reflect: Reflect[F, A]): Option[FieldCodec] =
+    reflect.asPrimitive.map { primitive =>
+      SinglePrimitive(primitive.primitiveType)
+    }
+
+  private def optionalFieldCodec[F[_, _], A](reflect: Reflect[F, A], fieldName: String)(implicit
+    F: HasBinding[F]
+  ): Option[FieldCodec] =
+    if (reflect.isOption) {
+      reflect.optionInnerType
+        .map(_.asInstanceOf[Reflect[F, Any]])
+        .flatMap(inner => buildOptionalCodec(inner, fieldName).toOption)
+    } else None
+
+  private def sequenceFieldCodec[F[_, _], A](reflect: Reflect[F, A], fieldName: String)(implicit
+    F: HasBinding[F]
+  ): Option[FieldCodec] =
+    reflect.asSequenceUnknown.flatMap { unknown =>
+      val sequence = unknown.sequence
+      val element  = sequence.element.asInstanceOf[Reflect[F, Any]]
+      buildSequenceCodec(
+        element,
+        sequence.seqConstructor,
+        fieldName
+      ).toOption
+    }
+
+  private def wrapperFieldCodec[F[_, _], A](reflect: Reflect[F, A], fieldName: String)(implicit
+    F: HasBinding[F]
+  ): Option[FieldCodec] =
+    reflect.asWrapperUnknown.flatMap { unknown =>
+      val wrapper = unknown.wrapper
+      buildFieldCodec(wrapper.wrapped.asInstanceOf[Reflect[F, unknown.Wrapped]], fieldName).toOption.map { inner =>
+        WrappedValue(
+          wrapper.binding.wrap.asInstanceOf[unknown.Wrapped => unknown.Wrapping],
+          wrapper.binding.unwrap.asInstanceOf[unknown.Wrapping => unknown.Wrapped],
+          inner
+        )
+      }
+    }
+
+  private[schema] def decodePrimitive[A](
+    fieldName: String,
+    raw: String,
+    primitiveType: PrimitiveType[A],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, A] =
+    ParamPrimitiveCodec
+      .decodePrimitiveString(raw, primitiveType)
+      .left
+      .map(cause =>
+        SchemaError.conversionFailed(
+          List(DynamicOptic.Node.Field(fieldName)),
+          errorFactory.malformed(fieldName, raw, cause)
+        )
+      )
+}
+
+private[schema] trait DecodeErrorFactory {
+  def malformed(name: String, raw: String, cause: String): String
+}
+
+// Non-sealed so transports can bridge user-supplied whole-value codecs as
+// record fields; the fast-path cases below stay closed by construction.
+private[schema] trait FieldCodec {
+  def encodeAny(value: Any): Chunk[String]
+  def decodeAny(
+    fieldName: String,
+    rawValues: Option[Chunk[String]],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, Any]
+}
+
+private[schema] final case class SinglePrimitive[A](primitiveType: PrimitiveType[A]) extends FieldCodec {
+  def encodeAny(value: Any): Chunk[String] =
+    Chunk.single(ParamPrimitiveCodec.renderPrimitive(value.asInstanceOf[A], primitiveType))
+
+  def decodeAny(
+    fieldName: String,
+    rawValues: Option[Chunk[String]],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, Any] =
+    rawValues match {
+      case Some(values) if values.nonEmpty =>
+        ParamCodecDeriver
+          .decodePrimitive(fieldName, values(0), primitiveType, errorFactory)
+          .asInstanceOf[Either[SchemaError, Any]]
+      case _ => Left(SchemaError.missingField(Nil, fieldName))
+    }
+}
+
+private[schema] final case class OptionalValue(inner: FieldCodec) extends FieldCodec {
+  def encodeAny(value: Any): Chunk[String] =
+    value match {
+      case None             => Chunk.empty
+      case Some(innerValue) => inner.encodeAny(innerValue)
+    }
+
+  def decodeAny(
+    fieldName: String,
+    rawValues: Option[Chunk[String]],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, Any] =
+    rawValues match {
+      case None                           => Right(None)
+      case Some(values) if values.isEmpty => Right(None)
+      case Some(values)                   => inner.decodeAny(fieldName, Some(Chunk.single(values(0))), errorFactory).map(Some(_))
+    }
+}
+
+private[schema] final case class SequenceValue[C[_]](constructor: SeqConstructor[C], elementCodec: FieldCodec)
+    extends FieldCodec {
+  def encodeAny(value: Any): Chunk[String] = {
+    val builder  = Chunk.newBuilder[String]
+    val iterator = value.asInstanceOf[Iterable[Any]].iterator
+    while (iterator.hasNext) {
+      val encodedValues = elementCodec.encodeAny(iterator.next())
+      var index         = 0
+      while (index < encodedValues.length) {
+        builder += encodedValues(index)
+        index += 1
+      }
+    }
+    builder.result()
+  }
+
+  def decodeAny(
+    fieldName: String,
+    rawValues: Option[Chunk[String]],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, Any] = {
+    val values                           = rawValues.getOrElse(Chunk.empty)
+    implicit val classTag: ClassTag[Any] = ClassTag.Any
+    val builder                          = constructor.newBuilder[Any](values.length)
+    var index                            = 0
+    while (index < values.length) {
+      elementCodec.decodeAny(fieldName, Some(Chunk.single(values(index))), errorFactory) match {
+        case Right(decoded) => constructor.add(builder, decoded)
+        case Left(error)    => return Left(error)
+      }
+      index += 1
+    }
+    Right(constructor.result(builder))
+  }
+}
+
+private[schema] final case class WrappedValue[A, B](wrap: B => A, unwrap: A => B, inner: FieldCodec)
+    extends FieldCodec {
+  def encodeAny(value: Any): Chunk[String] = inner.encodeAny(unwrap(value.asInstanceOf[A]))
+
+  def decodeAny(
+    fieldName: String,
+    rawValues: Option[Chunk[String]],
+    errorFactory: DecodeErrorFactory
+  ): Either[SchemaError, Any] =
+    inner.decodeAny(fieldName, rawValues, errorFactory).flatMap { value =>
+      try Right(wrap(value.asInstanceOf[B]))
+      catch {
+        case NonFatal(error) =>
+          Left(SchemaError.conversionFailed(List(DynamicOptic.Node.Field(fieldName)), error.getMessage))
+      }
+    }
 }
 
 /**
@@ -71,7 +259,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
    */
   protected final val topLevelKey: String = "value"
 
-  private object ErrorFactory extends ParamCodecSupport.DecodeErrorFactory {
+  private object ErrorFactory extends DecodeErrorFactory {
     def malformed(name: String, raw: String, cause: String): String =
       malformedMessage(name, raw, cause)
   }
@@ -144,7 +332,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
   ): Lazy[TC[A]] =
     if (binding.isInstanceOf[Binding[?, ?]]) {
       Lazy {
-        buildTopLevelCodec(ParamCodecSupport.SinglePrimitive(primitiveType), customized = false)
+        buildTopLevelCodec(SinglePrimitive(primitiveType), customized = false)
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
 
@@ -158,7 +346,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
     Lazy {
-      val fieldCodecs   = new Array[ParamCodecSupport.FieldCodec](fields.length)
+      val fieldCodecs   = new Array[FieldCodec](fields.length)
       val fieldKeys     = new Array[String](fields.length)
       val fieldReflects = new Array[Reflect[F, Any]](fields.length)
       var index         = 0
@@ -168,7 +356,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
         val top     = D.instance(field.value.metadata).force
         fieldKeys(index) = wireKey
         fieldReflects(index) = field.value.asInstanceOf[Reflect[F, Any]]
-        fieldCodecs(index) = ParamCodecSupport.buildFieldCodec(field.value, field.name) match {
+        fieldCodecs(index) = ParamCodecDeriver.buildFieldCodec(field.value, field.name) match {
           case Right(fast) =>
             if (isPure(top)) fast else customFieldCodec(top.asInstanceOf[TC[Any]], wireKey)
           case Left(error) =>
@@ -232,13 +420,13 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
         val inner = cases(1).value.asRecord.flatMap(record => record.fields.headOption.map(_.value))
         inner match {
           case Some(payload) =>
-            ParamCodecSupport.buildOptionalCodec(payload, topLevelKey) match {
+            ParamCodecDeriver.buildOptionalCodec(payload, topLevelKey) match {
               case Right(fast) =>
                 val innerTop = D.instance(payload.metadata).force
                 if (isPure(innerTop)) buildTopLevelCodec(fast, customized = false)
                 else
                   buildTopLevelCodec(
-                    ParamCodecSupport.OptionalValue(customFieldCodec(innerTop.asInstanceOf[TC[Any]], topLevelKey)),
+                    OptionalValue(customFieldCodec(innerTop.asInstanceOf[TC[Any]], topLevelKey)),
                     customized = true
                   )
               case Left(_) => unsupportedCodec[A](s"$codecName does not support variant schema ${typeId.fullName}")
@@ -259,13 +447,13 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[C[A]]] =
     Lazy {
-      ParamCodecSupport.buildSequenceCodec(element, binding.constructor, topLevelKey) match {
+      ParamCodecDeriver.buildSequenceCodec(element, binding.constructor, topLevelKey) match {
         case Right(fast) =>
           val elementTop = D.instance(element.metadata).force
           if (isPure(elementTop)) buildTopLevelCodec(fast, customized = false).asInstanceOf[TC[C[A]]]
           else
             buildTopLevelCodec(
-              ParamCodecSupport.SequenceValue(
+              SequenceValue(
                 binding.constructor,
                 customFieldCodec(elementTop.asInstanceOf[TC[Any]], topLevelKey)
               ),
@@ -337,8 +525,8 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
    * content with the root key re-anchored to the field key, and the record loop
    * accumulates them across fields.
    */
-  private def customFieldCodec[A](custom: TC[A], wireKey: String): ParamCodecSupport.FieldCodec =
-    new ParamCodecSupport.FieldCodec {
+  private def customFieldCodec[A](custom: TC[A], wireKey: String): FieldCodec =
+    new FieldCodec {
       def encodeAny(value: Any): Chunk[String] = {
         val tmp = freshOutput()
         custom.asInstanceOf[TC[Any]].encode(value, tmp)
@@ -366,7 +554,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
       def decodeAny(
         fieldName: String,
         rawValues: Option[Chunk[String]],
-        errorFactory: ParamCodecSupport.DecodeErrorFactory
+        errorFactory: DecodeErrorFactory
       ): Either[SchemaError, Any] =
         custom
           .decode(syntheticInput(rawValues))
@@ -417,7 +605,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
       new SchemaError(new ::(remapped.head, remapped.tail))
     }
 
-  private def buildTopLevelCodec[A](fieldCodec: ParamCodecSupport.FieldCodec, customized: Boolean): TC[A] = {
+  private def buildTopLevelCodec[A](fieldCodec: FieldCodec, customized: Boolean): TC[A] = {
     def encode(value: A, output: Out): Unit = {
       val encodedValues = fieldCodec.encodeAny(value)
       var index         = 0
