@@ -1572,7 +1572,7 @@ lazy val benchmarks = project
       "dev.zio"                               %% "zio-json"              % "0.10.0",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
       "dev.zio"                               %% "zio-schema-json"       % "1.8.6",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.6", // the last version that depends on Scala 3.7.x
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.7", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.15",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
