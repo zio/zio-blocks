@@ -18,12 +18,14 @@ package zio.http.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
-import zio.blocks.schema.binding.{Binding, HasBinding, Register, Registers, SeqConstructor}
+import zio.blocks.schema.binding.{Binding, HasBinding, Register, SeqConstructor}
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.codec.Codec
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import zio.blocks.schema.{DynamicOptic, Lazy, Modifier, PrimitiveType, Reflect, SchemaError, Term}
 import zio.blocks.typeid.TypeId
 
+import scala.annotation.switch
 import scala.collection.immutable.::
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
@@ -126,6 +128,75 @@ private[schema] object ParamCodecDeriver {
           errorFactory.malformed(fieldName, raw, cause)
         )
       )
+
+  /**
+   * Scalar fast-path layout for one record field: the JSON tag mapping (0 =
+   * object, 1 = int, 2 = long, 3 = float, 4 = double, 5 = boolean, 6 = byte, 7 =
+   * char, 8 = short) with the field's register offset and, for object-tagged
+   * fields, its `PrimitiveType` for specialized render/parse. Returns `None`
+   * when the field must keep the boxed `FieldCodec` path (non-scalar shapes,
+   * custom bridges, exotic primitives, or a register kind that does not agree
+   * with the primitive type).
+   */
+  private def scalarLayout(
+    fieldCodec: FieldCodec,
+    register: Register[Any]
+  ): Option[(Int, RegisterOffset, PrimitiveType[Any])] =
+    fieldCodec match {
+      case SinglePrimitive(primitiveType) =>
+        if (register.isInstanceOf[Register.Int] && primitiveType.isInstanceOf[PrimitiveType.Int])
+          Some((1, register.asInstanceOf[Register.Int].offset, null))
+        else if (register.isInstanceOf[Register.Long] && primitiveType.isInstanceOf[PrimitiveType.Long])
+          Some((2, register.asInstanceOf[Register.Long].offset, null))
+        else if (register.isInstanceOf[Register.Float] && primitiveType.isInstanceOf[PrimitiveType.Float])
+          Some((3, register.asInstanceOf[Register.Float].offset, null))
+        else if (register.isInstanceOf[Register.Double] && primitiveType.isInstanceOf[PrimitiveType.Double])
+          Some((4, register.asInstanceOf[Register.Double].offset, null))
+        else if (register.isInstanceOf[Register.Boolean] && primitiveType.isInstanceOf[PrimitiveType.Boolean])
+          Some((5, register.asInstanceOf[Register.Boolean].offset, null))
+        else if (register.isInstanceOf[Register.Byte] && primitiveType.isInstanceOf[PrimitiveType.Byte])
+          Some((6, register.asInstanceOf[Register.Byte].offset, null))
+        else if (register.isInstanceOf[Register.Char] && primitiveType.isInstanceOf[PrimitiveType.Char])
+          Some((7, register.asInstanceOf[Register.Char].offset, null))
+        else if (register.isInstanceOf[Register.Short] && primitiveType.isInstanceOf[PrimitiveType.Short])
+          Some((8, register.asInstanceOf[Register.Short].offset, null))
+        else if (register.isInstanceOf[Register.Object[?]] && isScalarObjectPrimitive(primitiveType))
+          Some(
+            (0, register.asInstanceOf[Register.Object[AnyRef]].offset, primitiveType.asInstanceOf[PrimitiveType[Any]])
+          )
+        else None
+      case _ => None
+    }
+
+  /**
+   * Object-tagged primitives the fast path renders and parses without boxing:
+   * every `String`-wire primitive except the unboxed eight above. Any other
+   * primitive (timestamps, `Unit`, ...) keeps the boxed path with its current
+   * throw-on-encode / fail-on-decode behavior.
+   */
+  private def isScalarObjectPrimitive(primitiveType: PrimitiveType[?]): Boolean =
+    primitiveType.isInstanceOf[PrimitiveType.String] ||
+      primitiveType.isInstanceOf[PrimitiveType.UUID] ||
+      primitiveType.isInstanceOf[PrimitiveType.BigInt] ||
+      primitiveType.isInstanceOf[PrimitiveType.BigDecimal]
+
+  /**
+   * Combines accumulated record failures in one linear pass, with the same
+   * content and order as left-nested `++`: every error's singles concatenated
+   * in field order.
+   */
+  private def combineFailures(failures: Array[SchemaError], count: Int): SchemaError = {
+    val builder = List.newBuilder[SchemaError.Single]
+    var index   = 0
+    while (index < count) {
+      builder ++= failures(index).errors
+      index += 1
+    }
+    builder.result() match {
+      case head :: tail => new SchemaError(new ::(head, tail))
+      case Nil          => throw new IllegalStateException("combineFailures requires at least one failure")
+    }
+  }
 }
 
 private[schema] trait DecodeErrorFactory {
@@ -370,36 +441,122 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
       val constructor   = binding.constructor
       val deconstructor = binding.deconstructor
       val factory       = ErrorFactory
+      // Scalar fast-path layout per field, mirroring JsonCodecDeriver's
+      // type-tag + unboxed-register design: `scalarTags` holds the JSON tag
+      // mapping (0 = object, 1 = int, 2 = long, 3 = float, 4 = double,
+      // 5 = boolean, 6 = byte, 7 = char, 8 = short) or -1 for fields that keep
+      // the boxed `FieldCodec` fallback (Option, Sequence, Wrapper, custom,
+      // and exotic primitives). `scalarOffsets` holds the field's register
+      // offset for unboxed `Registers` access, and `scalarPrimitives` the
+      // `PrimitiveType` for object-tagged fields (String, UUID, BigInt,
+      // BigDecimal), used for specialized render/parse.
+      val scalarTags       = new Array[Int](fields.length)
+      val scalarOffsets    = new Array[RegisterOffset](fields.length)
+      val scalarPrimitives = new Array[PrimitiveType[Any]](fields.length)
+      var layoutIdx        = 0
+      while (layoutIdx < fields.length) {
+        ParamCodecDeriver.scalarLayout(fieldCodecs(layoutIdx), fieldRegs(layoutIdx)) match {
+          case None =>
+            scalarTags(layoutIdx) = -1
+          case Some((tag, offset, primitive)) =>
+            scalarTags(layoutIdx) = tag
+            scalarOffsets(layoutIdx) = offset
+            scalarPrimitives(layoutIdx) = primitive
+        }
+        layoutIdx += 1
+      }
+      val pool = new RegisterPool(constructor.usedRegisters)
       makeCodec[A](
         (value, output) => {
-          val registers = Registers(deconstructor.usedRegisters)
-          deconstructor.deconstruct(registers, 0L, value)
-          var idx = 0
-          while (idx < fieldRegs.length) {
-            val encodedValues = fieldCodecs(idx).encodeAny(fieldRegs(idx).get(registers, 0L))
-            var valueIndex    = 0
-            while (valueIndex < encodedValues.length) {
-              writeField(output, fieldKeys(idx), encodedValues(valueIndex))
-              valueIndex += 1
+          val registers = pool.borrow()
+          try {
+            deconstructor.deconstruct(registers, 0L, value)
+            var idx = 0
+            while (idx < fieldRegs.length) {
+              val tag = scalarTags(idx)
+              if (tag < 0) {
+                val encodedValues = fieldCodecs(idx).encodeAny(fieldRegs(idx).get(registers, 0L))
+                var valueIndex    = 0
+                while (valueIndex < encodedValues.length) {
+                  writeField(output, fieldKeys(idx), encodedValues(valueIndex))
+                  valueIndex += 1
+                }
+              } else {
+                val offset   = scalarOffsets(idx)
+                val rendered = (tag: @switch) match {
+                  case 1 => ParamPrimitiveCodec.renderInt(registers.getInt(offset))
+                  case 2 => ParamPrimitiveCodec.renderLong(registers.getLong(offset))
+                  case 3 => ParamPrimitiveCodec.renderFloat(registers.getFloat(offset))
+                  case 4 => ParamPrimitiveCodec.renderDouble(registers.getDouble(offset))
+                  case 5 => ParamPrimitiveCodec.renderBoolean(registers.getBoolean(offset))
+                  case 6 => ParamPrimitiveCodec.renderByte(registers.getByte(offset))
+                  case 7 => ParamPrimitiveCodec.renderChar(registers.getChar(offset))
+                  case 8 => ParamPrimitiveCodec.renderShort(registers.getShort(offset))
+                  case _ => ParamPrimitiveCodec.renderObject(registers.getObject(offset), scalarPrimitives(idx))
+                }
+                writeField(output, fieldKeys(idx), rendered)
+              }
+              idx += 1
             }
-            idx += 1
-          }
+          } finally pool.release(registers)
         },
         input => {
-          val registers             = Registers(constructor.usedRegisters)
-          var idx                   = 0
-          var failures: SchemaError = null
-          while (idx < fieldRegs.length) {
-            val rawValues = readField(input, fieldKeys(idx))
-            fieldCodecs(idx).decodeAny(fieldKeys(idx), rawValues, factory) match {
-              case Right(decoded) => fieldRegs(idx).set(registers, 0L, decoded)
-              case Left(error)    =>
-                failures = if (failures eq null) error else failures ++ error
+          val registers = pool.borrow()
+          try {
+            var failures: Array[SchemaError] = null
+            var failureCount                 = 0
+            var idx                          = 0
+            while (idx < fieldRegs.length) {
+              val tag = scalarTags(idx)
+              val key = fieldKeys(idx)
+              if (tag < 0) {
+                val rawValues = readField(input, key)
+                fieldCodecs(idx).decodeAny(key, rawValues, factory) match {
+                  case Right(decoded) => fieldRegs(idx).set(registers, 0L, decoded)
+                  case Left(error)    =>
+                    if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
+                    failures(failureCount) = error
+                    failureCount += 1
+                }
+              } else {
+                readField(input, key) match {
+                  case Some(values) if values.nonEmpty =>
+                    val raw = values(0)
+                    try {
+                      val offset = scalarOffsets(idx)
+                      (tag: @switch) match {
+                        case 1 => registers.setInt(offset, ParamPrimitiveCodec.parseInt(raw))
+                        case 2 => registers.setLong(offset, ParamPrimitiveCodec.parseLong(raw))
+                        case 3 => registers.setFloat(offset, ParamPrimitiveCodec.parseFloat(raw))
+                        case 4 => registers.setDouble(offset, ParamPrimitiveCodec.parseDouble(raw))
+                        case 5 => registers.setBoolean(offset, ParamPrimitiveCodec.parseBoolean(raw))
+                        case 6 => registers.setByte(offset, ParamPrimitiveCodec.parseByte(raw))
+                        case 7 => registers.setChar(offset, ParamPrimitiveCodec.parseChar(raw))
+                        case 8 => registers.setShort(offset, ParamPrimitiveCodec.parseShort(raw))
+                        case _ =>
+                          registers.setObject(offset, ParamPrimitiveCodec.parseObject(raw, scalarPrimitives(idx)))
+                      }
+                    } catch {
+                      case error: IllegalArgumentException =>
+                        if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
+                        failures(failureCount) = SchemaError.conversionFailed(
+                          List(DynamicOptic.Node.Field(key)),
+                          factory.malformed(key, raw, error.getMessage)
+                        )
+                        failureCount += 1
+                    }
+                  case _ =>
+                    if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
+                    failures(failureCount) = SchemaError.missingField(Nil, key)
+                    failureCount += 1
+                }
+              }
+              idx += 1
             }
-            idx += 1
-          }
-          if (failures eq null) Right(constructor.construct(registers, 0L))
-          else Left(failures)
+            if (failures eq null) Right(constructor.construct(registers, 0L))
+            else if (failureCount == 1) Left(failures(0))
+            else Left(ParamCodecDeriver.combineFailures(failures, failureCount))
+          } finally pool.release(registers)
         }
       )
     }

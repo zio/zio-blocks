@@ -119,6 +119,105 @@ private[schema] object ParamPrimitiveCodec {
     case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
   }
 
+  /**
+   * Unboxed renderers for the record fast path: same output as
+   * [[renderPrimitive]] for the matching type, but the value stays unboxed. The
+   * record deriver calls these only for fields whose type it verified at
+   * derivation time, so the caller guarantees the type matches.
+   */
+  private[schema] def renderInt(value: Int): String         = value.toString
+  private[schema] def renderLong(value: Long): String       = value.toString
+  private[schema] def renderFloat(value: Float): String     = value.toString
+  private[schema] def renderDouble(value: Double): String   = value.toString
+  private[schema] def renderBoolean(value: Boolean): String = value.toString
+  private[schema] def renderByte(value: Byte): String       = value.toString
+  private[schema] def renderChar(value: Char): String       = value.toString
+  private[schema] def renderShort(value: Short): String     = value.toString
+
+  /**
+   * Renders an object-tagged primitive (`String`, `UUID`, `BigInt`,
+   * `BigDecimal`) that the record fast path read as a reference. Same output as
+   * [[renderPrimitive]] for those types.
+   */
+  private[schema] def renderObject[A](value: AnyRef, primitiveType: PrimitiveType[A]): String =
+    primitiveType match {
+      case _: PrimitiveType.String     => value.asInstanceOf[String]
+      case _: PrimitiveType.UUID       => value.asInstanceOf[UUID].toString
+      case _: PrimitiveType.BigInt     => value.asInstanceOf[scala.BigInt].toString
+      case _: PrimitiveType.BigDecimal => value.asInstanceOf[scala.BigDecimal].toString
+      case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
+    }
+
+  /**
+   * Unboxed parsers for the record fast path: same values and failure reasons
+   * as [[decodePrimitiveString]] for the matching type, but failures throw
+   * `IllegalArgumentException` carrying the reason instead of allocating an
+   * `Either`, and successes never box. The record deriver catches the exception
+   * and wraps it exactly like the boxed path does.
+   */
+  private[schema] def parseInt(raw: String): Int =
+    try raw.toInt
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Int") }
+
+  private[schema] def parseLong(raw: String): Long =
+    try raw.toLong
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Long") }
+
+  private[schema] def parseFloat(raw: String): Float =
+    try raw.toFloat
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Float") }
+
+  private[schema] def parseDouble(raw: String): Double =
+    try raw.toDouble
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Double") }
+
+  private[schema] def parseBoolean(raw: String): Boolean =
+    try raw.toBoolean
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Boolean") }
+
+  private[schema] def parseByte(raw: String): Byte =
+    try raw.toByte
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Byte") }
+
+  private[schema] def parseChar(raw: String): Char =
+    if (raw.length == 1) raw.charAt(0)
+    else throw new IllegalArgumentException(s"Expected single character but got '$raw'")
+
+  private[schema] def parseShort(raw: String): Short =
+    try raw.toShort
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "Short") }
+
+  private[schema] def parseString(raw: String): String = raw
+
+  private[schema] def parseUUID(raw: String): UUID =
+    try UUID.fromString(raw)
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "UUID") }
+
+  private[schema] def parseBigInt(raw: String): scala.BigInt =
+    try scala.BigInt(raw)
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "BigInt") }
+
+  private[schema] def parseBigDecimal(raw: String): scala.BigDecimal =
+    try scala.BigDecimal(raw)
+    catch { case _: IllegalArgumentException => throw cannotParse(raw, "BigDecimal") }
+
+  /**
+   * Parses an object-tagged primitive (`String`, `UUID`, `BigInt`,
+   * `BigDecimal`) into a reference. Same values and failure reasons as
+   * [[decodePrimitiveString]] for those types.
+   */
+  private[schema] def parseObject[A](raw: String, primitiveType: PrimitiveType[A]): AnyRef =
+    primitiveType match {
+      case _: PrimitiveType.String     => raw
+      case _: PrimitiveType.UUID       => parseUUID(raw)
+      case _: PrimitiveType.BigInt     => parseBigInt(raw)
+      case _: PrimitiveType.BigDecimal => parseBigDecimal(raw)
+      case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
+    }
+
+  private def cannotParse(raw: String, typeName: String): IllegalArgumentException =
+    new IllegalArgumentException(s"Cannot parse '$raw' as $typeName")
+
   private def typeName[A](primitiveType: PrimitiveType[A]): String = primitiveType match {
     case _: PrimitiveType.String     => "String"
     case _: PrimitiveType.Int        => "Int"

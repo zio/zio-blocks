@@ -87,6 +87,8 @@ class HttpCodecBenchmark extends BaseBenchmark {
     headersBuilder = HeadersBuilder.make()
     queryInput = queryCodec.encodeToQueryParams(record)
     headersInput = headerCodec.encodeToHeaders(record)
+    require(queryCodec.decode(queryInput).isRight, "query fixture must decode")
+    require(headerCodec.decode(headersInput).isRight, "header fixture must decode")
   }
 
   @Benchmark
