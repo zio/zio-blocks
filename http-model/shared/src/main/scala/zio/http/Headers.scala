@@ -67,6 +67,19 @@ final class Headers private[http] (
   def nonEmpty: Boolean = size > 0
 
   /**
+   * Returns the stored (lower-case) name of the entry at `index`, for trusted
+   * same-package scans that must not allocate. The index must be below
+   * [[size]].
+   */
+  private[http] def nameAt(index: Int): String = names(index)
+
+  /**
+   * Returns the raw value of the entry at `index`, for trusted same-package
+   * scans that must not allocate. The index must be below [[size]].
+   */
+  private[http] def rawValueAt(index: Int): String = rawValues(index)
+
+  /**
    * Returns the first entry named `headerCodec.name` that the codec parses,
    * ignoring the letter case of the name. An entry that fails to parse is
    * skipped as if it were absent, so a malformed value gives `None`, or the
@@ -551,6 +564,23 @@ final class HeadersBuilder private (
     Headers.validateValueOrThrow(value)
     ensureCapacity()
     names(len) = name.toLowerCase(Locale.ROOT)
+    rawValues(len) = value
+    len += 1
+  }
+
+  /**
+   * Appends an entry whose name is already lower-cased and known to be a valid
+   * header name, as the schema codecs precompute at derivation time. It skips
+   * name validation and lower-casing, but still rejects values with CR or LF,
+   * so header-injection protection is unchanged.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `value` contains CR or LF
+   */
+  private[http] def addTrustedName(lowerName: String, value: String): Unit = {
+    Headers.validateValueOrThrow(value)
+    ensureCapacity()
+    names(len) = lowerName
     rawValues(len) = value
     len += 1
   }

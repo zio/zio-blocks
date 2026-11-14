@@ -118,9 +118,9 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [MediaType](docs/./reference/media-type.md) | `zio-blocks-mediatype` | JVM · JS | 2.13 · 3.x | Type-safe IANA media types with 2,600+ predefined types |
-| [HTTP Model](docs/./reference/http-model/index.md) | `zio-blocks-http-model` | JVM · JS | 2.13 · 3.x | Pure HTTP data model with URL parsing, headers, cookies, and forms |
-| [HTTP Model Schema](docs/./reference/http-model/schema.md) | `zio-blocks-http-model-schema` | JVM · JS | 2.13 · 3.x | Schema-based typed access to the HTTP model |
-| [Endpoint](docs/./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 2.13 · 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
+| [HTTP Model](docs/./reference/http-model/index.md) | `zio-blocks-http-model` | JVM · JS | 3.x | Pure HTTP data model with URL parsing, headers, cookies, and forms |
+| [HTTP Model Schema](docs/./reference/http-model/schema.md) | `zio-blocks-http-model-schema` | JVM · JS | 3.x | Schema-based typed access to the HTTP model |
+| [Endpoint](docs/./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
 | [OpenAPI](docs/./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 2.13 · 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
 | [JWT](docs/./reference/jwt.md) | `zio-blocks-jwt` | JVM · JS | 2.13 · 3.x | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support |
 | [HTML](docs/./reference/html.md) | `zio-blocks-html` | JVM · JS | 2.13 · 3.x | Type-safe HTML templating with XSS protection |

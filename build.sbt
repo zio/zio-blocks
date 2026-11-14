@@ -163,7 +163,7 @@ addCommandAlias(
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
+    "openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
 
 lazy val testJVMScala3Command =
@@ -174,7 +174,7 @@ lazy val testJVMScala3Command =
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -195,7 +195,7 @@ lazy val testJS2Scala3Command =
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
+    "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJVMScala3Command =
@@ -206,7 +206,7 @@ lazy val docJVMScala3Command =
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
 
 lazy val docJSScala2Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; asyncJS/doc"
@@ -336,6 +336,7 @@ lazy val root = project
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
+    `http-model-schema-benchmarks`,
     `streams-benchmark`,
     docs,
     ringbuffer.jvm,
@@ -1057,7 +1058,7 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-http-model"))
+  .settings(stdSettings("zio-blocks-http-model", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http"))
   .enablePlugins(BuildInfoPlugin)
@@ -1079,7 +1080,7 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-http-model-schema"))
+  .settings(stdSettings("zio-blocks-http-model-schema", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http.schema"))
   .enablePlugins(BuildInfoPlugin)
@@ -1101,7 +1102,7 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-endpoint"))
+  .settings(stdSettings("zio-blocks-endpoint", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.endpoint"))
   .enablePlugins(BuildInfoPlugin)
@@ -1428,8 +1429,6 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `config-json`.jvm,
     `config-yaml`.jvm,
     typeid.jvm,
-    `http-model`.jvm,
-    `http-model-schema`.jvm,
     `schema-messagepack`.jvm,
     html.jvm,
     markdown.jvm,
@@ -1442,7 +1441,6 @@ lazy val scaladocCheckedModules: Seq[Project] =
     `schema-toon`.jvm,
     `schema-xml`.jvm,
     `schema-yaml`.jvm,
-    endpoint.jvm,
     maybe.jvm,
     combinators.jvm,
     context.jvm,
@@ -1482,7 +1480,10 @@ lazy val scaladocCheckedScala3Modules: Seq[Project] =
     projection.jvm,
     dataMigration.jvm,
     htmx.jvm,
-    datastar.jvm
+    datastar.jvm,
+    `http-model`.jvm,
+    `http-model-schema`.jvm,
+    endpoint.jvm
   )
 
 lazy val `scaladoc-check-scala3` = project
@@ -1561,6 +1562,8 @@ lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
+  .dependsOn(`http-model`.jvm)
+  .dependsOn(`http-model-schema`.jvm)
   .dependsOn(`schema-avro`)
   .dependsOn(`schema-toon`.jvm)
   .enablePlugins(JmhPlugin)
@@ -1678,6 +1681,25 @@ lazy val `streams-benchmark` = project
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
       case x if x.contains("reference.conf")    => MergeStrategy.concat
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val `http-model-schema-benchmarks` = project
+  .in(file("http-model-schema-benchmarks"))
+  .settings(stdSettings("zio-blocks-http-model-schema-benchmarks", Seq("3.9.0")))
+  .dependsOn(`http-model-schema`.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    assembly / assemblyJarName       := "http-model-schema-benchmarks.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
       case path                                 => MergeStrategy.defaultMergeStrategy(path)
     },
     assembly / fullClasspath   := (Jmh / fullClasspath).value,

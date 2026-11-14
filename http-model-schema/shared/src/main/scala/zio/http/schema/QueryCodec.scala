@@ -45,10 +45,11 @@ import zio.http.{QueryParams, QueryParamsBuilder}
  *
  * Derivation throws `UnsupportedOperationException` for a field of any other
  * shape, such as a nested record, a `Map` or a sealed trait. A top-level
- * `Option`, sealed trait, `Map` or `DynamicValue` schema derives, but its codec
- * throws `UnsupportedOperationException` on every `encode` and `decode`. A
- * field of another primitive type, such as `java.time.Instant`, derives too,
- * but `encode` throws and `decode` fails for it, a known bug.
+ * `Option` encodes `None` as absent parameters and decodes absent parameters as
+ * `None`. A top-level sealed trait, `Map` or `DynamicValue` schema derives, but
+ * its codec throws `UnsupportedOperationException` on every `encode` and
+ * `decode`. A field of another primitive type, such as `java.time.Instant`,
+ * derives too, but `encode` throws and `decode` fails for it, a known bug.
  *
  * {{{
  * import zio.blocks.schema.Schema
