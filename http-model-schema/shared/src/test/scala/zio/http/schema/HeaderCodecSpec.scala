@@ -72,7 +72,8 @@ object HeaderCodecSpec extends ZIOSpecDefault {
 
       assertTrue(
         encoded.rawGet("Trace-Id").contains("trace-1"),
-        encoded.rawGet("Api-Key").contains("secret")
+        encoded.rawGet("Api-Key").contains("secret"),
+        encoded.toList == List(("trace-id", "trace-1"), ("api-key", "secret"))
       )
     },
     test("reads headers case-insensitively") {

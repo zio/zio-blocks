@@ -345,6 +345,41 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
 
   protected def writeField(output: Out, key: String, value: String): Unit
 
+  /**
+   * Maps a record field's wire name to the key the scalar fast path reads with:
+   * identity by default, the precomputed lower-cased form for headers. Runs
+   * once per field at derivation time.
+   */
+  protected def readKey(fieldKey: String): String = fieldKey
+
+  /**
+   * Maps a record field's wire name to the key the scalar fast path writes
+   * with: identity by default, the precomputed lower-cased form for headers.
+   * Runs once per field at derivation time.
+   */
+  protected def writeKey(fieldKey: String): String = fieldKey
+
+  /**
+   * Returns the first raw value stored under `key`, or `null` when the key is
+   * absent or holds no values. The default goes through [[readField]];
+   * transports override it with an allocation-free scan. Only the scalar fast
+   * path uses this; sequences and options keep [[readField]], so multi-value
+   * and absent-optional semantics are unchanged.
+   */
+  protected def readFieldFirst(input: In, key: String): String =
+    readField(input, key) match {
+      case Some(values) if values.nonEmpty => values(0)
+      case _                               => null
+    }
+
+  /**
+   * Writes one scalar value under the precomputed `key`. The default goes
+   * through [[writeField]]; headers use the trusted builder append that skips
+   * the (derivation-time validated) name work but keeps value validation.
+   */
+  protected def writeFieldTrusted(output: Out, key: String, value: String): Unit =
+    writeField(output, key, value)
+
   protected def makeCodec[A](
     encodeFn: (A, Out) => Unit,
     decodeFn: In => Either[SchemaError, A]
@@ -417,15 +452,19 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
     Lazy {
-      val fieldCodecs   = new Array[FieldCodec](fields.length)
-      val fieldKeys     = new Array[String](fields.length)
-      val fieldReflects = new Array[Reflect[F, Any]](fields.length)
-      var index         = 0
+      val fieldCodecs    = new Array[FieldCodec](fields.length)
+      val fieldKeys      = new Array[String](fields.length)
+      val fieldReflects  = new Array[Reflect[F, Any]](fields.length)
+      val fieldReadKeys  = new Array[String](fields.length)
+      val fieldWriteKeys = new Array[String](fields.length)
+      var index          = 0
       while (index < fields.length) {
         val field   = fields(index)
         val wireKey = fieldKey(field.name)
         val top     = D.instance(field.value.metadata).force
         fieldKeys(index) = wireKey
+        fieldReadKeys(index) = readKey(wireKey)
+        fieldWriteKeys(index) = writeKey(wireKey)
         fieldReflects(index) = field.value.asInstanceOf[Reflect[F, Any]]
         fieldCodecs(index) = ParamCodecDeriver.buildFieldCodec(field.value, field.name) match {
           case Right(fast) =>
@@ -494,7 +533,7 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
                   case 8 => ParamPrimitiveCodec.renderShort(registers.getShort(offset))
                   case _ => ParamPrimitiveCodec.renderObject(registers.getObject(offset), scalarPrimitives(idx))
                 }
-                writeField(output, fieldKeys(idx), rendered)
+                writeFieldTrusted(output, fieldWriteKeys(idx), rendered)
               }
               idx += 1
             }
@@ -519,36 +558,35 @@ private[schema] abstract class ParamCodecDeriver[In, Out, TC[A] <: Codec[In, Out
                     failureCount += 1
                 }
               } else {
-                readField(input, key) match {
-                  case Some(values) if values.nonEmpty =>
-                    val raw = values(0)
-                    try {
-                      val offset = scalarOffsets(idx)
-                      (tag: @switch) match {
-                        case 1 => registers.setInt(offset, ParamPrimitiveCodec.parseInt(raw))
-                        case 2 => registers.setLong(offset, ParamPrimitiveCodec.parseLong(raw))
-                        case 3 => registers.setFloat(offset, ParamPrimitiveCodec.parseFloat(raw))
-                        case 4 => registers.setDouble(offset, ParamPrimitiveCodec.parseDouble(raw))
-                        case 5 => registers.setBoolean(offset, ParamPrimitiveCodec.parseBoolean(raw))
-                        case 6 => registers.setByte(offset, ParamPrimitiveCodec.parseByte(raw))
-                        case 7 => registers.setChar(offset, ParamPrimitiveCodec.parseChar(raw))
-                        case 8 => registers.setShort(offset, ParamPrimitiveCodec.parseShort(raw))
-                        case _ =>
-                          registers.setObject(offset, ParamPrimitiveCodec.parseObject(raw, scalarPrimitives(idx)))
-                      }
-                    } catch {
-                      case error: IllegalArgumentException =>
-                        if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
-                        failures(failureCount) = SchemaError.conversionFailed(
-                          List(DynamicOptic.Node.Field(key)),
-                          factory.malformed(key, raw, error.getMessage)
-                        )
-                        failureCount += 1
+                val raw = readFieldFirst(input, fieldReadKeys(idx))
+                if (raw ne null) {
+                  val offset = scalarOffsets(idx)
+                  try {
+                    (tag: @switch) match {
+                      case 1 => registers.setInt(offset, ParamPrimitiveCodec.parseInt(raw))
+                      case 2 => registers.setLong(offset, ParamPrimitiveCodec.parseLong(raw))
+                      case 3 => registers.setFloat(offset, ParamPrimitiveCodec.parseFloat(raw))
+                      case 4 => registers.setDouble(offset, ParamPrimitiveCodec.parseDouble(raw))
+                      case 5 => registers.setBoolean(offset, ParamPrimitiveCodec.parseBoolean(raw))
+                      case 6 => registers.setByte(offset, ParamPrimitiveCodec.parseByte(raw))
+                      case 7 => registers.setChar(offset, ParamPrimitiveCodec.parseChar(raw))
+                      case 8 => registers.setShort(offset, ParamPrimitiveCodec.parseShort(raw))
+                      case _ =>
+                        registers.setObject(offset, ParamPrimitiveCodec.parseObject(raw, scalarPrimitives(idx)))
                     }
-                  case _ =>
-                    if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
-                    failures(failureCount) = SchemaError.missingField(Nil, key)
-                    failureCount += 1
+                  } catch {
+                    case error: IllegalArgumentException =>
+                      if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
+                      failures(failureCount) = SchemaError.conversionFailed(
+                        List(DynamicOptic.Node.Field(key)),
+                        factory.malformed(key, raw, error.getMessage)
+                      )
+                      failureCount += 1
+                  }
+                } else {
+                  if (failures eq null) failures = new Array[SchemaError](fieldRegs.length)
+                  failures(failureCount) = SchemaError.missingField(Nil, key)
+                  failureCount += 1
                 }
               }
               idx += 1

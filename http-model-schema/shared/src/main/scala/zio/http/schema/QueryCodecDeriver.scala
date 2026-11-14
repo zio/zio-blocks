@@ -41,6 +41,23 @@ object QueryCodecDeriver
   protected def writeField(output: QueryParamsBuilder, key: String, value: String): Unit =
     output.add(key, value)
 
+  /**
+   * Scans the entries for `key` without materializing the values `Chunk`: the
+   * same first-value-wins rule as [[QueryParams.get]], with no `Option`
+   * allocation.
+   */
+  override protected def readFieldFirst(input: QueryParams, key: String): String = {
+    var i = 0
+    while (i < input.size) {
+      if (input.keyAt(i) == key) {
+        if (input.valueCountAt(i) > 0) return input.valueAt(i, 0)
+        else return null
+      }
+      i += 1
+    }
+    null
+  }
+
   protected def makeCodec[A](
     encodeFn: (A, QueryParamsBuilder) => Unit,
     decodeFn: QueryParams => Either[SchemaError, A]

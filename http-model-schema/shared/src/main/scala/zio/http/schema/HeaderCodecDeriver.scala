@@ -33,7 +33,14 @@ object HeaderCodecDeriver
       (name, raw, cause) => HeaderError.Malformed(name, raw, cause).message
     ) {
 
-  protected def fieldKey(fieldName: String): String = toHeaderName(fieldName)
+  protected def fieldKey(fieldName: String): String = {
+    val key = toHeaderName(fieldName)
+    // The trusted write path skips per-operation name validation, so every
+    // wire name is checked once here, at derivation time, with the same
+    // exception `HeadersBuilder.add` would throw on every encode.
+    Headers.validateNameOrThrow(key)
+    key
+  }
 
   protected def readField(input: Headers, key: String): Option[Chunk[String]] = {
     val all = input.rawGetAll(key)
@@ -42,6 +49,38 @@ object HeaderCodecDeriver
 
   protected def writeField(output: HeadersBuilder, key: String, value: String): Unit =
     output.add(key, value)
+
+  /**
+   * Precomputes the stored (lower-case) form of the wire name once, so the
+   * per-operation scan never lower-cases. ASCII-only lower-casing matches
+   * `Locale.ROOT` exactly on valid header names, which [[fieldKey]] enforces.
+   */
+  override protected def readKey(fieldKey: String): String = asciiLower(fieldKey)
+
+  override protected def writeKey(fieldKey: String): String = asciiLower(fieldKey)
+
+  /**
+   * Scans the entries for the precomputed lower-cased name without the validate
+   * + lower-case + `Chunk` work of [[Headers.rawGetAll]]: the same
+   * case-insensitive first-value-wins rule, with no allocation.
+   */
+  override protected def readFieldFirst(input: Headers, lowerKey: String): String = {
+    var i = 0
+    while (i < input.size) {
+      if (input.nameAt(i) == lowerKey) return input.rawValueAt(i)
+      i += 1
+    }
+    null
+  }
+
+  /**
+   * Appends via the trusted builder path: the name is the precomputed,
+   * derivation-time validated lower-cased form, so per-operation name
+   * validation and lower-casing are skipped while CR/LF value validation stays.
+   * Emitted names are byte-identical to [[writeField]].
+   */
+  override protected def writeFieldTrusted(output: HeadersBuilder, key: String, value: String): Unit =
+    output.addTrustedName(key, value)
 
   protected def makeCodec[A](
     encodeFn: (A, HeadersBuilder) => Unit,
@@ -90,5 +129,30 @@ object HeaderCodecDeriver
       index += 1
     }
     builder.toString()
+  }
+
+  /**
+   * Lower-cases ASCII upper-case letters, returning the input unchanged when
+   * there is nothing to change. Valid header names hold ASCII token characters
+   * only (enforced by [[fieldKey]] validation), so this matches `Locale.ROOT`
+   * lower-casing exactly, on every platform and locale.
+   */
+  private def asciiLower(name: String): String = {
+    var index = 0
+    while (index < name.length) {
+      val char = name.charAt(index)
+      if (char >= 'A' && char <= 'Z') {
+        val chars = name.toCharArray
+        var j     = index
+        while (j < chars.length) {
+          val c = chars(j)
+          if (c >= 'A' && c <= 'Z') chars(j) = (c + 32).toChar
+          j += 1
+        }
+        return new String(chars)
+      }
+      index += 1
+    }
+    name
   }
 }

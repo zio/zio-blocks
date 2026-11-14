@@ -94,6 +94,25 @@ final class QueryParams private[http] (
   }
 
   /**
+   * Returns the key of the entry at `index`, for trusted same-package scans
+   * that must not allocate. The index must be below [[size]].
+   */
+  private[http] def keyAt(index: Int): String = keys(index)
+
+  /**
+   * Returns how many values the entry at `index` holds, for trusted
+   * same-package scans that must not allocate. The index must be below
+   * [[size]].
+   */
+  private[http] def valueCountAt(index: Int): Int = vals(index).length
+
+  /**
+   * Returns the `valueIndex`-th value of the entry at `index`, for trusted
+   * same-package scans that must not allocate. Both indexes must be in range.
+   */
+  private[http] def valueAt(index: Int, valueIndex: Int): String = vals(index)(valueIndex)
+
+  /**
    * Adds `value` after the existing values of `key`, or adds the key at the end
    * when it is new.
    *
