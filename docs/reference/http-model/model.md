@@ -79,7 +79,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). The artifacts are cross-platform for JVM and Scala.js.
+Supported Scala versions: Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 
@@ -292,11 +292,10 @@ m.toString   // "GET"
 
 `Status` wraps an `Int` HTTP status code with no allocation, and provides predefined constants for the common codes (1xx–5xx). A few codes have no constant, such as 208, 226, 423, 424, 506, 508 and 510; `Status(code).text` is `Unknown` for them.
 
-On Scala 3, `Status` is an opaque type alias for `Int`. On Scala 2.13, it is a value class, and `Status#toString` gives `Status(200)` instead of `200`:
+`Status` is an opaque type over `Int`:
 
 ```scala
-opaque type Status = Int                              // Scala 3
-final case class Status(code: Int) extends AnyVal     // Scala 2.13
+opaque type Status = Int
 ```
 
 ### Predefined Status Codes

@@ -62,9 +62,9 @@ Every module lives under the `dev.zio` organization. Replace `<module>` in the a
 | `config-json`        | JSON source for `config`                                            | JVM · JS  | 2.13 · 3.x |
 | `config-hocon`       | HOCON source for `config`                                           | JVM · JS  | 2.13 · 3.x |
 | `mediatype`          | IANA media types                                                    | JVM · JS  | 2.13 · 3.x |
-| `http-model`         | HTTP data model: URLs, headers, requests, responses                 | JVM · JS  | 2.13 · 3.x |
-| `http-model-schema`  | Schema-based typed access to the HTTP model                         | JVM · JS  | 2.13 · 3.x |
-| `endpoint`           | Typed HTTP endpoint descriptions                                    | JVM · JS  | 2.13 · 3.x |
+| `http-model`         | HTTP data model: URLs, headers, requests, responses                 | JVM · JS  | 3.x        |
+| `http-model-schema`  | Schema-based typed access to the HTTP model                         | JVM · JS  | 3.x        |
+| `endpoint`           | Typed HTTP endpoint descriptions                                    | JVM · JS  | 3.x        |
 | `openapi`            | OpenAPI 3.1 generation                                              | JVM · JS  | 2.13 · 3.x |
 | `html`               | Type-safe HTML templates                                            | JVM · JS  | 2.13 · 3.x |
 | `datastar`           | Datastar attributes, signals, and SSE events                        | JVM · JS  | 3.x        |
@@ -191,7 +191,7 @@ Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi").toJsonStrin
 
 ## Things to Know
 
-- **Scala 3 only.** `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx` have no Scala 2.13 artifacts.
+- **Scala 3 only.** `http-model`, `http-model-schema`, `endpoint`, `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx` have no Scala 2.13 artifacts.
 - **JVM only.** `schema-avro`, `schema-bson`, `schema-thrift`, `codegen`, `smithy`, `telemetry-otel`, `sql-zio`, and `projection` have no Scala.js artifacts. The `sql` module's JDBC classes are also JVM-only.
 - **Third-party dependencies.** Most modules depend only on the Scala standard library. The exceptions are:
 

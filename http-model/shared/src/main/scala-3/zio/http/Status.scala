@@ -22,10 +22,9 @@ package zio.http
  * (`isSuccess`, `isClientError`, ...). Any `Int` is accepted, including codes
  * without a constant and numbers outside 100 to 599; nothing is checked.
  *
- * On Scala 3, `Status` is an opaque type over `Int`, so at run time it is a
- * plain `Int` and `toString` prints the number, `404`. On Scala 2 it is a value
- * class and `toString` prints `Status(404)`. Use `code` or `text` when you need
- * the same string on both.
+ * `Status` is an opaque type over `Int`, so at run time it is a plain `Int` and
+ * `toString` prints the number, `404`. Use `code` or `text` when you need a
+ * stable string representation.
  *
  * {{{
  * val status = Status.NotFound
