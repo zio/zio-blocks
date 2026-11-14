@@ -336,6 +336,7 @@ lazy val root = project
     benchmarks,
     `scope-benchmarks`,
     `sql-benchmarks`,
+    `http-model-schema-benchmarks`,
     `streams-benchmark`,
     docs,
     ringbuffer.jvm,
@@ -1561,6 +1562,8 @@ lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.9.0")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
+  .dependsOn(`http-model`.jvm)
+  .dependsOn(`http-model-schema`.jvm)
   .dependsOn(`schema-avro`)
   .dependsOn(`schema-toon`.jvm)
   .enablePlugins(JmhPlugin)
@@ -1678,6 +1681,25 @@ lazy val `streams-benchmark` = project
     assembly / assemblyMergeStrategy := {
       case x if x.endsWith("module-info.class") => MergeStrategy.discard
       case x if x.contains("reference.conf")    => MergeStrategy.concat
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val `http-model-schema-benchmarks` = project
+  .in(file("http-model-schema-benchmarks"))
+  .settings(stdSettings("zio-blocks-http-model-schema-benchmarks", Seq("3.9.0")))
+  .dependsOn(`http-model-schema`.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    assembly / assemblyJarName       := "http-model-schema-benchmarks.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
       case path                                 => MergeStrategy.defaultMergeStrategy(path)
     },
     assembly / fullClasspath   := (Jmh / fullClasspath).value,
