@@ -36,10 +36,28 @@ object LogFormatterSpec extends ZIOSpecDefault {
     severityText: String,
     body: String,
     builder: Attributes.AttributesBuilder,
+    sourceFile: String = "",
+    sourceFunction: String = "",
+    sourceLine: Int = 0,
     throwable: Option[Throwable] = None
   ): String = {
     val sb = new StringBuilder
-    TextLogFormatter.format(sb, timestampNanos, severity, severityText, body, builder, 0L, 0L, 0L, 0.toByte, throwable)
+    TextLogFormatter.format(
+      sb,
+      timestampNanos,
+      severity,
+      severityText,
+      body,
+      sourceFile,
+      sourceFunction,
+      sourceLine,
+      builder,
+      0L,
+      0L,
+      0L,
+      0.toByte,
+      throwable
+    )
     sb.toString
   }
 
@@ -58,6 +76,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
     traceIdHi: Long = 0L,
     traceIdLo: Long = 0L,
     spanId: Long = 0L,
+    sourceFile: String = "",
+    sourceFunction: String = "",
+    sourceLine: Int = 0,
     throwable: Option[Throwable] = None
   ): String = {
     val sb = new StringBuilder
@@ -67,6 +88,9 @@ object LogFormatterSpec extends ZIOSpecDefault {
       severity,
       severityText,
       body,
+      sourceFile,
+      sourceFunction,
+      sourceLine,
       builder,
       traceIdHi,
       traceIdLo,
@@ -92,23 +116,26 @@ object LogFormatterSpec extends ZIOSpecDefault {
     traceIdHi: Long = 0L,
     traceIdLo: Long = 0L,
     spanId: Long = 0L,
+    sourceFile: String = "",
+    sourceFunction: String = "",
+    sourceLine: Int = 0,
     throwable: Option[Throwable] = None
   ): LogRecord =
-    LogRecord(
-      timestampNanos = timestampNanos,
-      observedTimestampNanos = timestampNanos,
-      severity = severity,
-      severityText = severityText,
-      body = LogMessage.Simple(body),
-      attributes = attributes,
-      traceIdHi = traceIdHi,
-      traceIdLo = traceIdLo,
-      spanId = spanId,
-      traceFlags = 0.toByte,
-      resource = Resource.empty,
-      instrumentationScope = InstrumentationScope("test"),
-      throwable = throwable
-    )
+    LogRecord.builder
+      .setTimestamp(timestampNanos)
+      .setObservedTimestamp(timestampNanos)
+      .setSeverity(severity)
+      .setBody(LogMessage.Simple(body))
+      .setSourceFile(sourceFile)
+      .setSourceFunction(sourceFunction)
+      .setSourceLine(sourceLine)
+      .addAttributes(attributes)
+      .setTraceId(traceIdHi, traceIdLo)
+      .setSpanId(spanId)
+      .setThrowable(throwable)
+      .setResource(Resource.empty)
+      .setInstrumentationScope(InstrumentationScope("test"))
+      .build
 
   private def countOccurrences(haystack: String, needle: String): Int = {
     var count = 0
@@ -153,26 +180,41 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val timestamp3 = 1719792601123000000L
         val throwable  = new IllegalArgumentException("boom")
         val builder    = Attributes.builder
-          .put("code.file.path", "Service.scala")
-          .put("code.function.name", "com.example.Service.run")
-          .put("code.line.number", 42L)
           .put("user.string", "value")
           .put("user.long", 7L)
           .put("user.double", 3.5)
           .put("user.bool", true)
           .put("user.unknown", "ignored")
 
-        builder.builderTypes(7) = 99.toByte
+        builder.builderTypes(4) = 99.toByte
 
         setTextFormatterCache(Long.MinValue, "stale-prefix-")
 
-        val rendered1     = renderText(timestamp1, Severity.Info, "INFO", "hello", builder, Some(throwable))
+        val sourceFile     = "Service.scala"
+        val sourceFunction = "com.example.Service.run"
+        val sourceLine     = 42
+        val rendered1      =
+          renderText(
+            timestamp1,
+            Severity.Info,
+            "INFO",
+            "hello",
+            builder,
+            sourceFile,
+            sourceFunction,
+            sourceLine,
+            Some(
+              throwable
+            )
+          )
         val cachedSecond1 = cachedTextFormatterSecond
         val cachedPrefix1 = cachedTextFormatterPrefix
-        val rendered2     = renderText(timestamp2, Severity.Info, "INFO", "hello-again", builder)
+        val rendered2     =
+          renderText(timestamp2, Severity.Info, "INFO", "hello-again", builder, sourceFile, sourceFunction, sourceLine)
         val cachedSecond2 = cachedTextFormatterSecond
         val cachedPrefix2 = cachedTextFormatterPrefix
-        val rendered3     = renderText(timestamp3, Severity.Info, "INFO", "next-second", builder)
+        val rendered3     =
+          renderText(timestamp3, Severity.Info, "INFO", "next-second", builder, sourceFile, sourceFunction, sourceLine)
         val cachedSecond3 = cachedTextFormatterSecond
         val cachedPrefix3 = cachedTextFormatterPrefix
 
@@ -204,11 +246,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("handles a dotless function name with exact-width severity and no user attributes") {
         val timestamp = 1719792602123000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "OnlyPath.scala")
-          .put("code.function.name", "go")
-          .put("code.line.number", 7L)
 
-        val rendered = renderText(timestamp, Severity.Error, "ERROR", "plain", builder)
+        val rendered = renderText(timestamp, Severity.Error, "ERROR", "plain", builder, "OnlyPath.scala", "go", 7)
 
         assertTrue(
           rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR plain [go] OnlyPath.scala:7"),
@@ -219,27 +258,22 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("handles a two-segment function name") {
         val timestamp = 1719792602323000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "Root.scala")
-          .put("code.function.name", "RootService.go")
-          .put("code.line.number", 3L)
 
-        val rendered = renderText(timestamp, Severity.Info, "INFO", "dotless", builder)
+        val rendered =
+          renderText(timestamp, Severity.Info, "INFO", "dotless", builder, "Root.scala", "RootService.go", 3)
 
         assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  dotless [RootService.go] Root.scala:3"))
       },
       test("renders all seq attribute types and an empty seq inline") {
         val timestamp = 1719792602523000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "Seqs.scala")
-          .put("code.function.name", "Seqs.go")
-          .put("code.line.number", 1L)
           .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
           .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
           .put(AttributeKey.doubleSeq("rates"), Seq(1.5, 2.5))
           .put(AttributeKey.booleanSeq("flags"), Seq(true, false))
           .put(AttributeKey.stringSeq("empty"), Seq.empty[String])
 
-        val rendered = renderText(timestamp, Severity.Info, "INFO", "seqs", builder)
+        val rendered = renderText(timestamp, Severity.Info, "INFO", "seqs", builder, "Seqs.scala", "Seqs.go", 1)
 
         assertTrue(
           rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  seqs [Seqs.go] Seqs.scala:1 {"),
@@ -253,13 +287,11 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("escapes quotes, backslashes, and line breaks in text string values") {
         val timestamp = 1719792602723000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "Escape.scala")
-          .put("code.function.name", "Escape.go")
-          .put("code.line.number", 1L)
           .put("quote", "say \"hi\"\nbye\\done")
           .put(AttributeKey.stringSeq("tags"), Seq("a\"b", "c\nd"))
 
-        val rendered = renderText(timestamp, Severity.Info, "INFO", "escaped", builder)
+        val rendered =
+          renderText(timestamp, Severity.Info, "INFO", "escaped", builder, "Escape.scala", "Escape.go", 1)
 
         assertTrue(
           rendered.contains("quote=\"say \\\"hi\\\"\\nbye\\\\done\""),
@@ -273,9 +305,6 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val timestamp2 = 1719792603456000000L
         val throwable  = new RuntimeException("record boom")
         val attrs      = Attributes.builder
-          .put("code.file.path", "Standalone.scala")
-          .put("code.function.name", "Standalone.act")
-          .put("code.line.number", 9L)
           .put("user.string", "value")
           .put("user.long", 1L)
           .put("user.double", 2.5)
@@ -283,9 +312,30 @@ object LogFormatterSpec extends ZIOSpecDefault {
           .build
 
         val rendered1 = renderTextRecord(
-          logRecord(timestamp1, Severity.Warn, "WARN", "record message", attrs, throwable = Some(throwable))
+          logRecord(
+            timestamp1,
+            Severity.Warn,
+            "WARN",
+            "record message",
+            attrs,
+            sourceFile = "Standalone.scala",
+            sourceFunction = "Standalone.act",
+            sourceLine = 9,
+            throwable = Some(throwable)
+          )
         )
-        val rendered2 = renderTextRecord(logRecord(timestamp2, Severity.Warn, "WARN", "record message 2", attrs))
+        val rendered2 = renderTextRecord(
+          logRecord(
+            timestamp2,
+            Severity.Warn,
+            "WARN",
+            "record message 2",
+            attrs,
+            sourceFile = "Standalone.scala",
+            sourceFunction = "Standalone.act",
+            sourceLine = 9
+          )
+        )
 
         assertTrue(
           rendered1.startsWith(
@@ -309,12 +359,11 @@ object LogFormatterSpec extends ZIOSpecDefault {
       },
       test("handles empty source data with no throwable and no user attributes") {
         val timestamp = 1719792604123000000L
-        val attrs     = Attributes.builder
-          .put("code.function.name", "")
-          .put("code.file.path", "OnlyPath.scala")
-          .build
+        val attrs     = Attributes.builder.build
 
-        val rendered = renderTextRecord(logRecord(timestamp, Severity.Error, "ERROR", "bare", attrs))
+        val rendered = renderTextRecord(
+          logRecord(timestamp, Severity.Error, "ERROR", "bare", attrs, sourceFile = "OnlyPath.scala")
+        )
 
         assertTrue(
           rendered.startsWith(s"${expectedTimestamp(timestamp)} ERROR bare OnlyPath.scala"),
@@ -323,26 +372,25 @@ object LogFormatterSpec extends ZIOSpecDefault {
           !rendered.contains("\njava.")
         )
       },
-      test("omits the line number when code.line.number is zero") {
+      test("omits the line number when the source line is zero") {
         val timestamp = 1719792604323000000L
-        val attrs     = Attributes.builder
-          .put("code.function.name", "Standalone.act")
-          .put("code.line.number", 0L)
-          .build
+        val attrs     = Attributes.builder.build
 
-        val rendered = renderTextRecord(logRecord(timestamp, Severity.Warn, "WARN", "no line", attrs))
+        val rendered = renderTextRecord(
+          logRecord(timestamp, Severity.Warn, "WARN", "no line", attrs, sourceFunction = "Standalone.act")
+        )
 
         assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} WARN  no line [Standalone.act]"))
       },
       test("escapes quotes and line breaks in record string values") {
         val timestamp = 1719792604523000000L
         val attrs     = Attributes.builder
-          .put("code.function.name", "Escape.go")
-          .put("code.line.number", 1L)
           .put("quote", "say \"hi\"\nbye")
           .build
 
-        val rendered = renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "escaped", attrs))
+        val rendered = renderTextRecord(
+          logRecord(timestamp, Severity.Info, "INFO", "escaped", attrs, sourceFunction = "Escape.go", sourceLine = 1)
+        )
 
         assertTrue(rendered.contains("quote=\"say \\\"hi\\\"\\nbye\""))
       }
@@ -583,9 +631,6 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("text format and formatRecord are byte-identical") {
         val timestamp = 1719792612123000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "Service.scala")
-          .put("code.function.name", "com.example.Service.run")
-          .put("code.line.number", 42L)
           .put("code.reviewer", "ada")
           .put("user.string", "value")
           .put("user.long", 7L)
@@ -594,9 +639,29 @@ object LogFormatterSpec extends ZIOSpecDefault {
           .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
           .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+        val viaBuilder = renderText(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "hello",
+          builder,
+          "Service.scala",
+          "com.example.Service.run",
+          42
+        )
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "Service.scala",
+              sourceFunction = "com.example.Service.run",
+              sourceLine = 42
+            )
+          )
 
         val expected =
           s"${expectedTimestamp(timestamp)} INFO  hello [Service.run] Service.scala:42 " +
@@ -675,14 +740,23 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val evilKey   = "evil\nkey\"with=sign"
         val body      = "line1\nline2\r\nline3"
         val builder   = Attributes.builder
-          .put("code.file.path", "Forge.scala")
-          .put("code.function.name", "Forge.go")
-          .put("code.line.number", 1L)
           .put(evilKey, "v")
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", body, builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", body, builder.build))
+        val viaBuilder =
+          renderText(timestamp, Severity.Info, "INFO", body, builder, "Forge.scala", "Forge.go", 1)
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              body,
+              builder.build,
+              sourceFile = "Forge.scala",
+              sourceFunction = "Forge.go",
+              sourceLine = 1
+            )
+          )
 
         assertTrue(
           viaBuilder == viaRecord,
@@ -693,7 +767,10 @@ object LogFormatterSpec extends ZIOSpecDefault {
           viaBuilder.contains("line1\\nline2\\r\\nline3 [Forge.go] Forge.scala:1 {")
         )
       },
-      test("String-typed code.line.number feeds the location prefix on both paths") {
+      test("String-typed code.line.number stays an ordinary user attribute on both paths") {
+        // Source metadata and user attributes are separate: a user attribute
+        // named code.line.number never feeds the location prefix, even when it
+        // parses as a number. The location prefix comes from source fields only.
         val timestamp = 1719792614323000000L
         val builder   = Attributes.builder
           .put("code.file.path", "WrongType.scala")
@@ -706,9 +783,10 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           viaBuilder == viaRecord,
-          viaBuilder.contains("hello [WrongType.go] WrongType.scala:42"),
-          viaBuilder.contains("WrongType.scala:42"),
-          !viaBuilder.contains("code.line.number=")
+          viaBuilder == s"${expectedTimestamp(timestamp)} INFO  hello " +
+            "{code.file.path=\"WrongType.scala\", code.function.name=\"WrongType.go\", code.line.number=\"42\"}",
+          !viaBuilder.contains("[WrongType.go]"),
+          !viaBuilder.contains("WrongType.scala:42")
         )
       },
       test("unparseable String-typed code.line.number stays visible instead of being dropped") {
@@ -723,8 +801,8 @@ object LogFormatterSpec extends ZIOSpecDefault {
 
         assertTrue(
           viaBuilder == viaRecord,
-          viaBuilder.contains("hello [WrongType.go] {"),
-          viaBuilder.contains("code.line.number=\"not-a-number\"")
+          viaBuilder == s"${expectedTimestamp(timestamp)} INFO  hello " +
+            "{code.function.name=\"WrongType.go\", code.line.number=\"not-a-number\"}"
         )
       }
     ),
@@ -759,14 +837,32 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders the approved message-first layout with separate function and contiguous path:line") {
         val timestamp = 1719792616123000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "/captured/path/PaymentService.scala")
-          .put("code.function.name", "com.example.PaymentService.handle")
-          .put("code.line.number", 42L)
           .put("user", "ada")
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "Payment authorized", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "Payment authorized", builder.build))
+        val viaBuilder =
+          renderText(
+            timestamp,
+            Severity.Info,
+            "INFO",
+            "Payment authorized",
+            builder,
+            "/captured/path/PaymentService.scala",
+            "com.example.PaymentService.handle",
+            42
+          )
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "Payment authorized",
+              builder.build,
+              sourceFile = "/captured/path/PaymentService.scala",
+              sourceFunction = "com.example.PaymentService.handle",
+              sourceLine = 42
+            )
+          )
 
         val expected =
           s"${expectedTimestamp(timestamp)} INFO  Payment authorized " +
@@ -782,11 +878,12 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders path only when function and line are absent") {
         val timestamp = 1719792616223000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "only/Path.scala")
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, "only/Path.scala", "", 0)
         val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+          renderTextRecord(
+            logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build, sourceFile = "only/Path.scala")
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello only/Path.scala"
 
@@ -800,13 +897,21 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders path without a line and keeps the compact function free of a duplicated line") {
         val timestamp = 1719792616323000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "svc/Service.scala")
-          .put("code.function.name", "com.example.Svc.go")
-          .put("code.line.number", 0L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+        val viaBuilder =
+          renderText(timestamp, Severity.Info, "INFO", "hello", builder, "svc/Service.scala", "com.example.Svc.go", 0)
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "svc/Service.scala",
+              sourceFunction = "com.example.Svc.go"
+            )
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] svc/Service.scala"
 
@@ -820,12 +925,20 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders path:line without a function bracket when the function is absent") {
         val timestamp = 1719792616423000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "svc/Job.scala")
-          .put("code.line.number", 9L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, "svc/Job.scala", "", 9)
         val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "svc/Job.scala",
+              sourceLine = 9
+            )
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello svc/Job.scala:9"
 
@@ -839,12 +952,21 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("falls back to compact function:line without a path") {
         val timestamp = 1719792616523000000L
         val builder   = Attributes.builder
-          .put("code.function.name", "com.example.Svc.doWork")
-          .put("code.line.number", 42L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+        val viaBuilder =
+          renderText(timestamp, Severity.Info, "INFO", "hello", builder, "", "com.example.Svc.doWork", 42)
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFunction = "com.example.Svc.doWork",
+              sourceLine = 42
+            )
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.doWork:42]"
 
@@ -857,11 +979,12 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders the function alone without a line when the line is absent") {
         val timestamp = 1719792616623000000L
         val builder   = Attributes.builder
-          .put("code.function.name", "RootService.go")
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, "", "RootService.go", 0)
         val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+          renderTextRecord(
+            logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build, sourceFunction = "RootService.go")
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello [RootService.go]"
 
@@ -874,11 +997,12 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("renders a bare line label when only the line is present") {
         val timestamp = 1719792616723000000L
         val builder   = Attributes.builder
-          .put("code.line.number", 42L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, "", "", 42)
         val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+          renderTextRecord(
+            logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build, sourceLine = 42)
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  hello [line:42]"
 
@@ -909,13 +1033,22 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("keeps spacing clean with an empty body and a location") {
         val timestamp = 1719792616923000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "a/B.scala")
-          .put("code.function.name", "com.example.Svc.go")
-          .put("code.line.number", 3L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "", builder.build))
+        val viaBuilder =
+          renderText(timestamp, Severity.Info, "INFO", "", builder, "a/B.scala", "com.example.Svc.go", 3)
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "",
+              builder.build,
+              sourceFile = "a/B.scala",
+              sourceFunction = "com.example.Svc.go",
+              sourceLine = 3
+            )
+          )
 
         val expected = s"${expectedTimestamp(timestamp)} INFO  [Svc.go] a/B.scala:3"
 
@@ -925,40 +1058,67 @@ object LogFormatterSpec extends ZIOSpecDefault {
           viaBuilder == viaRecord
         )
       },
-      test("hides a Double-typed code.line.number instead of rendering it") {
+      test("a Double-typed code.line.number user attribute never feeds the location") {
+        // The location prefix comes from the Int source field only. A user
+        // attribute that merely shares the canonical key renders as an
+        // ordinary attribute instead of vanishing.
         val timestamp = 1719792617023000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "s/S.scala")
-          .put("code.function.name", "com.example.Svc.go")
           .put("code.line.number", 42.5)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+        val viaBuilder =
+          renderText(timestamp, Severity.Info, "INFO", "hello", builder, "s/S.scala", "com.example.Svc.go", 0)
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "s/S.scala",
+              sourceFunction = "com.example.Svc.go"
+            )
+          )
 
-        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] s/S.scala"
+        val expected = s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] s/S.scala {code.line.number=42.5}"
 
         assertTrue(
           viaBuilder == expected,
           viaRecord == expected,
-          viaBuilder == viaRecord,
-          !viaBuilder.contains("code.line.number"),
-          !viaBuilder.contains("42.5")
+          viaBuilder == viaRecord
         )
       },
       test("orders the throwable after body, location, and attributes") {
         val timestamp = 1719792617123000000L
         val throwable = new IllegalArgumentException("boom")
         val builder   = Attributes.builder
-          .put("code.file.path", "Service.scala")
-          .put("code.function.name", "com.example.Service.run")
-          .put("code.line.number", 42L)
           .put("user", "ada")
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder, Some(throwable))
-        val viaRecord  =
+        val viaBuilder = renderText(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "hello",
+          builder,
+          "Service.scala",
+          "com.example.Service.run",
+          42,
+          Some(throwable)
+        )
+        val viaRecord =
           renderTextRecord(
-            logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build, throwable = Some(throwable))
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "Service.scala",
+              sourceFunction = "com.example.Service.run",
+              sourceLine = 42,
+              throwable = Some(throwable)
+            )
           )
 
         val prefix =
@@ -975,13 +1135,30 @@ object LogFormatterSpec extends ZIOSpecDefault {
       test("preserves Windows backslash separators literally in path:line") {
         val timestamp = 1719792617323000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "C:\\work\\src\\PaymentService.scala")
-          .put("code.function.name", "com.example.PaymentService.handle")
-          .put("code.line.number", 42L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "Payment authorized", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "Payment authorized", builder.build))
+        val viaBuilder = renderText(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "Payment authorized",
+          builder,
+          "C:\\work\\src\\PaymentService.scala",
+          "com.example.PaymentService.handle",
+          42
+        )
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "Payment authorized",
+              builder.build,
+              sourceFile = "C:\\work\\src\\PaymentService.scala",
+              sourceFunction = "com.example.PaymentService.handle",
+              sourceLine = 42
+            )
+          )
 
         val expected =
           s"${expectedTimestamp(timestamp)} INFO  Payment authorized " +
@@ -1000,13 +1177,31 @@ object LogFormatterSpec extends ZIOSpecDefault {
         // a navigable path once escaped — this asserts the safe rendering.
         val timestamp = 1719792617223000000L
         val builder   = Attributes.builder
-          .put("code.file.path", "a/b\r\nEvil.scala")
-          .put("code.function.name", "com.example.Evil\nMethod")
-          .put("code.line.number", 3L)
 
-        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
-        val viaRecord  =
-          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+        val viaBuilder =
+          renderText(
+            timestamp,
+            Severity.Info,
+            "INFO",
+            "hello",
+            builder,
+            "a/b\r\nEvil.scala",
+            "com.example.Evil\nMethod",
+            3
+          )
+        val viaRecord =
+          renderTextRecord(
+            logRecord(
+              timestamp,
+              Severity.Info,
+              "INFO",
+              "hello",
+              builder.build,
+              sourceFile = "a/b\r\nEvil.scala",
+              sourceFunction = "com.example.Evil\nMethod",
+              sourceLine = 3
+            )
+          )
 
         val expected =
           s"${expectedTimestamp(timestamp)} INFO  hello " +
@@ -1037,6 +1232,153 @@ object LogFormatterSpec extends ZIOSpecDefault {
         JsonLogFormatter.writeJsonStringContent(sb, input)
 
         assertTrue(sb.toString == "a\\ud800b\\udfffc")
+      }
+    ),
+    suite("canonical source collision policy")(
+      test("text builder path suppresses colliding user keys only when that source field is present") {
+        val timestamp = 1719792618123000000L
+        val builder   = Attributes.builder
+          .put("code.file.path", "user-file.scala")
+          .put("code.function.name", "user.Function.run")
+          .put("code.line.number", 1L)
+          .put("user", "ada")
+
+        // Source file and line present, source function absent: only the
+        // matching user keys are suppressed; user code.function.name renders.
+        val rendered = renderText(timestamp, Severity.Info, "INFO", "hello", builder, "src/S.scala", "", 9)
+
+        assertTrue(
+          rendered == s"${expectedTimestamp(timestamp)} INFO  hello src/S.scala:9 " +
+            "{code.function.name=\"user.Function.run\", user=\"ada\"}"
+        )
+      },
+      test("text record path emits each canonical key exactly once") {
+        val timestamp = 1719792618223000000L
+        val attrs     = Attributes.builder
+          .put("code.file.path", "user-file.scala")
+          .put("code.function.name", "user.Function.run")
+          .put("code.line.number", 1L)
+          .put("user", "ada")
+          .build
+        val rendered = renderTextRecord(
+          logRecord(
+            timestamp,
+            Severity.Info,
+            "INFO",
+            "hello",
+            attrs,
+            sourceFile = "src/S.scala",
+            sourceFunction = "pkg.Svc.go",
+            sourceLine = 9
+          )
+        )
+
+        assertTrue(
+          rendered == s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] src/S.scala:9 {user=\"ada\"}",
+          countOccurrences(rendered, "code.file.path") == 0,
+          countOccurrences(rendered, "code.function.name") == 0,
+          countOccurrences(rendered, "code.line.number") == 0
+        )
+      },
+      test("json builder path writes canonical source first, then user attributes") {
+        val timestamp = 1719792618323000000L
+        val builder   = Attributes.builder
+          .put("code.function.name", "user.Function.run")
+          .put("user", "ada")
+
+        val rendered = renderJson(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "hello",
+          builder,
+          sourceFile = "src/S.scala",
+          sourceFunction = "pkg.Svc.go",
+          sourceLine = 9
+        )
+
+        assertTrue(
+          rendered ==
+            "{\"timeUnixNano\":\"1719792618323000000\",\"severityNumber\":9,\"severityText\":\"INFO\"," +
+            "\"body\":{\"stringValue\":\"hello\"}," +
+            "\"attributes\":[" +
+            "{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"src/S.scala\"}}," +
+            "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"pkg.Svc.go\"}}," +
+            "{\"key\":\"code.line.number\",\"value\":{\"intValue\":\"9\"}}," +
+            "{\"key\":\"user\",\"value\":{\"stringValue\":\"ada\"}}]}"
+        )
+      },
+      test("json record path emits each canonical key exactly once") {
+        val timestamp = 1719792618423000000L
+        val attrs     = Attributes.builder
+          .put("code.file.path", "user-file.scala")
+          .put("code.line.number", 1L)
+          .put("user", "ada")
+          .build
+        val rendered = renderTextRecord(
+          logRecord(
+            timestamp,
+            Severity.Info,
+            "INFO",
+            "hello",
+            attrs,
+            sourceFile = "src/S.scala",
+            sourceFunction = "pkg.Svc.go",
+            sourceLine = 9
+          )
+        )
+
+        assertTrue(
+          rendered == s"${expectedTimestamp(timestamp)} INFO  hello [Svc.go] src/S.scala:9 {user=\"ada\"}"
+        )
+      },
+      test("json record path with source writes canonical attributes before user attributes") {
+        val timestamp = 1719792618523000000L
+        val attrs     = Attributes.builder
+          .put("code.file.path", "user-file.scala")
+          .put("user", "ada")
+          .build
+        val rendered = renderJsonRecord(
+          logRecord(
+            timestamp,
+            Severity.Warn,
+            "WARN",
+            "hello",
+            attrs,
+            sourceFile = "src/S.scala",
+            sourceFunction = "pkg.Svc.go",
+            sourceLine = 9
+          )
+        )
+
+        assertTrue(
+          rendered ==
+            "{\"timeUnixNano\":\"1719792618523000000\",\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"hello\"}," +
+            "\"attributes\":[" +
+            "{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"src/S.scala\"}}," +
+            "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"pkg.Svc.go\"}}," +
+            "{\"key\":\"code.line.number\",\"value\":{\"intValue\":\"9\"}}," +
+            "{\"key\":\"user\",\"value\":{\"stringValue\":\"ada\"}}]}"
+        )
+      },
+      test("json record path passes user canonical keys through when source is absent") {
+        val timestamp = 1719792618623000000L
+        val attrs     = Attributes.builder
+          .put("code.function.name", "external.Function.run")
+          .put("user", "ada")
+          .build
+        val rendered =
+          renderJsonRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", attrs))
+
+        assertTrue(
+          rendered ==
+            "{\"timeUnixNano\":\"1719792618623000000\",\"severityNumber\":9,\"severityText\":\"INFO\"," +
+            "\"body\":{\"stringValue\":\"hello\"}," +
+            "\"attributes\":[" +
+            "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"external.Function.run\"}}," +
+            "{\"key\":\"user\",\"value\":{\"stringValue\":\"ada\"}}]}"
+        )
       }
     )
   ) @@ TestAspect.sequential

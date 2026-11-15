@@ -122,6 +122,42 @@ final class Attributes private (
   }
 
   /**
+   * Looks up a raw attribute by name, returning None if not found. Last write
+   * wins, mirroring `get`. Used by `LogRecord.attribute(String)` so user
+   * attributes (including keys that collide with canonical source keys) stay
+   * readable without exposing this container publicly.
+   */
+  private[telemetry] def findRaw(key: String): Option[AttributeValue] = {
+    var i = len - 1
+    while (i >= 0) {
+      if (keys(i) == key) return Some(valueAt(i))
+      i -= 1
+    }
+    None
+  }
+
+  private def valueAt(i: Int): AttributeValue =
+    types(i) match {
+      case T_STRING     => AttributeValue.StringValue(strings(i))
+      case T_LONG       => AttributeValue.LongValue(longs(i))
+      case T_DOUBLE     => AttributeValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
+      case T_BOOLEAN    => AttributeValue.BooleanValue(longs(i) != 0L)
+      case T_STRING_SEQ =>
+        if (seqs != null && seqs(i) != null) AttributeValue.StringSeqValue(seqs(i).asInstanceOf[Seq[String]])
+        else AttributeValue.StringSeqValue(Seq.empty)
+      case T_LONG_SEQ =>
+        if (seqs != null && seqs(i) != null) AttributeValue.LongSeqValue(seqs(i).asInstanceOf[Seq[Long]])
+        else AttributeValue.LongSeqValue(Seq.empty)
+      case T_DOUBLE_SEQ =>
+        if (seqs != null && seqs(i) != null) AttributeValue.DoubleSeqValue(seqs(i).asInstanceOf[Seq[Double]])
+        else AttributeValue.DoubleSeqValue(Seq.empty)
+      case T_BOOLEAN_SEQ =>
+        if (seqs != null && seqs(i) != null) AttributeValue.BooleanSeqValue(seqs(i).asInstanceOf[Seq[Boolean]])
+        else AttributeValue.BooleanSeqValue(Seq.empty)
+      case _ => AttributeValue.StringValue("")
+    }
+
+  /**
    * Calls the `visitor` method that matches each entry's value type, in
    * insertion order, passing `Long`, `Double` and `Boolean` values unboxed. An
    * entry whose `Seq` method the visitor does not override is skipped.
@@ -166,26 +202,7 @@ final class Attributes private (
   def foreach(f: (String, AttributeValue) => Unit): Unit = {
     var i = 0
     while (i < len) {
-      val value: AttributeValue = types(i) match {
-        case T_STRING     => AttributeValue.StringValue(strings(i))
-        case T_LONG       => AttributeValue.LongValue(longs(i))
-        case T_DOUBLE     => AttributeValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
-        case T_BOOLEAN    => AttributeValue.BooleanValue(longs(i) != 0L)
-        case T_STRING_SEQ =>
-          if (seqs != null && seqs(i) != null) AttributeValue.StringSeqValue(seqs(i).asInstanceOf[Seq[String]])
-          else AttributeValue.StringSeqValue(Seq.empty)
-        case T_LONG_SEQ =>
-          if (seqs != null && seqs(i) != null) AttributeValue.LongSeqValue(seqs(i).asInstanceOf[Seq[Long]])
-          else AttributeValue.LongSeqValue(Seq.empty)
-        case T_DOUBLE_SEQ =>
-          if (seqs != null && seqs(i) != null) AttributeValue.DoubleSeqValue(seqs(i).asInstanceOf[Seq[Double]])
-          else AttributeValue.DoubleSeqValue(Seq.empty)
-        case T_BOOLEAN_SEQ =>
-          if (seqs != null && seqs(i) != null) AttributeValue.BooleanSeqValue(seqs(i).asInstanceOf[Seq[Boolean]])
-          else AttributeValue.BooleanSeqValue(Seq.empty)
-        case _ => AttributeValue.StringValue("")
-      }
-      f(keys(i), value)
+      f(keys(i), valueAt(i))
       i += 1
     }
   }

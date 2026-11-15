@@ -41,6 +41,9 @@ trait LogFormatter {
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
@@ -79,51 +82,19 @@ trait LogFormatter {
  * different seconds at the same moment, a line can carry the date and time of
  * the other record, down to the second.
  *
- * String attribute values render double-quoted. A value containing `"`, `\`, or
- * a line break would otherwise blur where the value ends, so those characters
- * are backslash-escaped (`\"`, `\\`, `\n`, `\r`, `\t`) — in both scalar strings
- * and string-seq elements, on both entry points.
- */ Location file/function text
- * escapes CR, LF, tab, and other control characters while leaving everything
- * else literal — including `\`, so Windows `C:\...` separators survive intact —
- * and normal path separators and spaces untouched.
+ * Source metadata comes from dedicated fields — never from scanning user
+ * attributes. String attribute values render double-quoted. A value containing
+ * `"`, `\`, or a line break would otherwise blur where the value ends, so those
+ * characters are backslash-escaped (`\"`, `\\`, `\n`, `\r`, `\t`) — in both
+ * scalar strings and string-seq elements, on both entry points. Location
+ * file/function text escapes CR, LF, tab, and other control characters while
+ * leaving everything else literal — including `\`, so Windows `C:\...`
+ * separators survive intact — and normal path separators and spaces untouched.
  */
 object TextLogFormatter extends LogFormatter {
 
   @volatile private var cachedSecond: Long   = 0L
   @volatile private var cachedPrefix: String = ""
-
-  /**
-   * Exact canonical location keys emitted by the logging macros
-   * (`code.file.path`, `code.function.name`, `code.line.number` — the stable
-   * OpenTelemetry code attributes). Any other `code.*` key is a user attribute
-   * and must stay visible. Prefix matching would over-delete those.
-   */
-  private[telemetry] def isCodeKey(key: String): Boolean =
-    key == SourceLocation.CodeFilePath || key == SourceLocation.CodeFunctionName ||
-      key == SourceLocation.CodeLineNumber
-
-  /**
-   * Builder-path visibility: canonical code.* keys are consumed into the
-   * location prefix and hidden — except a String-typed `code.line.number` that
-   * did not parse as a number, which stays visible instead of being silently
-   * dropped (same rule as the record path below).
-   */
-  private def showAsUserAttr(key: String, tpe: Byte, str: String): Boolean =
-    if (!isCodeKey(key)) true
-    else
-      key == SourceLocation.CodeLineNumber && tpe == 0 &&
-      (str == null || str.toLongOption.isEmpty)
-
-  /**
-   * Record-path visibility for String attributes: mirrors `showAsUserAttr` for
-   * the `code.line.number`-as-String case handled in `formatRecord`.
-   */
-  private[telemetry] def showRecordStringAsUserAttr(key: String, value: String): Boolean =
-    if (!isCodeKey(key)) true
-    else
-      key == SourceLocation.CodeLineNumber &&
-      (value == null || value.toLongOption.isEmpty)
 
   override def format(
     sb: StringBuilder,
@@ -131,41 +102,76 @@ object TextLogFormatter extends LogFormatter {
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
     spanId: Long,
     traceFlags: Byte,
     throwable: Option[Throwable]
+  ): Unit =
+    appendRecordText(
+      sb,
+      timestampNanos,
+      severityText,
+      body,
+      sourceFile,
+      sourceFunction,
+      sourceLine,
+      builder.builderKeys,
+      builder.builderTypes,
+      builder.builderLongs,
+      builder.builderStrings,
+      builder.builderSeqs,
+      builder.builderLen,
+      throwable
+    )
+
+  override def formatRecord(sb: StringBuilder, record: LogRecord): Unit = {
+    val attrs = record.userAttributes
+    appendRecordText(
+      sb,
+      record.timestampNanos,
+      record.severityText,
+      record.body.value,
+      record.sourceFile,
+      record.sourceFunction,
+      record.sourceLine,
+      attrs.keys,
+      attrs.types,
+      attrs.longs,
+      attrs.strings,
+      attrs.seqs,
+      attrs.len,
+      record.throwable
+    )
+  }
+
+  /**
+   * Shared text rendering core for the builder path, the retained-record path,
+   * and the stdout processor: head, body, source location from dedicated
+   * fields, raw user attributes, throwable. No boxing, no callbacks, no
+   * per-record allocations beyond what the caller owns.
+   */
+  private def appendRecordText(
+    sb: StringBuilder,
+    timestampNanos: Long,
+    severityText: String,
+    body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
+    keys: Array[String],
+    types: Array[Byte],
+    longs: Array[Long],
+    strings: Array[String],
+    seqs: Array[AnyRef],
+    len: Int,
+    throwable: Option[Throwable]
   ): Unit = {
     renderHead(sb, timestampNanos, severityText)
-
-    // Source location — matched by key over all slots. The macro path always
-    // writes the three code.* attributes first, but direct Logger calls never
-    // write them, so position-based matching would misread user attributes.
-    // The captured file path is preserved exactly as emitted at compile time.
-    val keys    = builder.builderKeys
-    val types   = builder.builderTypes
-    val longs   = builder.builderLongs
-    val strings = builder.builderStrings
-    val len     = builder.builderLen
-
-    var filePath     = ""
-    var functionName = ""
-    var lineNo       = 0L
-    var i            = 0
-    while (i < len) {
-      keys(i) match {
-        case SourceLocation.CodeFilePath     => if (strings(i) != null) filePath = strings(i)
-        case SourceLocation.CodeFunctionName => if (strings(i) != null) functionName = strings(i)
-        case SourceLocation.CodeLineNumber   =>
-          if (types(i) == 1) lineNo = longs(i)
-          else if (types(i) == 0 && strings(i) != null)
-            strings(i).toLongOption.foreach(v => lineNo = v)
-        case _ => ()
-      }
-      i += 1
-    }
 
     // Body first — CR/LF escaped so a multi-line message cannot forge extra lines.
     if (body != null && body.nonEmpty) {
@@ -173,18 +179,39 @@ object TextLogFormatter extends LogFormatter {
       appendBodyEscaped(sb, body)
     }
 
-    // Location after the body: compact function separately, then the
-    // contiguous captured `path:line` token.
-    TextLogLayout.appendLocation(sb, filePath, functionName, lineNo)
+    // Source location from dedicated fields — no attribute scan. Absent
+    // fields ("" / 0) render nothing, per TextLogLayout.
+    TextLogLayout.appendLocation(sb, sourceFile, sourceFunction, sourceLine.toLong)
 
-    // User attributes — everything that is not a code.* attribute, in slot
-    // order (same rule as formatRecord). A wrong-typed code.line.number that could
-    // not feed the location prefix stays visible instead of being dropped.
-    val seqs         = builder.builderSeqs
+    appendUserAttributesText(sb, keys, types, longs, strings, seqs, len, sourceFile, sourceFunction, sourceLine)
+
+    renderThrowable(sb, throwable)
+  }
+
+  /**
+   * Package-internal raw user-attribute loop over the typed parallel arrays: no
+   * `AttributeValue` wrappers, no visitor object, no per-attribute allocation.
+   * A user attribute colliding with a canonical source key is suppressed only
+   * when that source field is present (see LogRecord.isSourceCollision);
+   * otherwise it renders as an ordinary attribute. Shared with the stdout
+   * processor.
+   */
+  private[telemetry] def appendUserAttributesText(
+    sb: StringBuilder,
+    keys: Array[String],
+    types: Array[Byte],
+    longs: Array[Long],
+    strings: Array[String],
+    seqs: Array[AnyRef],
+    len: Int,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int
+  ): Unit = {
     var hasUserAttrs = false
-    i = 0
+    var i            = 0
     while (i < len) {
-      if (showAsUserAttr(keys(i), types(i), strings(i))) {
+      if (!LogRecord.isSourceCollision(keys(i), sourceFile, sourceFunction, sourceLine)) {
         if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
         else sb.append(", ")
         appendTextKeyEscaped(sb, keys(i)); sb.append('=')
@@ -194,113 +221,6 @@ object TextLogFormatter extends LogFormatter {
       i += 1
     }
     if (hasUserAttrs) sb.append('}')
-
-    renderThrowable(sb, throwable)
-  }
-
-  override def formatRecord(sb: StringBuilder, record: LogRecord): Unit = {
-    renderHead(sb, record.timestampNanos, record.severityText)
-
-    // Source location from record attributes
-    var filePath     = ""
-    var functionName = ""
-    var lineNo       = 0L
-    record.attributes.accept(new AttributeVisitor {
-      override def visitString(key: String, value: String): Unit =
-        key match {
-          case SourceLocation.CodeFilePath     => filePath = value
-          case SourceLocation.CodeFunctionName => functionName = value
-          case SourceLocation.CodeLineNumber   =>
-            // Wrong-typed line number (String): feed the location prefix when numeric,
-            // mirroring the builder path above.
-            if (value != null) value.toLongOption.foreach(v => lineNo = v)
-          case _ => ()
-        }
-
-      override def visitLong(key: String, value: Long): Unit =
-        if (key == SourceLocation.CodeLineNumber) lineNo = value
-
-      override def visitDouble(key: String, value: Double): Unit           = ()
-      override def visitBoolean(key: String, value: Boolean): Unit         = ()
-      override def visitStringSeq(key: String, value: Seq[String]): Unit   = ()
-      override def visitLongSeq(key: String, value: Seq[Long]): Unit       = ()
-      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
-      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
-    })
-
-    // Body first — CR/LF escaped so a multi-line message cannot forge extra lines.
-    val body = record.body.value
-    if (body != null && body.nonEmpty) {
-      sb.append(' ')
-      appendBodyEscaped(sb, body)
-    }
-
-    // Location after the body: compact function separately, then the
-    // contiguous captured `path:line` token.
-    TextLogLayout.appendLocation(sb, filePath, functionName, lineNo)
-
-    // User attributes (skip code.* attributes, except a wrong-typed
-    // code.line.number that could not feed the location prefix).
-    var hasUserAttrs = false
-    record.attributes.accept(new AttributeVisitor {
-      private def nextAttr(key: String): Unit = {
-        if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-        else sb.append(", ")
-        appendTextKeyEscaped(sb, key)
-        sb.append('=')
-      }
-
-      override def visitString(key: String, value: String): Unit =
-        if (showRecordStringAsUserAttr(key, value)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 0, 0L, value, null)
-        }
-
-      override def visitLong(key: String, value: Long): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 1, value, null, null)
-        }
-
-      override def visitDouble(key: String, value: Double): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 2, java.lang.Double.doubleToRawLongBits(value), null, null)
-        }
-
-      override def visitBoolean(key: String, value: Boolean): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 3, if (value) 1L else 0L, null, null)
-        }
-
-      override def visitStringSeq(key: String, value: Seq[String]): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 4, 0L, null, value)
-        }
-
-      override def visitLongSeq(key: String, value: Seq[Long]): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 5, 0L, null, value)
-        }
-
-      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 6, 0L, null, value)
-        }
-
-      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit =
-        if (!isCodeKey(key)) {
-          nextAttr(key)
-          renderTextAttrValue(sb, 7, 0L, null, value)
-        }
-    })
-    if (hasUserAttrs) sb.append('}')
-
-    renderThrowable(sb, record.throwable)
   }
 
   /** Shared head: timestamp plus severity, used by both entry points. */
@@ -511,6 +431,12 @@ object TextLogFormatter extends LogFormatter {
  * closing quote of the last id is dropped and the stack trace attribute follows
  * it. A `Double` attribute that is `NaN` or infinite is written as a bare `NaN`
  * or `Infinity`, which is not valid JSON either, a known bug.
+ *
+ * Source metadata is emitted first as canonical attributes (`code.file.path`,
+ * `code.function.name`, `code.line.number`), followed by user attributes. A
+ * user attribute colliding with a canonical key is suppressed only when that
+ * source field is present (see [[LogRecord.isSourceCollision]]); otherwise it
+ * passes through unchanged.
  */
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
@@ -528,6 +454,9 @@ object JsonLogFormatter extends LogFormatter {
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
@@ -539,35 +468,23 @@ object JsonLogFormatter extends LogFormatter {
 
     var hasAttrs = false
 
-    // Attributes
-    val keys    = builder.builderKeys
-    val types   = builder.builderTypes
-    val longs   = builder.builderLongs
-    val strings = builder.builderStrings
-    val seqs    = builder.builderSeqs
-    val len     = builder.builderLen
-    if (len > 0) {
-      hasAttrs = true
-      sb.append(",\"attributes\":[")
-      var i = 0
-      while (i < len) {
-        if (i > 0) sb.append(',')
-        val value: JsonAttrValue = (types(i): @scala.annotation.switch) match {
-          case 0 => JsonAttrValue.StringValue(strings(i))
-          case 1 => JsonAttrValue.IntValue(longs(i))
-          case 2 => JsonAttrValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
-          case 3 => JsonAttrValue.BoolValue(longs(i) != 0L)
-          case 4 => jsonStringSeq(seqValueAt(seqs, i))
-          case 5 => jsonLongSeq(seqValueAt(seqs, i))
-          case 6 => jsonDoubleSeq(seqValueAt(seqs, i))
-          case 7 => jsonBooleanSeq(seqValueAt(seqs, i))
-          case _ => JsonAttrValue.StringValue("?")
-        }
-        appendJsonAttribute(sb, keys(i), value)
-        i += 1
-      }
-      sb.append(']')
-    }
+    // Canonical source attributes first, then user attributes.
+    hasAttrs = appendJsonSource(sb, sourceFile, sourceFunction, sourceLine, hasAttrs)
+
+    hasAttrs = appendUserAttributesJson(
+      sb,
+      builder.builderKeys,
+      builder.builderTypes,
+      builder.builderLongs,
+      builder.builderStrings,
+      builder.builderSeqs,
+      builder.builderLen,
+      sourceFile,
+      sourceFunction,
+      sourceLine,
+      hasAttrs
+    )
+    if (hasAttrs) sb.append(']')
 
     // Trace context
     renderJsonTrace(sb, traceIdHi, traceIdLo, spanId)
@@ -583,62 +500,26 @@ object JsonLogFormatter extends LogFormatter {
   override def formatRecord(sb: StringBuilder, record: LogRecord): Unit = {
     renderJsonHead(sb, record.timestampNanos, record.severity.number, record.severityText, record.body.value)
 
-    // Attributes from record
-    var hasAttrs = record.attributes.size > 0
-    if (hasAttrs) {
-      sb.append(",\"attributes\":[")
-      var first = true
-      record.attributes.accept(new AttributeVisitor {
-        override def visitString(key: String, value: String): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, JsonAttrValue.StringValue(value))
-        }
+    var hasAttrs = false
 
-        override def visitLong(key: String, value: Long): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, JsonAttrValue.IntValue(value))
-        }
+    // Canonical source attributes first, then user attributes.
+    hasAttrs = appendJsonSource(sb, record.sourceFile, record.sourceFunction, record.sourceLine, hasAttrs)
 
-        override def visitDouble(key: String, value: Double): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, JsonAttrValue.DoubleValue(value))
-        }
-
-        override def visitBoolean(key: String, value: Boolean): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, JsonAttrValue.BoolValue(value))
-        }
-
-        override def visitStringSeq(key: String, value: Seq[String]): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, jsonStringSeq(value))
-        }
-
-        override def visitLongSeq(key: String, value: Seq[Long]): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, jsonLongSeq(value))
-        }
-
-        override def visitDoubleSeq(key: String, value: Seq[Double]): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, jsonDoubleSeq(value))
-        }
-
-        override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = {
-          if (!first) sb.append(',')
-          first = false
-          appendJsonAttribute(sb, key, jsonBooleanSeq(value))
-        }
-      })
-      sb.append(']')
-    }
+    val attrs = record.userAttributes
+    hasAttrs = appendUserAttributesJson(
+      sb,
+      attrs.keys,
+      attrs.types,
+      attrs.longs,
+      attrs.strings,
+      attrs.seqs,
+      attrs.len,
+      record.sourceFile,
+      record.sourceFunction,
+      record.sourceLine,
+      hasAttrs
+    )
+    if (hasAttrs) sb.append(']')
 
     // Trace context
     renderJsonTrace(sb, record.traceIdHi, record.traceIdLo, record.spanId)
@@ -650,6 +531,85 @@ object JsonLogFormatter extends LogFormatter {
 
     sb.append('}')
   }
+
+  /**
+   * Appends canonical source attributes. Returns the updated `hasAttrs` flag.
+   * Emits nothing when no source field is present.
+   */
+  private def appendJsonSource(
+    sb: StringBuilder,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
+    hasAttrs: Boolean
+  ): Boolean = {
+    var wrote = hasAttrs
+    if (sourceFile != null && sourceFile.nonEmpty) {
+      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
+      else sb.append(',')
+      appendJsonAttribute(sb, SourceLocation.CodeFilePath, JsonAttrValue.StringValue(sourceFile))
+    }
+    if (sourceFunction != null && sourceFunction.nonEmpty) {
+      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
+      else sb.append(',')
+      appendJsonAttribute(sb, SourceLocation.CodeFunctionName, JsonAttrValue.StringValue(sourceFunction))
+    }
+    if (sourceLine != 0) {
+      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
+      else sb.append(',')
+      appendJsonAttribute(sb, SourceLocation.CodeLineNumber, JsonAttrValue.IntValue(sourceLine.toLong))
+    }
+    wrote
+  }
+
+  /**
+   * Appends user attributes from the raw typed parallel arrays — no
+   * `AttributeValue` wrappers, no visitor object, no per-attribute allocation.
+   * Canonical-key collisions suppress only when the matching source field is
+   * present. Returns the updated `hasAttrs` flag.
+   */
+  private def appendUserAttributesJson(
+    sb: StringBuilder,
+    keys: Array[String],
+    types: Array[Byte],
+    longs: Array[Long],
+    strings: Array[String],
+    seqs: Array[AnyRef],
+    len: Int,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
+    hasAttrs: Boolean
+  ): Boolean = {
+    var wrote = hasAttrs
+    var i     = 0
+    while (i < len) {
+      if (!LogRecord.isSourceCollision(keys(i), sourceFile, sourceFunction, sourceLine)) {
+        if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
+        else sb.append(',')
+        appendJsonAttribute(sb, keys(i), jsonValueFor(types(i), longs(i), strings(i), seqValueAt(seqs, i)))
+      }
+      i += 1
+    }
+    wrote
+  }
+
+  /**
+   * Builds the JSON value for one raw slot without boxing through
+   * `AttributeValue`.
+   */
+  private def jsonValueFor(tpe: Byte, long: Long, str: String, seq: Seq[Any]): JsonAttrValue =
+    (tpe: @scala.annotation.switch) match {
+      case 0 => JsonAttrValue.StringValue(str)
+      case 1 => JsonAttrValue.IntValue(long)
+      case 2 => JsonAttrValue.DoubleValue(java.lang.Double.longBitsToDouble(long))
+      case 3 => JsonAttrValue.BoolValue(long != 0L)
+      case 4 => jsonStringSeq(seq)
+      case 5 => jsonLongSeq(seq)
+      case 6 => jsonDoubleSeq(seq)
+      case 7 => jsonBooleanSeq(seq)
+      case _ => JsonAttrValue.StringValue("?")
+    }
 
   /** Shared JSON head: envelope, timestamp, severity, and body. */
   private def renderJsonHead(

@@ -31,9 +31,13 @@ final case class SourceLocation(
 object SourceLocation {
 
   /**
-   * Stable OpenTelemetry code attribute keys captured at compile time by the
-   * logging macros. Text rendering scans exactly these named keys — any other
-   * `code.*` key is an ordinary user attribute and must stay visible.
+   * Stable OpenTelemetry code attribute keys. Source metadata travels in
+   * dedicated `LogRecord` scalar fields and is combined with user attributes at
+   * export boundaries (text, JSON, OTLP) — never by aliasing user attributes
+   * named this way into source fields. Exporters suppress a user attribute with
+   * one of these keys only when the matching source field is present (see
+   * `LogRecord.isSourceCollision`); otherwise the user value passes through
+   * unchanged.
    */
   private[telemetry] final val CodeFilePath     = "code.file.path"
   private[telemetry] final val CodeFunctionName = "code.function.name"

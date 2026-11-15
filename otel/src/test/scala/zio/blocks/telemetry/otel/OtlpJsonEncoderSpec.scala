@@ -401,20 +401,17 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
     ),
     suite("encodeLogs")(
       test("encodes log record with correct OTLP structure") {
-        val log = LogRecord(
-          timestampNanos = 1000000000L,
-          observedTimestampNanos = 1000000001L,
-          severity = Severity.Info,
-          severityText = "INFO",
-          body = "User logged in",
-          attributes = Attributes.empty,
-          traceIdHi = testTraceIdHi,
-          traceIdLo = testTraceIdLo,
-          spanId = testSpanId.value,
-          traceFlags = TraceFlags.sampled.byte,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(1000000000L)
+          .setObservedTimestamp(1000000001L)
+          .setSeverity(Severity.Info)
+          .setBody("User logged in")
+          .setTraceId(testTraceIdHi, testTraceIdLo)
+          .setSpanId(testSpanId.value)
+          .setTraceFlags(TraceFlags.sampled.byte)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
@@ -428,20 +425,14 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         assertTrue(json == expected)
       },
       test("encodes log record without trace correlation") {
-        val log = LogRecord(
-          timestampNanos = 5000L,
-          observedTimestampNanos = 5001L,
-          severity = Severity.Error,
-          severityText = "ERROR",
-          body = "disk full",
-          attributes = Attributes.empty,
-          traceIdHi = 0L,
-          traceIdLo = 0L,
-          spanId = 0L,
-          traceFlags = 0,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(5000L)
+          .setObservedTimestamp(5001L)
+          .setSeverity(Severity.Error)
+          .setBody("disk full")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
@@ -460,20 +451,15 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           .put("request.latency", 42.5)
           .build
 
-        val log = LogRecord(
-          timestampNanos = 1000L,
-          observedTimestampNanos = 1001L,
-          severity = Severity.Warn,
-          severityText = "WARN",
-          body = "slow request",
-          attributes = attrs,
-          traceIdHi = 0L,
-          traceIdLo = 0L,
-          spanId = 0L,
-          traceFlags = 0,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("slow request")
+          .addAttributes(attrs)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
@@ -487,6 +473,75 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         )
 
         assertTrue(json == expected)
+      },
+      test("encodes source fields as canonical attributes before user attributes") {
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("slow request")
+          .setSourceFile("src/Service.scala")
+          .setSourceFunction("com.example.Service.run")
+          .setSourceLine(42)
+          .setAttribute(AttributeKey.string("user.id"), "u123")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
+
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000\",\"observedTimeUnixNano\":\"1001\"," +
+            "\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"slow request\"}," +
+            "\"attributes\":[" +
+            "{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"src/Service.scala\"}}," +
+            "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"com.example.Service.run\"}}," +
+            "{\"key\":\"code.line.number\",\"value\":{\"intValue\":\"42\"}}," +
+            "{\"key\":\"user.id\",\"value\":{\"stringValue\":\"u123\"}}]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
+        )
+
+        assertTrue(json == expected)
+      },
+      test("suppresses colliding user attributes when source is present, passes through when absent") {
+        val colliding = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("collision")
+          .setSourceFile("src/Service.scala")
+          .setSourceFunction("com.example.Service.run")
+          .setSourceLine(42)
+          .setAttribute(AttributeKey.string("code.file.path"), "user-supplied.scala")
+          .setAttribute(AttributeKey.long("code.line.number"), 7L)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+        val passthrough = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("passthrough")
+          .setAttribute(AttributeKey.string("code.file.path"), "external.scala")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val collidingJson   = jsonString(OtlpJsonEncoder.encodeLogs(Seq(colliding), testResource, testScope))
+        val passthroughJson = jsonString(OtlpJsonEncoder.encodeLogs(Seq(passthrough), testResource, testScope))
+
+        assertTrue(
+          countOccurrences(collidingJson, "code.file.path") == 1,
+          countOccurrences(collidingJson, "code.line.number") == 1,
+          collidingJson.contains("\"stringValue\":\"src/Service.scala\""),
+          !collidingJson.contains("user-supplied.scala"),
+          collidingJson.contains("\"intValue\":\"42\""),
+          !collidingJson.contains("\"intValue\":\"7\""),
+          passthroughJson.contains(
+            "\"attributes\":[{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"external.scala\"}}]"
+          )
+        )
       }
     ),
     suite("attribute encoding")(

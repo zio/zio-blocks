@@ -92,19 +92,15 @@ object LogSpec extends ZIOSpecDefault {
       val processor = withLogger() { _ =>
         StableCodeFixture.emitProbe()
       }
-      val attrs = processor.emitted.head.attributes
+      val record = processor.emitted.head
       assertTrue(
-        attrs
-          .get(AttributeKey.string("code.function.name"))
-          .contains(
-            "zio.blocks.telemetry.LogSpec.StableCodeFixture.emitProbe"
-          ),
-        attrs.get(AttributeKey.string("code.file.path")).exists(_.endsWith("LogSpec.scala")),
-        attrs.get(AttributeKey.long("code.line.number")).exists(_ > 0),
-        attrs.get(AttributeKey.string("code.filepath")).isEmpty,
-        attrs.get(AttributeKey.string("code.namespace")).isEmpty,
-        attrs.get(AttributeKey.string("code.function")).isEmpty,
-        attrs.get(AttributeKey.long("code.lineno")).isEmpty
+        record.sourceFunction == "zio.blocks.telemetry.LogSpec.StableCodeFixture.emitProbe",
+        record.sourceFile.endsWith("LogSpec.scala"),
+        record.sourceLine > 0,
+        record.attribute(AttributeKey.string("code.filepath")).isEmpty,
+        record.attribute(AttributeKey.string("code.namespace")).isEmpty,
+        record.attribute(AttributeKey.string("code.function")).isEmpty,
+        record.attribute(AttributeKey.long("code.lineno")).isEmpty
       )
     },
     test("level overrides match the raw module namespace") {
@@ -126,22 +122,25 @@ object LogSpec extends ZIOSpecDefault {
       val processor = withLogger() { _ =>
         log.emit(Severity.Info, "explicit", SourceLocation("src/Svc.scala", "com.example.Svc", "doWork", 7))
       }
-      val attrs = processor.emitted.head.attributes
+      val record = processor.emitted.head
       assertTrue(
-        processor.emitted.head.body.value == "explicit",
-        attrs.get(AttributeKey.string("code.file.path")).contains("src/Svc.scala"),
-        attrs.get(AttributeKey.string("code.function.name")).contains("com.example.Svc.doWork"),
-        attrs.get(AttributeKey.long("code.line.number")).contains(7L)
+        record.body.value == "explicit",
+        record.sourceFile == "src/Svc.scala",
+        record.sourceFunction == "com.example.Svc.doWork",
+        record.sourceLine == 7,
+        record.attribute("code.file.path").isEmpty,
+        record.attribute("code.function.name").isEmpty,
+        record.attribute("code.line.number").isEmpty
       )
     },
     test("programmatic records handle empty namespace and method") {
-      def functionNameOf(location: SourceLocation): Option[String] =
-        log.baseRecord(Severity.Info, "m", location).attributes.get(AttributeKey.string("code.function.name"))
+      def functionNameOf(location: SourceLocation): String =
+        log.baseRecord(Severity.Info, "m", location).sourceFunction
       assertTrue(
-        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "doWork", 7)).contains("com.example.Svc.doWork"),
-        functionNameOf(SourceLocation("f.scala", "", "go", 3)).contains("go"),
-        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "", 3)).contains("com.example.Svc"),
-        functionNameOf(SourceLocation("f.scala", "", "", 0)).contains("")
+        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "doWork", 7)) == "com.example.Svc.doWork",
+        functionNameOf(SourceLocation("f.scala", "", "go", 3)) == "go",
+        functionNameOf(SourceLocation("f.scala", "com.example.Svc", "", 3)) == "com.example.Svc",
+        functionNameOf(SourceLocation("f.scala", "", "", 0)) == ""
       )
     },
     test("level filtering skips messages below minSeverity") {
@@ -187,51 +186,51 @@ object LogSpec extends ZIOSpecDefault {
         val processor = withLogger() { _ =>
           log.info("msg", "userId" -> "abc")
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
           processor.emitted.head.body.value == "msg",
-          attrs.get(AttributeKey.string("userId")).contains("abc")
+          record.attribute(AttributeKey.string("userId")).contains("abc")
         )
       },
       test("key-value long enrichment adds attribute") {
         val processor = withLogger() { _ =>
           log.info("msg", "count" -> 42L)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.long("count")).contains(42L)
+          record.attribute(AttributeKey.long("count")).contains(42L)
         )
       },
       test("key-value int enrichment adds attribute") {
         val processor = withLogger() { _ =>
           log.info("msg", "count" -> 42)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.long("count")).contains(42L)
+          record.attribute(AttributeKey.long("count")).contains(42L)
         )
       },
       test("key-value double enrichment adds attribute") {
         val processor = withLogger() { _ =>
           log.info("msg", "score" -> 3.14)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.double("score")).contains(3.14)
+          record.attribute(AttributeKey.double("score")).contains(3.14)
         )
       },
       test("key-value boolean enrichment adds attribute") {
         val processor = withLogger() { _ =>
           log.info("msg", "active" -> true)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.boolean("active")).contains(true)
+          record.attribute(AttributeKey.boolean("active")).contains(true)
         )
       },
       test("throwable enrichment adds exception attributes") {
@@ -239,12 +238,12 @@ object LogSpec extends ZIOSpecDefault {
         val processor     = withLogger() { _ =>
           log.info("failed", ex)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
           processor.emitted.head.body.value == "failed",
-          attrs.get(AttributeKey.string("exception.type")).contains("java.lang.RuntimeException"),
-          attrs.get(AttributeKey.string("exception.message")).contains("boom"),
+          record.attribute(AttributeKey.string("exception.type")).contains("java.lang.RuntimeException"),
+          record.attribute(AttributeKey.string("exception.message")).contains("boom"),
           processor.emitted.head.throwable.contains(ex)
         )
       },
@@ -263,12 +262,12 @@ object LogSpec extends ZIOSpecDefault {
         val processor = withLogger() { _ =>
           log.info("msg", "k1" -> "v1", "k2" -> 42L)
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
           processor.emitted.head.body.value == "msg",
-          attrs.get(AttributeKey.string("k1")).contains("v1"),
-          attrs.get(AttributeKey.long("k2")).contains(42L)
+          record.attribute(AttributeKey.string("k1")).contains("v1"),
+          record.attribute(AttributeKey.long("k2")).contains(42L)
         )
       },
       test("Logger.info preserves seq attribute Seq structure and type") {
@@ -284,13 +283,13 @@ object LogSpec extends ZIOSpecDefault {
           "rates" -> AttributeValue.DoubleSeqValue(Seq(1.5, 2.5)),
           "flags" -> AttributeValue.BooleanSeqValue(Seq(true, false))
         )
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.stringSeq("tags")).contains(Seq("a", "b")),
-          attrs.get(AttributeKey.longSeq("nums")).contains(Seq(1L, 2L)),
-          attrs.get(AttributeKey.doubleSeq("rates")).contains(Seq(1.5, 2.5)),
-          attrs.get(AttributeKey.booleanSeq("flags")).contains(Seq(true, false))
+          record.attribute(AttributeKey.stringSeq("tags")).contains(Seq("a", "b")),
+          record.attribute(AttributeKey.longSeq("nums")).contains(Seq(1L, 2L)),
+          record.attribute(AttributeKey.doubleSeq("rates")).contains(Seq(1.5, 2.5)),
+          record.attribute(AttributeKey.booleanSeq("flags")).contains(Seq(true, false))
         )
       }
     ) @@ TestAspect.sequential,
@@ -379,10 +378,10 @@ object LogSpec extends ZIOSpecDefault {
             log.info("test")
           }
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.string("requestId")).contains("abc")
+          record.attribute(AttributeKey.string("requestId")).contains("abc")
         )
       },
       test("annotations are removed after scope exits") {
@@ -392,14 +391,14 @@ object LogSpec extends ZIOSpecDefault {
           }
           log.info("outside")
         }
-        val insideAttrs  = processor.emitted(0).attributes
-        val outsideAttrs = processor.emitted(1).attributes
+        val inside  = processor.emitted(0)
+        val outside = processor.emitted(1)
         assertTrue(
           processor.emitted.size == 2,
           processor.emitted(0).body.value == "inside",
           processor.emitted(1).body.value == "outside",
-          insideAttrs.get(AttributeKey.string("k")).contains("v"),
-          outsideAttrs.get(AttributeKey.string("k")).isEmpty
+          inside.attribute(AttributeKey.string("k")).contains("v"),
+          outside.attribute(AttributeKey.string("k")).isEmpty
         )
       },
       test("nested annotations merge") {
@@ -410,11 +409,11 @@ object LogSpec extends ZIOSpecDefault {
             }
           }
         }
-        val attrs = processor.emitted.head.attributes
+        val record = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
-          attrs.get(AttributeKey.string("a")).contains("1"),
-          attrs.get(AttributeKey.string("b")).contains("2")
+          record.attribute(AttributeKey.string("a")).contains("1"),
+          record.attribute(AttributeKey.string("b")).contains("2")
         )
       },
       test("annotations cleanup on exception") {
@@ -428,11 +427,11 @@ object LogSpec extends ZIOSpecDefault {
           }
           log.info("after")
         }
-        val afterAttrs = processor.emitted.head.attributes
+        val after = processor.emitted.head
         assertTrue(
           processor.emitted.size == 1,
           processor.emitted.head.body.value == "after",
-          afterAttrs.get(AttributeKey.string("k")).isEmpty
+          after.attribute(AttributeKey.string("k")).isEmpty
         )
       }
     ) @@ TestAspect.sequential

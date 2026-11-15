@@ -77,6 +77,9 @@ object LoggerDirectSpec extends ZIOSpecDefault {
           Severity.Info,
           "INFO",
           "hello",
+          "",
+          "",
+          0,
           builder,
           0L,
           0L,
@@ -130,7 +133,7 @@ object LoggerDirectSpec extends ZIOSpecDefault {
         dropped,
         processor.seen.size == 1,
         processor.seen.head.body.value == "kept",
-        processor.seen.head.attributes.get(AttributeKey.string("k")).contains("v")
+        processor.seen.head.attribute(AttributeKey.string("k")).contains("v")
       )
     },
     test("direct call at exactly the minimum level emits") {

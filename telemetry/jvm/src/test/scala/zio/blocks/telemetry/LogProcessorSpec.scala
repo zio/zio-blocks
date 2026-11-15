@@ -107,15 +107,13 @@ object LogProcessorSpec extends ZIOSpecDefault {
 
   private def logRecord(
     functionName: String = "com.example.MyClass.myMethod",
-    line: Long = 42L,
+    line: Int = 42,
     includeUserAttrs: Boolean = true,
     includeOtherAttr: Boolean = true,
-    throwable: Option[Throwable] = None
+    throwable: Option[Throwable] = None,
+    extra: Attributes = Attributes.empty
   ): LogRecord = {
     val builder = Attributes.builder
-      .put("code.file.path", "Test.scala")
-      .put("code.function.name", functionName)
-      .put("code.line.number", line)
 
     if (includeUserAttrs) {
       builder.put("userId", "abc")
@@ -131,28 +129,24 @@ object LogProcessorSpec extends ZIOSpecDefault {
       builder.put(AttributeKey.booleanSeq("flags"), List(true, false))
     }
 
-    LogRecord(
-      timestampNanos = 1719792600123000000L,
-      observedTimestampNanos = 1719792600123000000L,
-      severity = Severity.Info,
-      severityText = "INFO",
-      body = LogMessage("test message"),
-      attributes = builder.build,
-      traceIdHi = 0L,
-      traceIdLo = 0L,
-      spanId = 0L,
-      traceFlags = 0,
-      resource = Resource.empty,
-      instrumentationScope = InstrumentationScope("test"),
-      throwable = throwable
-    )
+    LogRecord.builder
+      .setTimestamp(1719792600123000000L)
+      .setObservedTimestamp(1719792600123000000L)
+      .setSeverity(Severity.Info)
+      .setBody(LogMessage("test message"))
+      .setSourceFile("Test.scala")
+      .setSourceFunction(functionName)
+      .setSourceLine(line)
+      .addAttributes(builder.build)
+      .addAttributes(extra)
+      .setThrowable(throwable)
+      .setResource(Resource.empty)
+      .setInstrumentationScope(InstrumentationScope("test"))
+      .build
   }
 
   private def emitterBuilder(): Attributes.AttributesBuilder =
     Attributes.builder
-      .put("code.file.path", "Emitter.scala")
-      .put("code.function.name", "com.example.EmitterClass.emitMethod")
-      .put("code.line.number", 7L)
       .put("userId", "abc")
       .put("count", 5L)
 
@@ -193,7 +187,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
         processor.onEmit(
           logRecord(
             functionName = "PlainClass",
-            line = 0L,
+            line = 0,
             includeUserAttrs = false,
             includeOtherAttr = false,
             throwable = None
@@ -219,27 +213,44 @@ object LogProcessorSpec extends ZIOSpecDefault {
 
       assertTrue(rendered == sb.toString)
     },
+    test("onEmit suppresses colliding user keys while rendering source location and survivors") {
+      val processor = new StdoutLogRecordProcessor()
+      val record    = logRecord(
+        extra = Attributes.builder
+          .put("code.file.path", "intruder.scala")
+          .put("code.line.number", 1L)
+          .put("survivor", "yes")
+          .build
+      )
+      val (_, rendered0) = captureStdout(processor.onEmit(record))
+      val rendered       = rendered0.trim
+
+      val sb = new StringBuilder
+      TextLogFormatter.formatRecord(sb, record)
+
+      assertTrue(
+        rendered == "2024-07-01T00:10:00.123Z INFO  test message [MyClass.myMethod] Test.scala:42 " +
+          "{userId=\"abc\", count=5, ratio=2.5, active=true, tags=[\"alpha\", \"beta\"], nums=[1, 2], " +
+          "rates=[1.5, 2.5], flags=[true, false], survivor=\"yes\"}",
+        rendered == sb.toString,
+        !rendered.contains("intruder.scala"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.line.number")
+      )
+    },
     test("onEmit preserves Windows backslashes literally in path:line") {
       val processor = new StdoutLogRecordProcessor()
-      val attrs     = Attributes.builder
-        .put("code.file.path", "C:\\work\\src\\PaymentService.scala")
-        .put("code.function.name", "com.example.PaymentService.handle")
-        .put("code.line.number", 42L)
+      val record    = LogRecord.builder
+        .setTimestamp(1719792600123000000L)
+        .setObservedTimestamp(1719792600123000000L)
+        .setSeverity(Severity.Info)
+        .setBody(LogMessage("Payment authorized"))
+        .setSourceFile("C:\\work\\src\\PaymentService.scala")
+        .setSourceFunction("com.example.PaymentService.handle")
+        .setSourceLine(42)
+        .setResource(Resource.empty)
+        .setInstrumentationScope(InstrumentationScope("test"))
         .build
-      val record = LogRecord(
-        timestampNanos = 1719792600123000000L,
-        observedTimestampNanos = 1719792600123000000L,
-        severity = Severity.Info,
-        severityText = "INFO",
-        body = LogMessage("Payment authorized"),
-        attributes = attrs,
-        traceIdHi = 0L,
-        traceIdLo = 0L,
-        spanId = 0L,
-        traceFlags = 0,
-        resource = Resource.empty,
-        instrumentationScope = InstrumentationScope("test")
-      )
       val (_, rendered0) = captureStdout(processor.onEmit(record))
       val rendered       = rendered0.trim
 
@@ -400,6 +411,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
         severity = Severity.Info,
         severityText = "INFO",
         body = "emitted message",
+        sourceFile = "Emitter.scala",
+        sourceFunction = "com.example.EmitterClass.emitMethod",
+        sourceLine = 7,
         builder = builder,
         traceIdHi = 0L,
         traceIdLo = 0L,
@@ -431,6 +445,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
           severity = Severity.Info,
           severityText = "INFO",
           body = "emitted message",
+          sourceFile = "Emitter.scala",
+          sourceFunction = "com.example.EmitterClass.emitMethod",
+          sourceLine = 7,
           builder = builder,
           traceIdHi = 0L,
           traceIdLo = 0L,

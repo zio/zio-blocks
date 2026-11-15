@@ -618,12 +618,51 @@ object OtlpJsonEncoder {
     sb.append('}')
     sb.append(',')
 
-    // attributes (including deferred throwable stacktrace)
+    // attributes: canonical source attributes first, then user attributes
+    // from the raw typed arrays (no wrappers, no callbacks), then the
+    // deferred throwable stacktrace. Colliding canonical keys suppress only
+    // when that source field is present — see LogRecord.isSourceCollision.
     writeKey(sb, "attributes")
     sb.append('[')
-    writeAttributes(sb, log.attributes)
+    var first          = true
+    val sourceFile     = log.sourceFile
+    val sourceFunction = log.sourceFunction
+    val sourceLine     = log.sourceLine
+    if (sourceFile != null && sourceFile.nonEmpty) {
+      first = appendLogAttribute(sb, "code.file.path", AttributeValue.StringValue(sourceFile), first)
+    }
+    if (sourceFunction != null && sourceFunction.nonEmpty) {
+      first = appendLogAttribute(sb, "code.function.name", AttributeValue.StringValue(sourceFunction), first)
+    }
+    if (sourceLine != 0) {
+      first = appendLogAttribute(sb, "code.line.number", AttributeValue.LongValue(sourceLine.toLong), first)
+    }
+    val attrs   = log.userAttributes
+    val keys    = attrs.keys
+    val types   = attrs.types
+    val longs   = attrs.longs
+    val strings = attrs.strings
+    val seqs    = attrs.seqs
+    val len     = attrs.len
+    var i       = 0
+    while (i < len) {
+      if (!LogRecord.isSourceCollision(keys(i), sourceFile, sourceFunction, sourceLine)) {
+        val tpe = types(i)
+        first = appendRawLogAttribute(
+          sb,
+          keys(i),
+          tpe,
+          longs(i),
+          strings(i),
+          if (tpe >= 4) rawSeqAt(seqs, i) else null,
+          first
+        )
+      }
+      i += 1
+    }
     log.throwable.foreach { t =>
-      if (!log.attributes.isEmpty) sb.append(',')
+      if (!first) sb.append(',')
+      first = false
       val sw = new java.io.StringWriter()
       t.printStackTrace(new java.io.PrintWriter(sw))
       sb.append("{\"key\":")
@@ -650,5 +689,113 @@ object OtlpJsonEncoder {
     writeKeyInt(sb, "flags", log.traceFlags.toInt & 0xff)
 
     sb.append('}')
+  }
+
+  /**
+   * Appends one log attribute. Returns false after the first call so callers
+   * can thread comma state.
+   */
+  private def appendLogAttribute(sb: StringBuilder, key: String, value: AttributeValue, first: Boolean): Boolean = {
+    if (!first) sb.append(',')
+    sb.append("{\"key\":")
+    writeJsonString(sb, key)
+    sb.append(",\"value\":{")
+    writeAttributeValue(sb, value)
+    sb.append("}}")
+    false
+  }
+
+  /**
+   * Appends one user attribute from a raw typed slot — no `AttributeValue`
+   * wrapper, no callback. Unknown type tags fall back to an empty string value,
+   * mirroring `Attributes.valueAt`. Returns false after the first call so
+   * callers can thread comma state.
+   */
+  private def appendRawLogAttribute(
+    sb: StringBuilder,
+    key: String,
+    tpe: Byte,
+    long: Long,
+    str: String,
+    seq: Seq[Any],
+    first: Boolean
+  ): Boolean = {
+    if (!first) sb.append(',')
+    sb.append("{\"key\":")
+    writeJsonString(sb, key)
+    sb.append(",\"value\":{")
+    (tpe: @scala.annotation.switch) match {
+      case 0 => writeKeyString(sb, "stringValue", str)
+      case 1 => writeKeyLong(sb, "intValue", long)
+      case 2 => writeKeyDouble(sb, "doubleValue", java.lang.Double.longBitsToDouble(long))
+      case 3 => writeKeyBool(sb, "boolValue", long != 0L)
+      case 4 => writeRawStringArray(sb, seq)
+      case 5 => writeRawLongArray(sb, seq)
+      case 6 => writeRawDoubleArray(sb, seq)
+      case 7 => writeRawBooleanArray(sb, seq)
+      case _ => writeKeyString(sb, "stringValue", "")
+    }
+    sb.append("}}")
+    false
+  }
+
+  /**
+   * Reads a Seq value from the raw side-array, tolerating a null array or slot.
+   * Seq attributes are rare, so allocation here is acceptable.
+   */
+  private def rawSeqAt(seqs: Array[AnyRef], i: Int): Seq[Any] =
+    if (seqs == null || seqs(i) == null) Seq.empty
+    else seqs(i).asInstanceOf[Seq[Any]]
+
+  private def writeRawStringArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { s =>
+      if (!first) sb.append(',')
+      sb.append("{\"stringValue\":")
+      writeJsonString(sb, if (s == null) null else s.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawLongArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { l =>
+      if (!first) sb.append(',')
+      sb.append("{\"intValue\":\"")
+      sb.append(l.toString)
+      sb.append("\"}")
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawDoubleArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { d =>
+      if (!first) sb.append(',')
+      sb.append("{\"doubleValue\":")
+      sb.append(d.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawBooleanArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { b =>
+      if (!first) sb.append(',')
+      sb.append("{\"boolValue\":")
+      sb.append(b.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
   }
 }

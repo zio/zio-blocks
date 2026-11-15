@@ -410,7 +410,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "b" -> AttributeValue.BooleanValue(true))
-      assertTrue(p.emitted.head.attributes.toMap("b") == AttributeValue.BooleanValue(true))
+      assertTrue(p.emitted.head.attribute("b").contains(AttributeValue.BooleanValue(true)))
     },
     test("log with Double attribute") {
       val p = new TestLogProcessor
@@ -419,7 +419,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "d" -> AttributeValue.DoubleValue(3.14))
-      assertTrue(p.emitted.head.attributes.toMap("d") == AttributeValue.DoubleValue(3.14))
+      assertTrue(p.emitted.head.attribute("d").contains(AttributeValue.DoubleValue(3.14)))
     },
     test("log preserves seq attribute type fidelity") {
       val p = new TestLogProcessor
@@ -428,7 +428,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "s" -> AttributeValue.StringSeqValue(Seq("a")))
-      assertTrue(p.emitted.head.attributes.get(AttributeKey.stringSeq("s")).contains(Seq("a")))
+      assertTrue(p.emitted.head.attribute(AttributeKey.stringSeq("s")).contains(Seq("a")))
     },
     test("StandardLogEmitter clears builder when severity is below processor threshold") {
       val builder = Attributes.builder.put("k", "v")
@@ -439,6 +439,9 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         severity = Severity.Debug,
         severityText = Severity.Debug.text,
         body = "ignored",
+        sourceFile = "",
+        sourceFunction = "",
+        sourceLine = 0,
         builder = builder,
         traceIdHi = 0L,
         traceIdLo = 0L,
@@ -460,6 +463,9 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         severity = Severity.Info,
         severityText = Severity.Info.text,
         body = "boom",
+        sourceFile = "",
+        sourceFunction = "",
+        sourceLine = 0,
         builder = builder,
         traceIdHi = 0L,
         traceIdLo = 0L,
@@ -559,21 +565,16 @@ object BranchCoverageSpec extends ZIOSpecDefault {
       assertTrue(ContextStorage.implementationName == "ScopedValue")
     },
     test("JsonLogFormatter formatRecord emits valid attributes array with throwable") {
-      val record = LogRecord(
-        timestampNanos = 1000L,
-        observedTimestampNanos = 1000L,
-        severity = Severity.Info,
-        severityText = "INFO",
-        body = LogMessage("hello"),
-        attributes = Attributes.builder.put("k", "v").build,
-        traceIdHi = 0L,
-        traceIdLo = 0L,
-        spanId = 0L,
-        traceFlags = 0,
-        resource = Resource.empty,
-        instrumentationScope = InstrumentationScope("test"),
-        throwable = Some(new RuntimeException("boom"))
-      )
+      val record = LogRecord.builder
+        .setTimestamp(1000L)
+        .setObservedTimestamp(1000L)
+        .setSeverity(Severity.Info)
+        .setBody(LogMessage("hello"))
+        .addAttributes(Attributes.builder.put("k", "v").build)
+        .setThrowable(Some(new RuntimeException("boom")))
+        .setResource(Resource.empty)
+        .setInstrumentationScope(InstrumentationScope("test"))
+        .build
       val sb = new StringBuilder
 
       JsonLogFormatter.formatRecord(sb, record)

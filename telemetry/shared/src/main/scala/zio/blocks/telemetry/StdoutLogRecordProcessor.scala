@@ -48,34 +48,6 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
     var pad = 5 - sevText.length
     while (pad > 0) { sb.append(' '); pad -= 1 }
 
-    // Source location — scanned by stable key from the record attributes. The
-    // captured file path is preserved exactly as emitted at compile time.
-    var filePath     = ""
-    var functionName = ""
-    var line         = 0L
-    logRecord.attributes.foreach { (key, value) =>
-      key match {
-        case SourceLocation.CodeFilePath =>
-          value match {
-            case AttributeValue.StringValue(v) => filePath = v
-            case _                             => ()
-          }
-        case SourceLocation.CodeFunctionName =>
-          value match {
-            case AttributeValue.StringValue(v) => functionName = v
-            case _                             => ()
-          }
-        case SourceLocation.CodeLineNumber =>
-          value match {
-            case AttributeValue.LongValue(v)   => line = v
-            case AttributeValue.StringValue(v) =>
-              if (v != null) v.toLongOption.foreach(parsed => line = parsed)
-            case _ => ()
-          }
-        case _ => ()
-      }
-    }
-
     // Body first — escaped so a multi-line message cannot forge extra lines.
     val body = logRecord.body.value
     if (body != null && body.nonEmpty) {
@@ -83,39 +55,24 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
       TextLogFormatter.appendBodyEscaped(sb, body)
     }
 
-    // Location after the body: compact function separately, then the
-    // contiguous captured `path:line` token.
-    TextLogLayout.appendLocation(sb, filePath, functionName, line)
+    // Source location from dedicated fields — never from user attributes. The
+    // captured file path is preserved exactly as emitted at compile time.
+    TextLogLayout.appendLocation(sb, logRecord.sourceFile, logRecord.sourceFunction, logRecord.sourceLine.toLong)
 
-    // User attributes (skip source location keys, except an unparseable
-    // String-typed code.line.number which stays visible instead of being
-    // dropped — same rule as TextLogFormatter).
-    var hasUserAttrs = false
-    logRecord.attributes.foreach { (key, value) =>
-      val visible = value match {
-        case AttributeValue.StringValue(v) => TextLogFormatter.showRecordStringAsUserAttr(key, v)
-        case _                             => !TextLogFormatter.isCodeKey(key)
-      }
-      if (visible) {
-        if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-        else sb.append(", ")
-        TextLogFormatter.appendTextKeyEscaped(sb, key)
-        sb.append('=')
-        value match {
-          case AttributeValue.StringValue(v) => TextLogFormatter.renderTextAttrValue(sb, 0, 0L, v, null)
-          case AttributeValue.LongValue(v)   => TextLogFormatter.renderTextAttrValue(sb, 1, v, null, null)
-          case AttributeValue.DoubleValue(v) =>
-            TextLogFormatter.renderTextAttrValue(sb, 2, java.lang.Double.doubleToRawLongBits(v), null, null)
-          case AttributeValue.BooleanValue(v) =>
-            TextLogFormatter.renderTextAttrValue(sb, 3, if (v) 1L else 0L, null, null)
-          case AttributeValue.StringSeqValue(vs)  => TextLogFormatter.renderTextAttrValue(sb, 4, 0L, null, vs)
-          case AttributeValue.LongSeqValue(vs)    => TextLogFormatter.renderTextAttrValue(sb, 5, 0L, null, vs)
-          case AttributeValue.DoubleSeqValue(vs)  => TextLogFormatter.renderTextAttrValue(sb, 6, 0L, null, vs)
-          case AttributeValue.BooleanSeqValue(vs) => TextLogFormatter.renderTextAttrValue(sb, 7, 0L, null, vs)
-        }
-      }
-    }
-    if (hasUserAttrs) sb.append('}')
+    // User attributes via the shared raw-typed loop: no boxing, no callbacks.
+    val attrs = logRecord.userAttributes
+    TextLogFormatter.appendUserAttributesText(
+      sb,
+      attrs.keys,
+      attrs.types,
+      attrs.longs,
+      attrs.strings,
+      attrs.seqs,
+      attrs.len,
+      logRecord.sourceFile,
+      logRecord.sourceFunction,
+      logRecord.sourceLine
+    )
 
     // Throwable (if present)
     logRecord.throwable.foreach { t =>

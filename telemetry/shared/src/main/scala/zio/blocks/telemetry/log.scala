@@ -61,7 +61,7 @@ import scala.util.control.NonFatal
  *
  * records.head.body.value // order placed
  * records.head.severity // Info
- * records.head.attributes.get(AttributeKey.long("amount")) // Some(99)
+ * records.head.attribute(AttributeKey.long("amount")) // Some(99)
  * }}}
  *
  * @see
@@ -99,7 +99,7 @@ object log extends LogVersionSpecific {
    * }
    * log.info("outside")
    *
-   * records.map(_.attributes.get(AttributeKey.string("requestId"))) // ListBuffer(Some(req-42), None)
+   * records.map(_.attribute(AttributeKey.string("requestId"))) // ListBuffer(Some(req-42), None)
    * }}}
    */
   def annotated[A](annotations: (String, String)*)(f: => A): A =
@@ -316,14 +316,14 @@ object log extends LogVersionSpecific {
     if (severity.number >= GlobalLogState.globalMinLevel) {
       val state = GlobalLogState.get()
       if (severity.number >= state.effectiveLevel(location.namespace)) {
-        val now     = EpochClock.epochNanos()
-        val builder = AttributeBuilderPool
-          .get()
-          .put("code.file.path", location.filePath)
-          .put("code.function.name", SourceLocation.qualifiedFunctionName(location.namespace, location.methodName))
-          .put("code.line.number", location.lineNumber.toLong)
+        val now      = EpochClock.epochNanos()
+        val file     = location.filePath
+        val function = SourceLocation.qualifiedFunctionName(location.namespace, location.methodName)
+        val line     = location.lineNumber
+        val builder  = AttributeBuilderPool.get()
 
-        // Merge scoped annotations
+        // Merge scoped annotations (user attributes only — source travels in
+        // dedicated fields, never inside the builder).
         val annotations = LogAnnotations.get()
         if (annotations.nonEmpty) {
           annotations.foreach { case (k, v) => builder.put(k, v) }
@@ -340,6 +340,9 @@ object log extends LogVersionSpecific {
           severity,
           severity.text,
           message,
+          file,
+          function,
+          line,
           builder,
           tidHi,
           tidLo,
@@ -357,36 +360,38 @@ object log extends LogVersionSpecific {
     message: String,
     location: SourceLocation
   ): LogRecord = {
-    val now     = EpochClock.epochNanos()
-    val builder = AttributeBuilderPool
-      .get()
-      .put("code.file.path", location.filePath)
-      .put("code.function.name", SourceLocation.qualifiedFunctionName(location.namespace, location.methodName))
-      .put("code.line.number", location.lineNumber.toLong)
+    val now      = EpochClock.epochNanos()
+    val file     = location.filePath
+    val function = SourceLocation.qualifiedFunctionName(location.namespace, location.methodName)
+    val line     = location.lineNumber
+    val builder  = AttributeBuilderPool.get()
 
-    // Merge scoped annotations
+    // Merge scoped annotations (user attributes only).
     val annotations = LogAnnotations.get()
     if (annotations.nonEmpty) {
       annotations.foreach { case (k, v) => builder.put(k, v) }
     }
 
-    val attrs    = builder.buildAndReset()
     val state    = GlobalLogState.get()
     val resource = state.logger.resource
 
-    LogRecord(
+    LogRecord.create(
       timestampNanos = now,
       observedTimestampNanos = now,
       severity = severity,
       severityText = severity.text,
       body = LogMessage(message),
-      attributes = attrs,
+      sourceFile = file,
+      sourceFunction = function,
+      sourceLine = line,
+      userAttributes = builder.buildAndReset(),
       traceIdHi = 0L,
       traceIdLo = 0L,
       spanId = 0L,
       traceFlags = 0,
       resource = resource,
-      instrumentationScope = logInstrumentationScope
+      instrumentationScope = logInstrumentationScope,
+      throwable = None
     )
   }
 }

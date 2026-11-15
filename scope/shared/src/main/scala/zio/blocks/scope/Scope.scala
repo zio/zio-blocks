@@ -65,8 +65,8 @@ import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
  * In particular, `defer` on a closed scope drops the finalizer without running
  * it. If the cleanup must happen, check [[isClosed]] first or keep the
  * registration inside the scope's lifetime — a typo'd `defer` after close loses
- * cleanup silently. `allocate`, `open`, and `$` throw instead so use-after-close
- * of values fails loudly.
+ * cleanup silently. `allocate`, `open`, and `$` throw instead so
+ * use-after-close of values fails loudly.
  *
  * @see
  *   [[https://zioblocks.com/reference/resource-management/scope/ Scope]]

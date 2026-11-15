@@ -228,11 +228,11 @@ private[telemetry] object LogMacros {
       if ($severityNumber >= GlobalLogState.globalMinLevel) {
         val state = GlobalLogState.get()
         if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
-          val now     = EpochClock.epochNanos()
+          val now = EpochClock.epochNanos()
+          // Source metadata travels as dedicated scalars — never inserted
+          // into the builder, so user attributes stay source-free and the
+          // pooled builder cannot clobber source on reentrant logging.
           val builder = AttributeBuilderPool.get()
-          builder.put("code.file.path", $filePath)
-          builder.put("code.function.name", $functionName)
-          builder.put("code.line.number", $lineNumber.toLong)
 
           val annotations = LogAnnotations.get()
           if (annotations.nonEmpty) {
@@ -314,23 +314,23 @@ private[telemetry] object LogMacros {
 
           ${
             if (hasFallbacks) {
-              // Fallback path: build LogRecord for LogEnrichment instances
+              // Fallback path: build LogRecord for LogEnrichment instances.
+              // Uses only the public builder API — macro output typechecks in
+              // any user package.
               '{
-                val record = LogRecord(
-                  timestampNanos = now,
-                  observedTimestampNanos = now,
-                  severity = severityVar,
-                  severityText = severityTextVar,
-                  body = LogMessage(bodyVar),
-                  attributes = builder.buildAndReset(),
-                  traceIdHi = tIdHi,
-                  traceIdLo = tIdLo,
-                  spanId = sId,
-                  traceFlags = tFlags,
-                  resource = state.logger.resource,
-                  instrumentationScope = $self.logInstrumentationScope,
-                  throwable = throwableVar
-                )
+                val record = LogRecord.builder
+                  .setTimestamp(now)
+                  .setObservedTimestamp(now)
+                  .setSeverity(severityVar)
+                  .setBody(bodyVar)
+                  .setSourceFile($filePath)
+                  .setSourceFunction($functionName)
+                  .setSourceLine($lineNumber)
+                  .setResource(state.logger.resource)
+                  .setInstrumentationScope($self.logInstrumentationScope)
+                  .setThrowable(throwableVar)
+                  .addAttributes(builder.buildAndReset())
+                  .build
 
                 ${
                   // Build fallback enrichment chain
@@ -368,6 +368,9 @@ private[telemetry] object LogMacros {
                   severityVar,
                   severityTextVar,
                   bodyVar,
+                  $filePath,
+                  $functionName,
+                  $lineNumber,
                   builder,
                   tIdHi,
                   tIdLo,

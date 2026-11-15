@@ -35,7 +35,7 @@ package zio.blocks.telemetry
  *
  * implicit val requestIdEnrichment: LogEnrichment[RequestId] = new LogEnrichment[RequestId] {
  *   def enrich(record: LogRecord, value: RequestId): LogRecord =
- *     record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.string("request.id"), value.value))
+ *     record.withAttribute(AttributeKey.string("request.id"), value.value)
  * }
  *
  * val records = ListBuffer.empty[LogRecord]
@@ -48,7 +48,7 @@ package zio.blocks.telemetry
  *
  * log.info("handling request", RequestId("req-001"))
  *
- * records.head.attributes.get(AttributeKey.string("request.id")) // Some(req-001)
+ * records.head.attribute(AttributeKey.string("request.id")) // Some(req-001)
  * }}}
  *
  * @see
@@ -70,7 +70,7 @@ object LogEnrichment {
   /** Replaces the message with the string. */
   implicit val stringEnrichment: LogEnrichment[String] = new LogEnrichment[String] {
     def enrich(record: LogRecord, value: String): LogRecord =
-      record.copy(body = LogMessage.Simple(value))
+      record.withBody(LogMessage.Simple(value))
   }
 
   /**
@@ -82,10 +82,7 @@ object LogEnrichment {
       val builder = Attributes.builder
       builder.put("exception.type", value.getClass.getName)
       builder.put("exception.message", if (value.getMessage != null) value.getMessage else "")
-      record.copy(
-        attributes = record.attributes ++ builder.build,
-        throwable = Some(value)
-      )
+      record.addingUserAttributes(builder.build).withThrowable(Some(value))
     }
   }
 
@@ -93,46 +90,46 @@ object LogEnrichment {
   implicit val stringStringEnrichment: LogEnrichment[(String, String)] =
     new LogEnrichment[(String, String)] {
       def enrich(record: LogRecord, value: (String, String)): LogRecord =
-        record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.string(value._1), value._2))
+        record.addingUserAttributes(Attributes.of(AttributeKey.string(value._1), value._2))
     }
 
   /** Adds the pair as a long attribute. */
   implicit val stringLongEnrichment: LogEnrichment[(String, Long)] =
     new LogEnrichment[(String, Long)] {
       def enrich(record: LogRecord, value: (String, Long)): LogRecord =
-        record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.long(value._1), value._2))
+        record.addingUserAttributes(Attributes.of(AttributeKey.long(value._1), value._2))
     }
 
   /** Adds the pair as a double attribute. */
   implicit val stringDoubleEnrichment: LogEnrichment[(String, Double)] =
     new LogEnrichment[(String, Double)] {
       def enrich(record: LogRecord, value: (String, Double)): LogRecord =
-        record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.double(value._1), value._2))
+        record.addingUserAttributes(Attributes.of(AttributeKey.double(value._1), value._2))
     }
 
   /** Adds the pair as a boolean attribute. */
   implicit val stringBooleanEnrichment: LogEnrichment[(String, Boolean)] =
     new LogEnrichment[(String, Boolean)] {
       def enrich(record: LogRecord, value: (String, Boolean)): LogRecord =
-        record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.boolean(value._1), value._2))
+        record.addingUserAttributes(Attributes.of(AttributeKey.boolean(value._1), value._2))
     }
 
   /** Adds the pair as a long attribute. */
   implicit val stringIntEnrichment: LogEnrichment[(String, Int)] =
     new LogEnrichment[(String, Int)] {
       def enrich(record: LogRecord, value: (String, Int)): LogRecord =
-        record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.long(value._1), value._2.toLong))
+        record.addingUserAttributes(Attributes.of(AttributeKey.long(value._1), value._2.toLong))
     }
 
   /** Appends the attributes to the record's attributes. */
   implicit val attributesEnrichment: LogEnrichment[Attributes] = new LogEnrichment[Attributes] {
     def enrich(record: LogRecord, value: Attributes): LogRecord =
-      record.copy(attributes = record.attributes ++ value)
+      record.addingUserAttributes(value)
   }
 
   /** Replaces the record's severity and severity text. */
   implicit val severityEnrichment: LogEnrichment[Severity] = new LogEnrichment[Severity] {
     def enrich(record: LogRecord, value: Severity): LogRecord =
-      record.copy(severity = value, severityText = value.text)
+      record.withSeverity(value)
   }
 }

@@ -288,7 +288,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "b" -> AttributeValue.BooleanValue(true))
-      assertTrue(p.emitted.head.attributes.toMap("b") == AttributeValue.BooleanValue(true))
+      assertTrue(p.emitted.head.attribute("b").contains(AttributeValue.BooleanValue(true)))
     },
     test("log with Double attribute") {
       val p = new TestLogProcessor
@@ -297,7 +297,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "d" -> AttributeValue.DoubleValue(3.14))
-      assertTrue(p.emitted.head.attributes.toMap("d") == AttributeValue.DoubleValue(3.14))
+      assertTrue(p.emitted.head.attribute("d").contains(AttributeValue.DoubleValue(3.14)))
     },
     test("log with seq attribute hits catch-all") {
       val p = new TestLogProcessor
@@ -306,7 +306,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .build()
         .get("t")
         .info("m", "s" -> AttributeValue.StringSeqValue(Seq("a")))
-      assertTrue(p.emitted.head.attributes.toMap.contains("s"))
+      assertTrue(p.emitted.head.attribute("s").isDefined)
     }
   )
 
