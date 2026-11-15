@@ -61,7 +61,7 @@ final case class RequestId(value: String)
 
 implicit val requestIdEnrichment: LogEnrichment[RequestId] = new LogEnrichment[RequestId] {
   def enrich(record: LogRecord, value: RequestId): LogRecord =
-    record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.string("request.id"), value.value))
+    record.withAttribute(AttributeKey.string("request.id"), value.value)
 }
 
 log.info("handling request", RequestId("req-001")) // adds request.id="req-001"
