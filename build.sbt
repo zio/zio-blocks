@@ -42,6 +42,18 @@ inThisBuild(
     ciWorkflowEnv := Map(
       "SBT_OPTS" -> "-XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE"
     ),
+    // Scala Steward launches sbt with the repo's .jvmopts removed
+    // (scala-steward-action defaults ignore-opts-files to true), so without
+    // this the ~120-project build runs on sbt's 1 GB default heap and dies
+    // with OutOfMemoryError while the Scala version updates are applied
+    // (seen daily since 15 Nov 2026). Heap flags go through both SBT_OPTS
+    // (read by the sbt launcher) and JAVA_OPTS (read by the coursier
+    // bootloaders the action uses), mirroring .jvmopts with a smaller heap
+    // that fits the 16 GB runner alongside the Steward JVM itself.
+    ciScalaStewardWorkflowEnv := Map(
+      "SBT_OPTS"  -> "-Xmx4g -Xss2M -XX:+UseG1GC -Dfile.encoding=UTF8",
+      "JAVA_OPTS" -> "-Xmx4g -Xss2M -XX:+UseG1GC -Dfile.encoding=UTF8"
+    ),
     // Cancel superseded pull request runs, but never cancel a push or release run.
     ciConcurrency := Some(
       Concurrency(
