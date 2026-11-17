@@ -25,11 +25,12 @@ package zio.blocks.mux
  * the old `Option`-based API without allocating per poll:
  *
  * ```scala
- * stream.receive() match {
- *   case MuxEmpty        => // no message yet, stream still open
- *   case error: MuxError => // terminal failure after the buffer drained
- *   case message         => // an `Out` message, returned unboxed
- * }
+ * def poll(stream: MuxStream[Int, String, String]): String =
+ *   stream.receive() match {
+ *     case MuxEmpty        => "empty"
+ *     case error: MuxError => s"failed: $error"
+ *     case message         => s"got: $message"
+ *   }
  * ```
  *
  * `MuxEmpty` is a distinct singleton precisely so it can never be confused with
