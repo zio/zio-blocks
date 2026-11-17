@@ -413,6 +413,11 @@ object CiWorkflow {
    * instead of the action's 10 s default, which only re-hammered the throttled
    * endpoint. The 120 min job timeout covers attempt + wait + attempt.
    *
+   * Snapshot publishes additionally run one Scala lane per job (below) because
+   * a full `+publish` is ~2.3k PUTs against an observed ~2k request bucket;
+   * each lane is ~a third of that. Tagged releases keep the single `+publish` +
+   * `sonaRelease` staging flow.
+   *
    * The condition is spelled out rather than
    * `github.event_name != 'pull_request'` because the plugin always adds a
    * workflow_dispatch trigger, and a manual run must not publish.
@@ -427,8 +432,7 @@ object CiWorkflow {
       ),
       need = Seq("ci"),
       condition = Some(
-        expr("github.event_name == 'release' && github.event.action == 'published'") ||
-          expr("github.event_name == 'push'")
+        expr("github.event_name == 'release' && github.event.action == 'published'")
       ),
       steps = Seq(
         CheckoutCurrentBranch,
@@ -453,6 +457,66 @@ object CiWorkflow {
       )
     )
   )
+
+  /**
+   * Snapshot publish, one Scala lane per job, run sequentially via `need`.
+   * `sbt ci-release` honours `CI_SNAPSHOT_RELEASE` instead of its default
+   * `+publish`, so each job publishes exactly its lane; versions come from
+   * `BuildHelper` so Scala bumps cannot desync the workflow.
+   */
+  private def snapshotLane(
+    id: String,
+    name: String,
+    scalaVersion: String,
+    needs: Seq[String]
+  ): Def.Initialize[Job] = Def.setting(
+    Job(
+      id = id,
+      name = name,
+      jobTimeout = Some(120),
+      concurrency = Some(
+        Concurrency(group = "release-${{ github.ref }}", cancelInProgress = CancelInProgress.Never)
+      ),
+      need = needs,
+      condition = Some(expr("github.event_name == 'push'")),
+      steps = Seq(
+        CheckoutCurrentBranch,
+        SetupCoursier("25", pinJvmIndex = false),
+        CacheDependencies,
+        SingleStep(
+          name = "Release",
+          uses = Some(ActionRef("nick-fields/retry@v4")),
+          parameters = Map(
+            "timeout_minutes"    -> Json.Num(30),
+            "max_attempts"       -> Json.Num(2),
+            "retry_wait_seconds" -> Json.Num(1800),
+            "command"            -> Json.Str("sbt ci-release")
+          ),
+          env = Map(
+            "CI_SNAPSHOT_RELEASE" -> s"++$scalaVersion publish",
+            "PGP_PASSPHRASE"      -> "${{ secrets.PGP_PASSPHRASE }}",
+            "PGP_SECRET"          -> "${{ secrets.PGP_SECRET }}",
+            "SONATYPE_PASSWORD"   -> "${{ secrets.SONATYPE_PASSWORD }}",
+            "SONATYPE_USERNAME"   -> "${{ secrets.SONATYPE_USERNAME }}"
+          )
+        )
+      )
+    )
+  )
+
+  lazy val releaseSnapshot213: Def.Initialize[Job] =
+    snapshotLane("release-213", "release (Scala 2.13 snapshots)", BuildHelper.Scala213, Seq("ci"))
+
+  lazy val releaseSnapshot39: Def.Initialize[Job] =
+    snapshotLane("release-39", "release (Scala 3.9 snapshots)", BuildHelper.Scala3, Seq("release-213"))
+
+  lazy val releaseSnapshot310: Def.Initialize[Job] =
+    snapshotLane(
+      "release-310",
+      "release (Scala 3.10 snapshots)",
+      BuildHelper.Scala3Next,
+      Seq("release-39")
+    )
 
   lazy val releaseDocs: Def.Initialize[Job] = Def.setting(
     Job(

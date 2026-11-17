@@ -63,12 +63,17 @@ inThisBuild(
     ),
     // Deploy the Netlify preview only when a contributor ticks the checkbox in the bot comment,
     // instead of on every successful PR run, to save Netlify credits.
-    ciEnableDeployPreview     := true,
-    ciDeployPreviewMode       := DeployPreviewMode.OnDemand,
-    ciBuildJobs               := Seq(CiWorkflow.buildDocs.value, CiWorkflow.landing.value),
-    ciLintJobs                := Seq(CiWorkflow.lint.value),
-    ciTestJobs                := Seq(CiWorkflow.testJVM.value, CiWorkflow.testJS.value),
-    ciReleaseJobs             := Seq(CiWorkflow.release.value),
+    ciEnableDeployPreview := true,
+    ciDeployPreviewMode   := DeployPreviewMode.OnDemand,
+    ciBuildJobs           := Seq(CiWorkflow.buildDocs.value, CiWorkflow.landing.value),
+    ciLintJobs            := Seq(CiWorkflow.lint.value),
+    ciTestJobs            := Seq(CiWorkflow.testJVM.value, CiWorkflow.testJS.value),
+    ciReleaseJobs         := Seq(
+      CiWorkflow.release.value,
+      CiWorkflow.releaseSnapshot213.value,
+      CiWorkflow.releaseSnapshot39.value,
+      CiWorkflow.releaseSnapshot310.value
+    ),
     ciPostReleaseJobs         := Seq(CiWorkflow.releaseDocs.value),
     ciPullRequestApprovalJobs := Seq("lint", "testJVM", "testJS", "buildDocs")
   )

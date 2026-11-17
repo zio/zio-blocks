@@ -289,6 +289,16 @@ object BuildHelper {
       // publishes happen on every push to main and gain little from a javadoc jar, so skip
       // packaging one for them; tagged releases still get a real javadoc jar.
       Compile / packageDoc / publishArtifact := !isSnapshot.value,
+      // Every file sbt publishes also uploads .sha1/.md5 checksums, roughly tripling
+      // Sonatype-bound PUTs per snapshot (~2.3k per full `+publish`, over the ~2k
+      // request bucket behind shared GitHub egress HTTP 429s; see zio/zio-blocks#1987).
+      // Nexus generates missing checksums server-side and Maven/Coursier resolve fine
+      // without them, so skip generating them for snapshots; tagged releases still
+      // publish full checksums for Central validation.
+      publish / checksums := {
+        if (isSnapshot.value) Nil
+        else (ThisBuild / checksums).value
+      },
       // Test/packageBin and Test/packageSrc are never published (sbt's own defaults leave
       // them off), so a Test/packageDoc jar has no corresponding binary to document — it's
       // a dangling artifact sbt otherwise builds by default for every config with a `doc`
