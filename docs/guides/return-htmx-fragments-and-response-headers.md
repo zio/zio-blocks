@@ -170,7 +170,7 @@ def cartSummary: Dom.Element =
   aside(
     id        := "cart-summary",
     hxGet     := "/cart/summary",
-    hxTrigger := HxTrigger("cart-updated").from("body"),
+    hxTrigger := HxTrigger("cart-updated").fromRaw("body"),
     hxSwap    := HxSwap.OuterHTML
   )(s"${cart.count} items, ${price(cart.totalCents)}")
 
@@ -338,7 +338,7 @@ def cartSummaryFragment: Response = htmlResponse(cartSummary.render)
 
 The code above sends two events with two kinds of payload:
 
-- `HxEventPayload.Event("cart-updated")` is a plain event name. The `cartSummary` element from the layout listens for it with `hxTrigger := HxTrigger("cart-updated").from("body")`, which renders as `hx-trigger="cart-updated from:body"`: htmx fires the event on the button that sent the request, the event bubbles up to `<body>`, and the summary sends `GET /cart/summary`. `cartSummaryFragment` answers with a new `<aside>`, and the summary's `hxSwap := HxSwap.OuterHTML` replaces the old one with it. With the default `innerHTML` swap, the new `<aside>` would land inside the old one, and in the browser each nested copy then sent its own request on the next `cart-updated`.
+- `HxEventPayload.Event("cart-updated")` is a plain event name. The `cartSummary` element from the layout listens for it with `hxTrigger := HxTrigger("cart-updated").fromRaw("body")`, which renders as `hx-trigger="cart-updated from:body"`: htmx fires the event on the button that sent the request, the event bubbles up to `<body>`, and the summary sends `GET /cart/summary`. `cartSummaryFragment` answers with a new `<aside>`, and the summary's `hxSwap := HxSwap.OuterHTML` replaces the old one with it. With the default `innerHTML` swap, the new `<aside>` would land inside the old one, and in the browser each nested copy then sent its own request on the next `cart-updated`.
 - `HxEventPayload.JsonValue(message)` sends a JSON object whose keys are event names and whose values become the event's `detail`. The `hxOn("show-message")` handler on `<body>` reads `event.detail.text` and writes it into `#message`.
 - `HxTriggerAfterSettle` fires its events after htmx has swapped and settled the new content, later than `HxTriggerHeader`. `HxTriggerAfterSwap` sits between the two. Use a later header when the listener needs the new HTML to be in the page already.
 
