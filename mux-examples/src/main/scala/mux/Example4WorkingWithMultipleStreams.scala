@@ -39,19 +39,19 @@ import zio.blocks.mux._
   println("\n--- Protocol extracts messages (no crosstalk) ---")
   // Extract messages — they stay on their own stream
   val out1 = stream1.takeOutbound() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   val out2 = stream2.takeOutbound() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   val out3 = stream3.takeOutbound() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   println(s"Stream 1 outbound: '$out1'")
   println(s"Stream 2 outbound: '$out2'")
@@ -73,19 +73,19 @@ import zio.blocks.mux._
   println("\n--- Application receives on each stream (no crosstalk) ---")
   // Receive on each stream — no crosstalk
   val in1 = stream1.receive() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   val in2 = stream2.receive() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   val in3 = stream3.receive() match {
-    case Some(msg)   => msg
-    case None        => "(empty)"
+    case MuxEmpty    => "(empty)"
     case e: MuxError => s"error: $e"
+    case msg         => msg
   }
   println(s"Stream 1 inbound: '$in1'")
   println(s"Stream 2 inbound: '$in2'")

@@ -162,7 +162,7 @@ addCommandAlias(
 )
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
 
@@ -174,7 +174,7 @@ lazy val testJVMScala3Command =
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -194,7 +194,7 @@ lazy val testJS2Scala3Command =
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
-    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; " +
+    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
     "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
@@ -206,7 +206,7 @@ lazy val docJVMScala3Command =
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
 
 lazy val docJSScala2Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; asyncJS/doc"
@@ -669,7 +669,7 @@ lazy val `scope-benchmarks` = project
 lazy val mux = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .jvmConfigure(_.dependsOn(ringbuffer.jvm % "compile->compile;test->test"))
-  .settings(stdSettings("zio-blocks-mux"))
+  .settings(stdSettings("zio-blocks-mux", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.mux"))
   .enablePlugins(BuildInfoPlugin)

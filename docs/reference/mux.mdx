@@ -3,13 +3,11 @@ id: mux
 title: "Mux"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 import MuxDataFlow from './MuxDataFlow.jsx';
 
 `zio-blocks-mux` is a **high-performance multiplexer for ID-multiplexed protocols** (HTTP/2, QUIC, WebSockets with multiplexing, and other stream-based transports). It manages multiple concurrent independent streams over a shared transport, each identified by a unique ID, with separate inbound/outbound message queues and automatic state machine lifecycle management.
 
-Core types: `Mux`, `MuxStream`, `MuxError`.
+Core types: `Mux`, `MuxStream`, `MuxError`, `MuxEmpty`, `Pollable`.
 
 Create a mux and exchange messages:
 
@@ -34,7 +32,7 @@ Multiplexing allows a single transport connection (TCP, QUIC, WebSocket) to carr
 Without multiplexing, protocols must open a new connection per concurrent operation (HTTP/1.1 with keep-alive), which is expensive and scales poorly. With multiplexing (HTTP/2, QUIC), one connection carries many streams, reducing connection overhead and latency while maintaining logical independence.
 
 `Mux` provides:
-- **Thread-safe stream registry** — `open`, `get`, `cancel`, `closeAll` and `activeCount` are safe to call from any thread. On the JVM, `open`, `cancel` and `closeAll` take a `ReentrantLock`, while `get` and `activeCount` read a `ConcurrentHashMap` without it; on Scala.js, which runs one thread, the registry is a plain `HashMap` with no locking
+- **Thread-safe stream registry** — concurrent `open`, `get`, `cancel` operations on the registry (lock-based on JVM, lock-free on JS)
 - **Lock-free per-stream queues** — `send()` and `offerInbound()` use lock-free ring buffers on JVM for high-throughput messaging
 - **Separate inbound/outbound queues** — independent message directions, two-way communication
 - **Automatic state machine** — stream lifecycle (OPEN → HALF_CLOSED_LOCAL/REMOTE → CLOSED) with proper half-close semantics
@@ -56,7 +54,7 @@ For Scala.js:
 libraryDependencies += "dev.zio" %%% "zio-blocks-mux" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.x (3.3.7 and 3.9.0)
 
 :::tip[Getting Started]
 New to Mux? Check out the [Getting Started with Mux](../guides/getting-started-with-mux.md) tutorial for a comprehensive step-by-step guide that teaches you the core concepts, common patterns, and best practices. The tutorial is designed for newcomers and includes runnable examples.
@@ -64,13 +62,16 @@ New to Mux? Check out the [Getting Started with Mux](../guides/getting-started-w
 
 ## Overview
 
-**IMPORTANT: Error Handling with Union Types and Either**
+**IMPORTANT: Error Handling with Union Types**
 
-In Scala 3, methods return union types (e.g., `Option[Out] | MuxError`). In Scala 2, they return `Either[MuxError, Option[Out]]`. You must use pattern matching to safely handle all branches:
-- Success cases: `Some(msg)` or `None` (in Scala 3) / `Right(Some(msg))` or `Right(None)` (in Scala 2)
-- Error cases: `MuxError` (in Scala 3) / `Left(error)` (in Scala 2)
+Methods return union types (e.g., `Out | MuxEmpty | MuxError`). You must use pattern matching to safely handle all branches:
+- Message cases: the message itself (`msg`)
+- Empty cases: `MuxEmpty` (queue drained but stream still open)
+- Error cases: `MuxError`
 
 Using higher-order functions like `.forEach()` or `.map()` without pattern matching will silently ignore error conditions and lose error information. Always explicitly pattern-match on all branches to handle both success and failure paths correctly.
+
+Message types are gated at construction: `Mux.apply` requires `Pollable[In]` and `Pollable[Out]` evidence, derived by a macro that proves the message types disjoint from `MuxError` and `MuxEmpty`. Overlapping types (`Any`, `Product`, unions containing errors, ...) fail compilation with an explicit diagnostic instead of producing ambiguous poll results.
 
 The multiplexer has three core concepts:
 
@@ -78,7 +79,7 @@ The multiplexer has three core concepts:
 
 **`MuxStream[Id, In, Out]`** represents a single logical stream within the mux. It has two independent message queues: one for messages you send (outbound, drained by the protocol), and one for messages delivered to you (inbound, enqueued by the protocol). It also manages a state machine that enforces correct sequencing of sends and receives as the stream progresses through OPEN, HALF_CLOSED_LOCAL, HALF_CLOSED_REMOTE, and CLOSED states.
 
-**`MuxError`** is a sealed trait representing all failure cases: `StreamClosed` (attempting operations on a closed stream), `CapacityExceeded` (too many concurrent streams), `QueueFull` (per-stream message queue exhausted), `Cancelled` (a reason you pass to `cancel` or `closeAll`; the library never creates it), `MuxClosed` (mux itself is closed), and `ProtocolError` (duplicate ID, null message).
+**`MuxError`** is a sealed trait representing all failure cases: `StreamClosed` (attempting operations on a closed stream), `CapacityExceeded` (too many concurrent streams), `QueueFull` (per-stream message queue exhausted), `Cancelled` (stream was cancelled by peer), `MuxClosed` (mux itself is closed), and `ProtocolError` (invalid state transition, duplicate ID, null message).
 
 ## How They Work Together
 
@@ -158,46 +159,6 @@ The architecture shows how application code, mux streams, and protocol layers in
 
 The mux holds multiple streams in a concurrent map. Each stream can be accessed independently:
 
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-val s1: Either[MuxError, MuxStream[Int, String, String]] = mux.open(1)
-val stream1 = s1 match {
-  case Right(s) => s
-  case Left(error) => throw new RuntimeException(s"Failed: $error")
-}
-
-val s2: Either[MuxError, MuxStream[Int, String, String]] = mux.open(2)
-val stream2 = s2 match {
-  case Right(s) => s
-  case Left(error) => throw new RuntimeException(s"Failed: $error")
-}
-
-stream1.send("hello")
-stream2.send("world")
-mux.get(1).foreach { stream =>
-  stream.receive() match {
-    case Right(Some(msg)) => println(s"Received: $msg")
-    case Right(None) => println("No message yet")
-    case Left(error) => println(s"Error: $error")
-  }
-}
-mux.get(2).foreach { stream =>
-  stream.receive() match {
-    case Right(Some(msg)) => println(s"Received: $msg")
-    case Right(None) => println("No message yet")
-    case Left(error) => println(s"Error: $error")
-  }
-}
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
 ```scala
 import zio.blocks.mux._
 
@@ -219,22 +180,19 @@ stream1.send("hello")
 stream2.send("world")
 mux.get(1).foreach { stream =>
   stream.receive() match {
-    case Some(msg) => println(s"Received: $msg")
-    case None => println("No message yet")
+    case MuxEmpty => println("No message yet")
     case error: MuxError => println(s"Error: $error")
+    case msg => println(s"Received: $msg")
   }
 }
 mux.get(2).foreach { stream =>
   stream.receive() match {
-    case Some(msg) => println(s"Received: $msg")
-    case None => println("No message yet")
+    case MuxEmpty => println("No message yet")
     case error: MuxError => println(s"Error: $error")
+    case msg => println(s"Received: $msg")
   }
 }
 ```
-
-  </TabItem>
-</Tabs>
 
 ## Diagram
 
@@ -291,7 +249,7 @@ val sendResult = stream.send("fail")
 
 **Backpressure and Queue Management**
 
-Each stream has separate inbound and outbound queues (capacity 256 per queue). If the protocol producer is faster than the consumer, the queue fills and `offerInbound` or `send` returns `QueueFull`:
+Each stream has separate inbound and outbound queues (default depth `Mux.DefaultStreamQueueCapacity`, 256 per queue; tunable via `streamQueueCapacity`, see [Mux](#mux)). If the protocol producer is faster than the consumer, the queue fills and `offerInbound` or `send` returns `QueueFull`:
 
 ```scala
 import zio.blocks.mux._
@@ -351,11 +309,6 @@ The mux does not depend on external modules except `zio-blocks-ringbuffer` for i
 
 `MuxError` is a sealed trait representing all failure conditions in mux operations.
 
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2">
-
-Here are the error type definitions for both Scala versions:
-
 ```scala
 sealed trait MuxError
 
@@ -369,26 +322,7 @@ object MuxError {
 }
 ```
 
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
-Scala 3 uses the same structure with union return types in method signatures:
-
-```scala
-sealed trait MuxError
-
-object MuxError {
-  final case class StreamClosed(id: Any) extends MuxError
-  final case class CapacityExceeded(limit: Int) extends MuxError
-  final case class QueueFull(queueCapacity: Int) extends MuxError
-  final case class Cancelled(id: Any, reason: String) extends MuxError
-  case object MuxClosed extends MuxError
-  final case class ProtocolError(message: String) extends MuxError
-}
-```
-
-  </TabItem>
-</Tabs>
+Immutable errors are shared rather than reallocated: `MuxClosed` is a singleton, each mux reuses one `CapacityExceeded` instance, and each stream reuses one `QueueFull` and one `StreamClosed` instance (created lazily on first use, so streams that never hit those paths allocate nothing for them). Caller-supplied errors (`Cancelled`, `closeAll` reasons) are returned by reference and never copied.
 
 **Variants**
 
@@ -396,13 +330,13 @@ object MuxError {
 
 **`CapacityExceeded(limit: Int)`** — Returned by `open` when the number of active streams has reached the mux's capacity limit. The `limit` field shows the configured capacity. Close or cancel other streams to free capacity.
 
-**`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (typically 256). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
+**`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (the configured `streamQueueCapacity`, 256 by default). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
 
-**`Cancelled(id: Any, reason: String)`** — A reason you can pass to `mux.cancel(id, reason)` or `closeAll`; the library never creates a `Cancelled` itself. `receive()` returns the reason you passed, whatever its case, so a `Cancelled` appears only when you pass one.
+**`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)`. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
 
 **`MuxClosed`** — Set when the mux itself is closed via `closeAll`. After this, `open` returns this error and all active streams transition to CLOSED.
 
-**`ProtocolError(message: String)`** — Returned when the protocol contract is violated (duplicate stream ID, or a `null` message). These indicate bugs in the protocol implementation or incorrect API usage.
+**`ProtocolError(message: String)`** — Returned when the protocol contract is violated (e.g., duplicate stream ID, null message, invalid state transition). These indicate bugs in the protocol implementation or incorrect API usage.
 
 ---
 
@@ -422,31 +356,26 @@ val mux = Mux[Int, String, String](100)
 
 The capacity must be positive; zero or negative capacity throws `IllegalArgumentException`. Capacity is fixed at construction and never changes.
 
+**Stream queue capacity (optional)**
+
+Each stream carries an inbound and an outbound queue. Their depth is set once per multiplexer with the optional `streamQueueCapacity` argument (omit it to use the default `Mux.DefaultStreamQueueCapacity`, 256):
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](capacity = 100, streamQueueCapacity = 512)
+```
+
+The depth must be a positive power of two — the backend stores each queue in a fixed ring buffer — otherwise construction throws `IllegalArgumentException`. Sizing guidance: worst-case retained memory per stream is roughly twice `streamQueueCapacity` message references, so size it at or above the maximum number of messages you expect to be in flight on one stream between polls. When a queue is full, `send`/`offerInbound` return `MuxError.QueueFull` instead of blocking (non-blocking contract): retry, shed load, or open fewer streams rather than spinning.
+
 **Core Operations**
 
-**`def open(id: Id): MuxStream[Id, In, Out] | MuxError`** (Scala 3) / **`def open(id: Id): Either[MuxError, MuxStream[Id, In, Out]]`** (Scala 2) — Open a new stream with the given ID. Transitions the stream from IDLE to OPEN state. Returns the new stream on success, or an error if:
+**`def open(id: Id): MuxStream[Id, In, Out] | MuxError`** — Open a new stream with the given ID. Transitions the stream from IDLE to OPEN state. Returns the new stream on success, or an error if:
 - Mux is closed (returns `MuxClosed`)
 - Stream ID already exists (returns `ProtocolError`)
 - Capacity exceeded (returns `CapacityExceeded`)
 
 Opening a stream with error handling:
-
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-
-mux.open(1) match {
-  case Right(stream) => println(s"Stream ${stream.id} opened")
-  case Left(error) => println(s"Failed: $error")
-}
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
 
 ```scala
 import zio.blocks.mux._
@@ -458,9 +387,6 @@ mux.open(1) match {
   case error: MuxError => println(s"Failed: $error")
 }
 ```
-
-  </TabItem>
-</Tabs>
 
 **`def get(id: Id): Option[MuxStream[Id, In, Out]]`** — Retrieve an existing stream by ID. Returns `Some(stream)` if the stream is open, `None` otherwise. This is a non-blocking lookup and does not modify any state.
 
@@ -570,7 +496,7 @@ The state transitions form a finite state machine:
 
 **Message Operations**
 
-**`def send(msg: In): Unit | MuxError`** (Scala 3) / **`def send(msg: In): Either[MuxError, Unit]`** (Scala 2) — Send a message on this stream. Places the message into the outbound queue for the protocol to drain. The protocol is responsible for transmitting the message over the shared transport.
+**`def send(msg: In): Unit | MuxError`** — Send a message on this stream. Places the message into the outbound queue for the protocol to drain. The protocol is responsible for transmitting the message over the shared transport.
 
 Returns `Unit` on success, or an error if:
 - Stream is closed (returns `StreamClosed`)
@@ -580,24 +506,6 @@ Returns `Unit` on success, or an error if:
 
 Sending a message on a stream:
 
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match {
-  case Right(s) => s
-  case Left(_) => sys.error("open failed")
-}
-
-val sendResult = stream.send("hello")
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
 ```scala
 import zio.blocks.mux._
 
@@ -610,36 +518,15 @@ val stream = mux.open(1) match {
 val sendResult = stream.send("hello")
 ```
 
-  </TabItem>
-</Tabs>
-
-**`def receive(): Option[Out] | MuxError`** (Scala 3) / **`def receive(): Either[MuxError, Option[Out]]`** (Scala 2) — Receive a message from the inbound queue. This is non-blocking: it returns immediately with whatever is available.
+**`def receive(): Out | MuxEmpty | MuxError`** — Receive a message from the inbound queue. This is non-blocking: it returns immediately with whatever is available.
 
 Returns:
-- `Some(msg)` if a message is available in the inbound queue
-- `None` if the queue is empty (no message yet, but stream is still open)
+- The message itself if one is available in the inbound queue (no `Some` wrapper — the hit path allocates nothing)
+- `MuxEmpty` if the queue is empty (no message yet, but stream is still open)
 - A `MuxError` if the stream is closed (queue has drained and a terminal error is set)
 
 Use this in a polling loop or with a reactor to wait for messages:
 
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match {
-  case Right(s) => s
-  case Left(_) => sys.error("open failed")
-}
-
-val result = stream.receive()
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
 ```scala
 import zio.blocks.mux._
 
@@ -652,37 +539,15 @@ val stream = mux.open(1) match {
 val result = stream.receive()
 ```
 
-  </TabItem>
-</Tabs>
-
-**`def takeOutbound(): Option[In] | MuxError`** (Scala 3) / **`def takeOutbound(): Either[MuxError, Option[In]]`** (Scala 2) — Take the next message from the outbound queue. Called by the protocol to drain messages sent via `send()` and transmit them over the shared transport. Non-blocking: returns immediately.
+**`def takeOutbound(): In | MuxEmpty | MuxError`** — Take the next message from the outbound queue. Called by the protocol to drain messages sent via `send()` and transmit them over the shared transport. Non-blocking: returns immediately.
 
 Returns:
-- `Some(msg)` if a message is available in the outbound queue
-- `None` if the queue is empty (no outbound message yet, but stream is still open)
+- The message itself if one is available in the outbound queue (no `Some` wrapper — the hit path allocates nothing)
+- `MuxEmpty` if the queue is empty (no outbound message yet, but stream is still open)
 - A `MuxError` if the stream is closed
 
 Draining messages from the outbound queue:
 
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match {
-  case Right(s) => s
-  case Left(_) => sys.error("open failed")
-}
-
-stream.send("outgoing")
-val outbound = stream.takeOutbound()
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
 ```scala
 import zio.blocks.mux._
 
@@ -696,10 +561,7 @@ stream.send("outgoing")
 val outbound = stream.takeOutbound()
 ```
 
-  </TabItem>
-</Tabs>
-
-**`def offerInbound(msg: Out): Unit | MuxError`** (Scala 3) / **`def offerInbound(msg: Out): Either[MuxError, Unit]`** (Scala 2) — Deliver a message to this stream's inbound queue. Called by the protocol when a message arrives from the peer.
+**`def offerInbound(msg: Out): Unit | MuxError`** — Deliver a message to this stream's inbound queue. Called by the protocol when a message arrives from the peer.
 
 Returns `Unit` on success, or an error if:
 - Stream is closed (returns `StreamClosed`)
@@ -709,25 +571,6 @@ Returns `Unit` on success, or an error if:
 
 Delivering a message to the inbound queue:
 
-<Tabs groupId="scala-version" defaultValue="scala3">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.mux._
-
-val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match {
-  case Right(s) => s
-  case Left(_) => sys.error("open failed")
-}
-
-stream.offerInbound("response from peer")
-val received = stream.receive()
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
 ```scala
 import zio.blocks.mux._
 
@@ -740,9 +583,6 @@ val stream = mux.open(1) match {
 stream.offerInbound("response from peer")
 val received = stream.receive()
 ```
-
-  </TabItem>
-</Tabs>
 
 **Lifecycle Operations**
 
@@ -773,7 +613,7 @@ val recAfter = stream.receive()
 - OPEN → HALF_CLOSED_REMOTE (remote side cannot send; local can still receive pending messages)
 - HALF_CLOSED_LOCAL → CLOSED (both sides are now closed)
 
-After `signalRemoteClose()`, `offerInbound()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages. Once they are drained, `receive()` keeps returning `None`, not an error, until the local side also half-closes, so `receive()` alone does not tell the application that the peer has finished. A protocol that needs to tell it delivers an end marker as the last inbound message, as [How to Run a Mux over a Real Socket](../guides/run-a-mux-over-a-socket.md) does.
+After `signalRemoteClose()`, `offerInbound()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages.
 
 Signalling remote half-close:
 
@@ -812,7 +652,7 @@ val inMux = mux.get(1)
 **Thread Safety**
 
 - `send()` and `offerInbound()` are **multi-thread safe**: multiple threads can safely call these concurrently on the same stream.
-- `receive()` and `takeOutbound()` are **single-consumer**: on each stream, at most one thread at a time may call `receive()`, and at most one thread at a time may call `takeOutbound()`. The two can be different threads, which is the usual layout: the application calls `receive()` and the protocol's writer calls `takeOutbound()`. Two threads calling the same one concurrently corrupt the ring buffer: messages are delivered twice or lost, and the queue can stop accepting new messages.
+- Call `receive()` and `takeOutbound()` from the same thread only. Concurrent calls to the same ring buffer produce data races and unpredictable behavior. These are single-consumer operations and must be called from a single thread. Concurrent calls will corrupt the ring buffer state and lead to incorrect results or lost messages.
 - State queries (`id`, `isClosed`, `isHalfClosed`) are always safe to call from any thread.
 
 ## Performance
@@ -820,10 +660,11 @@ val inMux = mux.get(1)
 - JVM: `MpscRingBuffer` for inbound and outbound, lock-free and zero-alloc for multi-producer writes
 - JVM: `VarHandle` CAS for stream state transitions
 - JS: `ArrayDeque` fallback
-- No `synchronized`: the registry's lock is a `ReentrantLock`, and the per-stream queues and state transitions take no lock, so a virtual thread never pins its carrier thread inside `Mux`
+- No `synchronized`, so it stays friendly to virtual threads
+- Poll hit path (`receive`, `takeOutbound`) returns the message itself with no `Some`/`Option` wrapper; empty polls return the shared `MuxEmpty` singleton. Only the reference already in the queue is returned, so per-poll allocation on the hit path is eliminated (value-type messages still box once when stored, as the queues hold references)
+- Immutable errors are cached at their natural lifetimes (one `CapacityExceeded` per mux; lazily-created `QueueFull`/`StreamClosed` per stream): the first signal allocates once, repeats reuse the same instance. Duplicate-`open` rejections allocate per call.
 
 ## See Also
 
-- [How to Run a Mux over a Real Socket](../guides/run-a-mux-over-a-socket.md) -- wires a `Mux` to a TCP connection: a frame format, a reader loop and a writer loop, half-close, back-pressure, resets and shutdown.
 - [Streams](streams/index.md) -- the pull-based `Stream`, `Reader`, `Sink`, and `Writer` module. `Mux` is not built on it, but the two are the same concurrency-infrastructure family, and a stream per multiplexed channel is the natural pairing when you are coordinating many keyed streams over one transport.
 - [Async Execution](streams/execution-and-compatibility/async-execution.md) -- how a stream runs without blocking, which is what you want on each side of a `Mux` channel.

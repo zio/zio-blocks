@@ -81,9 +81,9 @@ import zio.blocks.mux._
   // Protocol drains one message to free space
   println("\nProtocol drains one message from outbound queue:")
   stream2.takeOutbound() match {
-    case Some(msg)   => println(s"  Extracted: '$msg'")
-    case None        => println("  (queue empty)")
+    case MuxEmpty    => println("  (queue empty)")
     case e: MuxError => println(s"  Error: $e")
+    case msg         => println(s"  Extracted: '$msg'")
   }
 
   // Retry after draining — now succeeds

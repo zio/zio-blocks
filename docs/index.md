@@ -136,7 +136,7 @@ All of these ship in `zio-blocks-scope`.
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Async](./reference/async.md) | `zio-blocks-async` | JVM · JS | 2.13 · 3.x | Zero-allocation asynchronous effect type with direct-style `await` |
-| [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 2.13 · 3.x | Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols |
+| [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 3.x | Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols |
 | [RingBuffer](./reference/ringbuffer/index.mdx) | `zio-blocks-ringbuffer` | JVM · JS | 2.13 · 3.x | Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC) |
 
 ### Streams

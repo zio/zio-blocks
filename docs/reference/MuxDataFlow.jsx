@@ -121,15 +121,15 @@ const MuxDataFlow = () => {
   });
 
   const appReceive = () => update(st => {
-    if (st.inQ.length > 0) { const m = st.inQ.shift(); addLog(st, `receive() → Some("${m}")`, true); }
+    if (st.inQ.length > 0) { const m = st.inQ.shift(); addLog(st, `receive() → "${m}"`, true); }
     else if (st.state === "closed") addLog(st, "receive() → StreamClosed", false);
-    else addLog(st, "receive() → None", null);
+    else addLog(st, "receive() → MuxEmpty", null);
   });
 
   const protoTake = () => update(st => {
-    if (st.outQ.length > 0) { const m = st.outQ.shift(); addLog(st, `takeOutbound() → Some("${m}")`, true); }
+    if (st.outQ.length > 0) { const m = st.outQ.shift(); addLog(st, `takeOutbound() → "${m}"`, true); }
     else if (st.state === "closed") addLog(st, "takeOutbound() → StreamClosed", false);
-    else addLog(st, "takeOutbound() → None", null);
+    else addLog(st, "takeOutbound() → MuxEmpty", null);
   });
 
   const protoOffer = () => update(st => {

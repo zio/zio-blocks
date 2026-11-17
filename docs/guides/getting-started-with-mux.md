@@ -36,23 +36,8 @@ We'll learn these concepts through:
 
 We recommend reading from top to bottom — each section builds on the previous one.
 
-:::info[Scala 2 and Scala 3]
-The code examples in this tutorial use **Scala 3 syntax**. In Scala 2.13, the API returns `Either[MuxError, T]` instead of union types, and pattern matching uses `case Right(value)` and `case Left(error)` instead of `case value` and `case error`. For complete API signatures with both syntaxes, see the [Mux Reference](../reference/mux.mdx).
-
-**Example: Scala 2 equivalent:**
-```scala
-// Scala 3
-stream.send("Hello") match {
-  case () => println("Success")
-  case error: MuxError => println(s"Error: $error")
-}
-
-// Scala 2
-stream.send("Hello") match {
-  case Right(()) => println("Success")
-  case Left(error) => println(s"Error: $error")
-}
-```
+:::info[Scala 3]
+The code examples in this tutorial use **Scala 3 syntax** (`zio-blocks-mux` supports Scala 3.3.7 and 3.9.0 on JVM and Scala.js). For complete API signatures, see the [Mux Reference](../reference/mux.mdx).
 :::
 
 ## The Big Picture
@@ -142,9 +127,9 @@ stream.send("Hello from app") match {
 
 // Protocol code: extract the message to send over network
 val outbound = stream.takeOutbound() match {
-  case Some(msg) => msg
-  case None => "no message available"
+  case MuxEmpty => "no message available"
   case error: MuxError => s"error: $error"
+  case msg => msg
 }
 println(s"Protocol will send: $outbound")
 
@@ -156,18 +141,20 @@ stream.offerInbound("Hello from peer") match {
 
 // Application code: receive the response
 val inbound = stream.receive() match {
-  case Some(msg) => msg
-  case None => "no message available"
+  case MuxEmpty => "no message available"
   case error: MuxError => s"error: $error"
+  case msg => msg
 }
 println(s"Application received: $inbound")
 ```
 
 The code above demonstrates the `MuxStream` API:
 - `MuxStream#send(msg)` returns `Unit | MuxError` (success or error); we pattern-match to handle both cases
-- `MuxStream#takeOutbound()` returns `Option[String] | MuxError` (Some/None/error); we match all three
+- `MuxStream#takeOutbound()` returns `String | MuxEmpty | MuxError` (message/empty/error); we match all three
 - `MuxStream#offerInbound(msg)` returns `Unit | MuxError` (success or error); we pattern-match to handle both
-- `MuxStream#receive()` returns `Option[String] | MuxError` (Some/None/error); we match all three cases
+- `MuxStream#receive()` returns `String | MuxEmpty | MuxError` (message/empty/error); we match all three cases
+
+Poll hits return the message itself with no `Some` wrapper, so poll hits allocate nothing; empty polls return the shared `MuxEmpty` singleton and repeated errors reuse cached instances (the first signal allocates once). Message types are checked at construction: `Mux.apply` requires `Pollable` evidence proving them disjoint from `MuxError` and `MuxEmpty`, so overlapping types fail compilation instead of producing ambiguous results.
 
 :::tip[Two Queues, Two Roles]
 Think of it as a pipeline: your application uses `send()` and `receive()`, the protocol uses `takeOutbound()` and `offerInbound()`. The mux sits in the middle, managing two FIFO queues per stream. This separation is intentional — it lets you reason about sending independently from receiving.
@@ -322,9 +309,9 @@ stream2.send("Message for stream 2") match { case () => (); case e: MuxError => 
 stream3.send("Message for stream 3") match { case () => (); case e: MuxError => println(s"Stream 3 send error: $e") }
 
 // Extract messages — they stay on their own stream
-val out1 = stream1.takeOutbound() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
-val out2 = stream2.takeOutbound() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
-val out3 = stream3.takeOutbound() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
+val out1 = stream1.takeOutbound() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
+val out2 = stream2.takeOutbound() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
+val out3 = stream3.takeOutbound() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
 println(s"Stream 1 outbound: $out1")
 println(s"Stream 2 outbound: $out2")
 println(s"Stream 3 outbound: $out3")
@@ -335,9 +322,9 @@ stream2.offerInbound("Response for stream 2") match { case () => (); case e: Mux
 stream3.offerInbound("Response for stream 3") match { case () => (); case e: MuxError => println(s"Stream 3 offer error: $e") }
 
 // Receive on each stream — no crosstalk
-val in1 = stream1.receive() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
-val in2 = stream2.receive() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
-val in3 = stream3.receive() match { case Some(msg) => msg; case None => "(empty)"; case e: MuxError => s"error: $e" }
+val in1 = stream1.receive() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
+val in2 = stream2.receive() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
+val in3 = stream3.receive() match { case MuxEmpty => "(empty)"; case e: MuxError => s"error: $e"; case msg => msg }
 println(s"Stream 1 inbound: $in1")
 println(s"Stream 2 inbound: $in2")
 println(s"Stream 3 inbound: $in3")
@@ -473,8 +460,8 @@ stream.send("Message 2") match { case () => println("✓ Sent 2"); case e: MuxEr
 
 // Thread B: protocol code (single thread)
 // Always call takeOutbound() from the same thread
-stream.takeOutbound() match { case Some(msg) => println(s"Extracted: $msg"); case None => println("(empty)"); case e: MuxError => println(s"✗ Error: $e") }
-stream.takeOutbound() match { case Some(msg) => println(s"Extracted: $msg"); case None => println("(empty)"); case e: MuxError => println(s"✗ Error: $e") }
+stream.takeOutbound() match { case MuxEmpty => println("(empty)"); case e: MuxError => println(s"✗ Error: $e"); case msg => println(s"Extracted: $msg") }
+stream.takeOutbound() match { case MuxEmpty => println("(empty)"); case e: MuxError => println(s"✗ Error: $e"); case msg => println(s"Extracted: $msg") }
 
 // Thread C, D, E, ... : multiple threads can safely deliver inbound messages
 // This is thread-safe
@@ -484,9 +471,9 @@ for (_ <- 1 to 3) {
 
 // Thread A: back on the application thread
 // Always receive() on the same thread
-stream.receive() match { case Some(msg) => println(s"Received: $msg"); case None => println("(empty)"); case e: MuxError => println(s"✗ Error: $e") }
-stream.receive() match { case Some(msg) => println(s"Received: $msg"); case None => println("(empty)"); case e: MuxError => println(s"✗ Error: $e") }
-stream.receive() match { case Some(msg) => println(s"Received: $msg"); case None => println("(empty)"); case e: MuxError => println(s"✗ Error: $e") }
+stream.receive() match { case MuxEmpty => println("(empty)"); case e: MuxError => println(s"✗ Error: $e"); case msg => println(s"Received: $msg") }
+stream.receive() match { case MuxEmpty => println("(empty)"); case e: MuxError => println(s"✗ Error: $e"); case msg => println(s"Received: $msg") }
+stream.receive() match { case MuxEmpty => println("(empty)"); case e: MuxError => println(s"✗ Error: $e"); case msg => println(s"Received: $msg") }
 ```
 
 The code above:
@@ -550,9 +537,9 @@ object MuxExample {
     // Protocol extracts messages to send over the network
     streams.zipWithIndex.foreach { case (stream, idx) =>
       stream.takeOutbound() match {
-        case Some(msg) => println(s"Protocol will send on stream ${idx + 1}: $msg")
-        case None => println(s"Stream ${idx + 1} has no outbound messages")
+        case MuxEmpty => println(s"Stream ${idx + 1} has no outbound messages")
         case error: MuxError => println(s"Stream ${idx + 1} takeOutbound failed: $error")
+        case msg => println(s"Protocol will send on stream ${idx + 1}: $msg")
       }
     }
 
@@ -570,9 +557,9 @@ object MuxExample {
     // Application receives the responses
     streams.zipWithIndex.foreach { case (stream, idx) =>
       stream.receive() match {
-        case Some(msg) => println(s"Stream ${idx + 1} received: $msg")
-        case None => println(s"Stream ${idx + 1} has no inbound messages")
+        case MuxEmpty => println(s"Stream ${idx + 1} has no inbound messages")
         case error: MuxError => println(s"Stream ${idx + 1} receive failed: $error")
+        case msg => println(s"Stream ${idx + 1} received: $msg")
       }
     }
 
