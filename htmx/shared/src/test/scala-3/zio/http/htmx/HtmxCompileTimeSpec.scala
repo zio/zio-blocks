@@ -16,11 +16,128 @@
 
 package zio.http.htmx
 
-import _root_.zio.test.Assertion.isLeft
+import _root_.zio.test.Assertion.{isLeft, isRight}
 import _root_.zio.test._
 
 object HtmxCompileTimeSpec extends ZIOSpecDefault {
+  private val fromStringError: String =
+    "None of the overloaded alternatives of method from in class HxTrigger with types\n" +
+      " (target: zio.http.htmx.HxTarget): zio.http.htmx.HxTrigger\n" +
+      " (selector: zio.blocks.html.CssSelector): zio.http.htmx.HxTrigger\n" +
+      "match arguments ((\"#source\" : String))"
+
+  private val targetStringError390: String =
+    "Found:    (\".save\" : String)\n" +
+      "Required: zio.blocks.html.CssSelector"
+
+  private val targetStringError337: String =
+    "Found:    (\".save\" : String)\n" +
+      "Required: zio.blocks.html.CssSelector\n" +
+      "\n" +
+      "The following import might make progress towards fixing the problem:\n" +
+      "\n" +
+      "  import izumi.reflect.dottyreflection.ReflectionUtil.\n" +
+      "  reflectiveUncheckedNonOverloadedSelectable\n" +
+      "\n"
+
+  private val rootStringError390: String =
+    "Found:    (\"main\" : String)\n" +
+      "Required: zio.blocks.html.CssSelector"
+
+  private val rootStringError337: String =
+    "Found:    (\"main\" : String)\n" +
+      "Required: zio.blocks.html.CssSelector\n" +
+      "\n" +
+      "The following import might make progress towards fixing the problem:\n" +
+      "\n" +
+      "  import izumi.reflect.dottyreflection.ReflectionUtil.\n" +
+      "  reflectiveUncheckedNonOverloadedSelectable\n" +
+      "\n"
+
   def spec = suite("HtmxCompileTime")(
+    test("hxTrigger from rejects raw String") {
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.from("#source")
+        """)
+      )(Assertion.equalTo(Left(fromStringError)))
+    },
+    test("hxTrigger target rejects raw String") {
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.target(".save")
+        """).map(result => result == Left(targetStringError390) || result == Left(targetStringError337))
+      )(Assertion.isTrue)
+    },
+    test("hxTrigger root rejects raw String") {
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.root("main")
+        """).map(result => result == Left(rootStringError390) || result == Left(rootStringError337))
+      )(Assertion.isTrue)
+    },
+    test("hxTrigger from/target/root accept typed and raw forms") {
+      assertZIO(
+        typeCheck("""
+          import _root_.zio.blocks.html.CssSelector
+          import zio.http.htmx._
+
+          HxTrigger.click.from(CssSelector.id("source"))
+        """)
+      )(isRight) &&
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.fromRaw("#source")
+        """)
+      )(isRight) &&
+      assertZIO(
+        typeCheck("""
+          import _root_.zio.blocks.html.CssSelector
+          import zio.http.htmx._
+
+          HxTrigger.click.target(CssSelector.`class`("save"))
+        """)
+      )(isRight) &&
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.targetRaw(".save")
+        """)
+      )(isRight) &&
+      assertZIO(
+        typeCheck("""
+          import _root_.zio.blocks.html.CssSelector
+          import zio.http.htmx._
+
+          HxTrigger.click.root(CssSelector.element("main"))
+        """)
+      )(isRight) &&
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.rootRaw("main")
+        """)
+      )(isRight)
+    },
+    test("hxTrigger from accepts HxTarget") {
+      assertZIO(
+        typeCheck("""
+          import zio.http.htmx._
+
+          HxTrigger.click.from(HxTarget.closest("form"))
+        """)
+      )(isRight)
+    },
     test("hxSwap rejects raw strings") {
       assertZIO(
         typeCheck("""

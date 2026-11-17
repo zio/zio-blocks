@@ -117,11 +117,11 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
             .every(2.seconds)
             .throttle(1.second)
             .from(HxTarget.find("button"))
-            .target("#save")
+            .targetRaw("#save")
             .consume
             .queue(HxTrigger.QueueStrategy.First)
             .threshold(0.5)
-            .root("#viewport")
+            .rootRaw("#viewport")
         ).render
       assertTrue(
         result == """<div hx-trigger="every 2s throttle:1s from:find button target:#save consume queue:first threshold:0.5 root:#viewport"></div>"""
@@ -139,7 +139,7 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
             .delay(250.millis)
             .queue(HxTrigger.QueueStrategy.First)
             .queue(HxTrigger.QueueStrategy.All)
-            .from("body")
+            .fromRaw("body")
             .from(HxTarget.closest("form"))
         ).render
       assertTrue(result == """<div hx-trigger="click delay:250ms queue:all from:closest form"></div>""")
@@ -150,12 +150,12 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
           hxTrigger := HxTrigger.click
             .throttle(1.second)
             .throttle(2.seconds)
-            .target("#first")
-            .target("#second")
+            .targetRaw("#first")
+            .targetRaw("#second")
             .threshold(0.25)
             .threshold(0.75)
-            .root("#one")
-            .root("#two")
+            .rootRaw("#one")
+            .rootRaw("#two")
             .once
             .once
             .changed
