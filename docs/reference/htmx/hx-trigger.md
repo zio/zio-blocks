@@ -181,7 +181,7 @@ import zio.http.htmx._
 // Only fire on clicks within .clickable items
 div(
   hxPost := "/item-selected",
-  hxTrigger := HxTrigger.click.target(CssSelector.className("clickable")),
+  hxTrigger := HxTrigger.click.target(CssSelector.`class`("clickable")),
   div(className := "clickable", "Item 1"),
   div(className := "clickable", "Item 2")
 )
