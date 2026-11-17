@@ -137,6 +137,23 @@ object LogFormatterSpec extends ZIOSpecDefault {
       .setInstrumentationScope(InstrumentationScope("test"))
       .build
 
+  /**
+   * Fixed single-frame throwable so the full stacktrace rendering is
+   * byte-stable across JVMs (a real stack grows and varies with how the suite
+   * is launched).
+   */
+  private def deterministicThrowable(): Throwable = {
+    val t = new IllegalStateException("boom")
+    t.setStackTrace(Array(new StackTraceElement("com.example.Caller", "call", "Caller.scala", 42)))
+    t
+  }
+
+  /**
+   * Expected JSON-escaped body of `deterministicThrowable().printStackTrace()`.
+   */
+  private val stackTraceJson =
+    """java.lang.IllegalStateException: boom\n\tat com.example.Caller.call(Caller.scala:42)\n"""
+
   private def countOccurrences(haystack: String, needle: String): Int = {
     var count = 0
     var from  = 0
@@ -472,6 +489,153 @@ object LogFormatterSpec extends ZIOSpecDefault {
           !rendered.contains("\"spanId\":"),
           countOccurrences(rendered, "\"attributes\":") == 1
         )
+      },
+      test("renders source, user attributes, trace and throwable as one exact valid json document") {
+        val timestamp = 1719792606323000000L
+        val traceIdHi = 0x0123456789abcdefL
+        val traceIdLo = 0x0fedcba987654321L
+        val spanId    = 0x1234abcd5678ef90L
+        val attrs     = Attributes.builder
+          .put("user.string", "value")
+          // Canonical key collides with the present source file: suppressed, never emitted.
+          .put("code.file.path", "spoofed")
+          .put("user.long", 7L)
+        val rendered = renderJson(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "body",
+          attrs,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          sourceFile = "Src.scala",
+          sourceFunction = "pkg.fn",
+          sourceLine = 12,
+          throwable = Some(deterministicThrowable())
+        )
+
+        val expected =
+          s"""{"timeUnixNano":"$timestamp","severityNumber":9,"severityText":"INFO",""" +
+            s""""body":{"stringValue":"body"},"attributes":[""" +
+            s"""{"key":"code.file.path","value":{"stringValue":"Src.scala"}},""" +
+            s"""{"key":"code.function.name","value":{"stringValue":"pkg.fn"}},""" +
+            s"""{"key":"code.line.number","value":{"intValue":"12"}},""" +
+            s"""{"key":"user.string","value":{"stringValue":"value"}},""" +
+            s"""{"key":"user.long","value":{"intValue":"7"}},""" +
+            s"""{"key":"exception.stacktrace","value":{"stringValue":"$stackTraceJson"}}],""" +
+            s""""traceId":"${TraceId.toHex(traceIdHi, traceIdLo)}",""" +
+            s""""spanId":"${String.format("%016x", spanId: java.lang.Long)}"}"""
+
+        val record = logRecord(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "body",
+          Attributes.builder
+            .put("user.string", "value")
+            .put("code.file.path", "spoofed")
+            .put("user.long", 7L)
+            .build,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          sourceFile = "Src.scala",
+          sourceFunction = "pkg.fn",
+          sourceLine = 12,
+          throwable = Some(deterministicThrowable())
+        )
+
+        assertTrue(
+          !rendered.contains("spoofed"),
+          rendered == expected,
+          renderJsonRecord(record) == expected
+        )
+      },
+      test("renders throwable and trace exactly when no attributes exist") {
+        val timestamp = 1719792606423000000L
+        val traceIdHi = 0x1111222233334444L
+        val traceIdLo = 0x5555666677778888L
+        val spanId    = 0x9999aaaabbbbccccL
+        val rendered  = renderJson(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "no attrs",
+          Attributes.builder,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          throwable = Some(deterministicThrowable())
+        )
+
+        val expected =
+          s"""{"timeUnixNano":"$timestamp","severityNumber":9,"severityText":"INFO",""" +
+            s""""body":{"stringValue":"no attrs"},"attributes":[""" +
+            s"""{"key":"exception.stacktrace","value":{"stringValue":"$stackTraceJson"}}],""" +
+            s""""traceId":"${TraceId.toHex(traceIdHi, traceIdLo)}",""" +
+            s""""spanId":"${String.format("%016x", spanId: java.lang.Long)}"}"""
+
+        val record = logRecord(
+          timestamp,
+          Severity.Info,
+          "INFO",
+          "no attrs",
+          Attributes.empty,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          throwable = Some(deterministicThrowable())
+        )
+
+        assertTrue(rendered == expected, renderJsonRecord(record) == expected)
+      },
+      test("renders source attributes, throwable and trace exactly in one attributes array") {
+        val timestamp = 1719792606523000000L
+        val traceIdHi = 0x2222333344445555L
+        val traceIdLo = 0x6666777788889999L
+        val spanId    = 0xaaaabbbbccccddddL
+        val rendered  = renderJson(
+          timestamp,
+          Severity.Warn,
+          "WARN",
+          "source only",
+          Attributes.builder,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          sourceFile = "Src.scala",
+          sourceFunction = "pkg.fn",
+          sourceLine = 33,
+          throwable = Some(deterministicThrowable())
+        )
+
+        val expected =
+          s"""{"timeUnixNano":"$timestamp","severityNumber":13,"severityText":"WARN",""" +
+            s""""body":{"stringValue":"source only"},"attributes":[""" +
+            s"""{"key":"code.file.path","value":{"stringValue":"Src.scala"}},""" +
+            s"""{"key":"code.function.name","value":{"stringValue":"pkg.fn"}},""" +
+            s"""{"key":"code.line.number","value":{"intValue":"33"}},""" +
+            s"""{"key":"exception.stacktrace","value":{"stringValue":"$stackTraceJson"}}],""" +
+            s""""traceId":"${TraceId.toHex(traceIdHi, traceIdLo)}",""" +
+            s""""spanId":"${String.format("%016x", spanId: java.lang.Long)}"}"""
+
+        val record = logRecord(
+          timestamp,
+          Severity.Warn,
+          "WARN",
+          "source only",
+          Attributes.empty,
+          traceIdHi,
+          traceIdLo,
+          spanId,
+          sourceFile = "Src.scala",
+          sourceFunction = "pkg.fn",
+          sourceLine = 33,
+          throwable = Some(deterministicThrowable())
+        )
+
+        assertTrue(rendered == expected, renderJsonRecord(record) == expected)
       },
       test("omits optional json sections when trace ids, span ids, attrs, and throwable are absent") {
         val timestamp = 1719792607123000000L

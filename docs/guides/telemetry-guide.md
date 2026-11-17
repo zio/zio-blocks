@@ -182,7 +182,6 @@ Every `log.*` method is a Scala inline macro. The macro generates something like
 ```
 Conceptual expansion of `log.info("msg", "key" -> 42L)`:
 
-```
 Expands to (pseudocode):
   if (Severity.Info.number >= GlobalLogState.globalMinLevel) {
     val state = log.getState()

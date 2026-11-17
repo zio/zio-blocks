@@ -433,10 +433,12 @@ object TextLogFormatter extends LogFormatter {
  * or `Infinity`, which is not valid JSON either, a known bug.
  *
  * Source metadata is emitted first as canonical attributes (`code.file.path`,
- * `code.function.name`, `code.line.number`), followed by user attributes. A
- * user attribute colliding with a canonical key is suppressed only when that
- * source field is present (see [[LogRecord.isSourceCollision]]); otherwise it
- * passes through unchanged.
+ * `code.function.name`, `code.line.number`), followed by user attributes and
+ * finally the throwable's `exception.stacktrace`; all of them share one
+ * `"attributes"` array, which is closed once — before the `traceId`/`spanId`
+ * fields. A user attribute colliding with a canonical key is suppressed only
+ * when that source field is present (see `LogRecord.isSourceCollision`);
+ * otherwise it passes through unchanged.
  */
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
@@ -484,15 +486,18 @@ object JsonLogFormatter extends LogFormatter {
       sourceLine,
       hasAttrs
     )
+
+    // Throwable as exception.stacktrace attribute, inside the same array.
+    throwable.foreach { t =>
+      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
+    }
+
+    // The attributes array stays open until every source/user/throwable entry
+    // is appended, so it is closed exactly once here — before the trace fields.
     if (hasAttrs) sb.append(']')
 
     // Trace context
     renderJsonTrace(sb, traceIdHi, traceIdLo, spanId)
-
-    // Throwable as exception.stacktrace attribute
-    throwable.foreach { t =>
-      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
-    }
 
     sb.append('}')
   }
@@ -519,15 +524,18 @@ object JsonLogFormatter extends LogFormatter {
       record.sourceLine,
       hasAttrs
     )
+
+    // Throwable as exception.stacktrace attribute, inside the same array.
+    record.throwable.foreach { t =>
+      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
+    }
+
+    // The attributes array stays open until every source/user/throwable entry
+    // is appended, so it is closed exactly once here — before the trace fields.
     if (hasAttrs) sb.append(']')
 
     // Trace context
     renderJsonTrace(sb, record.traceIdHi, record.traceIdLo, record.spanId)
-
-    // Throwable as exception.stacktrace attribute
-    record.throwable.foreach { t =>
-      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
-    }
 
     sb.append('}')
   }
@@ -545,18 +553,15 @@ object JsonLogFormatter extends LogFormatter {
   ): Boolean = {
     var wrote = hasAttrs
     if (sourceFile != null && sourceFile.nonEmpty) {
-      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
-      else sb.append(',')
+      wrote = beginJsonAttribute(sb, wrote)
       appendJsonAttribute(sb, SourceLocation.CodeFilePath, JsonAttrValue.StringValue(sourceFile))
     }
     if (sourceFunction != null && sourceFunction.nonEmpty) {
-      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
-      else sb.append(',')
+      wrote = beginJsonAttribute(sb, wrote)
       appendJsonAttribute(sb, SourceLocation.CodeFunctionName, JsonAttrValue.StringValue(sourceFunction))
     }
     if (sourceLine != 0) {
-      if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
-      else sb.append(',')
+      wrote = beginJsonAttribute(sb, wrote)
       appendJsonAttribute(sb, SourceLocation.CodeLineNumber, JsonAttrValue.IntValue(sourceLine.toLong))
     }
     wrote
@@ -585,8 +590,7 @@ object JsonLogFormatter extends LogFormatter {
     var i     = 0
     while (i < len) {
       if (!LogRecord.isSourceCollision(keys(i), sourceFile, sourceFunction, sourceLine)) {
-        if (!wrote) { sb.append(",\"attributes\":["); wrote = true }
-        else sb.append(',')
+        wrote = beginJsonAttribute(sb, wrote)
         appendJsonAttribute(sb, keys(i), jsonValueFor(types(i), longs(i), strings(i), seqValueAt(seqs, i)))
       }
       i += 1
@@ -652,23 +656,29 @@ object JsonLogFormatter extends LogFormatter {
 
   /**
    * Shared JSON throwable rendering as an `exception.stacktrace` attribute.
+   * Starts or continues the open attributes array and leaves it open; the
+   * caller closes it once after the last entry (see [[beginJsonAttribute]]).
    * Returns the updated `hasAttrs` flag.
    */
   private def renderJsonThrowableAttr(sb: StringBuilder, t: Throwable, hasAttrs: Boolean): Boolean = {
     val sw = new java.io.StringWriter()
     t.printStackTrace(new java.io.PrintWriter(sw))
-    val updated =
-      if (!hasAttrs) {
-        sb.append(",\"attributes\":[")
-        true
-      } else {
-        sb.setLength(sb.length - 1)
-        sb.append(',')
-        hasAttrs
-      }
+    beginJsonAttribute(sb, hasAttrs)
     appendJsonAttribute(sb, "exception.stacktrace", JsonAttrValue.StringValue(sw.toString))
-    sb.append(']')
-    updated
+    true
+  }
+
+  /**
+   * Starts or continues the shared `"attributes"` array: opens it (with the
+   * leading comma) when no entry has been written yet, otherwise appends the
+   * separator comma. Always reports `true` so callers thread a single
+   * `hasAttrs` flag through source, user and throwable entries without ever
+   * splicing the already-emitted JSON.
+   */
+  private def beginJsonAttribute(sb: StringBuilder, hasAttrs: Boolean): Boolean = {
+    if (hasAttrs) sb.append(',')
+    else sb.append(",\"attributes\":[")
+    true
   }
 
   private def appendJsonAttribute(sb: StringBuilder, key: String, value: JsonAttrValue): Unit = {

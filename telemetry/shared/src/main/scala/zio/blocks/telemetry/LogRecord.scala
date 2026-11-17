@@ -93,10 +93,10 @@ object LogMessage {
  * never aliases `attribute("code.file.path")` (or its siblings) into these
  * fields. Exporters combine both at the boundary using the stable OpenTel keys
  * (`code.file.path`, `code.function.name`, `code.line.number`); see
- * [[LogRecord.isSourceCollision]] for the collision policy.
+ * `LogRecord.isSourceCollision` for the collision policy.
  *
  * User attributes live in a private type-specialized store. They are readable
- * only through [[LogRecord.attribute]] (single lookup) and
+ * only through `LogRecord.attribute` (single lookup) and
  * [[LogRecord.foreachAttribute]] (ordered enumeration of user attributes only,
  * never source metadata). The container itself is never exposed.
  *
