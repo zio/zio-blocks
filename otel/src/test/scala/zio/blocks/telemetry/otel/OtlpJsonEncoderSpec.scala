@@ -474,6 +474,33 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         assertTrue(json == expected)
       },
+      test("escapes user-controlled log attribute keys and values") {
+        val trickyKey = "ke\"y\\with\nkey"
+        val trickyVal = "say \"hi\"\\ok\n"
+
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("escaped")
+          .setAttribute(AttributeKey.string(trickyKey), trickyVal)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
+
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000\",\"observedTimeUnixNano\":\"1001\"," +
+            "\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"escaped\"}," +
+            "\"attributes\":[{\"key\":\"ke\\\"y\\\\with\\nkey\"," +
+            "\"value\":{\"stringValue\":\"say \\\"hi\\\"\\\\ok\\n\"}}]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
+        )
+
+        assertTrue(json == expected)
+      },
       test("encodes source fields as canonical attributes before user attributes") {
         val log = LogRecord.builder
           .setTimestamp(1000L)

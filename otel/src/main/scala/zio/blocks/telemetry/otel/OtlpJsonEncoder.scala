@@ -240,39 +240,43 @@ object OtlpJsonEncoder {
     sb.append('"')
   }
 
-  private def writeKey(sb: StringBuilder, key: String): Unit = {
-    // Route even fixed protocol keys through the escaper: all current call
-    // sites pass literals, but the cost is one scan and this removes the only
-    // raw-append key path (user-controlled keys already escape via
-    // writeAttributes).
-    writeJsonString(sb, key)
+  /**
+   * Appends a fixed OTLP protocol field name as `"key":`. Every caller passes a
+   * compile-time literal; dynamic attribute keys and values still go through
+   * `writeJsonString` in `writeAttributes` and `appendLogAttribute`, so this
+   * raw append never handles user-controlled input.
+   */
+  private def writeLiteralKey(sb: StringBuilder, key: String): Unit = {
+    sb.append('"')
+    sb.append(key)
+    sb.append('"')
     sb.append(':')
   }
 
   private def writeKeyString(sb: StringBuilder, key: String, value: String): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     writeJsonString(sb, value)
   }
 
   private def writeKeyLong(sb: StringBuilder, key: String, value: Long): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append('"')
     sb.append(value)
     sb.append('"')
   }
 
   private def writeKeyInt(sb: StringBuilder, key: String, value: Int): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
   private def writeKeyDouble(sb: StringBuilder, key: String, value: Double): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
   private def writeKeyBool(sb: StringBuilder, key: String, value: Boolean): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
@@ -416,28 +420,28 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // attributes
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, span.attributes)
     sb.append(']')
     sb.append(',')
 
     // events
-    writeKey(sb, "events")
+    writeLiteralKey(sb, "events")
     sb.append('[')
     writeList(sb, span.events)(writeSpanEvent)
     sb.append(']')
     sb.append(',')
 
     // links
-    writeKey(sb, "links")
+    writeLiteralKey(sb, "links")
     sb.append('[')
     writeList(sb, span.links)(writeSpanLink)
     sb.append(']')
     sb.append(',')
 
     // status
-    writeKey(sb, "status")
+    writeLiteralKey(sb, "status")
     sb.append('{')
     writeKeyInt(sb, "code", statusCodeToInt(span.status))
     span.status match {
@@ -457,7 +461,7 @@ object OtlpJsonEncoder {
     sb.append(',')
     writeKeyLong(sb, "timeUnixNano", event.timestampNanos)
     sb.append(',')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, event.attributes)
     sb.append(']')
@@ -470,7 +474,7 @@ object OtlpJsonEncoder {
     sb.append(',')
     writeKeyString(sb, "spanId", link.spanContext.spanId.toHex)
     sb.append(',')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, link.attributes)
     sb.append(']')
@@ -490,9 +494,9 @@ object OtlpJsonEncoder {
 
     nm.data match {
       case MetricData.SumData(points) =>
-        writeKey(sb, "sum")
+        writeLiteralKey(sb, "sum")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeSumDataPoint)
         sb.append(']')
@@ -501,18 +505,18 @@ object OtlpJsonEncoder {
         sb.append('}')
 
       case MetricData.HistogramData(points) =>
-        writeKey(sb, "histogram")
+        writeLiteralKey(sb, "histogram")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeHistogramDataPoint)
         sb.append(']')
         sb.append('}')
 
       case MetricData.GaugeData(points) =>
-        writeKey(sb, "gauge")
+        writeLiteralKey(sb, "gauge")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeGaugeDataPoint)
         sb.append(']')
@@ -524,7 +528,7 @@ object OtlpJsonEncoder {
 
   private def writeSumDataPoint(sb: StringBuilder, pt: SumDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -539,7 +543,7 @@ object OtlpJsonEncoder {
 
   private def writeHistogramDataPoint(sb: StringBuilder, pt: HistogramDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -558,7 +562,7 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // bucketCounts as quoted strings
-    writeKey(sb, "bucketCounts")
+    writeLiteralKey(sb, "bucketCounts")
     sb.append('[')
     var i = 0
     while (i < pt.bucketCounts.length) {
@@ -572,7 +576,7 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // explicitBounds as doubles
-    writeKey(sb, "explicitBounds")
+    writeLiteralKey(sb, "explicitBounds")
     sb.append('[')
     i = 0
     while (i < pt.boundaries.length) {
@@ -587,7 +591,7 @@ object OtlpJsonEncoder {
 
   private def writeGaugeDataPoint(sb: StringBuilder, pt: GaugeDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -612,7 +616,7 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // body as AnyValue
-    writeKey(sb, "body")
+    writeLiteralKey(sb, "body")
     sb.append('{')
     writeKeyString(sb, "stringValue", log.body.value)
     sb.append('}')
@@ -622,7 +626,7 @@ object OtlpJsonEncoder {
     // from the raw typed arrays (no wrappers, no callbacks), then the
     // deferred throwable stacktrace. Colliding canonical keys suppress only
     // when that source field is present — see LogRecord.isSourceCollision.
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     var first          = true
     val sourceFile     = log.sourceFile
@@ -677,7 +681,7 @@ object OtlpJsonEncoder {
     // trace correlation
     writeKeyString(sb, "traceId", if (log.hasTraceId) TraceId.toHex(log.traceIdHi, log.traceIdLo) else "")
     sb.append(',')
-    writeKey(sb, "spanId")
+    writeLiteralKey(sb, "spanId")
     if (log.hasSpanId) {
       sb.append('"')
       Hex.appendLong16(sb, log.spanId)
