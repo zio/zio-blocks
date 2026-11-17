@@ -93,10 +93,10 @@ object MuxConnection {
   // `receive` never blocks: poll it, parking for 1 ms while the queue is empty.
   @tailrec def next(stream: MessageStream): Message | MuxError =
     stream.receive() match {
-      case MuxEmpty =>
+      case Some(message) => message
+      case None          =>
         LockSupport.parkNanos(1_000_000L)
         next(stream)
-      case error: MuxError  => error
-      case message: Message => message
+      case error: MuxError => error
     }
 }

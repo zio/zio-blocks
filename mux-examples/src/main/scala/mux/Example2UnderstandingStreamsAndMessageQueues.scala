@@ -30,9 +30,9 @@ import zio.blocks.mux._
   println("\n--- Protocol extracts the message ---")
   // Protocol code: extract the message to send over network
   val outbound = stream.takeOutbound() match {
-    case MuxEmpty          => "(no message available)"
+    case Some(msg)       => msg
+    case None            => "(no message available)"
     case error: MuxError => s"error: $error"
-    case msg              => msg
   }
   println(s"Protocol will send: '$outbound'")
 
@@ -46,9 +46,9 @@ import zio.blocks.mux._
   println("\n--- Application receives the response ---")
   // Application code: receive the response
   val inbound = stream.receive() match {
-    case MuxEmpty          => "(no message available)"
+    case Some(msg)       => msg
+    case None            => "(no message available)"
     case error: MuxError => s"error: $error"
-    case msg              => msg
   }
   println(s"Application received: '$inbound'")
 

@@ -56,12 +56,12 @@ import zio.blocks.mux._
   println()
   streams.zipWithIndex.foreach { case (stream, idx) =>
     stream.takeOutbound() match {
-      case MuxEmpty    =>
+      case Some(msg) =>
+        println(s"✓ Protocol will send on stream ${idx + 1}: '$msg'")
+      case None =>
         println(s"✗ Stream ${idx + 1} has no outbound messages")
       case _: MuxError =>
         println(s"✗ Stream ${idx + 1} takeOutbound failed")
-      case msg =>
-        println(s"✓ Protocol will send on stream ${idx + 1}: '$msg'")
     }
   }
 
@@ -87,12 +87,12 @@ import zio.blocks.mux._
   println()
   streams.zipWithIndex.foreach { case (stream, idx) =>
     stream.receive() match {
-      case MuxEmpty    =>
+      case Some(msg) =>
+        println(s"✓ Stream ${idx + 1} received: '$msg'")
+      case None =>
         println(s"✗ Stream ${idx + 1} has no inbound messages")
       case _: MuxError =>
         println(s"✗ Stream ${idx + 1} receive failed")
-      case msg =>
-        println(s"✓ Stream ${idx + 1} received: '$msg'")
     }
   }
 

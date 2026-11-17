@@ -49,14 +49,14 @@ import zio.blocks.mux._
 
   println("\nThread B (Protocol/Read thread): calls takeOutbound() consistently")
   stream2.takeOutbound() match {
-    case MuxEmpty    => println("  (queue empty)")
+    case Some(msg)   => println(s"  ✓ Extracted from thread B: '$msg'")
+    case None        => println("  (queue empty)")
     case e: MuxError => println(s"  ✗ Error: $e")
-    case msg         => println(s"  ✓ Extracted from thread B: '$msg'")
   }
   stream2.takeOutbound() match {
-    case MuxEmpty    => println("  (queue empty)")
+    case Some(msg)   => println(s"  ✓ Extracted from thread B: '$msg'")
+    case None        => println("  (queue empty)")
     case e: MuxError => println(s"  ✗ Error: $e")
-    case msg         => println(s"  ✓ Extracted from thread B: '$msg'")
   }
 
   println("\nThreads C, D, E, ... (Multiple inbound delivery threads): can safely call offerInbound()")
@@ -69,19 +69,19 @@ import zio.blocks.mux._
 
   println("\nThread A (back on Application thread): calls receive() consistently")
   stream2.receive() match {
-    case MuxEmpty    => println("  (queue empty)")
+    case Some(msg)   => println(s"  ✓ Received from thread A: '$msg'")
+    case None        => println("  (queue empty)")
     case e: MuxError => println(s"  ✗ Error: $e")
-    case msg         => println(s"  ✓ Received from thread A: '$msg'")
   }
   stream2.receive() match {
-    case MuxEmpty    => println("  (queue empty)")
+    case Some(msg)   => println(s"  ✓ Received from thread A: '$msg'")
+    case None        => println("  (queue empty)")
     case e: MuxError => println(s"  ✗ Error: $e")
-    case msg         => println(s"  ✓ Received from thread A: '$msg'")
   }
   stream2.receive() match {
-    case MuxEmpty    => println("  (queue empty)")
+    case Some(msg)   => println(s"  ✓ Received from thread A: '$msg'")
+    case None        => println("  (queue empty)")
     case e: MuxError => println(s"  ✗ Error: $e")
-    case msg         => println(s"  ✓ Received from thread A: '$msg'")
   }
 
   println("\n--- Closing streams: thread safety comparison ---\n")

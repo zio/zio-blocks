@@ -56,13 +56,13 @@ final class WriterLoop(out: DataOutputStream, table: StreamTable, running: Atomi
     if (written == Batch) written
     else
       stream.takeOutbound() match {
-        case Message.Text(text) =>
+        case Some(Message.Text(text)) =>
           Frame.write(out, Frame.Data(stream.id, text))
           drain(stream, written + 1)
-        case Message.End =>
+        case Some(Message.End) =>
           Frame.write(out, Frame.End(stream.id))
           drain(stream, written + 1)
-        case MuxEmpty =>
+        case None =>
           written
         case _: MuxError => // closed, and its queue is empty: nothing more will come
           table.draining.remove(stream.id)
