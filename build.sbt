@@ -1449,7 +1449,6 @@ lazy val scaladocCheckedModules: Seq[Project] =
     openapi.jvm,
     codegen,
     smithy,
-    mux.jvm,
     ringbuffer.jvm
   )
 
@@ -1482,7 +1481,8 @@ lazy val scaladocCheckedScala3Modules: Seq[Project] =
     projection.jvm,
     dataMigration.jvm,
     htmx.jvm,
-    datastar.jvm
+    datastar.jvm,
+    mux.jvm
   )
 
 lazy val `scaladoc-check-scala3` = project
