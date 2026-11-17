@@ -342,13 +342,13 @@ final class WriterLoop(out: DataOutputStream, table: StreamTable, running: Atomi
     if (written == Batch) written
     else
       stream.takeOutbound() match {
-        case Some(Message.Text(text)) =>
+        case Message.Text(text) =>
           Frame.write(out, Frame.Data(stream.id, text))
           drain(stream, written + 1)
-        case Some(Message.End) =>
+        case Message.End =>
           Frame.write(out, Frame.End(stream.id))
           drain(stream, written + 1)
-        case None =>
+        case MuxEmpty =>
           written
         case _: MuxError => // closed, and its queue is empty: nothing more will come
           table.draining.remove(stream.id)
@@ -562,16 +562,16 @@ object MuxConnection {
   // `receive` never blocks: poll it, parking for 1 ms while the queue is empty.
   @tailrec def next(stream: MessageStream): Message | MuxError =
     stream.receive() match {
-      case Some(message) => message
-      case None          =>
+      case MuxEmpty =>
         LockSupport.parkNanos(1_000_000L)
         next(stream)
       case error: MuxError => error
+      case message: Message => message
     }
 }
 ```
 
-`MuxConnection#send` retries while the stream's outbound queue is full, and `MuxConnection#finish` and `MuxConnection#reset` are covered in their own sections below. `MuxConnection.next` waits for the next inbound message: `MuxStream#receive` never blocks, it returns `None` when the queue is empty, so the loop polls and parks for a millisecond between tries.
+`MuxConnection#send` retries while the stream's outbound queue is full, and `MuxConnection#finish` and `MuxConnection#reset` are covered in their own sections below. `MuxConnection.next` waits for the next inbound message: `MuxStream#receive` never blocks, it returns `MuxEmpty` when the queue is empty, so the loop polls and parks for a millisecond between tries.
 
 The loops run on plain JDK threads, not on `Async.start` from the async module. Both loops block for long stretches (the reader in a socket read, the writer in a socket write when the peer is slow), and `Async.start` runs its body on the JVM's shared `ForkJoinPool.commonPool()`, where a handful of blocked loops can use up every worker on a machine with few cores. A thread per loop is also what a socket's blocking API expects. For the same reason, the loops read and write through `DataInputStream` and `DataOutputStream` rather than a zio-blocks `Stream`: a frame decoder needs to read exactly 4, 1, 4 and `length` bytes at a time, which `DataInputStream#readFully` does directly.
 
