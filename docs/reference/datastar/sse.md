@@ -9,6 +9,7 @@ sidebar_label: "Server-Sent Events"
 ```scala
 sealed trait DatastarEvent {
   def renderSSE: String
+  def renderSSEBytes: Array[Byte]
 }
 
 object DatastarEvent {
@@ -227,6 +228,33 @@ stream
 ```
 
 Set `PatchElementsBuilder#eventId` when the client should be able to resume with `Last-Event-ID`, and `PatchElementsBuilder#retry` to control the reconnection delay — both are ordinary SSE fields handled by `ServerSentEvent`.
+
+## Bytes Output
+
+Every builder also offers `renderSSEBytes`, which returns the exact UTF-8 bytes of `renderSSE`: `renderSSEBytes.sameElements(renderSSE.getBytes(StandardCharsets.UTF_8))` holds for every event, including malformed input. (`new String(bytes, UTF_8) == renderSSE` additionally holds for valid Unicode, but not for lone surrogates: the bytes encode them as `?` exactly like `String.getBytes`, while the `String` retains the surrogate.) The bytes are encoded directly into a fresh array — the whole-event string is never built and `String#getBytes` is never called — while field ordering, optional-field handling, CR/LF/CRLF splitting, `id`/`retry` validation, and blank-line framing share one implementation, so the two outputs cannot drift apart:
+
+```scala mdoc:silent:reset
+import zio.blocks.html._
+import zio.http.datastar._
+
+val count = Signal[Int]("count")
+```
+
+```scala mdoc
+val bytes: Array[Byte] = DatastarEvent.patchSignals(count := 42).renderSSEBytes
+```
+
+Two deliberate limits. First, per-event payloads still render through intermediate strings (`Dom#renderMinified` for elements, the signals JSON string); only the SSE framing itself is fused into the byte output, so it removes the whole-event `String` allocation and the subsequent traversal/encoding of that `String` — the direct encoding still performs its own single UTF-8 pass, and no throughput claim is made without a benchmark. Second, malformed UTF-16 encodes exactly like `String.getBytes(StandardCharsets.UTF_8)`: lone surrogates become `?`, and a high surrogate split across an internal append boundary still pairs with the low surrogate that follows it (empty appends never flush the buffered high surrogate).
+
+Each call returns a new array that the caller owns — the implementation never retains or reuses it. Byte-oriented HTTP bodies that wrap without copying are therefore safe as long as the caller does not mutate the array afterwards. On the zio-http 4.x line the source-verified byte contract is `zio.blocks.chunk.Chunk[Byte]`: the server transport tests move chunk payloads (see `H2IntegrationSpec` in a v4 snapshot checkout), and `Chunk.fromArray` wraps without copying under a must-not-mutate contract. Note the scope honestly: the legacy `Body.fromArray`/`Body.fromChunk` constructors were read in the same snapshot but reference model types with no definitions there, so they are not presented as a compile-verified 4.x route, and no end-to-end HTTP integration was compiled in this task — only the `Chunk.fromArray` snippet below, which compiles against zio-blocks:
+
+```scala mdoc:silent
+import zio.blocks.chunk.Chunk
+
+val payload: Chunk[Byte] = Chunk.fromArray(bytes) // wraps; do not mutate `bytes` afterwards
+```
+
+Set the response `Content-Type` to `text/event-stream` (plus `Cache-Control: no-cache`) in the HTTP layer; the module itself stays HTTP-independent and produces only the event bytes.
 
 ## Integration Points
 

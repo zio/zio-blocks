@@ -19,7 +19,7 @@ package zio.http.htmx
 import scala.concurrent.duration.FiniteDuration
 
 import _root_.zio.blocks.chunk.Chunk
-import _root_.zio.blocks.html.Js
+import _root_.zio.blocks.html.{CssSelector, Js}
 
 /**
  * A value that `hxTrigger` accepts: one [[HxTrigger]] or several in an
@@ -106,30 +106,37 @@ final case class HxTrigger private (
    */
   def changed: HxTrigger = withModifier(HxTrigger.Modifier.Changed)
 
+  /** Adds or replaces the `from:` modifier with a typed CSS selector. */
+  def from(selector: CssSelector): HxTrigger =
+    fromRaw(selector.render)
+
   /**
-   * Adds or replaces the `from:` modifier, which listens for the event on other
-   * elements, such as `document` or a CSS selector. The selector is trimmed.
+   * Adds or replaces the `from:` modifier from a raw string.
    *
-   * @throws java.lang.IllegalArgumentException
-   *   if `selector` is blank
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express (e.g. HTMX extended selectors like `closest ...`,
+   * `document`, or `window`).
    */
-  def from(selector: String): HxTrigger =
+  def fromRaw(selector: String): HxTrigger =
     withModifier(HxTrigger.Modifier.From(HtmxSupport.requireNonBlank(selector, "HTMX trigger source selector")))
 
   /**
    * Adds or replaces the `from:` modifier with a rendered [[HxTarget]], such as
    * `from:closest form`.
    */
-  def from(target: HxTarget): HxTrigger = from(target.render)
+  def from(target: HxTarget): HxTrigger = fromRaw(target.render)
+
+  /** Adds or replaces the `target:` modifier with a typed CSS selector. */
+  def target(selector: CssSelector): HxTrigger =
+    targetRaw(selector.render)
 
   /**
-   * Adds or replaces the `target:` modifier: the trigger fires only when the
-   * event's target matches the CSS selector, which is trimmed.
+   * Adds or replaces the `target:` modifier from a raw string.
    *
-   * @throws java.lang.IllegalArgumentException
-   *   if `selector` is blank
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express.
    */
-  def target(selector: String): HxTrigger =
+  def targetRaw(selector: String): HxTrigger =
     withModifier(HxTrigger.Modifier.Target(HtmxSupport.requireNonBlank(selector, "HTMX trigger target selector")))
 
   /**
@@ -152,16 +159,17 @@ final case class HxTrigger private (
    */
   def threshold(value: Double): HxTrigger = withModifier(HxTrigger.Modifier.Threshold(value))
 
+  /** Adds or replaces the `root:` modifier with a typed CSS selector. */
+  def root(selector: CssSelector): HxTrigger =
+    rootRaw(selector.render)
+
   /**
-   * Adds or replaces the `root:` modifier of an `intersect` trigger: the CSS
-   * selector of the element that htmx uses as the visible area (the
-   * `IntersectionObserver` root) in place of the viewport. The selector is
-   * trimmed.
+   * Adds or replaces the `root:` modifier from a raw string.
    *
-   * @throws java.lang.IllegalArgumentException
-   *   if `selector` is blank
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express.
    */
-  def root(selector: String): HxTrigger =
+  def rootRaw(selector: String): HxTrigger =
     withModifier(HxTrigger.Modifier.Root(HtmxSupport.requireNonBlank(selector, "HTMX trigger root selector")))
 
   /**

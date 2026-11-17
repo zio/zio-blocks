@@ -23,25 +23,31 @@ import java.util.concurrent.locks.ReentrantLock
 import zio.blocks.ringbuffer.MpscRingBuffer
 
 private[mux] object PlatformMux {
-  private val StreamQueueCapacity = 256
+  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = Mux.DefaultStreamQueueCapacity): Mux[Id, In, Out] =
+    new JvmMux[Id, In, Out](capacity, streamQueueCapacity)
 
-  def create[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
-    new JvmMux[Id, In, Out](capacity)
-
-  private final class JvmMux[Id, In, Out](capacity: Int) extends Mux[Id, In, Out] {
+  private final class JvmMux[Id, In, Out](capacity: Int, streamQueueCapacity: Int) extends Mux[Id, In, Out] {
     private val streams                   = new ConcurrentHashMap[Id, JvmMuxStream[Id, In, Out]]()
     private val lock                      = new ReentrantLock()
     @volatile private var closed: Boolean = false
 
-    def open(id: Id): Either[MuxError, MuxStream[Id, In, Out]] = {
+    /**
+     * Single shared instance: the mux capacity never changes, so every
+     * over-capacity `open` returns this same error. One eager allocation per
+     * mux; `open` takes a lock already, and a final val needs no further
+     * synchronization.
+     */
+    private val capacityExceededError: MuxError = MuxError.CapacityExceeded(capacity)
+
+    def open(id: Id): MuxStream[Id, In, Out] | MuxError = {
       lock.lock()
       try {
-        if (closed) return Left(MuxError.MuxClosed)
-        if (streams.containsKey(id)) return Left(MuxError.ProtocolError(s"Stream $id already exists"))
-        if (streams.size() >= capacity) return Left(MuxError.CapacityExceeded(capacity))
-        val stream = new JvmMuxStream[Id, In, Out](id, this)
+        if (closed) return MuxError.MuxClosed
+        if (streams.containsKey(id)) return MuxError.ProtocolError(s"Stream $id already exists")
+        if (streams.size() >= capacity) return capacityExceededError
+        val stream = new JvmMuxStream[Id, In, Out](id, this, streamQueueCapacity)
         streams.put(id, stream)
-        Right(stream)
+        stream
       } finally lock.unlock()
     }
 
@@ -99,66 +105,77 @@ private[mux] object PlatformMux {
 
   private final class JvmMuxStream[Id, In, Out](
     streamId: Id,
-    mux: JvmMux[Id, In, Out]
+    mux: JvmMux[Id, In, Out],
+    streamQueueCapacity: Int
   ) extends JvmMuxStreamFields
       with MuxStream[Id, In, Out] {
-    private val inboundQueue  = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
-    private val outboundQueue = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
+    private val inboundQueue  = new MpscRingBuffer[AnyRef](streamQueueCapacity)
+    private val outboundQueue = new MpscRingBuffer[AnyRef](streamQueueCapacity)
+
+    /**
+     * Lazily cached immutable errors. Each instance is created at most once per
+     * stream, on the first cold path that needs it; streams that never hit a
+     * full/closed signal allocate nothing. Scala `lazy val` initialization is
+     * thread-safe, so concurrent `send`/`offerInbound` failures share the same
+     * instance.
+     */
+    private lazy val queueFullError: MuxError    = MuxError.QueueFull(streamQueueCapacity)
+    private lazy val streamClosedError: MuxError = MuxError.StreamClosed(streamId)
 
     def id: Id = streamId
 
-    def send(msg: In): Either[MuxError, Unit] =
+    def send(msg: In): Unit | MuxError =
       if (msg.asInstanceOf[AnyRef] eq null)
-        Left(MuxError.ProtocolError("null message"))
+        MuxError.nullMessage
       else {
         val s = state
         if (s == StreamState.Closed || s == StreamState.HalfClosedLocal)
-          Left(MuxError.StreamClosed(streamId))
+          streamClosedError
         else if (outboundQueue.offer(msg.asInstanceOf[AnyRef]))
-          Right(())
-        else Left(MuxError.QueueFull(StreamQueueCapacity))
+          ()
+        else queueFullError
       }
 
-    def receive(): Either[MuxError, Option[Out]] = {
+    def receive(): Out | MuxEmpty | MuxError = {
       val polled = inboundQueue.take()
-      if (polled != null) Right(Some(polled.asInstanceOf[Out]))
+      if (polled != null) polled.asInstanceOf[Out]
       else {
         val error = terminalError
-        if (error != null) Left(error)
-        else Right(None)
+        if (error != null) error
+        else MuxEmpty
       }
     }
 
-    def offerInbound(msg: Out): Either[MuxError, Unit] =
+    def offerInbound(msg: Out): Unit | MuxError =
       if (msg.asInstanceOf[AnyRef] eq null)
-        Left(MuxError.ProtocolError("null message"))
+        MuxError.nullMessage
       else {
         val s = state
         if (s == StreamState.Closed || s == StreamState.HalfClosedRemote)
-          Left(MuxError.StreamClosed(streamId))
+          streamClosedError
         else if (inboundQueue.offer(msg.asInstanceOf[AnyRef]))
-          Right(())
-        else Left(MuxError.QueueFull(StreamQueueCapacity))
+          ()
+        else queueFullError
       }
 
-    def takeOutbound(): Either[MuxError, Option[In]] = {
+    def takeOutbound(): In | MuxEmpty | MuxError = {
       val polled = outboundQueue.take()
-      if (polled != null) Right(Some(polled.asInstanceOf[In]))
+      if (polled != null) polled.asInstanceOf[In]
       else {
         val s = state
-        if (s == StreamState.Closed) Left(MuxError.StreamClosed(streamId))
-        else Right(None)
+        if (s == StreamState.Closed) streamClosedError
+        else MuxEmpty
       }
     }
 
     def halfClose(): Unit =
       if (!JvmMuxStreamHandle.STATE.compareAndSet(this, StreamState.Open, StreamState.HalfClosedLocal)) {
-        if (state == StreamState.HalfClosedRemote) closeClosedStream(MuxError.StreamClosed(streamId))
+        if (state == StreamState.HalfClosedRemote) closeClosedStream(streamClosedError)
       }
 
     def signalRemoteClose(): Unit =
       if (!JvmMuxStreamHandle.STATE.compareAndSet(this, StreamState.Open, StreamState.HalfClosedRemote)) {
-        if (state == StreamState.HalfClosedLocal) closeClosedStream(MuxError.StreamClosed(streamId))
+        if (state == StreamState.HalfClosedLocal) closeClosedStream(streamClosedError)
       }
 
     def isClosed: Boolean = state == StreamState.Closed
@@ -168,7 +185,7 @@ private[mux] object PlatformMux {
       s == StreamState.HalfClosedLocal || s == StreamState.HalfClosedRemote
     }
 
-    def close(): Unit = closeClosedStream(MuxError.StreamClosed(streamId))
+    def close(): Unit = closeClosedStream(streamClosedError)
 
     private[mux] def cancelWith(reason: MuxError): Unit = {
       state = StreamState.Closed

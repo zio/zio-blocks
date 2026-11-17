@@ -55,12 +55,26 @@ sealed trait MuxError
 object MuxError {
 
   /**
+   * Shared instance for the fixed null-message rejection.
+   *
+   * `send` and `offerInbound` reject `null` payloads with
+   * `ProtocolError("null message")`. The message is constant, so all streams
+   * share this single instance instead of allocating one per rejection. This is
+   * a cold programmer-error path; the hot paths never touch it.
+   */
+  private[mux] val nullMessage: MuxError = ProtocolError("null message")
+
+  /**
    * The stream `id` is closed in the direction asked for. [[MuxStream]] returns
    * it from `send` once its side is done sending, from `offerInbound` once the
    * peer is done, and from `takeOutbound` (and `receive`, unless a cancel
    * reason was given) once the stream is fully closed and the queue is empty.
    * It is not returned for an id that was never opened: `Mux#get` returns
    * `None` and `Mux#cancel` does nothing for those.
+   *
+   * NOTE: the [[zio.blocks.mux.Pollable]] derivation macro enumerates this
+   * sealed family to prove message types disjoint. If you add a variant here,
+   * add its `TypeRepr` to the macro's blocker list as well.
    */
   final case class StreamClosed(id: Any) extends MuxError
 

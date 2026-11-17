@@ -60,6 +60,12 @@ sealed trait DatastarEvent {
    *   if the event id contains CR or LF, or the retry delay is negative
    */
   def renderSSE: String
+
+  /**
+   * Returns the exact UTF-8 bytes of [[renderSSE]], encoded directly without
+   * building the whole-event string or calling `String#getBytes`.
+   */
+  def renderSSEBytes: Array[Byte]
 }
 
 /**
@@ -90,6 +96,9 @@ object DatastarEvent {
       val withEventId = eventId.toOption.fold(sse)(sse.id)
       retryMillis.toOption.fold(withEventId)(withEventId.retry).render
     }
+
+    def renderSSEBytes: Array[Byte] =
+      renderSSE.getBytes(java.nio.charset.StandardCharsets.UTF_8)
   }
 
   private final case class PatchSignals(
@@ -108,6 +117,9 @@ object DatastarEvent {
       val withEventId = eventId.toOption.fold(sse)(sse.id)
       retryMillis.toOption.fold(withEventId)(withEventId.retry).render
     }
+
+    def renderSSEBytes: Array[Byte] =
+      renderSSE.getBytes(java.nio.charset.StandardCharsets.UTF_8)
   }
 
   /**
@@ -188,6 +200,9 @@ object DatastarEvent {
      */
     def renderSSE: String =
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSE
+
+    def renderSSEBytes: Array[Byte] =
+      PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSEBytes
   }
 
   /**
@@ -233,6 +248,9 @@ object DatastarEvent {
      */
     def renderSSE: String =
       PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSE
+
+    def renderSSEBytes: Array[Byte] =
+      PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSEBytes
   }
 
   /**
@@ -343,6 +361,8 @@ object DatastarEvent {
      *   if the event id contains CR or LF, or the retry delay is negative
      */
     def renderSSE: String = inner.renderSSE
+
+    def renderSSEBytes: Array[Byte] = inner.renderSSEBytes
   }
 
   /**
