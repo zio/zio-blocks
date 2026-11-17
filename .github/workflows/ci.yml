@@ -325,7 +325,7 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     concurrency:
       group: release-${{ github.ref }}
       cancel-in-progress: false
@@ -349,7 +349,8 @@ jobs:
       uses: nick-fields/retry@v4
       with:
         timeout_minutes: 30
-        max_attempts: 3
+        max_attempts: 2
+        retry_wait_seconds: 1800
         command: sbt ci-release
       env:
         PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}

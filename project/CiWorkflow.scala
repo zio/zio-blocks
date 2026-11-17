@@ -405,6 +405,14 @@ object CiWorkflow {
    * and a failed release leaves a partially staged repository that has to be
    * dropped by hand.
    *
+   * Since Nov 2026 Sonatype answers shared GitHub Actions egress with HTTP 429
+   * once its consumption bucket empties (13 Nov: attempt 1 published for ~4
+   * min, then every request 429'd; attempts 2-3 published nothing). Sonatype's
+   * own guidance is that more retries make it worse, so there is exactly one
+   * retry and it waits 30 minutes for the (initially short) block to expire
+   * instead of the action's 10 s default, which only re-hammered the throttled
+   * endpoint. The 120 min job timeout covers attempt + wait + attempt.
+   *
    * The condition is spelled out rather than
    * `github.event_name != 'pull_request'` because the plugin always adds a
    * workflow_dispatch trigger, and a manual run must not publish.
@@ -413,7 +421,7 @@ object CiWorkflow {
     Job(
       id = "release",
       name = "release",
-      jobTimeout = Some(60),
+      jobTimeout = Some(120),
       concurrency = Some(
         Concurrency(group = "release-${{ github.ref }}", cancelInProgress = CancelInProgress.Never)
       ),
@@ -430,9 +438,10 @@ object CiWorkflow {
           name = "Release",
           uses = Some(ActionRef("nick-fields/retry@v4")),
           parameters = Map(
-            "timeout_minutes" -> Json.Num(30),
-            "max_attempts"    -> Json.Num(3),
-            "command"         -> Json.Str("sbt ci-release")
+            "timeout_minutes"    -> Json.Num(30),
+            "max_attempts"       -> Json.Num(2),
+            "retry_wait_seconds" -> Json.Num(1800),
+            "command"            -> Json.Str("sbt ci-release")
           ),
           env = Map(
             "PGP_PASSPHRASE"    -> "${{ secrets.PGP_PASSPHRASE }}",
