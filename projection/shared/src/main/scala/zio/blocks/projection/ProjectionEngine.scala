@@ -19,9 +19,6 @@ package zio.blocks.projection
 import zio.*
 import zio.blocks.projection.testing.InMemoryProjectionStore
 import zio.blocks.schema.Schema
-import zio.stream.ZStream
-
-import scala.util.Try
 
 // ---------------------------------------------------------------------------
 // Config
@@ -77,92 +74,42 @@ object ProjectionEngineConfig {
 // ---------------------------------------------------------------------------
 
 /**
- * Runs projections: it reads events from [[EventStore]]s, applies each
- * [[Projection]]'s handlers, and keeps the results in [[ProjectionStore]]s that
- * can be queried.
+ * ProjectionEngine runs projections — materializing event streams into
+ * queryable read models.
  *
- * A [[Projection]] only describes what should happen. The engine is the part
- * that does it. Each projection gets a primary store, which is one SQLite file
- * per projection on the JVM or an in-memory map in tests.
+ * Each [[Projection]] defines how events map to an entity `A`. The engine backs
+ * each projection with a [[ProjectionStore]] (one SQLite file per spec on the
+ * JVM, or an in-memory map in tests) and keeps it up to date by consuming one
+ * or more [[EventStore]] streams.
  *
- * Lifecycle: [[start]] first compares each projection's stored schema hash with
- * the current one, and brings stale stores up to date unless `lazyRebuild` is
- * on. Then, for each source of each projection, it catches up on the events
- * after the projection's saved position, reading them in batches with
- * `readFrom`, and only then starts a fiber that follows the new events from the
- * source's hub. `start` returns once every source has caught up. [[query]]
- * first applies any pending lazy rebuild.
+ * Lifecycle: on [[start]] the engine checks stored schema hashes and rebuilds
+ * any stale stores, then launches a catch-up fiber per binding (`readFrom` +
+ * `groupedWithin`) followed by a live subscription fiber. Queries via [[query]]
+ * first ensure any pending lazy rebuild is applied.
  *
- * Routing: for each event the engine builds a [[ProjectionContext]] from the
- * [[EventEnvelope]], runs the matching handler (found with
- * [[Projection#handle]], without naming the source), and applies the resulting
- * [[ProjectionAction]] to the store chosen by the projection's
- * [[ProjectionScope]]: the primary store for per-entity and global projections,
- * and a shard per routing key for cross-entity ones.
+ * Persistence: when `sqlite-jdbc` is on the classpath the engine uses
+ * [[SQLiteProjectionStore]]; otherwise it falls back to
+ * `InMemoryProjectionStore`. Add `libraryDependencies += "org.xerial" %
+ * "sqlite-jdbc" % "3.53.4.0"` for SQLite persistence, or it falls back to
+ * `InMemory` (see `docs/reference/projection.md`).
  *
- * Failures: an event whose handler throws, or that the store rejects, is logged
- * as an error and skipped; an event that no handler matches is skipped too, and
- * logged at debug level. Processing continues with the next event. The saved
- * position is updated after each event that succeeds, so a skipped event is not
- * retried once a later one succeeds.
+ * ==Why ZIO lives here==
  *
- * Persistence: the stores that `make`, `makeWithConfig` and
- * `makeWithStoresVarargs` create are SQLite files, so `sqlite-jdbc` must be on
- * the runtime classpath and the folders of the files must exist. A store opens
- * its file only when it is first used, so a missing driver or folder shows up
- * as a failure then, not when the engine is created.
+ * Projection is the one module in this family that is ZIO-coupled by design:
+ * keeping read models current requires background fibers (catch-up plus live
+ * subscription per binding), Hub/Queue event streams, scoped transactor
+ * lifetimes, and semaphore-guarded rebuilds. The rule is that ZIO effects are
+ * allowed exactly when fibers, streams, or lifetime management are required —
+ * the engine qualifies, while telemetry, config, context, and scope stay
+ * ZIO-free (and the OTLP exporters remain plain JVM callbacks for the same
+ * reason).
  *
- * Create an engine with the factories on the companion object. `make` and
- * `makeWithConfig` give it no event stores, so it has nothing to read; to give
- * it event stores, create it with `makeWithStores` or `makeWithStoresVarargs`,
- * or use `TestEngine` in tests:
+ * ==Where the logic lives==
  *
- * {{{
- * import zio._
- * import zio.blocks.schema.{Modifier, Schema}
- *
- * case class PersonGreeted(name: String)
- * object PersonGreeted {
- *   implicit val schema: Schema[PersonGreeted] = Schema.derived[PersonGreeted]
- * }
- *
- * case class Greeting(@Modifier.id personId: String, message: String)
- * object Greeting {
- *   implicit val schema: Schema[Greeting]         = Schema.derived[Greeting]
- *   implicit val entityPath: EntityPath[Greeting] = EntityPath.derived[Greeting]
- * }
- *
- * val greetings: Projection[Greeting] = Projection[Greeting]("greetings")
- *   .from("people")
- *   .routeToSelf
- *   .on[PersonGreeted]
- *   .insert((e, ctx) => Greeting(ctx.entityId, "Hello, " + e.name + "!"))
- *
- * // Needs sqlite-jdbc at run time, and the folders events/ and persons/
- * val program: ZIO[Scope, Throwable, Option[Greeting]] =
- *   for {
- *     cache  <- TransactorCache.make()
- *     tx     <- cache.get("events/people.db")
- *     people <- SQLiteEventStore.make[PersonGreeted](tx)
- *     store  <- SQLiteProjectionStore.make[Greeting]("persons/greetings.db", cache)
- *     engine <- ProjectionEngine.makeWithStores(
- *                 List(greetings),
- *                 Map("greetings" -> store), // projection name -> its store
- *                 Map("people" -> people),   // source name -> its event store
- *                 cache
- *               )
- *     _      <- engine.start
- *     _      <- people.append("person-1", PersonGreeted("Ada"))
- *     row    <- engine.query(greetings, "person-1").delay(20.millis).repeatUntil(_.isDefined)
- *   } yield row
- * // ZIO.scoped(program) gives Some(Greeting(person-1,Hello, Ada!))
- * }}}
- *
- * The query polls because the live fiber applies an appended event a moment
- * later.
- *
- * @see
- *   [[https://zioblocks.com/reference/projection/projection-engine/ ProjectionEngine]]
+ * The engine class below is a thin facade; the logic is split by concern:
+ * [[EngineLifecycle]] (startup, fibers, consumption pipeline),
+ * [[EngineRebuild]] (migration registry, schema-drift rebuilds), and
+ * [[EngineQuery]] (reads over primary and sharded stores).
  *
  * @param specs
  *   list of projections this engine manages
@@ -173,7 +120,7 @@ object ProjectionEngineConfig {
  * @param cache
  *   shared [[TransactorCache]] for SQLite connections
  * @param config
- *   the settings the engine was created with
+ *   engine tuning (batching, timeouts, rebuild parallelism)
  * @param shardsRef
  *   sharded stores for cross-entity routing
  * @param pendingRebuildRef
@@ -184,537 +131,99 @@ object ProjectionEngineConfig {
  *   semaphore guarding rebuilds
  */
 final class ProjectionEngine private[projection] (
-  private val specs: List[Projection[_]],
-  private val primaryStores: Map[String, ProjectionStore[_]],
-  private val eventStores: Map[String, EventStore[_]],
-  private val cache: TransactorCache,
+  private[projection] val specs: List[Projection[_]],
+  private[projection] val primaryStores: Map[String, ProjectionStore[_]],
+  private[projection] val eventStores: Map[String, EventStore[_]],
+  private[projection] val cache: TransactorCache,
   val config: ProjectionEngineConfig,
-  private val shardsRef: Ref[Map[String, Map[String, ProjectionStore[_]]]],
-  private val pendingRebuildRef: Ref[Map[String, Boolean]],
-  private val migrationRegistry: Ref[Map[String, zio.blocks.schema.migration.Migration[?, ?]]],
-  private val evolutionSem: Semaphore
+  private[projection] val shardsRef: Ref[Map[String, Map[String, ProjectionStore[_]]]],
+  private[projection] val pendingRebuildRef: Ref[Map[String, Boolean]],
+  private[projection] val migrationRegistry: Ref[Map[String, zio.blocks.schema.migration.Migration[?, ?]]],
+  private[projection] val evolutionSem: Semaphore
 ) {
 
   /**
-   * The [[TransactorCache]] that opens the engine's SQLite files: the one
-   * `make` and `makeWithConfig` created, or the one given to `makeWithStores`
-   * or `makeWithStoresVarargs`.
+   * Returns the shared [[TransactorCache]] that backs SQLite transactors.
    *
-   * Exposed for tests and for code that needs a connection to the same files.
+   * Exposed for testing and for consumers that need direct transactor access.
    */
   def transactorCache: TransactorCache = cache
 
   /**
-   * Registers how the row type of a projection changed, from `Old` to `New`, so
-   * that the change can be handled without a full rebuild.
+   * Registers a schema migration for the given projection.
    *
-   * When the stored rows are out of date and every action of `migration` adds a
-   * top-level field, the engine adds the new columns with
-   * `ALTER TABLE ADD COLUMN` instead of replaying the events. The existing rows
-   * get `NULL` in the new columns, whatever default the migration gives. For
-   * any other migration, it rebuilds the rows from the events as usual.
-   *
-   * The engine does not check that the migration describes the change it finds:
-   * while an add-field migration is registered, any change of the schema hash
-   * takes the shortcut, even when other fields changed too.
-   *
-   * Register it before `start`, which is when the schema is checked. That holds
-   * with `lazyRebuild` too: `start` ends by forking a background rebuild, which
-   * can run before a migration registered later. The migration is kept under
-   * the projection's name, so registering another one replaces it.
+   * The migration is used during schema-evolution checks to attempt an
+   * `ALTER TABLE ADD COLUMN` shortcut instead of a full rebuild when the change
+   * is a simple `AddField`.
    *
    * @param spec
    *   the projection the migration applies to
    * @param migration
    *   the migration from `Old` to `New`
    * @tparam Old
-   *   the previous row type
+   *   the previous entity type
    * @tparam New
-   *   the current row type
+   *   the current entity type
+   * @return
+   *   a task that registers the migration
    */
   def registerMigration[Old, New](
     spec: Projection[New],
     migration: zio.blocks.schema.migration.Migration[Old, New]
   ): Task[Unit] =
-    migrationRegistry.update(_ + (spec.name -> migration.asInstanceOf[zio.blocks.schema.migration.Migration[?, ?]]))
-
-  private def eventStoreForSpec(spec: Projection[_]): Option[EventStore[Any]] = {
-    val bindingSource = spec.bindings.headOption.map(_.sourceName)
-    bindingSource
-      .flatMap(eventStores.get)
-      .map(_.asInstanceOf[EventStore[Any]])
-      .orElse(eventStores.get("_default").map(_.asInstanceOf[EventStore[Any]]))
-      .orElse(eventStores.values.headOption.map(_.asInstanceOf[EventStore[Any]]))
-  }
-
-  private def currentHashFor(spec: Projection[_]): String =
-    SchemaHash.compute(using spec.schema.asInstanceOf[zio.blocks.schema.Schema[Any]])
-
-  private def checkSchemaAndRebuild(specAny: Projection[_]): Task[Unit] = {
-    val spec  = specAny.asInstanceOf[Projection[Any]]
-    val store = primaryStores(spec.name).asInstanceOf[ProjectionStore[Any]]
-    val cur   = currentHashFor(specAny)
-    store.getSchemaHash.catchAll(_ => ZIO.succeed(None)).flatMap {
-      case None =>
-        store.updateSchemaHash(cur).catchAll(_ => ZIO.unit)
-      case Some(stored) if stored == cur =>
-        ZIO.unit
-      case Some(_) =>
-        if (config.lazyRebuild) {
-          pendingRebuildRef.update(_ + (spec.name -> true))
-        } else {
-          val esOpt = eventStoreForSpec(specAny)
-          esOpt match {
-            case None     => ZIO.unit
-            case Some(es) =>
-              migrationRegistry.get.flatMap { regs =>
-                val migOpt = regs.get(spec.name)
-                SchemaEvolution.tryMigrationShortcutForSpec(specAny, store, migOpt, cur).flatMap {
-                  case true  => ZIO.unit
-                  case false => SchemaEvolution.rebuild(store, es, spec, cur)
-                }
-              }.catchAll(e =>
-                ZIO.logError(s"SchemaEvolution rebuild failed for ${spec.name}: ${e.getMessage}") *> ZIO.unit
-              )
-          }
-        }
-    }
-  }
-
-  private def ensureRebuiltIfPending[A](spec: Projection[A]): Task[Unit] =
-    pendingRebuildRef.get.map(_.getOrElse(spec.name, false)).flatMap {
-      case false => ZIO.unit
-      case true  =>
-        evolutionSem.withPermit {
-          pendingRebuildRef.get.map(_.getOrElse(spec.name, false)).flatMap {
-            case false => ZIO.unit
-            case true  =>
-              val store = primaryStores(spec.name).asInstanceOf[ProjectionStore[Any]]
-              val esOpt = eventStoreForSpec(spec)
-              esOpt match {
-                case None     => pendingRebuildRef.update(_ - spec.name)
-                case Some(es) =>
-                  val cur = currentHashFor(spec)
-                  migrationRegistry.get.flatMap { regs =>
-                    val migOpt = regs.get(spec.name)
-                    SchemaEvolution.tryMigrationShortcutForSpec(spec, store, migOpt, cur).flatMap {
-                      case true  => pendingRebuildRef.update(_ - spec.name)
-                      case false =>
-                        SchemaEvolution.rebuild(store, es, spec.asInstanceOf[Projection[Any]], cur) *>
-                          pendingRebuildRef.update(_ - spec.name)
-                    }
-                  }
-              }
-          }
-        }
-    }
-
-  private def primaryStoreFor[A](spec: Projection[A]): ProjectionStore[A] =
-    primaryStores(spec.name).asInstanceOf[ProjectionStore[A]]
-
-  // Factory for shards: uses same store type as primary (SQLite on JVM, else InMemory)
-  private def getOrCreateShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] = {
-    val specName = spec.name
-    shardsRef.get.flatMap { outer =>
-      outer.get(specName).flatMap(_.get(routingKey)) match {
-        case Some(cached) => ZIO.succeed(cached.asInstanceOf[ProjectionStore[A]])
-        case None         =>
-          val create: Task[ProjectionStore[A]] = {
-            implicit val schema: Schema[A] = spec.schema
-            implicit val ep: EntityPath[A] =
-              spec.entityPath.getOrElse(EntityPath[A](specName, "id"))
-            // If primary is SQLite, create SQLite shard with sanitized path
-            val primary = primaryStores.get(specName)
-            if (primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) {
-              val base      = spec.entityPath.map(_.basePath).getOrElse("projections")
-              val sanitized = routingKey.replaceAll("[^a-zA-Z0-9_-]", "_").take(64)
-              val shardPath = s"$base/${specName}_shard_$sanitized.db"
-              SQLiteProjectionStore.make[A](shardPath, cache)
-            } else InMemoryProjectionStore.make[A]
-          }
-          create.flatMap { newStore =>
-            shardsRef.update { outer2 =>
-              val inner = outer2.getOrElse(specName, Map.empty)
-              outer2.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
-            }.as(newStore)
-          }
-      }
-    }
-  }
-
-  // Chooses the store for an event: the primary store, or, for a cross-entity projection, the shard of the event's
-  // routing key (its entity ID when no `routedBy` function applies to the event). Creating a shard does not open its
-  // file, so the fallback to the primary store below is never reached: a shard that cannot be opened makes the action
-  // fail, and the event is logged as `apply failed` and skipped
-  private def resolveTargetStore[A](
-    spec: Projection[A],
-    event: Any,
-    ctx: ProjectionContext,
-    sourceName: String
-  ): Task[ProjectionStore[A]] = {
-    // Use ctx fallback to ensure parameter is not unused
-    val fallbackEntityId = ctx.entityId
-    spec.scope match {
-      case ProjectionScope.Global =>
-        ZIO.succeed(primaryStoreFor(spec))
-      case ProjectionScope.CrossEntity(extractor) =>
-        val routingKeyAttempt: Option[String] = {
-          val fromBinding = spec.bindings.find(_.sourceName == sourceName).flatMap { b =>
-            b.routing match {
-              case rm: RoutingMode.RoutedBy[?] =>
-                Try(rm.asInstanceOf[RoutingMode.RoutedBy[Any]].extractAny(event)).toOption
-              case _ => None
-            }
-          }
-          fromBinding.orElse(Try(extractor(event)).toOption).orElse(Some(fallbackEntityId))
-        }
-        routingKeyAttempt match {
-          case Some(key) =>
-            getOrCreateShard(spec, key).catchAll { _ =>
-              ZIO.succeed(primaryStoreFor(spec))
-            }
-          case None =>
-            ZIO.succeed(primaryStoreFor(spec))
-        }
-      case _ =>
-        // PerEntity or default: use primary
-        ZIO.succeed(primaryStoreFor(spec))
-    }
-  }
-
-  private def applyAction[A](
-    store: ProjectionStore[A],
-    action: ProjectionAction[A],
-    ctx: ProjectionContext
-  ): Task[Unit] =
-    action match {
-      case ProjectionAction.Insert(v)    => store.insert(v)
-      case ProjectionAction.Upsert(v)    => store.upsert(v)
-      case ProjectionAction.Update(mods) => store.updateFields(ctx.entityId, mods)
-      case ProjectionAction.Delete       => store.delete(ctx.entityId)
-      case ProjectionAction.Truncate     => store.truncate
-      case ProjectionAction.Noop         => ZIO.unit
-    }
-
-  private def processBatch[A](
-    spec: Projection[A],
-    binding: SourceBinding[?, A],
-    batch: zio.Chunk[EventEnvelope[Any]]
-  ): Task[Unit] = {
-    val primary = primaryStoreFor(spec)
-    // Each event is processed on its own. The watermark is set to the seq of each event whose action succeeds, so a
-    // failed or unhandled event leaves it where it is, until a later success moves it past that event for good
-    ZIO
-      .foldLeft(batch)(Option.empty[Long]) { (acc, env) =>
-        val ctx                                            = ProjectionContext(env.entityId, env.timestamp, env.seq, Some(env.entityId))
-        val handlerTask: Task[Option[ProjectionAction[A]]] =
-          ZIO
-            .attempt(spec.handle(env.event, ctx))
-            .catchAll { e =>
-              ZIO.logError(s"ProjectionEngine[${spec.name}] handler failed at seq ${env.seq}: ${e.getMessage}") *>
-                ZIO.succeed(None)
-            }
-        handlerTask.flatMap {
-          case None =>
-            // No handler or handler error: do NOT advance watermark, keep acc
-            ZIO
-              .logDebug(
-                s"ProjectionEngine[${spec.name}] no handler for event ${env.event.getClass.getSimpleName} at seq ${env.seq}"
-              )
-              .as(acc)
-          case Some(action) =>
-            val processOne: Task[Option[Long]] =
-              resolveTargetStore(spec, env.event, ctx, binding.sourceName).flatMap { targetStore =>
-                // Applying the action and saving the watermark are two separate writes, not one transaction, so a
-                // crash between them leaves the event applied but not recorded, and the next start applies it again
-                val transactional: Task[Unit] =
-                  applyAction(targetStore.asInstanceOf[ProjectionStore[A]], action, ctx).flatMap { _ =>
-                    primary.updateLastProcessedSeq(env.seq)
-                  }
-                transactional.as(Some(env.seq)).catchAll { e =>
-                  ZIO.logError(
-                    s"ProjectionEngine[${spec.name}] apply failed at seq ${env.seq}: ${e.getMessage}"
-                  ) *> ZIO.succeed(acc)
-                }
-              }.catchAll { e =>
-                ZIO.logError(
-                  s"ProjectionEngine[${spec.name}] routing failed at seq ${env.seq}: ${e.getMessage}"
-                ) *> ZIO.succeed(acc)
-              }
-            processOne
-        }
-      }
-      .flatMap {
-        case Some(_) => ZIO.unit // watermark already at lastSuccess via per-event updates
-        case None    => ZIO.unit // no successful event, watermark stays as before
-      }
-  }
+    EngineRebuild.registerMigration(this, spec, migration)
 
   /**
-   * Starts the engine.
+   * Starts the engine: validates schemas, rebuilds stale stores, then launches
+   * per-binding catch-up and live fibers.
    *
-   * It first checks the schema of each projection and, unless `lazyRebuild` is
-   * on, brings stale stores up to date, with the migration shortcut or a full
-   * rebuild. Then, for each source of each projection, it applies the events
-   * after the projection's saved position and starts a fiber that follows the
-   * new events. With `lazyRebuild` on, it also starts a fiber that rebuilds the
-   * pending projections in the background.
-   *
-   * Each source reads the event store with its name, or else the one named
-   * `"_default"`, or else the first of the map, so a misspelt source name reads
-   * another store instead of failing. A source without an event store, which
-   * only happens when the engine has no event stores at all, is skipped with a
-   * warning. A source that fails with an error is logged and skipped. The
-   * fibers run until the enclosing `Scope` closes; there is no separate stop
-   * method.
+   * Must be run inside a `Scope`; all fibers and transactors are tied to that
+   * scope and are released when it closes.
    *
    * @return
-   *   a scoped task that completes once every source has caught up and its live
-   *   fiber has been started
+   *   a scoped task that completes when fibers are launched (not when they
+   *   finish)
    */
-  def start: ZIO[Scope, Nothing, Unit] = {
-    val schemaChecks: ZIO[Any, Nothing, Unit] =
-      ZIO.foreachDiscard(specs)(specAny => checkSchemaAndRebuild(specAny).orDie)
-
-    val launchBindings: ZIO[Scope, Nothing, Unit] =
-      ZIO.foreachDiscard(specs) { specAny =>
-        val spec                                  = specAny.asInstanceOf[Projection[Any]]
-        val bindings: List[SourceBinding[?, Any]] =
-          if (spec.bindings.isEmpty) {
-            List(
-              SourceBinding[Any, Any](
-                "_default",
-                RoutingMode.RouteToSelf,
-                spec.allHandlers.asInstanceOf[List[Handler[?, Any]]]
-              )
-            )
-          } else {
-            spec.bindings.asInstanceOf[List[SourceBinding[?, Any]]]
-          }
-        ZIO.foreachDiscard(bindings) { binding =>
-          val esOpt: Option[EventStore[Any]] =
-            eventStores
-              .get(binding.sourceName)
-              .map(_.asInstanceOf[EventStore[Any]])
-              .orElse(eventStores.get("_default").map(_.asInstanceOf[EventStore[Any]]))
-              .orElse(eventStores.values.headOption.map(_.asInstanceOf[EventStore[Any]]))
-
-          esOpt match {
-            case None =>
-              ZIO
-                .logWarning(
-                  s"ProjectionEngine[${spec.name}] no EventStore for source '${binding.sourceName}' - skipping"
-                )
-                .unit
-            case Some(es) =>
-              val primary =
-                primaryStoreFor(specAny.asInstanceOf[Projection[Any]]).asInstanceOf[ProjectionStore[Any]]
-              // Catch up first, then subscribe to the hub for live events. Live events are not filtered by seq.
-              // Nothing joins the two: an event appended while catch-up runs is seen by neither, and is skipped for
-              // good once a later event moves the watermark past it; an event stored before catch-up reads it but
-              // published after the subscription is seen by both.
-              val bindTask: ZIO[Scope, Throwable, Unit] =
-                for {
-                  initialLast <- primary.getLastProcessedSeq
-                  _           <- es
-                         .readFrom(initialLast)
-                         .groupedWithin(config.batchSize, config.batchTimeout)
-                         .mapZIO { chunk =>
-                           if (chunk.isEmpty) ZIO.unit
-                           else
-                             processBatch(
-                               spec.asInstanceOf[Projection[Any]],
-                               binding.asInstanceOf[SourceBinding[?, Any]],
-                               chunk.asInstanceOf[zio.Chunk[EventEnvelope[Any]]]
-                             )
-                         }
-                         .runDrain
-                  queue <- es.subscribe.subscribe
-                  _     <- ZStream
-                         .fromQueue(queue)
-                         .mapZIO { env =>
-                           processBatch(
-                             spec.asInstanceOf[Projection[Any]],
-                             binding.asInstanceOf[SourceBinding[?, Any]],
-                             zio.Chunk.single(env)
-                           )
-                         }
-                         .runDrain
-                         .forkScoped
-                } yield ()
-              bindTask.catchAll { e =>
-                ZIO.logError(s"ProjectionEngine[${spec.name}] bind failed: ${e.getMessage}") *> ZIO.unit
-              }
-          }
-        }
-      }
-
-    val backgroundPrewarm: ZIO[Scope, Nothing, Unit] =
-      if (!config.lazyRebuild) ZIO.unit
-      else {
-        ZIO
-          .foreachDiscard(specs.grouped(config.rebuildParallelism).toList) { batch =>
-            ZIO.foreachDiscard(batch) { specAny =>
-              val spec  = specAny.asInstanceOf[Projection[Any]]
-              val store = primaryStores(spec.name).asInstanceOf[ProjectionStore[Any]]
-              val esOpt = eventStoreForSpec(specAny)
-              esOpt match {
-                case None     => ZIO.unit
-                case Some(es) =>
-                  pendingRebuildRef.get.flatMap(_.get(spec.name) match {
-                    case Some(true) =>
-                      evolutionSem.withPermit {
-                        pendingRebuildRef.get.flatMap(_.get(spec.name) match {
-                          case Some(true) =>
-                            val cur = currentHashFor(specAny)
-                            migrationRegistry.get.flatMap { regs =>
-                              val migOpt = regs.get(spec.name)
-                              SchemaEvolution.tryMigrationShortcutForSpec(specAny, store, migOpt, cur).flatMap {
-                                case true  => pendingRebuildRef.update(_ - spec.name)
-                                case false =>
-                                  SchemaEvolution.rebuild(store, es, spec, cur) *> pendingRebuildRef.update(
-                                    _ - spec.name
-                                  )
-                              }
-                            }.catchAll(_ => ZIO.unit)
-                          case _ => ZIO.unit
-                        })
-                      }
-                    case _ => ZIO.unit
-                  })
-              }
-            }
-          }
-          .forkScoped
-          .unit
-      }
-
-    schemaChecks *> launchBindings *> backgroundPrewarm
-  }
-
-  // ---------------------------------------------------------------------------
-  // Query
-  // ---------------------------------------------------------------------------
+  def start: ZIO[Scope, Nothing, Unit] =
+    EngineLifecycle.start(this)
 
   /**
    * Queries the projection for the entity with the given id.
    *
    * Ensures any pending lazy rebuild for `spec` is applied before reading. For
-   * cross-entity projections, also searches the shards this engine has opened
-   * if the primary store has no match. The engine opens a shard when it routes
-   * an event to it, so after a restart a row kept in a shard is not found until
-   * a new event goes to that shard, which is a known bug.
+   * cross-entity projections, also searches sharded stores if the primary has
+   * no match.
    *
    * @param spec
-   *   the projection to query; it must be one this engine runs, or the task
-   *   dies with a `NoSuchElementException`
+   *   the projection to query
    * @param entityId
    *   the entity id to look up
    * @tparam A
-   *   the row type of the projection
+   *   the projection entity type
    * @return
-   *   the row, or `None` if no store has it
+   *   the entity if found
    */
   def query[A](spec: Projection[A], entityId: String): Task[Option[A]] =
-    ensureRebuiltIfPending(spec) *>
-      primaryStoreFor(spec).findById(entityId).flatMap {
-        case some @ Some(_) => ZIO.succeed(some)
-        case None           =>
-          spec.scope match {
-            case ProjectionScope.CrossEntity(_) =>
-              shardsRef.get.flatMap { outer =>
-                outer.get(spec.name) match {
-                  case None        => ZIO.succeed(None)
-                  case Some(inner) =>
-                    ZIO
-                      .foreach(inner.values.toList)(
-                        _.asInstanceOf[ProjectionStore[A]].findById(entityId).catchAll(_ => ZIO.succeed(None))
-                      )
-                      .map(_.collectFirst { case Some(v) => v })
-                }
-              }
-            case _ => ZIO.succeed(None)
-          }
-      }
+    EngineQuery.query(this, spec, entityId)
 
-  /**
-   * Reads the row with the given ID from the projection with the given name, or
-   * `None` if there is no such projection or row.
-   *
-   * Unlike [[query]], it neither applies a pending lazy rebuild nor searches
-   * shards, and the caller chooses the result type `A` without it being
-   * checked.
-   *
-   * @param specName
-   *   the name of the projection
-   * @param entityId
-   *   the ID of the row
-   * @return
-   *   the row, or `None`
-   */
+  /** Query by spec name + id (untyped helper) */
   def queryByName[A](specName: String, entityId: String): Task[Option[A]] =
-    primaryStores.get(specName) match {
-      case Some(store) => store.asInstanceOf[ProjectionStore[A]].findById(entityId)
-      case None        => ZIO.succeed(None)
-    }
+    EngineQuery.queryByName(this, specName, entityId)
 
-  /**
-   * The sequence number of the last event the projection has applied, which is
-   * where the engine resumes after a restart. It is kept in the projection's
-   * primary store, also for a cross-entity projection with shards.
-   *
-   * A projection with several sources keeps one watermark for all of them,
-   * although each event store numbers its events from 1. That is a known bug:
-   * after a restart, a source can skip events below the number set by another
-   * source.
-   *
-   * The engine saves the watermark in a write after the row change, so a query
-   * can see the new row while this still returns the previous number.
-   *
-   * @param spec
-   *   the projection; it must be one this engine runs, or the call throws a
-   *   `NoSuchElementException`
-   */
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long] =
-    primaryStoreFor(spec).getLastProcessedSeq
+    EngineQuery.getLastProcessedSeq(this, spec)
 
-  /**
-   * The primary store of each projection, keyed by projection name. Shards of
-   * cross-entity projections are not included.
-   */
   def storesMap: Map[String, ProjectionStore[_]] = primaryStores
 
-  /**
-   * The event stores, keyed by source name. It is empty for an engine made with
-   * `make` or `makeWithConfig`.
-   */
   def eventStoresMap: Map[String, EventStore[_]] = eventStores
 }
 
-/** Creates [[ProjectionEngine]]s, and checks names and folders. */
 object ProjectionEngine {
 
-  /**
-   * Creates a bounded hub for live events, for example to pass to
-   * `SQLiteEventStore.makeWithHub`. Publishing suspends when the hub is full,
-   * so a slow consumer slows the producer down instead of losing events.
-   *
-   * @param capacity
-   *   the most events the hub holds
-   */
+  // M1: bounded Hub (ringCapacity 4096) — respects backpressure via suspending publish
   def boundedHub[E](capacity: Int = 4096): UIO[Hub[EventEnvelope[E]]] = Hub.bounded[EventEnvelope[E]](capacity)
 
-  /**
-   * Checks that a projection name is safe to use as a file name, and throws
-   * `IllegalArgumentException` if it is not. A name must be non-empty and made
-   * of letters, digits, `_` and `-`.
-   *
-   * @param name
-   *   the projection name to check
-   * @throws java.lang.IllegalArgumentException
-   *   if the name is invalid; the message starts with
-   *   `requirement failed: invalid name`
-   */
+  // M3: path traversal validation
   def validateName(name: String): Unit =
     require(
       name.nonEmpty && !name.contains("/") && !name.contains("\\") && !name.contains("..") && name
@@ -722,17 +231,6 @@ object ProjectionEngine {
       s"invalid name $name"
     )
 
-  /**
-   * Checks that a folder path cannot escape the storage directory, and throws
-   * `IllegalArgumentException` if it can. It rejects an empty path,
-   * backslashes, `..`, `//`, and absolute paths. A nested relative path such as
-   * `a/b` passes.
-   *
-   * @param path
-   *   the folder path to check
-   * @throws java.lang.IllegalArgumentException
-   *   if the path is rejected
-   */
   def validateBasePath(path: String): Unit = {
     require(
       path.nonEmpty && !path.contains("\\") && !path.contains("..") && !path.contains("//"),
@@ -760,33 +258,9 @@ object ProjectionEngine {
     }
   }
 
-  /**
-   * Creates an engine for the given projections, with the default
-   * [[ProjectionEngineConfig]].
-   *
-   * It checks the projection names and folders, creates a [[TransactorCache]]
-   * that is closed with the enclosing `Scope`, and a SQLite store for each
-   * projection: `global/<name>.db` for a global projection and
-   * `<basePath>/<name>.db` otherwise. The engine has no event stores, so it has
-   * nothing to read; to give it some, use `makeWithStores` or
-   * `makeWithStoresVarargs` instead.
-   *
-   * Fails if a name or folder is invalid.
-   *
-   * @param specs
-   *   the projections to run
-   */
   def make(specs: Projection[_]*): ZIO[Scope, Throwable, ProjectionEngine] =
     makeWithConfig(ProjectionEngineConfig.default, specs: _*)
 
-  /**
-   * Like [[make]], with the settings `config`.
-   *
-   * @param config
-   *   the settings
-   * @param specs
-   *   the projections to run
-   */
   def makeWithConfig(
     config: ProjectionEngineConfig,
     specs: Projection[_]*
@@ -826,34 +300,7 @@ object ProjectionEngine {
       sem
     )
 
-  /**
-   * Creates an engine from stores you made yourself, instead of creating them.
-   * This is how an engine is given event stores to read from, and how
-   * `TestEngine` wires its in-memory stores.
-   *
-   * It neither creates nor opens any store, and `stores` must have an entry for
-   * every projection. An invalid projection name or folder is a defect, not a
-   * typed error.
-   *
-   * When the primary store of a cross-entity projection is a
-   * [[SQLiteProjectionStore]], the engine creates each shard as
-   * `<basePath>/<name>_shard_<key>.db`, relative to the working directory,
-   * wherever the primary store's file is. The key is cut to 64 characters, and
-   * characters other than letters, digits, `_` and `-` become `_`. With any
-   * other primary store, shards are in-memory stores.
-   *
-   * @param specs
-   *   the projections to run
-   * @param stores
-   *   the primary store of each projection, keyed by projection name
-   * @param eventStores
-   *   the event store of each source, keyed by the source name given to `from`
-   * @param cache
-   *   the cache that opens the SQLite files; the engine also opens the shards
-   *   of cross-entity projections with it
-   * @param config
-   *   the settings
-   */
+  // Test helper: inject explicit stores and eventStores
   def makeWithStores(
     specs: List[Projection[_]],
     stores: Map[String, ProjectionStore[_]],
@@ -869,23 +316,7 @@ object ProjectionEngine {
       sem        <- Semaphore.make(1)
     } yield new ProjectionEngine(specs, stores, eventStores, cache, config, shardsRef, pendingRef, migReg, sem)
 
-  /**
-   * Like [[makeWithStores]] in that it takes event stores, but it creates the
-   * primary stores itself, the way [[make]] does. The projections are passed in
-   * a second parameter list.
-   *
-   * Unlike `makeWithStores`, an invalid projection name or folder fails the
-   * task.
-   *
-   * @param cache
-   *   the cache that opens the SQLite files
-   * @param eventStores
-   *   the event store of each source, keyed by the source name given to `from`
-   * @param config
-   *   the settings
-   * @param specs
-   *   the projections to run
-   */
+  // Overload for varargs specs
   def makeWithStoresVarargs(
     cache: TransactorCache,
     eventStores: Map[String, EventStore[_]],

@@ -44,6 +44,12 @@ private[otel] final class BatchProcessor[A](
   private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
 
+  // Monitor for the retry backoff wait. shutdown() notifies it so a flush
+  // parked in backoff wakes immediately instead of sleeping out the delay —
+  // the scheduler thread is never blocked longer than necessary and shutdown
+  // still flushes promptly.
+  private val retryMonitor = new Object
+
   private val flushTask: Runnable = new Runnable {
     def run(): Unit = doFlush()
   }
@@ -68,15 +74,30 @@ private[otel] final class BatchProcessor[A](
 
   def forceFlush(): Unit = doFlush()
 
-  def shutdown(): Unit =
-    if (isShutdown.compareAndSet(false, true)) {
+  def shutdown(): Unit = {
+    // The flag flip and the wake-up are atomic under retryMonitor, so a
+    // flush thread checking awaitBackoff cannot slip between them and miss
+    // the notify (which would park it for the full backoff delay).
+    val shouldFlush = retryMonitor.synchronized {
+      if (isShutdown.compareAndSet(false, true)) {
+        retryMonitor.notifyAll()
+        true
+      } else false
+    }
+    if (shouldFlush) {
       scheduledFuture.cancel(false)
+      // Wake any flush parked in retry backoff so it stops retrying now;
+      // the doFlush below then drains whatever is left in the queue.
       doFlush()
     }
+  }
 
   override def close(): Unit = shutdown()
 
   private def doFlush(): Unit = {
+    // Interrupt policy: an interrupt in backoff cancels retries for the current
+    // batch only. Later queued batches are still drained with one attempt each
+    // (the preserved flag makes awaitBackoff return false immediately).
     var hasMore = true
     while (hasMore) {
       val batch = drain(maxBatchSize)
@@ -124,15 +145,56 @@ private[otel] final class BatchProcessor[A](
         } else {
           val shift   = math.min(attempt, 30)
           val delayMs = math.min(retryBaseMillis * (1L << shift), 30000L)
-          if (isShutdown.get()) {
+          if (awaitBackoff(delayMs)) exportWithRetry(batch, attempt + 1)
+          else if (isShutdown.get()) {
             System.err.println(
               "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
             )
           } else {
-            try Thread.sleep(delayMs)
-            catch { case _: InterruptedException => Thread.currentThread().interrupt() }
-            exportWithRetry(batch, attempt + 1)
+            System.err.println(
+              "[zio-blocks-telemetry] BatchProcessor backoff interrupted, not retrying. Dropping " + batch.size + " items."
+            )
           }
         }
+    }
+
+  /**
+   * Waits out the retry backoff, returning `false` early once shutdown has
+   * started or the waiting thread is interrupted. Check/wait runs under
+   * `retryMonitor`, shared with `shutdown`'s flag flip plus notify, so the
+   * wake-up cannot be missed; the deadline loop re-waits only the time left,
+   * guarding spurious wakeups.
+   *
+   * Measured with `System.nanoTime` (monotonic; only differences observed) and
+   * `Object.wait(millis, nanos)` so a tiny remainder never becomes `wait(0)`
+   * (indefinite). An already-interrupted thread returns `false` immediately via
+   * `isInterrupted`, which — unlike `wait` — leaves the flag set; a mid-wait
+   * interrupt restores the flag and cancels the current batch's retries
+   * (returning `true` would defeat the backoff with rapid retries up to
+   * `maxRetries`).
+   */
+  private def awaitBackoff(delayMs: Long): Boolean =
+    retryMonitor.synchronized {
+      // isInterrupted observes a pre-existing interrupt — including zero or
+      // negative backoffs that never reach wait — without clearing the flag.
+      if (isShutdown.get() || Thread.currentThread().isInterrupted) false
+      else {
+        val delayNanos     = TimeUnit.MILLISECONDS.toNanos(delayMs)
+        val deadlineNanos  = System.nanoTime() + delayNanos
+        var remainingNanos = delayNanos
+        var interrupted    = false
+        while (!isShutdown.get() && !interrupted && remainingNanos > 0) {
+          val millis = remainingNanos / 1000000L
+          val nanos  = (remainingNanos % 1000000L).toInt
+          try retryMonitor.wait(millis, nanos)
+          catch {
+            case _: InterruptedException =>
+              Thread.currentThread().interrupt()
+              interrupted = true
+          }
+          if (!interrupted) remainingNanos = deadlineNanos - System.nanoTime()
+        }
+        !isShutdown.get() && !interrupted
+      }
     }
 }

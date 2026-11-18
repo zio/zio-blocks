@@ -143,8 +143,15 @@ private[telemetry] object LogMacros {
     val filePath   = Expr(pos.sourceFile.path)
     val lineNumber = Expr(pos.startLine + 1)
 
-    val methodName = Expr(findEnclosingMethod(Symbol.spliceOwner))
-    val namespace  = Expr(findEnclosingClass(Symbol.spliceOwner))
+    val namespaceStr = findEnclosingClass(Symbol.spliceOwner)
+    val namespace    = Expr(namespaceStr)
+    // Fully-qualified function name computed once at macro-expansion time and
+    // spliced as a literal — no per-log concatenation at runtime. Only the
+    // emitted OTel value is module-marker normalized; `namespace` stays raw so
+    // `effectiveLevel` level-override lookup keeps its existing identity.
+    val functionName = Expr(
+      SourceLocation.qualifiedFunctionName(normalizeModuleName(namespaceStr), findEnclosingMethod(Symbol.spliceOwner))
+    )
 
     // Classify each enrichment by type at compile time
     sealed trait EnrichmentKind
@@ -221,12 +228,11 @@ private[telemetry] object LogMacros {
       if ($severityNumber >= GlobalLogState.globalMinLevel) {
         val state = GlobalLogState.get()
         if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
-          val now     = EpochClock.epochNanos()
+          val now = EpochClock.epochNanos()
+          // Source metadata travels as dedicated scalars — never inserted
+          // into the builder, so user attributes stay source-free and the
+          // pooled builder cannot clobber source on reentrant logging.
           val builder = AttributeBuilderPool.get()
-          builder.put("code.filepath", $filePath)
-          builder.put("code.namespace", $namespace)
-          builder.put("code.function", $methodName)
-          builder.put("code.lineno", $lineNumber.toLong)
 
           val annotations = LogAnnotations.get()
           if (annotations.nonEmpty) {
@@ -308,23 +314,23 @@ private[telemetry] object LogMacros {
 
           ${
             if (hasFallbacks) {
-              // Fallback path: build LogRecord for LogEnrichment instances
+              // Fallback path: build LogRecord for LogEnrichment instances.
+              // Uses only the public builder API — macro output typechecks in
+              // any user package.
               '{
-                val record = LogRecord(
-                  timestampNanos = now,
-                  observedTimestampNanos = now,
-                  severity = severityVar,
-                  severityText = severityTextVar,
-                  body = LogMessage(bodyVar),
-                  attributes = builder.buildAndReset(),
-                  traceIdHi = tIdHi,
-                  traceIdLo = tIdLo,
-                  spanId = sId,
-                  traceFlags = tFlags,
-                  resource = state.logger.resource,
-                  instrumentationScope = $self.logInstrumentationScope,
-                  throwable = throwableVar
-                )
+                val record = LogRecord.builder
+                  .setTimestamp(now)
+                  .setObservedTimestamp(now)
+                  .setSeverity(severityVar)
+                  .setBody(bodyVar)
+                  .setSourceFile($filePath)
+                  .setSourceFunction($functionName)
+                  .setSourceLine($lineNumber)
+                  .setResource(state.logger.resource)
+                  .setInstrumentationScope($self.logInstrumentationScope)
+                  .setThrowable(throwableVar)
+                  .addAttributes(builder.buildAndReset())
+                  .build
 
                 ${
                   // Build fallback enrichment chain
@@ -362,6 +368,9 @@ private[telemetry] object LogMacros {
                   severityVar,
                   severityTextVar,
                   bodyVar,
+                  $filePath,
+                  $functionName,
+                  $lineNumber,
                   builder,
                   tIdHi,
                   tIdLo,
@@ -402,4 +411,13 @@ private[telemetry] object LogMacros {
     }
     "<unknown>"
   }
+
+  /**
+   * Module classes surface with JVM `$` markers (`Outer$.Inner$`); strip them
+   * for the emitted OTel value so it matches the source-level path — and the
+   * Scala 2 macro, whose `fullName` never carries them. Level-override lookup
+   * deliberately keeps the raw identity and must not use this.
+   */
+  private def normalizeModuleName(fullName: String): String =
+    fullName.replace("$.", ".").stripSuffix("$")
 }

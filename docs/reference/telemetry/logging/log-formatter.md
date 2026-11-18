@@ -16,12 +16,16 @@ sidebar_label: "LogFormatter"
 
 Two singletons cover the usual output formats — both can be shared across threads; `TextLogFormatter` caches its timestamp prefix for the current second, and a known bug in 0.0.56 lets a line logged at a second boundary from another thread carry the wrong second:
 
-| Formatter          | Output                                                                                                                                       |
-|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `TextLogFormatter` | Human-readable — `2026-07-29T10:00:00.000Z INFO  [Svc.doWork:42] message {key=val}`                                                          |
-| `JsonLogFormatter` | OTLP-compatible JSON — `{"timeUnixNano":"...","severityNumber":9,"severityText":"INFO","body":{"stringValue":"message"},"attributes":[...]}` |
+| Formatter          | Output                                                                                                                                                      |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TextLogFormatter` | Human-readable — `2026-07-29T10:00:00.000Z INFO  message [Svc.doWork] src/main/scala/com/example/Svc.scala:42 {key=val}`                                      |
+| `JsonLogFormatter` | OTLP-compatible JSON — `{"timeUnixNano":"...","severityNumber":9,"severityText":"INFO","body":{"stringValue":"message"},"attributes":[...]}`                |
 
-Both render the record's timestamp, severity, source location (from the `code.*` attributes), message body, and an attached throwable's stack trace. They differ in what else they carry: `TextLogFormatter` prints the remaining attributes as a compact `{key=value}` list and drops the trace and span IDs, while `JsonLogFormatter` emits every attribute — including the four `code.*` entries — plus `traceId` and `spanId` when the record was written inside a span.
+Both render the record's timestamp, severity, source location (from the record's dedicated source fields), message body, and an attached throwable's stack trace. They differ in what else they carry: `TextLogFormatter` prints the body first, then the compact `[Svc.doWork]` function separately, then the contiguous captured `path:line` token for navigation, then the remaining attributes as a compact `{key=value}` list — and drops the trace and span IDs — while `JsonLogFormatter` emits the captured source as canonical attributes first, then every user attribute, then the throwable's `exception.stacktrace` attribute — all inside a single `attributes` array that closes before `traceId` and `spanId` — plus `traceId` and `spanId` when the record was written inside a span. A user attribute that shares a canonical source key is suppressed only when that source field is present; otherwise it passes through unchanged.
+
+The text layout used to print the location before the body (`INFO  [Svc.doWork:42] message {key=val}`). It now prints the message first: `INFO  message [Svc.doWork] src/main/scala/com/example/Svc.scala:42 {key=val}`. When no file path was captured, the compact `[Svc.doWork:42]` fallback stays informational; a bare line renders as `[line:42]`; with no location at all nothing renders. The captured path is preserved exactly as the macro emitted it at compile time: it is never absolutized against the runtime working directory, never shortened — backslashes stay literal, so a Windows `C:\work\...` path renders as-is — and the method never appears inside the `path:line` token. Only CR, LF, tab, and other control characters in location text are backslash-escaped, so a hostile path cannot forge extra log lines.
+
+That compile-time path may not exist where you read the log. It is the source file path as seen by the compiler that built the code — for a library published from another checkout, for CI artifacts, or for logs emitted inside a container image without sources, the file may live elsewhere or not at all. Treat `path:line` as an informational pointer, not a guarantee the file opens there.
 
 ## Example Usage
 
@@ -57,7 +61,8 @@ Sometimes neither built-in shape fits — an existing ingest pipeline expects lo
 trait LogFormatter {
   def format(
     sb: StringBuilder, timestampNanos: Long, severity: Severity, severityText: String,
-    body: String, builder: Attributes.AttributesBuilder,
+    body: String, sourceFile: String, sourceFunction: String, sourceLine: Int,
+    builder: Attributes.AttributesBuilder,
     traceIdHi: Long, traceIdLo: Long, spanId: Long, traceFlags: Byte,
     throwable: Option[Throwable]
   ): Unit
@@ -68,7 +73,7 @@ trait LogFormatter {
 
 `formatRecord` is the one that runs: a channel registered with `log.writer` renders each finished [`LogRecord`](./log-record.md) through it. Put your format there.
 
-`format` serves a lower-allocation path that skips building a `LogRecord`, and the library uses it only for its own default console output — no formatter you register ever reaches it. You still have to define it to satisfy the trait, so mirror the scalar fields and move on; it cannot render attributes anyway, since the accessors for reading them off the builder are internal.
+`format` serves a lower-allocation path that skips building a `LogRecord`, and the library uses it only for its own default console output — no formatter you register ever reaches it. You still have to define it to satisfy the trait, so mirror the scalar fields (source arrives as dedicated parameters, ready to render) and move on; reading user attributes off the builder requires internal accessors, so custom `format` implementations render the scalar fields only.
 
 Both methods receive a fresh, empty `StringBuilder` from the caller, which writes it out and discards it. Append your output and return — the caller handles writing.
 
@@ -83,7 +88,8 @@ object CsvFormatter extends LogFormatter {
 
   def format(
     sb: StringBuilder, timestampNanos: Long, severity: Severity, severityText: String,
-    body: String, builder: Attributes.AttributesBuilder,
+    body: String, sourceFile: String, sourceFunction: String, sourceLine: Int,
+    builder: Attributes.AttributesBuilder,
     traceIdHi: Long, traceIdLo: Long, spanId: Long, traceFlags: Byte,
     throwable: Option[Throwable]
   ): Unit = sb.append(timestampNanos).append(',').append(severityText).append(',').append(body)
@@ -91,10 +97,10 @@ object CsvFormatter extends LogFormatter {
 
 log.writer(CsvFormatter, StdoutWriter)
 log.info("order placed")
-// 2026-07-31T13:23:25.137Z INFO  [Main$.main:20] order placed  <- default console output
-// 1785504205137002324,INFO,order placed                        <- your channel
+// 2026-07-31T13:23:25.137Z INFO  order placed [Main$.main] src/main/scala/example/Main.scala:20  <- default console output
+// 1785504205137002324,INFO,order placed                                                                          <- your channel
 ```
 
 Two lines, because `log.writer` adds a channel rather than replacing one, and the default console output is still registered.
 
-To render attributes too, pass an `AttributeVisitor` to `record.attributes.accept` — it fires once per attribute with the raw unboxed value, so nothing is boxed on the way out. Only the four scalar methods are abstract; the seq variants default to no-ops. Source location arrives among those attributes as `code.filepath`, `code.namespace`, `code.function`, and `code.lineno`. Decide which convention you want: `TextLogFormatter` lifts them into its `[Svc.doWork:42]` prefix and then skips those keys, while `JsonLogFormatter` emits them as ordinary attributes. Skip any key starting with `code.` if you render the location separately.
+To render attributes too, call `record.attribute(key)` for a single lookup or `record.foreachAttribute { (key, value) => ... }` to enumerate every user attribute — the values arrive as [`AttributeValue`](../common/any-value.md), one wrapper per kind, so you can match on which kind you got. That convenience boxes: one wrapper per attribute, plus your closure. The built-in formatters don't pay it — they iterate the private typed store directly — but a custom formatter written against the public API does; that is the documented cost of `foreachAttribute`, not zero-allocation iteration. (`Attributes` sets outside records keep a zero-boxing `accept` visitor for exporter hot paths; the record API itself exposes no visitor.) Source location never appears in that enumeration: read `record.sourceFile`, `record.sourceFunction`, and `record.sourceLine` directly. `TextLogFormatter` lifts them into its `[Svc.doWork] path:line` location (falling back to `[Svc.doWork:42]` when no path was captured, `[line:42]` for a bare line, and nothing at all when there is no location) and suppresses a user attribute with a canonical `code.*` key only when that source field is present, while `JsonLogFormatter` writes the captured source as canonical attributes first, then the user attributes. If you render the location separately, apply the same rule — suppress exactly the canonical keys whose source field is present; any other `code.*` key is an ordinary user attribute and must stay visible.

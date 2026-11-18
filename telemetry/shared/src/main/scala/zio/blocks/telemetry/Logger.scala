@@ -71,14 +71,17 @@ final class Logger private[telemetry] (
       new StandardLogEmitter(processors, processorMinLevel)
 
   /**
-   * Raw emit — called by macro-generated code. Passes raw values to the
-   * emitter.
+   * Raw emit — called by macro-generated code. Source metadata travels as
+   * dedicated scalars, separate from the user attributes in `builder`.
    */
   private[telemetry] def emitRaw(
     timestampNanos: Long,
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
@@ -92,6 +95,9 @@ final class Logger private[telemetry] (
     severity,
     severityText,
     body,
+    sourceFile,
+    sourceFunction,
+    sourceLine,
     builder,
     traceIdHi,
     traceIdLo,
@@ -160,10 +166,21 @@ final class Logger private[telemetry] (
     log(Severity.Fatal, body, attrs)
 
   private def log(severity: Severity, body: String, attrs: Seq[(String, AttributeValue)]): Unit = {
+    // Cheap gate first: below the minimum level of every processor attached to
+    // this Logger, skip the clock read, builder work, and record allocation
+    // entirely. This reads the construction-time processor snapshot only.
+    // Unlike the macro path — which checks the live GlobalLogState floor and
+    // then the per-namespace effectiveLevel — direct calls carry no
+    // SourceLocation, so GlobalLogState levels (global floor and
+    // per-namespace overrides) do not apply here; only this Logger's own
+    // processor levels gate direct calls. Direct calls also carry no source:
+    // user attributes named like canonical source keys stay ordinary user
+    // attributes (passthrough at export, never source aliases).
+    if (severity.number < processorMinLevel) return
     val now        = EpochClock.epochNanos()
     val spanCtxOpt = contextStorage.get()
 
-    val attrBuilder = Attributes.builder
+    val attrBuilder = AttributeBuilderPool.get()
     attrs.foreach { case (k, v) =>
       v match {
         case AttributeValue.StringValue(s)     => attrBuilder.put(k, s)
@@ -184,19 +201,24 @@ final class Logger private[telemetry] (
         (0L, 0L, 0L, 0.toByte)
     }
 
-    val record = LogRecord(
+    val record = LogRecord.create(
       timestampNanos = now,
       observedTimestampNanos = now,
       severity = severity,
       severityText = severity.text,
       body = LogMessage(body),
-      attributes = attrBuilder.build,
+      sourceFile = "",
+      sourceFunction = "",
+      sourceLine = 0,
+      // Zero-copy handoff from the pooled builder (see StandardLogEmitter).
+      userAttributes = attrBuilder.buildAndReset(),
       traceIdHi = tidHi,
       traceIdLo = tidLo,
       spanId = sid,
       traceFlags = tf,
       resource = resource,
-      instrumentationScope = instrumentationScope
+      instrumentationScope = instrumentationScope,
+      throwable = None
     )
 
     emit(record)

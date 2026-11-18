@@ -111,12 +111,17 @@ private[telemetry] object LogMacros {
   ): c.Expr[Unit] = {
     import c.universe._
 
-    val pos        = c.enclosingPosition
-    val filePath   = Literal(Constant(pos.source.path))
-    val lineNo     = Literal(Constant(pos.line))
-    val methodName = Literal(Constant(findEnclosingMethod(c)))
-    val namespace  = Literal(Constant(findEnclosingClass(c)))
-    val self       = c.prefix.tree
+    val pos          = c.enclosingPosition
+    val filePath     = Literal(Constant(pos.source.path))
+    val lineNo       = Literal(Constant(pos.line))
+    val namespaceStr = findEnclosingClass(c)
+    val namespace    = Literal(Constant(namespaceStr))
+    // Fully-qualified function name computed once at macro-expansion time and
+    // spliced as a literal — no per-log concatenation at runtime.
+    val functionName = Literal(
+      Constant(SourceLocation.qualifiedFunctionName(namespaceStr, findEnclosingMethod(c)))
+    )
+    val self = c.prefix.tree
 
     generateDirectBuilderPath(c)(
       self,
@@ -127,7 +132,7 @@ private[telemetry] object LogMacros {
       severityNumber,
       filePath,
       lineNo,
-      methodName,
+      functionName,
       namespace
     )
   }
@@ -185,7 +190,7 @@ private[telemetry] object LogMacros {
     severityNumber: Int,
     filePath: c.universe.Tree,
     lineNo: c.universe.Tree,
-    methodName: c.universe.Tree,
+    functionName: c.universe.Tree,
     namespace: c.universe.Tree
   ): c.Expr[Unit] = {
     import c.universe._
@@ -297,33 +302,23 @@ private[telemetry] object LogMacros {
     }.toList
 
     val emitTree: Tree = if (hasFallbacks) {
-      // Fallback path: build LogRecord for LogEnrichment instances
+      // Fallback path: build the base record through the public builder API
+      // (so the expansion typechecks anywhere), then fold LogEnrichment
+      // instances over it.
       val fallbackIndices  = classified.collect { case FallbackKind(idx) => idx }
-      var recordTree: Tree = q"record"
+      val baseRecord: Tree =
+        q"_root_.zio.blocks.telemetry.LogRecord.builder.setTimestamp(now).setObservedTimestamp(now).setSeverity(severityVar).setBody(bodyVar).setSourceFile($filePath).setSourceFunction($functionName).setSourceLine($lineNo).setResource(state.logger.resource).setInstrumentationScope($self.logInstrumentationScope).setThrowable(throwableVar).addAttributes(builder.buildAndReset()).build"
+      var enriched: Tree = q"record"
       for (idx <- fallbackIndices) {
         val argType          = enrichments(idx).actualType.dealias
         val enrichmentType   = appliedType(logEnrichmentTpe, List(argType))
         val implicitInstance = c.inferImplicitValue(enrichmentType)
         val expr             = enrichments(idx).tree
-        recordTree = q"$implicitInstance.enrich($recordTree, $expr)"
+        enriched = q"$implicitInstance.enrich($enriched, $expr)"
       }
       q"""
-        val record = _root_.zio.blocks.telemetry.LogRecord(
-          timestampNanos = now,
-          observedTimestampNanos = now,
-          severity = severityVar,
-          severityText = severityTextVar,
-          body = _root_.zio.blocks.telemetry.LogMessage(bodyVar),
-          attributes = builder.buildAndReset(),
-          traceIdHi = tIdHi,
-          traceIdLo = tIdLo,
-          spanId = sId,
-          traceFlags = tFlags,
-          resource = state.logger.resource,
-          instrumentationScope = $self.logInstrumentationScope,
-          throwable = throwableVar
-        )
-        val finalRecord = $recordTree
+        val record = $baseRecord
+        val finalRecord = $enriched
         try state.logger.emit(finalRecord)
         catch {
           case e: _root_.java.lang.Throwable =>
@@ -338,6 +333,9 @@ private[telemetry] object LogMacros {
           severityVar,
           severityTextVar,
           bodyVar,
+          $filePath,
+          $functionName,
+          $lineNo,
           builder,
           tIdHi,
           tIdLo,
@@ -358,11 +356,10 @@ private[telemetry] object LogMacros {
           val state = _root_.zio.blocks.telemetry.GlobalLogState.get()
           if (state != null && $severity.number >= state.effectiveLevel($namespace)) {
             val now = _root_.zio.blocks.telemetry.EpochClock.epochNanos()
+            // Source metadata travels as dedicated scalars — never inserted
+            // into the builder, so user attributes stay source-free and the
+            // pooled builder cannot clobber source on reentrant logging.
             val builder = _root_.zio.blocks.telemetry.AttributeBuilderPool.get()
-            builder.put("code.filepath", $filePath)
-            builder.put("code.namespace", $namespace)
-            builder.put("code.function", $methodName)
-            builder.put("code.lineno", $lineNo.toLong)
 
             val annotations = _root_.zio.blocks.telemetry.LogAnnotations.get()
             if (annotations.nonEmpty) annotations.foreach { case (k, v) => builder.put(k, v) }

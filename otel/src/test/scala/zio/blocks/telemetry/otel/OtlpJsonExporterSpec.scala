@@ -50,6 +50,18 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     def shutdown(): Unit = ()
   }
 
+  private def countOccurrences(haystack: String, needle: String): Int = {
+    var count = 0
+    var from  = 0
+    var next  = haystack.indexOf(needle, from)
+    while (next >= 0) {
+      count += 1
+      from = next + needle.length
+      next = haystack.indexOf(needle, from)
+    }
+    count
+  }
+
   private def sampleSpanData(): SpanData = SpanData(
     name = "test-span",
     kind = SpanKind.Server,
@@ -75,20 +87,19 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     instrumentationScope = testScope
   )
 
-  private def sampleLogRecord(): LogRecord = LogRecord(
-    timestampNanos = 1000000L,
-    observedTimestampNanos = 1000000L,
-    severity = Severity.Info,
-    severityText = "INFO",
-    body = "test log message",
-    attributes = Attributes.empty,
-    traceIdHi = 0L,
-    traceIdLo = 0L,
-    spanId = 0L,
-    traceFlags = 0,
-    resource = testResource,
-    instrumentationScope = testScope
-  )
+  private def sampleLogRecord(): LogRecord = LogRecord.builder
+    .setTimestamp(1000000L)
+    .setObservedTimestamp(1000000L)
+    .setSeverity(Severity.Info)
+    .setBody("test log message")
+    .setSourceFile("src/Service.scala")
+    .setSourceFunction("com.example.Service.run")
+    .setSourceLine(42)
+    .setTraceId(0L, 0L)
+    .setSpanId(0L)
+    .setResource(testResource)
+    .setInstrumentationScope(testScope)
+    .build
 
   private def sampleNamedMetric(): NamedMetric = NamedMetric(
     name = "test.counter",
@@ -383,8 +394,16 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           pe
         )
         try {
+          val second = LogRecord.builder
+            .setTimestamp(2000000L)
+            .setObservedTimestamp(2000000L)
+            .setSeverity(Severity.Info)
+            .setBody("second log")
+            .setResource(testResource)
+            .setInstrumentationScope(testScope)
+            .build
           exporter.onEmit(sampleLogRecord())
-          exporter.onEmit(sampleLogRecord().copy(body = "second log"))
+          exporter.onEmit(second)
           exporter.forceFlush()
           val calls = captured.get()
           val body  = new String(calls.head._3, "UTF-8")
@@ -392,6 +411,35 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
             calls.nonEmpty &&
               body.contains("test log message") &&
               body.contains("second log")
+          )
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
+      },
+      test("retained source fields export exactly once as canonical attributes") {
+        val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
+        val exporter           = new OtlpJsonLogExporter(
+          ExporterConfig(flushIntervalMillis = 600000L),
+          testResource,
+          testScope,
+          sender,
+          pe
+        )
+        try {
+          exporter.onEmit(sampleLogRecord())
+          exporter.forceFlush()
+          val body = new String(captured.get().head._3, "UTF-8")
+          assertTrue(
+            body.contains(
+              "\"attributes\":[{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"src/Service.scala\"}}," +
+                "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"com.example.Service.run\"}}," +
+                "{\"key\":\"code.line.number\",\"value\":{\"intValue\":\"42\"}}]"
+            ),
+            countOccurrences(body, "code.file.path") == 1,
+            countOccurrences(body, "code.function.name") == 1,
+            countOccurrences(body, "code.line.number") == 1
           )
         } finally {
           exporter.shutdown()

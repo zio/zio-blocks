@@ -53,8 +53,8 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    *
    * log.info("order shipped", "orderId" -> "ord-123", "items" -> 3, "express" -> true)
    *
-   * records.head.attributes.get(AttributeKey.long("items")) // Some(3)
-   * records.head.attributes.get(AttributeKey.boolean("express")) // Some(true)
+   * records.head.attribute(AttributeKey.long("items")) // Some(3)
+   * records.head.attribute(AttributeKey.boolean("express")) // Some(true)
    * }}}
    */
   inline def info(inline message: String, inline enrichments: Any*): Unit =
@@ -94,7 +94,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    * val failure: Throwable = new java.io.IOException("connection reset")
    * log.error("payment failed", failure, "orderId" -> "ord-123", "attempt" -> 2)
    *
-   * records.head.attributes.get(AttributeKey.string("exception.type")) // Some(java.io.IOException)
+   * records.head.attribute(AttributeKey.string("exception.type")) // Some(java.io.IOException)
    * records.head.throwable // Some(java.io.IOException: connection reset)
    * }}}
    */
@@ -166,7 +166,7 @@ private[telemetry] trait LogVersionSpecific { self: log.type =>
    *   log.warnEvery(5, "retrying upstream call", "attempt" -> attempt)
    * }
    *
-   * records.map(_.attributes.get(AttributeKey.long("attempt")).getOrElse(0L)) // ListBuffer(5, 10)
+   * records.map(_.attribute(AttributeKey.long("attempt")).getOrElse(0L)) // ListBuffer(5, 10)
    * }}}
    */
   inline def warnEvery(every: Int, inline message: String, inline enrichments: Any*): Unit =

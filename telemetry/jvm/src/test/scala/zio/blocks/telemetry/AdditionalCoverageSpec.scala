@@ -66,6 +66,9 @@ object AdditionalCoverageSpec extends ZIOSpecDefault {
       severity: Severity,
       severityText: String,
       body: String,
+      sourceFile: String,
+      sourceFunction: String,
+      sourceLine: Int,
       builder: Attributes.AttributesBuilder,
       traceIdHi: Long,
       traceIdLo: Long,
@@ -126,7 +129,10 @@ object AdditionalCoverageSpec extends ZIOSpecDefault {
           record.severityText == Severity.Warn.text,
           record.body eq templated,
           record.body.value == "Hello big world 42!",
-          record.attributes.get(regionKey).contains("eu-west-1"),
+          record.sourceFile == "",
+          record.sourceFunction == "",
+          record.sourceLine == 0,
+          record.attribute(regionKey).contains("eu-west-1"),
           record.traceIdHi == 10L,
           record.traceIdLo == 20L,
           record.spanId == 30L,
@@ -575,10 +581,13 @@ object AdditionalCoverageSpec extends ZIOSpecDefault {
           )
         }
       },
-      test("LogEnrichment attributesEnrichment and severityEnrichment update records") {
+      test("LogRecordBuilder source setters and LogEnrichment preserve source") {
         val base = LogRecord.builder
           .setBody("base")
           .setSeverity(Severity.Info)
+          .setSourceFile("s/S.scala")
+          .setSourceFunction("pkg.Svc.go")
+          .setSourceLine(3)
           .build
         val attrs = Attributes.of(componentKey, "enriched") ++ Attributes.of(answerKey, 42L)
 
@@ -586,11 +595,17 @@ object AdditionalCoverageSpec extends ZIOSpecDefault {
         val withSeverity   = LogEnrichment.severityEnrichment.enrich(withAttributes, Severity.Fatal)
 
         assertTrue(
-          withAttributes.attributes.get(componentKey).contains("enriched"),
-          withAttributes.attributes.get(answerKey).contains(42L),
+          withAttributes.attribute(componentKey).contains("enriched"),
+          withAttributes.attribute(answerKey).contains(42L),
+          withAttributes.sourceFile == "s/S.scala",
+          withAttributes.sourceFunction == "pkg.Svc.go",
+          withAttributes.sourceLine == 3,
           withSeverity.severity == Severity.Fatal,
           withSeverity.severityText == Severity.Fatal.text,
-          withSeverity.body.value == "base"
+          withSeverity.body.value == "base",
+          withSeverity.sourceFile == "s/S.scala",
+          withSeverity.sourceFunction == "pkg.Svc.go",
+          withSeverity.sourceLine == 3
         )
       }
     )

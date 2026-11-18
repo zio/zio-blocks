@@ -65,6 +65,10 @@ object B3Propagator {
    * `Some` of an invalid context with zero ids instead of `None`, a known bug:
    * check `SpanContext#isValid` before you use the result as a parent.
    *
+   * Note: the debug (`"d"`) sampling marker sets the sampled flag, but
+   * debug-ness itself is not propagated — [[zio.blocks.telemetry.SpanContext]]
+   * has no debug field, so debug degrades to sampled.
+   *
    * {{{
    * val get = (headers: Map[String, String], name: String) => headers.get(name)
    *
@@ -102,6 +106,20 @@ object B3Propagator {
   val multi: Propagator = B3MultiPropagator
 
   /**
+   * Sampling marker for the B3 single-header third segment: `"1"` (accept) and
+   * `"d"` (debug, degrades to sampled — see [[single]]) enable sampling;
+   * anything else, including absence, means unsampled.
+   */
+  private def samplingFlags(sampling: String): TraceFlags =
+    sampling match {
+      case "1" | "d" => TraceFlags.sampled
+      case _         => TraceFlags.none
+    }
+
+  private def isTruthySampled(value: String): Boolean =
+    value == "1" || value.equalsIgnoreCase("true")
+
+  /**
    * Lower-cases a 16- or 32-character trace id, pads a 16-character one with
    * zeros on the left, and parses it.
    */
@@ -130,23 +148,26 @@ object B3Propagator {
             case "1" | "d" =>
               Some(SpanContext.create(0L, 0L, SpanId.invalid, TraceFlags.sampled, traceState = "", isRemote = true))
             case _ =>
-              val parts = value.split('-')
-              if (parts.length < 2) None
+              // Hand-split on dash indices (no per-extract regex). Accepts
+              // {traceId}-{spanId} with optional -{sampling} and
+              // -{parentSpanId}; extra segments are ignored.
+              val firstDash = value.indexOf('-')
+              if (firstDash < 0) None
               else {
+                val secondDash   = value.indexOf('-', firstDash + 1)
+                val spanEnd      = if (secondDash < 0) value.length else secondDash
+                val samplingDash = if (secondDash < 0) -1 else value.indexOf('-', secondDash + 1)
+                val samplingEnd  = if (samplingDash < 0) value.length else samplingDash
+                val sampling     =
+                  if (secondDash < 0) ""
+                  else value.substring(secondDash + 1, samplingEnd)
                 for {
-                  (tidHi, tidLo) <- normalizeTraceId(parts(0))
+                  (tidHi, tidLo) <- normalizeTraceId(value.substring(0, firstDash))
                   if TraceId.isValid(tidHi, tidLo)
-                  spanId <- SpanId.fromHex(parts(1).toLowerCase(java.util.Locale.ROOT))
+                  spanId <- SpanId.fromHex(value.substring(firstDash + 1, spanEnd).toLowerCase(java.util.Locale.ROOT))
                   if spanId.isValid
                 } yield {
-                  val flags = if (parts.length >= 3) {
-                    parts(2) match {
-                      case "1" | "d" => TraceFlags.sampled
-                      case "0"       => TraceFlags.none
-                      case _         => TraceFlags.none
-                    }
-                  } else TraceFlags.none
-                  SpanContext.create(tidHi, tidLo, spanId, flags, traceState = "", isRemote = true)
+                  SpanContext.create(tidHi, tidLo, spanId, samplingFlags(sampling), traceState = "", isRemote = true)
                 }
               }
           }
@@ -179,9 +200,13 @@ object B3Propagator {
         spanId         <- SpanId.fromHex(spanIdRaw.trim.toLowerCase(java.util.Locale.ROOT))
         _              <- if (spanId.isValid) Some(()) else None
       } yield {
+        // X-B3-Flags "1" means debug, which implies sampled (debug-ness
+        // itself is not propagated — see [[single]]). X-B3-Sampled accepts
+        // both "1" and the spec's "true" form (case-insensitive).
         val debug   = getter(carrier, FlagsHeader).exists(_.trim == "1")
-        val sampled = debug || getter(carrier, SampledHeader).exists(_.trim == "1")
-        val flags   = if (sampled) TraceFlags.sampled else TraceFlags.none
+        val sampled =
+          debug || getter(carrier, SampledHeader).exists(v => isTruthySampled(v.trim))
+        val flags = if (sampled) TraceFlags.sampled else TraceFlags.none
         SpanContext.create(tidHi, tidLo, spanId, flags, traceState = "", isRemote = true)
       }
 

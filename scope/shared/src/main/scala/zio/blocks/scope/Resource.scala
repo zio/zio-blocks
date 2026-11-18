@@ -26,6 +26,12 @@ import java.util.concurrent.atomic.AtomicReference
  * and that scope runs the release steps when it closes. Build resources with
  * these constructors and combine them with `map`, `flatMap` and `zip`.
  *
+ * Note: this is the lifecycle resource (''how a value is acquired and released
+ * in a scope''). It is not the same as `zio.blocks.telemetry.Resource` (the
+ * OpenTelemetry resource: data identity, ''what produced this telemetry''). The
+ * names collide across modules (which cannot link to each other here); they
+ * share nothing else.
+ *
  * ==Creating Resources==
  *
  *   - `Resource(=> a)`: a by-name value; registers `close()` if the value is

@@ -230,7 +230,7 @@ object OtlpJsonEncoder {
         case _    =>
           if (c < 0x20 || (c >= 0xd800 && c <= 0xdfff)) {
             sb.append("\\u")
-            sb.append(String.format("%04x", c.toInt))
+            Hex.appendChar4(sb, c.toInt)
           } else {
             sb.append(c)
           }
@@ -240,36 +240,43 @@ object OtlpJsonEncoder {
     sb.append('"')
   }
 
-  private def writeKey(sb: StringBuilder, key: String): Unit = {
+  /**
+   * Appends a fixed OTLP protocol field name as `"key":`. Every caller passes a
+   * compile-time literal; dynamic attribute keys and values still go through
+   * `writeJsonString` in `writeAttributes` and `appendLogAttribute`, so this
+   * raw append never handles user-controlled input.
+   */
+  private def writeLiteralKey(sb: StringBuilder, key: String): Unit = {
     sb.append('"')
-    sb.append(key) // keys are always safe ASCII
-    sb.append("\":")
+    sb.append(key)
+    sb.append('"')
+    sb.append(':')
   }
 
   private def writeKeyString(sb: StringBuilder, key: String, value: String): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     writeJsonString(sb, value)
   }
 
   private def writeKeyLong(sb: StringBuilder, key: String, value: Long): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append('"')
     sb.append(value)
     sb.append('"')
   }
 
   private def writeKeyInt(sb: StringBuilder, key: String, value: Int): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
   private def writeKeyDouble(sb: StringBuilder, key: String, value: Double): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
   private def writeKeyBool(sb: StringBuilder, key: String, value: Boolean): Unit = {
-    writeKey(sb, key)
+    writeLiteralKey(sb, key)
     sb.append(value)
   }
 
@@ -413,28 +420,28 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // attributes
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, span.attributes)
     sb.append(']')
     sb.append(',')
 
     // events
-    writeKey(sb, "events")
+    writeLiteralKey(sb, "events")
     sb.append('[')
     writeList(sb, span.events)(writeSpanEvent)
     sb.append(']')
     sb.append(',')
 
     // links
-    writeKey(sb, "links")
+    writeLiteralKey(sb, "links")
     sb.append('[')
     writeList(sb, span.links)(writeSpanLink)
     sb.append(']')
     sb.append(',')
 
     // status
-    writeKey(sb, "status")
+    writeLiteralKey(sb, "status")
     sb.append('{')
     writeKeyInt(sb, "code", statusCodeToInt(span.status))
     span.status match {
@@ -454,7 +461,7 @@ object OtlpJsonEncoder {
     sb.append(',')
     writeKeyLong(sb, "timeUnixNano", event.timestampNanos)
     sb.append(',')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, event.attributes)
     sb.append(']')
@@ -467,7 +474,7 @@ object OtlpJsonEncoder {
     sb.append(',')
     writeKeyString(sb, "spanId", link.spanContext.spanId.toHex)
     sb.append(',')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, link.attributes)
     sb.append(']')
@@ -487,9 +494,9 @@ object OtlpJsonEncoder {
 
     nm.data match {
       case MetricData.SumData(points) =>
-        writeKey(sb, "sum")
+        writeLiteralKey(sb, "sum")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeSumDataPoint)
         sb.append(']')
@@ -498,18 +505,18 @@ object OtlpJsonEncoder {
         sb.append('}')
 
       case MetricData.HistogramData(points) =>
-        writeKey(sb, "histogram")
+        writeLiteralKey(sb, "histogram")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeHistogramDataPoint)
         sb.append(']')
         sb.append('}')
 
       case MetricData.GaugeData(points) =>
-        writeKey(sb, "gauge")
+        writeLiteralKey(sb, "gauge")
         sb.append('{')
-        writeKey(sb, "dataPoints")
+        writeLiteralKey(sb, "dataPoints")
         sb.append('[')
         writeList(sb, points)(writeGaugeDataPoint)
         sb.append(']')
@@ -521,7 +528,7 @@ object OtlpJsonEncoder {
 
   private def writeSumDataPoint(sb: StringBuilder, pt: SumDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -536,7 +543,7 @@ object OtlpJsonEncoder {
 
   private def writeHistogramDataPoint(sb: StringBuilder, pt: HistogramDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -555,7 +562,7 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // bucketCounts as quoted strings
-    writeKey(sb, "bucketCounts")
+    writeLiteralKey(sb, "bucketCounts")
     sb.append('[')
     var i = 0
     while (i < pt.bucketCounts.length) {
@@ -569,7 +576,7 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // explicitBounds as doubles
-    writeKey(sb, "explicitBounds")
+    writeLiteralKey(sb, "explicitBounds")
     sb.append('[')
     i = 0
     while (i < pt.boundaries.length) {
@@ -584,7 +591,7 @@ object OtlpJsonEncoder {
 
   private def writeGaugeDataPoint(sb: StringBuilder, pt: GaugeDataPoint): Unit = {
     sb.append('{')
-    writeKey(sb, "attributes")
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
     writeAttributes(sb, pt.attributes)
     sb.append(']')
@@ -609,18 +616,57 @@ object OtlpJsonEncoder {
     sb.append(',')
 
     // body as AnyValue
-    writeKey(sb, "body")
+    writeLiteralKey(sb, "body")
     sb.append('{')
     writeKeyString(sb, "stringValue", log.body.value)
     sb.append('}')
     sb.append(',')
 
-    // attributes (including deferred throwable stacktrace)
-    writeKey(sb, "attributes")
+    // attributes: canonical source attributes first, then user attributes
+    // from the raw typed arrays (no wrappers, no callbacks), then the
+    // deferred throwable stacktrace. Colliding canonical keys suppress only
+    // when that source field is present — see LogRecord.isSourceCollision.
+    writeLiteralKey(sb, "attributes")
     sb.append('[')
-    writeAttributes(sb, log.attributes)
+    var first          = true
+    val sourceFile     = log.sourceFile
+    val sourceFunction = log.sourceFunction
+    val sourceLine     = log.sourceLine
+    if (sourceFile != null && sourceFile.nonEmpty) {
+      first = appendLogAttribute(sb, "code.file.path", AttributeValue.StringValue(sourceFile), first)
+    }
+    if (sourceFunction != null && sourceFunction.nonEmpty) {
+      first = appendLogAttribute(sb, "code.function.name", AttributeValue.StringValue(sourceFunction), first)
+    }
+    if (sourceLine != 0) {
+      first = appendLogAttribute(sb, "code.line.number", AttributeValue.LongValue(sourceLine.toLong), first)
+    }
+    val attrs   = log.userAttributes
+    val keys    = attrs.keys
+    val types   = attrs.types
+    val longs   = attrs.longs
+    val strings = attrs.strings
+    val seqs    = attrs.seqs
+    val len     = attrs.len
+    var i       = 0
+    while (i < len) {
+      if (!LogRecord.isSourceCollision(keys(i), sourceFile, sourceFunction, sourceLine)) {
+        val tpe = types(i)
+        first = appendRawLogAttribute(
+          sb,
+          keys(i),
+          tpe,
+          longs(i),
+          strings(i),
+          if (tpe >= 4) rawSeqAt(seqs, i) else null,
+          first
+        )
+      }
+      i += 1
+    }
     log.throwable.foreach { t =>
-      if (!log.attributes.isEmpty) sb.append(',')
+      if (!first) sb.append(',')
+      first = false
       val sw = new java.io.StringWriter()
       t.printStackTrace(new java.io.PrintWriter(sw))
       sb.append("{\"key\":")
@@ -635,10 +681,125 @@ object OtlpJsonEncoder {
     // trace correlation
     writeKeyString(sb, "traceId", if (log.hasTraceId) TraceId.toHex(log.traceIdHi, log.traceIdLo) else "")
     sb.append(',')
-    writeKeyString(sb, "spanId", if (log.hasSpanId) String.format("%016x", log.spanId) else "")
+    writeLiteralKey(sb, "spanId")
+    if (log.hasSpanId) {
+      sb.append('"')
+      Hex.appendLong16(sb, log.spanId)
+      sb.append('"')
+    } else {
+      sb.append("\"\"")
+    }
     sb.append(',')
     writeKeyInt(sb, "flags", log.traceFlags.toInt & 0xff)
 
     sb.append('}')
+  }
+
+  /**
+   * Appends one log attribute. Returns false after the first call so callers
+   * can thread comma state.
+   */
+  private def appendLogAttribute(sb: StringBuilder, key: String, value: AttributeValue, first: Boolean): Boolean = {
+    if (!first) sb.append(',')
+    sb.append("{\"key\":")
+    writeJsonString(sb, key)
+    sb.append(",\"value\":{")
+    writeAttributeValue(sb, value)
+    sb.append("}}")
+    false
+  }
+
+  /**
+   * Appends one user attribute from a raw typed slot — no `AttributeValue`
+   * wrapper, no callback. Unknown type tags fall back to an empty string value,
+   * mirroring `Attributes.valueAt`. Returns false after the first call so
+   * callers can thread comma state.
+   */
+  private def appendRawLogAttribute(
+    sb: StringBuilder,
+    key: String,
+    tpe: Byte,
+    long: Long,
+    str: String,
+    seq: Seq[Any],
+    first: Boolean
+  ): Boolean = {
+    if (!first) sb.append(',')
+    sb.append("{\"key\":")
+    writeJsonString(sb, key)
+    sb.append(",\"value\":{")
+    (tpe: @scala.annotation.switch) match {
+      case 0 => writeKeyString(sb, "stringValue", str)
+      case 1 => writeKeyLong(sb, "intValue", long)
+      case 2 => writeKeyDouble(sb, "doubleValue", java.lang.Double.longBitsToDouble(long))
+      case 3 => writeKeyBool(sb, "boolValue", long != 0L)
+      case 4 => writeRawStringArray(sb, seq)
+      case 5 => writeRawLongArray(sb, seq)
+      case 6 => writeRawDoubleArray(sb, seq)
+      case 7 => writeRawBooleanArray(sb, seq)
+      case _ => writeKeyString(sb, "stringValue", "")
+    }
+    sb.append("}}")
+    false
+  }
+
+  /**
+   * Reads a Seq value from the raw side-array, tolerating a null array or slot.
+   * Seq attributes are rare, so allocation here is acceptable.
+   */
+  private def rawSeqAt(seqs: Array[AnyRef], i: Int): Seq[Any] =
+    if (seqs == null || seqs(i) == null) Seq.empty
+    else seqs(i).asInstanceOf[Seq[Any]]
+
+  private def writeRawStringArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { s =>
+      if (!first) sb.append(',')
+      sb.append("{\"stringValue\":")
+      writeJsonString(sb, if (s == null) null else s.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawLongArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { l =>
+      if (!first) sb.append(',')
+      sb.append("{\"intValue\":\"")
+      sb.append(l.toString)
+      sb.append("\"}")
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawDoubleArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { d =>
+      if (!first) sb.append(',')
+      sb.append("{\"doubleValue\":")
+      sb.append(d.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
+  }
+
+  private def writeRawBooleanArray(sb: StringBuilder, seq: Seq[Any]): Unit = {
+    sb.append("\"arrayValue\":{\"values\":[")
+    var first = true
+    seq.foreach { b =>
+      if (!first) sb.append(',')
+      sb.append("{\"boolValue\":")
+      sb.append(b.toString)
+      sb.append('}')
+      first = false
+    }
+    sb.append("]}")
   }
 }

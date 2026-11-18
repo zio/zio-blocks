@@ -21,6 +21,17 @@ import scala.util.control.NonFatal
 /**
  * Turns the raw values of a `log.*` call into output; each [[Logger]] picks one
  * when it is created, from its processors.
+ *
+ * The macro generates code that passes raw field values to Logger.emitRaw(),
+ * which delegates to the emitter. The emitter decides the representation:
+ *   - StandardLogEmitter builds an immutable LogRecord and passes to processors
+ *   - Future emitters (e.g., ZeroCopyLogEmitter) can read the builder's raw
+ *     arrays directly for zero-allocation export
+ *
+ * Source metadata travels as dedicated scalar parameters, separate from the
+ * user attributes in `builder` — it is never inserted into the builder, so
+ * pooled-builder reuse and reentrant logging cannot clobber it, and the record
+ * path never scans user attributes to recover it.
  */
 private[telemetry] trait LogEmitter {
 
@@ -30,6 +41,9 @@ private[telemetry] trait LogEmitter {
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
@@ -55,6 +69,9 @@ private[telemetry] final class StandardLogEmitter(
     severity: Severity,
     severityText: String,
     body: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
     builder: Attributes.AttributesBuilder,
     traceIdHi: Long,
     traceIdLo: Long,
@@ -65,13 +82,18 @@ private[telemetry] final class StandardLogEmitter(
     throwable: Option[Throwable]
   ): Unit =
     if (severity.number >= processorMinLevel) {
-      val record = LogRecord(
+      val record = LogRecord.create(
         timestampNanos = timestampNanos,
         observedTimestampNanos = timestampNanos,
         severity = severity,
         severityText = severityText,
         body = LogMessage(body),
-        attributes = builder.build,
+        sourceFile = sourceFile,
+        sourceFunction = sourceFunction,
+        sourceLine = sourceLine,
+        // Zero-copy handoff: the builder is pooled and would be cleared right
+        // after anyway, so hand its arrays to the record instead of copying.
+        userAttributes = builder.buildAndReset(),
         traceIdHi = traceIdHi,
         traceIdLo = traceIdLo,
         spanId = spanId,
@@ -80,7 +102,6 @@ private[telemetry] final class StandardLogEmitter(
         instrumentationScope = instrumentationScope,
         throwable = throwable
       )
-      builder.clear()
       var i = 0
       while (i < processors.length) {
         try {

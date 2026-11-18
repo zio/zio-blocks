@@ -58,6 +58,35 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
   private def jsonString(bytes: Array[Byte]): String = new String(bytes, "UTF-8")
 
+  private def countOccurrences(haystack: String, needle: String): Int = {
+    var count = 0
+    var from  = 0
+    var next  = haystack.indexOf(needle, from)
+    while (next >= 0) {
+      count += 1
+      from = next + needle.length
+      next = haystack.indexOf(needle, from)
+    }
+    count
+  }
+
+  private val resourceFragment =
+    "\"resource\":{\"attributes\":[{\"key\":\"service.name\",\"value\":{\"stringValue\":\"test-service\"}}]}"
+
+  private val scopeFragment = "\"scope\":{\"name\":\"test-lib\",\"version\":\"1.0.0\"}"
+
+  private def traceDoc(spansJson: String): String =
+    "{\"resourceSpans\":[{" + resourceFragment + ",\"scopeSpans\":[{" + scopeFragment + ",\"spans\":[" +
+      spansJson + "]}]}]}"
+
+  private def metricsDoc(metricsJson: String): String =
+    "{\"resourceMetrics\":[{" + resourceFragment + ",\"scopeMetrics\":[{" + scopeFragment + ",\"metrics\":[" +
+      metricsJson + "]}]}]}"
+
+  private def logsDoc(recordsJson: String): String =
+    "{\"resourceLogs\":[{" + resourceFragment + ",\"scopeLogs\":[{" + scopeFragment + ",\"logRecords\":[" +
+      recordsJson + "]}]}]}"
+
   def spec = suite("OtlpJsonEncoder")(
     suite("encodeTraces")(
       test("encodes single span with correct OTLP structure") {
@@ -78,19 +107,16 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"resourceSpans\""),
-          json.contains("\"scopeSpans\""),
-          json.contains("\"spans\""),
-          json.contains("\"name\":\"test-op\""),
-          json.contains("\"kind\":2"),
-          json.contains("\"traceId\":\"0123456789abcdeffedcba9876543210\""),
-          json.contains("\"spanId\":\"0123456789abcdef\""),
-          json.contains("\"parentSpanId\":\"fedcba9876543210\""),
-          json.contains("\"startTimeUnixNano\":\"1000000000\""),
-          json.contains("\"endTimeUnixNano\":\"2000000000\""),
-          json.contains("\"status\":{\"code\":0}")
+        // Exact rendered output: envelope, field order, ids, and the single
+        // status object are pinned; duplicates or reordered fields fail.
+        val expected = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"fedcba9876543210\",\"name\":\"test-op\",\"kind\":2," +
+            "\"startTimeUnixNano\":\"1000000000\",\"endTimeUnixNano\":\"2000000000\"," +
+            "\"attributes\":[],\"events\":[],\"links\":[],\"status\":{\"code\":0}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes span with attributes") {
         val attrs = Attributes.builder
@@ -115,13 +141,16 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"key\":\"http.method\""),
-          json.contains("\"stringValue\":\"GET\""),
-          json.contains("\"key\":\"http.status_code\""),
-          json.contains("\"intValue\":\"200\""),
-          json.contains("\"status\":{\"code\":1}")
+        val expected = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"0000000000000000\",\"name\":\"http-request\",\"kind\":3," +
+            "\"startTimeUnixNano\":\"100\",\"endTimeUnixNano\":\"200\"," +
+            "\"attributes\":[{\"key\":\"http.method\",\"value\":{\"stringValue\":\"GET\"}}," +
+            "{\"key\":\"http.status_code\",\"value\":{\"intValue\":\"200\"}}]," +
+            "\"events\":[],\"links\":[],\"status\":{\"code\":1}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes span with error status and description") {
         val span = SpanData(
@@ -141,9 +170,15 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"status\":{\"code\":2,\"message\":\"something went wrong\"}")
+        val expected = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"0000000000000000\",\"name\":\"failing-op\",\"kind\":1," +
+            "\"startTimeUnixNano\":\"100\",\"endTimeUnixNano\":\"200\"," +
+            "\"attributes\":[],\"events\":[],\"links\":[]," +
+            "\"status\":{\"code\":2,\"message\":\"something went wrong\"}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes span with events") {
         val event = SpanEvent(
@@ -169,12 +204,16 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"events\":[{"),
-          json.contains("\"name\":\"exception\""),
-          json.contains("\"timeUnixNano\":\"150\""),
-          json.contains("\"key\":\"exception.message\"")
+        val expected = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"0000000000000000\",\"name\":\"with-events\",\"kind\":1," +
+            "\"startTimeUnixNano\":\"100\",\"endTimeUnixNano\":\"200\",\"attributes\":[]," +
+            "\"events\":[{\"name\":\"exception\",\"timeUnixNano\":\"150\"," +
+            "\"attributes\":[{\"key\":\"exception.message\",\"value\":{\"stringValue\":\"boom\"}}]}]," +
+            "\"links\":[],\"status\":{\"code\":0}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes span with links") {
         val linkedContext = SpanContext(
@@ -207,19 +246,20 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"links\":[{"),
-          json.contains("\"traceId\":\"aabbccddeeff00112233445566778899\""),
-          json.contains("\"spanId\":\"aabbccddeeff0011\"")
+        val expected = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"0000000000000000\",\"name\":\"with-links\",\"kind\":1," +
+            "\"startTimeUnixNano\":\"100\",\"endTimeUnixNano\":\"200\",\"attributes\":[],\"events\":[]," +
+            "\"links\":[{\"traceId\":\"aabbccddeeff00112233445566778899\"," +
+            "\"spanId\":\"aabbccddeeff0011\",\"attributes\":[]}],\"status\":{\"code\":0}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes empty spans list") {
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq.empty, testResource, testScope))
 
-        assertTrue(
-          json.contains("\"resourceSpans\":[{"),
-          json.contains("\"spans\":[]")
-        )
+        assertTrue(json == traceDoc(""))
       },
       test("all SpanKind values map to correct OTLP integers") {
         def makeSpan(kind: SpanKind): SpanData = SpanData(
@@ -248,12 +288,19 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val consumerJson =
           jsonString(OtlpJsonEncoder.encodeTraces(Seq(makeSpan(SpanKind.Consumer)), testResource, testScope))
 
+        def expectedKindDoc(kind: Int): String = traceDoc(
+          "{\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\"," +
+            "\"parentSpanId\":\"0000000000000000\",\"name\":\"kind-test\",\"kind\":" + kind + "," +
+            "\"startTimeUnixNano\":\"0\",\"endTimeUnixNano\":\"0\"," +
+            "\"attributes\":[],\"events\":[],\"links\":[],\"status\":{\"code\":0}}"
+        )
+
         assertTrue(
-          internalJson.contains("\"kind\":1"),
-          serverJson.contains("\"kind\":2"),
-          clientJson.contains("\"kind\":3"),
-          producerJson.contains("\"kind\":4"),
-          consumerJson.contains("\"kind\":5")
+          internalJson == expectedKindDoc(1),
+          serverJson == expectedKindDoc(2),
+          clientJson == expectedKindDoc(3),
+          producerJson == expectedKindDoc(4),
+          consumerJson == expectedKindDoc(5)
         )
       }
     ),
@@ -270,16 +317,13 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           )
         )
 
-        assertTrue(
-          json.contains("\"resourceMetrics\""),
-          json.contains("\"scopeMetrics\""),
-          json.contains("\"metrics\""),
-          json.contains("\"name\":\"request.count\""),
-          json.contains("\"sum\":{"),
-          json.contains("\"asInt\":\"42\""),
-          json.contains("\"timeUnixNano\":\"1000000000\""),
-          json.contains("\"isMonotonic\":true")
+        val expected = metricsDoc(
+          "{\"name\":\"request.count\",\"description\":\"\",\"unit\":\"1\"," +
+            "\"sum\":{\"dataPoints\":[{\"attributes\":[],\"startTimeUnixNano\":\"0\"," +
+            "\"timeUnixNano\":\"1000000000\",\"asInt\":\"42\"}],\"isMonotonic\":true}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes histogram metric") {
         val point = HistogramDataPoint(
@@ -303,16 +347,14 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           )
         )
 
-        assertTrue(
-          json.contains("\"name\":\"latency\""),
-          json.contains("\"histogram\":{"),
-          json.contains("\"count\":\"10\""),
-          json.contains("\"sum\":55.5"),
-          json.contains("\"min\":1.0"),
-          json.contains("\"max\":10.0"),
-          json.contains("\"bucketCounts\":[\"2\",\"3\",\"5\"]"),
-          json.contains("\"explicitBounds\":[5.0,10.0]")
+        val expected = metricsDoc(
+          "{\"name\":\"latency\",\"description\":\"request latency\",\"unit\":\"ms\"," +
+            "\"histogram\":{\"dataPoints\":[{\"attributes\":[],\"startTimeUnixNano\":\"0\"," +
+            "\"timeUnixNano\":\"1000000000\",\"count\":\"10\",\"sum\":55.5,\"min\":1.0,\"max\":10.0," +
+            "\"bucketCounts\":[\"2\",\"3\",\"5\"],\"explicitBounds\":[5.0,10.0]}]}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes gauge metric") {
         val point  = GaugeDataPoint(Attributes.empty, 1000000000L, 73.5)
@@ -326,11 +368,12 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           )
         )
 
-        assertTrue(
-          json.contains("\"name\":\"temperature\""),
-          json.contains("\"gauge\":{"),
-          json.contains("\"asDouble\":73.5")
+        val expected = metricsDoc(
+          "{\"name\":\"temperature\",\"description\":\"current temp\",\"unit\":\"celsius\"," +
+            "\"gauge\":{\"dataPoints\":[{\"attributes\":[],\"timeUnixNano\":\"1000000000\",\"asDouble\":73.5}]}}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes metric data points with attributes") {
         val attrs  = Attributes.builder.put("region", "us-east-1").build
@@ -345,67 +388,62 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           )
         )
 
-        assertTrue(
-          json.contains("\"key\":\"region\""),
-          json.contains("\"stringValue\":\"us-east-1\"")
+        val expected = metricsDoc(
+          "{\"name\":\"req\",\"description\":\"\",\"unit\":\"\"," +
+            "\"sum\":{\"dataPoints\":[" +
+            "{\"attributes\":[{\"key\":\"region\",\"value\":{\"stringValue\":\"us-east-1\"}}]," +
+            "\"startTimeUnixNano\":\"0\",\"timeUnixNano\":\"1000000000\",\"asInt\":\"100\"}]," +
+            "\"isMonotonic\":true}}"
         )
+
+        assertTrue(json == expected)
       }
     ),
     suite("encodeLogs")(
       test("encodes log record with correct OTLP structure") {
-        val log = LogRecord(
-          timestampNanos = 1000000000L,
-          observedTimestampNanos = 1000000001L,
-          severity = Severity.Info,
-          severityText = "INFO",
-          body = "User logged in",
-          attributes = Attributes.empty,
-          traceIdHi = testTraceIdHi,
-          traceIdLo = testTraceIdLo,
-          spanId = testSpanId.value,
-          traceFlags = TraceFlags.sampled.byte,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(1000000000L)
+          .setObservedTimestamp(1000000001L)
+          .setSeverity(Severity.Info)
+          .setBody("User logged in")
+          .setTraceId(testTraceIdHi, testTraceIdLo)
+          .setSpanId(testSpanId.value)
+          .setTraceFlags(TraceFlags.sampled.byte)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"resourceLogs\""),
-          json.contains("\"scopeLogs\""),
-          json.contains("\"logRecords\""),
-          json.contains("\"timeUnixNano\":\"1000000000\""),
-          json.contains("\"severityNumber\":9"),
-          json.contains("\"severityText\":\"INFO\""),
-          json.contains("\"body\":{\"stringValue\":\"User logged in\"}"),
-          json.contains("\"traceId\":\"0123456789abcdeffedcba9876543210\""),
-          json.contains("\"spanId\":\"0123456789abcdef\"")
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000000000\",\"observedTimeUnixNano\":\"1000000001\"," +
+            "\"severityNumber\":9,\"severityText\":\"INFO\"," +
+            "\"body\":{\"stringValue\":\"User logged in\"},\"attributes\":[]," +
+            "\"traceId\":\"0123456789abcdeffedcba9876543210\",\"spanId\":\"0123456789abcdef\",\"flags\":1}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes log record without trace correlation") {
-        val log = LogRecord(
-          timestampNanos = 5000L,
-          observedTimestampNanos = 5001L,
-          severity = Severity.Error,
-          severityText = "ERROR",
-          body = "disk full",
-          attributes = Attributes.empty,
-          traceIdHi = 0L,
-          traceIdLo = 0L,
-          spanId = 0L,
-          traceFlags = 0,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(5000L)
+          .setObservedTimestamp(5001L)
+          .setSeverity(Severity.Error)
+          .setBody("disk full")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
-        assertTrue(
-          json.contains("\"severityNumber\":17"),
-          json.contains("\"severityText\":\"ERROR\""),
-          json.contains("\"traceId\":\"\""),
-          json.contains("\"spanId\":\"\"")
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"5000\",\"observedTimeUnixNano\":\"5001\"," +
+            "\"severityNumber\":17,\"severityText\":\"ERROR\"," +
+            "\"body\":{\"stringValue\":\"disk full\"},\"attributes\":[]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
         )
+
+        assertTrue(json == expected)
       },
       test("encodes log record with attributes") {
         val attrs = Attributes.builder
@@ -413,28 +451,123 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
           .put("request.latency", 42.5)
           .build
 
-        val log = LogRecord(
-          timestampNanos = 1000L,
-          observedTimestampNanos = 1001L,
-          severity = Severity.Warn,
-          severityText = "WARN",
-          body = "slow request",
-          attributes = attrs,
-          traceIdHi = 0L,
-          traceIdLo = 0L,
-          spanId = 0L,
-          traceFlags = 0,
-          resource = testResource,
-          instrumentationScope = testScope
-        )
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("slow request")
+          .addAttributes(attrs)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
 
         val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
 
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000\",\"observedTimeUnixNano\":\"1001\"," +
+            "\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"slow request\"}," +
+            "\"attributes\":[{\"key\":\"user.id\",\"value\":{\"stringValue\":\"u123\"}}," +
+            "{\"key\":\"request.latency\",\"value\":{\"doubleValue\":42.5}}]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
+        )
+
+        assertTrue(json == expected)
+      },
+      test("escapes user-controlled log attribute keys and values") {
+        val trickyKey = "ke\"y\\with\nkey"
+        val trickyVal = "say \"hi\"\\ok\n"
+
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("escaped")
+          .setAttribute(AttributeKey.string(trickyKey), trickyVal)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
+
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000\",\"observedTimeUnixNano\":\"1001\"," +
+            "\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"escaped\"}," +
+            "\"attributes\":[{\"key\":\"ke\\\"y\\\\with\\nkey\"," +
+            "\"value\":{\"stringValue\":\"say \\\"hi\\\"\\\\ok\\n\"}}]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
+        )
+
+        assertTrue(json == expected)
+      },
+      test("encodes source fields as canonical attributes before user attributes") {
+        val log = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("slow request")
+          .setSourceFile("src/Service.scala")
+          .setSourceFunction("com.example.Service.run")
+          .setSourceLine(42)
+          .setAttribute(AttributeKey.string("user.id"), "u123")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val json = jsonString(OtlpJsonEncoder.encodeLogs(Seq(log), testResource, testScope))
+
+        val expected = logsDoc(
+          "{\"timeUnixNano\":\"1000\",\"observedTimeUnixNano\":\"1001\"," +
+            "\"severityNumber\":13,\"severityText\":\"WARN\"," +
+            "\"body\":{\"stringValue\":\"slow request\"}," +
+            "\"attributes\":[" +
+            "{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"src/Service.scala\"}}," +
+            "{\"key\":\"code.function.name\",\"value\":{\"stringValue\":\"com.example.Service.run\"}}," +
+            "{\"key\":\"code.line.number\",\"value\":{\"intValue\":\"42\"}}," +
+            "{\"key\":\"user.id\",\"value\":{\"stringValue\":\"u123\"}}]," +
+            "\"traceId\":\"\",\"spanId\":\"\",\"flags\":0}"
+        )
+
+        assertTrue(json == expected)
+      },
+      test("suppresses colliding user attributes when source is present, passes through when absent") {
+        val colliding = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("collision")
+          .setSourceFile("src/Service.scala")
+          .setSourceFunction("com.example.Service.run")
+          .setSourceLine(42)
+          .setAttribute(AttributeKey.string("code.file.path"), "user-supplied.scala")
+          .setAttribute(AttributeKey.long("code.line.number"), 7L)
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+        val passthrough = LogRecord.builder
+          .setTimestamp(1000L)
+          .setObservedTimestamp(1001L)
+          .setSeverity(Severity.Warn)
+          .setBody("passthrough")
+          .setAttribute(AttributeKey.string("code.file.path"), "external.scala")
+          .setResource(testResource)
+          .setInstrumentationScope(testScope)
+          .build
+
+        val collidingJson   = jsonString(OtlpJsonEncoder.encodeLogs(Seq(colliding), testResource, testScope))
+        val passthroughJson = jsonString(OtlpJsonEncoder.encodeLogs(Seq(passthrough), testResource, testScope))
+
         assertTrue(
-          json.contains("\"key\":\"user.id\""),
-          json.contains("\"stringValue\":\"u123\""),
-          json.contains("\"key\":\"request.latency\""),
-          json.contains("\"doubleValue\":42.5")
+          countOccurrences(collidingJson, "code.file.path") == 1,
+          countOccurrences(collidingJson, "code.line.number") == 1,
+          collidingJson.contains("\"stringValue\":\"src/Service.scala\""),
+          !collidingJson.contains("user-supplied.scala"),
+          collidingJson.contains("\"intValue\":\"42\""),
+          !collidingJson.contains("\"intValue\":\"7\""),
+          passthroughJson.contains(
+            "\"attributes\":[{\"key\":\"code.file.path\",\"value\":{\"stringValue\":\"external.scala\"}}]"
+          )
         )
       }
     ),
@@ -444,28 +577,40 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"stringValue\":\"hello\""))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"hello\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("encodes long attribute as quoted string") {
         val attrs = Attributes.builder.put("k", 42L).build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"intValue\":\"42\""))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"intValue\":\"42\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("encodes double attribute") {
         val attrs = Attributes.builder.put("k", 3.14).build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"doubleValue\":3.14"))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"doubleValue\":3.14}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("encodes boolean attribute") {
         val attrs = Attributes.builder.put("k", true).build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"boolValue\":true"))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"boolValue\":true}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("encodes string seq attribute as arrayValue") {
         val attrs = Attributes.of(AttributeKey.stringSeq("tags"), Seq("a", "b"))
@@ -473,9 +618,12 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
         assertTrue(
-          json.contains("\"arrayValue\":{\"values\":["),
-          json.contains("\"stringValue\":\"a\""),
-          json.contains("\"stringValue\":\"b\"")
+          json.contains(
+            "\"attributes\":[{\"key\":\"tags\",\"value\":{\"arrayValue\":{\"values\":[{\"stringValue\":\"a\"},{\"stringValue\":\"b\"}]}}}]"
+          ),
+          countOccurrences(json, "\"key\":\"tags\"") == 1,
+          countOccurrences(json, "\"stringValue\":\"a\"") == 1,
+          countOccurrences(json, "\"stringValue\":\"b\"") == 1
         )
       }
     ),
@@ -485,14 +633,20 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("say \\\"hello\\\""))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"say \\\"hello\\\"\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("escapes backslash") {
         val attrs = Attributes.builder.put("k", "path\\to\\file").build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("path\\\\to\\\\file"))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"path\\\\to\\\\file\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
       },
       test("escapes newline and tab") {
         val attrs = Attributes.builder.put("k", "line1\nline2\ttab").build
@@ -500,15 +654,32 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
         assertTrue(
-          json.contains("line1\\nline2\\ttab")
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"line1\\nline2\\ttab\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
         )
       },
       test("escapes control characters") {
-        val attrs = Attributes.builder.put("k", "null\u0000char").build
+        val attrs = Attributes.builder.put("k", "null char").build
         val span  = makeSimpleSpan(attributes = attrs)
         val json  = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\\u0000"))
+        assertTrue(
+          json.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"null\\u0000char\"}}]"),
+          countOccurrences(json, "\"key\":\"k\"") == 1
+        )
+      },
+      test("escapes user-controlled attribute keys") {
+        val trickyKey = "ke\"y\\with\ncontrols\u0001end"
+        val attrs     = Attributes.builder.put(trickyKey, "v").build
+        val span      = makeSimpleSpan(attributes = attrs)
+        val json      = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
+
+        assertTrue(
+          json.contains("{\"key\":\"ke\\\"y\\\\with\\ncontrols\\u0001end\",\"value\":{\"stringValue\":\"v\"}}"),
+          countOccurrences(json, "\"key\":\"ke\\\"y\\\\with\\ncontrols\\u0001end\"") == 1,
+          countOccurrences(json, "\"stringValue\":\"v\"") == 1,
+          !json.contains(trickyKey)
+        )
       }
     ),
     suite("empty collections")(
@@ -516,19 +687,28 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val span = makeSimpleSpan(attributes = Attributes.empty)
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"attributes\":[]"))
+        assertTrue(
+          json.contains("\"attributes\":[]"),
+          countOccurrences(json, "\"attributes\":[]") == 1
+        )
       },
       test("empty events produce empty array") {
         val span = makeSimpleSpan()
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"events\":[]"))
+        assertTrue(
+          json.contains("\"events\":[]"),
+          countOccurrences(json, "\"events\":[]") == 1
+        )
       },
       test("empty links produce empty array") {
         val span = makeSimpleSpan()
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
-        assertTrue(json.contains("\"links\":[]"))
+        assertTrue(
+          json.contains("\"links\":[]"),
+          countOccurrences(json, "\"links\":[]") == 1
+        )
       }
     ),
     suite("resource and scope encoding")(
@@ -537,9 +717,9 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
         assertTrue(
-          json.contains("\"resource\":{\"attributes\":["),
-          json.contains("\"key\":\"service.name\""),
-          json.contains("\"stringValue\":\"test-service\"")
+          json.contains(resourceFragment),
+          countOccurrences(json, "\"key\":\"service.name\"") == 1,
+          countOccurrences(json, "\"stringValue\":\"test-service\"") == 1
         )
       },
       test("scope name and version are encoded") {
@@ -547,9 +727,9 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
         val json = jsonString(OtlpJsonEncoder.encodeTraces(Seq(span), testResource, testScope))
 
         assertTrue(
-          json.contains("\"scope\":{\"name\":\"test-lib\",\"version\":\"1.0.0\""),
-          json.contains("\"name\":\"test-lib\""),
-          json.contains("\"version\":\"1.0.0\"")
+          json.contains(scopeFragment),
+          countOccurrences(json, "\"name\":\"test-lib\"") == 1,
+          countOccurrences(json, "\"version\":\"1.0.0\"") == 1
         )
       },
       test("scope without version omits version field") {
@@ -559,6 +739,7 @@ object OtlpJsonEncoderSpec extends ZIOSpecDefault {
 
         assertTrue(
           json.contains("\"scope\":{\"name\":\"no-version-lib\"}"),
+          countOccurrences(json, "\"scope\":{\"name\":\"no-version-lib\"}") == 1,
           !json.contains("\"version\"")
         )
       }
