@@ -35,6 +35,35 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         val flag   = true
         val result = html"""<div hidden="$flag">content</div>"""
         assertTrue(result.render == """<div hidden="true">content</div>""")
+      },
+      test("url with query string is not double-escaped") {
+        val u      = "/search?q=scala&page=2"
+        val result = html"""<a href="$u">x</a>"""
+        assertTrue(
+          result.render == """<a href="/search?q=scala&amp;page=2">x</a>""",
+          result.render == a(href := u, "x").render
+        )
+      },
+      test("attribute value with single quote in double-quoted attribute is not double-escaped") {
+        val title  = "it's"
+        val result = html"""<div title="$title">x</div>"""
+        assertTrue(
+          result.render == """<div title="it&#x27;s">x</div>"""
+        )
+      },
+      test("attribute value with double quote in single-quoted attribute is escaped at render time") {
+        val title  = """say "hello""""
+        val result = html"""<div title='$title'>x</div>"""
+        assertTrue(
+          result.render == """<div title="say &quot;hello&quot;">x</div>"""
+        )
+      },
+      test("attribute value with special characters < and > is properly escaped once") {
+        val attr   = "<tag>"
+        val result = html"""<div data-val="$attr">x</div>"""
+        assertTrue(
+          result.render == """<div data-val="&lt;tag&gt;">x</div>"""
+        )
       }
     ),
     suite("html interpolator - content position")(
