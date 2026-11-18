@@ -363,11 +363,28 @@ def load_coverage(path):
             "hit":hit,"count":count,"branch":statement.get("branch")=="true"})
     return {"statements":statements}
 
+def run_streaming(command, cwd, log_path):
+    """Run command, streaming its output to the console and a log file.
+
+    The previous silent capture_output=True left scheduled runs with zero
+    log output for tens of minutes before the runner killed them, making
+    hangs indistinguishable from slow builds. Streaming also keeps the
+    (potentially very large) sbt output out of this process's RAM.
+    Returns the exit status.
+    """
+    with open(log_path, "w", encoding="utf-8") as log:
+        proc=subprocess.Popen(command,cwd=cwd,shell=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            sys.stdout.write(line); log.write(line)
+        proc.wait()
+        return proc.returncode
+
 def run_mutations(corpus, command, out):
     out=Path(out); artifact_root=out.parent/"mutations"; artifact_root.mkdir(parents=True,exist_ok=True)
-    baseline=subprocess.run(command,cwd=ROOT,shell=True,text=True,capture_output=True)
-    if baseline.returncode:
-        out.write_text(json.dumps({"schema":1,"candidateDigest":digest_tree(),"baseline":{"exitStatus":baseline.returncode},"results":[]},indent=2)+"\n")
+    baseline_status=run_streaming(command,ROOT,artifact_root/"baseline.log")
+    if baseline_status:
+        out.write_text(json.dumps({"schema":1,"candidateDigest":digest_tree(),"baseline":{"exitStatus":baseline_status},"results":[]},indent=2)+"\n")
         return 1
     results=[]
     for mutant in corpus["mutations"]:
@@ -375,7 +392,13 @@ def run_mutations(corpus, command, out):
         if text.count(mutant["anchor"]) != 1: results.append({"id":mutant["id"],"valid":False,"reason":"anchor count"}); continue
         with tempfile.TemporaryDirectory(prefix="async-mutant-") as td:
             work=Path(td)/"worktree"
-            shutil.copytree(ROOT,work,ignore=shutil.ignore_patterns(".git","target",".bsp","node_modules","__pycache__"))
+            # Keep target/ so each mutant rebuilds incrementally instead of
+            # cold: without it every mutant recompiles the 3.8.3 closure from
+            # scratch (~7 copies of the full build per run), which does not fit
+            # a 16 GB runner and SIGTERMs the job. Absolute-path staleness in
+            # the copied zinc analysis can only ever degrade to the old cold
+            # behavior, never worse.
+            shutil.copytree(ROOT,work,ignore=shutil.ignore_patterns(".git",".bsp","node_modules","__pycache__"))
             subprocess.run(["git","init","-q"],cwd=work,check=True)
             subprocess.run(["git","add","-A"],cwd=work,check=True)
             subprocess.run(

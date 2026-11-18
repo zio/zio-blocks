@@ -325,14 +325,14 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     concurrency:
       group: release-${{ github.ref }}
       cancel-in-progress: false
     continue-on-error: false
     needs:
     - ci
-    if: ${{ (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'push') }}
+    if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
     steps:
     - name: Checkout current branch
       uses: actions/checkout@v7
@@ -349,13 +349,122 @@ jobs:
       uses: nick-fields/retry@v4
       with:
         timeout_minutes: 30
-        max_attempts: 3
+        max_attempts: 2
+        retry_wait_seconds: 1800
         command: sbt ci-release
       env:
         PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         PGP_SECRET: ${{ secrets.PGP_SECRET }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+  release-213:
+    name: release (Scala 2.13 snapshots)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    continue-on-error: false
+    needs:
+    - ci
+    if: ${{ github.event_name == 'push' }}
+    steps:
+    - name: Checkout current branch
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - name: Setup Action
+      uses: coursier/setup-action@v3
+      with:
+        jvm: temurin:25
+        apps: sbt
+    - name: Cache Dependencies
+      uses: coursier/cache-action@v8.1.1
+    - name: Release
+      uses: nick-fields/retry@v4
+      with:
+        timeout_minutes: 30
+        max_attempts: 2
+        retry_wait_seconds: 1800
+        command: sbt ci-release
+      env:
+        CI_SNAPSHOT_RELEASE: ++2.13.18 publish
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        PGP_SECRET: ${{ secrets.PGP_SECRET }}
+  release-39:
+    name: release (Scala 3.9 snapshots)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    continue-on-error: false
+    needs:
+    - release-213
+    if: ${{ github.event_name == 'push' }}
+    steps:
+    - name: Checkout current branch
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - name: Setup Action
+      uses: coursier/setup-action@v3
+      with:
+        jvm: temurin:25
+        apps: sbt
+    - name: Cache Dependencies
+      uses: coursier/cache-action@v8.1.1
+    - name: Release
+      uses: nick-fields/retry@v4
+      with:
+        timeout_minutes: 30
+        max_attempts: 2
+        retry_wait_seconds: 1800
+        command: sbt ci-release
+      env:
+        CI_SNAPSHOT_RELEASE: ++3.9.0 publish
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        PGP_SECRET: ${{ secrets.PGP_SECRET }}
+  release-310:
+    name: release (Scala 3.10 snapshots)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    continue-on-error: false
+    needs:
+    - release-39
+    if: ${{ github.event_name == 'push' }}
+    steps:
+    - name: Checkout current branch
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+    - name: Setup Action
+      uses: coursier/setup-action@v3
+      with:
+        jvm: temurin:25
+        apps: sbt
+    - name: Cache Dependencies
+      uses: coursier/cache-action@v8.1.1
+    - name: Release
+      uses: nick-fields/retry@v4
+      with:
+        timeout_minutes: 30
+        max_attempts: 2
+        retry_wait_seconds: 1800
+        command: sbt ci-release
+      env:
+        CI_SNAPSHOT_RELEASE: ++3.10.0 publish
+        PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        PGP_SECRET: ${{ secrets.PGP_SECRET }}
   release-docs:
     name: Release Docs
     runs-on: ubuntu-latest
