@@ -216,7 +216,6 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
@@ -316,7 +315,6 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
@@ -391,7 +389,6 @@ val computed: Int =
 ### Installation
 
 ```scala
-// ZIO Blocks async module
 libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
 ```
 
@@ -458,7 +455,6 @@ val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
 ### Installation
 
 ```scala
-// ZIO Blocks sql module
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
 // Optional ZIO integration
