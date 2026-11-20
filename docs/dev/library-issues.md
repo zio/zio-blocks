@@ -2795,6 +2795,7 @@ Found 2026-10-21 while writing the how-to guide `docs/guides/write-joins-and-ins
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks sql for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "0.0.56"
 ```
 
@@ -7444,6 +7445,7 @@ scalaVersion := "3.9.0"
 enablePlugins(ScalaJSPlugin)
 scalaJSUseMainModuleInitializer := true
 scalacOptions += "-experimental"
+// ZIO Blocks streams module
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "0.0.56"
 ```
 
@@ -7496,6 +7498,7 @@ Found 2026-10-26 while writing the tutorial `docs/guides/build-a-live-dashboard-
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks datastar for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "0.0.56"
 ```
 
@@ -7549,10 +7552,11 @@ Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-
 scalaVersion := "3.9.0"
 run / fork   := true
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
-  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
-)
+// ZIO Blocks telemetry for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56"
+
+// ZIO Blocks telemetry otel for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
 ```
 
 **Reproduction** (`W3cLenient.scala`, run with `sbt "runMain W3cLenient"`):
@@ -7602,10 +7606,11 @@ Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-
 scalaVersion := "3.9.0"
 run / fork   := true
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
-  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
-)
+// ZIO Blocks telemetry for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56"
+
+// ZIO Blocks telemetry otel for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
 ```
 
 **Reproduction** (`B3SamplingOnly.scala`, run with `sbt "runMain B3SamplingOnly"`):
@@ -7666,6 +7671,7 @@ Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-wi
 ```scala
 scalaVersion := "3.7.4"
 
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
 ```
 
@@ -7735,6 +7741,7 @@ Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-wi
 ```scala
 scalaVersion := "3.7.4"
 
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
 ```
 
@@ -7800,6 +7807,7 @@ Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-resp
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -7851,6 +7859,7 @@ Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-resp
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -7898,6 +7907,7 @@ Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-resp
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -7963,6 +7973,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "3.9.0"
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
 // Repro writes its output here; the next `compile` compiles it.
 Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
@@ -8045,6 +8056,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "3.9.0"
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
 ```
 
@@ -8129,6 +8141,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "3.9.0"
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
 // Repro writes its output here; the next `compile` compiles it.
 Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
@@ -8192,6 +8205,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "2.13.18"
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
 // Repro writes its output here; the next `compile` compiles it.
 Compile / unmanagedSourceDirectories += baseDirectory.value / "generated"
@@ -8252,6 +8266,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "3.9.0"
+// ZIO Blocks smithy module
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "0.0.56"
 ```
 
@@ -8714,10 +8729,11 @@ Then, in an empty directory:
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
+// ZIO Blocks data migration for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56"
+
+// PostgreSQL JDBC driver (used by the database examples)
+libraryDependencies += "org.postgresql" % "postgresql"                     % "42.7.14"
 run / fork := true
 ```
 
@@ -8807,10 +8823,11 @@ Then, in an empty directory:
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
+// ZIO Blocks data migration for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56"
+
+// PostgreSQL JDBC driver (used by the database examples)
+libraryDependencies += "org.postgresql" % "postgresql"                     % "42.7.14"
 run / fork := true
 ```
 
@@ -19601,6 +19618,7 @@ Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-resp
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -19828,6 +19846,7 @@ Found 2026-10-26 while writing H-26 (`docs/guides/run-streams-without-blocking.m
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions ++= Seq("-experimental")
+// ZIO Blocks async module
 libraryDependencies += "dev.zio" %% "zio-blocks-async" % "0.0.56"
 ```
 
@@ -19886,10 +19905,11 @@ Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-
 scalaVersion := "3.9.0"
 run / fork   := true
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
-  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
-)
+// ZIO Blocks telemetry for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56"
+
+// ZIO Blocks telemetry otel for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
 ```
 
 **Reproduction** (`InstallDropsWriters.scala`, run with `sbt "runMain InstallDropsWriters"`):
@@ -19938,10 +19958,11 @@ Found 2026-10-26 while writing the how-to guide `docs/guides/correlate-logs-and-
 scalaVersion := "3.9.0"
 run / fork   := true
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56",
-  "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
-)
+// ZIO Blocks telemetry for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry"      % "0.0.56"
+
+// ZIO Blocks telemetry otel for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry-otel" % "0.0.56"
 ```
 
 **Reproduction** (`StorageMismatch.scala`, run with `sbt "runMain StorageMismatch"`):
@@ -19990,6 +20011,7 @@ Found 2026-10-27 while writing the how-to guide `docs/guides/use-named-tuples-wi
 ```scala
 scalaVersion := "3.7.4"
 
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.56"
 ```
 
@@ -20153,6 +20175,7 @@ Found while writing the how-to guide `docs/guides/return-htmx-fragments-and-resp
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -20196,6 +20219,7 @@ Found while writing the examples for the how-to guide `docs/guides/return-htmx-f
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "0.0.56"
 run / fork := true
 ```
@@ -20249,6 +20273,7 @@ Found 2026-10-27 while writing the tutorial `docs/guides/generate-scala-code-fro
 
 ```scala
 scalaVersion := "3.9.0"
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "0.0.56"
 ```
 
@@ -20651,10 +20676,11 @@ Then, in an empty directory:
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
+// ZIO Blocks data migration for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56"
+
+// PostgreSQL JDBC driver (used by the database examples)
+libraryDependencies += "org.postgresql" % "postgresql"                     % "42.7.14"
 run / fork := true
 ```
 
@@ -20748,10 +20774,11 @@ Then, in an empty directory:
 ```scala
 scalaVersion := "3.9.0"
 scalacOptions += "-experimental"
-libraryDependencies ++= Seq(
-  "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56",
-  "org.postgresql" % "postgresql"                     % "42.7.14"
-)
+// ZIO Blocks data migration for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio"       %% "zio-blocks-next-data-migration" % "0.0.56"
+
+// PostgreSQL JDBC driver (used by the database examples)
+libraryDependencies += "org.postgresql" % "postgresql"                     % "42.7.14"
 run / fork := true
 ```
 

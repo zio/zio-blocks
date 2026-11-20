@@ -39,12 +39,14 @@ The type is aimed at infrastructure-level code: places that need a first-class a
 Add the module to your build:
 
 ```scala
+// ZIO Blocks async module
 libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
 ```
 
 In a cross-built project, use `%%%` so the same line resolves for both JVM and Scala.js:
 
 ```scala
+// ZIO Blocks async module
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 ```
 

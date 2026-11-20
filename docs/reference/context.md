@@ -113,6 +113,7 @@ val config = ctx.get[Config]  // Compile-time proof it exists
 Add the ZIO Blocks Context module to your `build.sbt`:
 
 ```scala
+// ZIO Blocks context module
 libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
 ```
 

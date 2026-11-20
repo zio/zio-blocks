@@ -41,6 +41,7 @@ This module closes each of those:
 Add the module to your build:
 
 ```scala
+// ZIO Blocks datastar module
 libraryDependencies += "dev.zio" %% "zio-blocks-datastar" % "@VERSION@"
 ```
 
@@ -49,6 +50,7 @@ On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental
 ```scala
 scalaVersion := "3.9.0"
 
+// ZIO Blocks datastar for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "@VERSION@"
 
 scalacOptions += "-experimental"
@@ -57,6 +59,7 @@ scalacOptions += "-experimental"
 For Scala.js, use `%%%` instead of `%%`:
 
 ```scala
+// ZIO Blocks datastar module
 libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 ```
 

@@ -58,10 +58,10 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 
 // Either way
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-test"     % "2.1.27" % Test,
-  "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
-)
+libraryDependencies += "dev.zio" %% "zio-test"     % "2.1.27" % Test
+
+// ZIO Test sbt integration (test scope)
+libraryDependencies += "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 ```
 
 The `telemetry` module needs **JDK 21 or newer** on the JVM, to compile as well as to run. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and the JDK each module needs.

@@ -151,10 +151,10 @@ lazy val `schema-scaladoc-check` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-test"     % "2.1.27" % Test,
-      "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
-    ),
+    // ZIO Test: the test library (test scope)
+    libraryDependencies += "dev.zio" %% "zio-test"     % "2.1.27" % Test,
+    // ZIO Test sbt integration (test scope)
+    libraryDependencies += "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test,
     Test / unmanagedSources += (ThisBuild / baseDirectory).value / "project" / "ScaladocSnippets.scala"
   )
 ```

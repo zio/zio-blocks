@@ -53,6 +53,7 @@ None of these can be expressed with `SchemaExpr` alone. You could generate the S
 This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md) and [Part 2: SQL Generation](./query-dsl-sql.md). You should be comfortable building `SchemaExpr` values and translating them to SQL. To add the dependency:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

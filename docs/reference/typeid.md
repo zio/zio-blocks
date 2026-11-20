@@ -62,12 +62,14 @@ TypeId takes a different approach: the `TypeId.of` macro captures type metadata 
 TypeId is included in the `zio-blocks-typeid` module. Add it to your build:
 
 ```scala
+// ZIO Blocks typeid module
 libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "@VERSION"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
+// ZIO Blocks typeid module
 libraryDependencies += "dev.zio" %%% "zio-blocks-typeid" % "@VERSION"
 ```
 

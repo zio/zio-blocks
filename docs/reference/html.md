@@ -80,12 +80,14 @@ Template engines with runtime parsing add overhead and complexity:
 Add to `build.sbt`:
 
 ```
+// ZIO Blocks html module
 libraryDependencies += "dev.zio" %% "zio-blocks-html" % "@VERSION@"
 ```
 
 For Scala.js projects, use `%%%`:
 
 ```
+// ZIO Blocks html module
 libraryDependencies += "dev.zio" %%% "zio-blocks-html" % "@VERSION@"
 ```
 

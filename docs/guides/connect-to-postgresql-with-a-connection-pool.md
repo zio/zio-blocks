@@ -64,6 +64,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The PostgreSQL JDBC driver and the HikariCP pool, for every Scala version
 libraryDependencies += "org.postgresql" % "postgresql" % "42.7.14"
+// JDBC connection pool
 libraryDependencies += "com.zaxxer"     % "HikariCP"   % "7.1.0"
 ```
 

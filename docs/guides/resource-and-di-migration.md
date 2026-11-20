@@ -56,6 +56,7 @@ ZIO Blocks Scope ties each resource to a scope with a type, `$[A]`, and lets a v
 Add the `scope` module:
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 

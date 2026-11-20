@@ -33,10 +33,15 @@ Replace the ZIO Schema dependency group with ZIO Blocks Schema.
 **Before (ZIO Schema 1.x):**
 
 ```scala
+// ZIO Schema core
 libraryDependencies += "dev.zio" %% "zio-schema"            % "1.x.x"
+// Automatic derivation of ZIO Schema instances
 libraryDependencies += "dev.zio" %% "zio-schema-derivation" % "1.x.x"
+// JSON codecs derived from a ZIO Schema
 libraryDependencies += "dev.zio" %% "zio-schema-json"       % "1.x.x"
+// Protobuf codecs derived from a ZIO Schema
 libraryDependencies += "dev.zio" %% "zio-schema-protobuf"   % "1.x.x"
+// Avro codecs derived from a ZIO Schema
 libraryDependencies += "dev.zio" %% "zio-schema-avro"       % "1.x.x"
 ```
 
@@ -54,13 +59,21 @@ scalacOptions += "-experimental"
 The other codec formats are optional modules. On Scala 3.9 and newer, each of them also takes the `zio-blocks-next-` prefix, for example `zio-blocks-next-schema-avro`:
 
 ```scala
+// ZIO Blocks schema avro module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
+// ZIO Blocks schema thrift module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
+// ZIO Blocks schema bson module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
+// ZIO Blocks schema messagepack module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
+// ZIO Blocks schema toon module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
+// ZIO Blocks schema yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml"        % "@VERSION@"
+// ZIO Blocks schema xml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml"         % "@VERSION@"
+// ZIO Blocks schema csv module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv"         % "@VERSION@"
 ```
 
@@ -802,6 +815,7 @@ JSON support is built into the core `zio-blocks-schema` module — no separate d
 **Before (ZIO Schema 1.x):** a separate `zio-schema-json` module:
 
 ```scala
+// JSON codecs derived from a ZIO Schema
 libraryDependencies += "dev.zio" %% "zio-schema-json" % "1.x.x"
 import zio.schema.codec.JsonCodec
 val codec = JsonCodec.jsonCodec(Person.schema)  // returns zio.json.JsonCodec

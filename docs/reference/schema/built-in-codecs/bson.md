@@ -29,6 +29,7 @@ To store case classes in MongoDB with the official Java driver, step by step, se
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema bson module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 ```
 

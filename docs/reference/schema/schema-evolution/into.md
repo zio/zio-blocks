@@ -66,12 +66,14 @@ Compare this to a manual implementation:
 `Into` is part of the `zio-blocks-schema` module:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
 For Scala.js:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 

@@ -44,6 +44,7 @@ In this guide, we'll solve this by using ZIO Blocks' `SchemaExpr` and reified op
 Add the ZIO Blocks Schema dependency:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

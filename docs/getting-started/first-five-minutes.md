@@ -26,10 +26,11 @@ No block needs a runtime, an effect type or any setup: every call on this page i
 The program needs two artifacts; Chunk comes along with Schema. On Scala 2.13 and Scala 3.3 to 3.8, add them to `build.sbt`:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-scope"  % "@VERSION@"
-)
+// ZIO Blocks schema module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
+
+// ZIO Blocks scope module
+libraryDependencies += "dev.zio" %% "zio-blocks-scope"  % "@VERSION@"
 ```
 
 On Scala 3.9 and newer, the artifact names start with `zio-blocks-next-` and need `-experimental`; [Installation](./installation.md) covers that case, scala-cli and Scala.js.

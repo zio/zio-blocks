@@ -56,12 +56,14 @@ This keeps HTTP request handling clean, testable, and portable across different 
 Add the following to your `build.sbt`:
 
 ```
+// ZIO Blocks http model schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```
+// ZIO Blocks http model schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 

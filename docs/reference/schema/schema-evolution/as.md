@@ -39,12 +39,14 @@ The bidirectional data flow looks like this:
 `As` is part of `zio-blocks-schema`:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
 For Scala.js and Scala Native, use `%%%`:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 

@@ -78,16 +78,16 @@ Add the config module and its YAML format to your `build.sbt`. The config module
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-config"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
+
+// ZIO Blocks config yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
 
 // Scala 3.9 and newer (also needs scalacOptions += "-experimental")
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@"
+
+// ZIO Blocks config yaml for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
 ```
 
 This guide assumes you have loaded a case class from a layered `ConfigSource`, as in [Build a Typed Configuration Loader](./typed-config-loader.md), and that you have built a `Resource` and used it inside `Scope.global.scoped`, as in [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md). The snippets below share these imports:

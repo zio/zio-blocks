@@ -60,11 +60,14 @@ Iron is a Scala 3 library, and its 3.4 releases are built with Scala 3.9, so thi
 ```scala
 scalaVersion := "3.9.0"
 
-libraryDependencies ++= Seq(
-  "dev.zio"            %% "zio-blocks-next-schema" % "@VERSION@",
-  ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1")
-    .exclude("dev.zio", "zio-blocks-schema_3")
-)
+// ZIO Blocks schema for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio"            %% "zio-blocks-next-schema" % "@VERSION@"
+
+// Iron refined types for ZIO Blocks schemas
+libraryDependencies += ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1")
+
+// Exclude the zio-blocks-schema_3 artifact from the dependency that declares it
+libraryDependencies += .exclude("dev.zio", "zio-blocks-schema_3")
 scalacOptions += "-experimental"
 ```
 

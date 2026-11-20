@@ -29,6 +29,7 @@ Add a block and use it. Nothing else to wire up—no runtime to install, no effe
 type to adopt:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

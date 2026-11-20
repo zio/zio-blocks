@@ -52,12 +52,14 @@ libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
 For Scala.js (telemetry core only):
 
 ```scala
+// ZIO Blocks telemetry module
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
 On Scala 3.9 and newer, use the `zio-blocks-next-telemetry` artifact and enable experimental features:
 
 ```scala
+// ZIO Blocks telemetry for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

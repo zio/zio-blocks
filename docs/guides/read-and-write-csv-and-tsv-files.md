@@ -42,16 +42,16 @@ To follow along, add the schema and CSV modules to your build:
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"     % "@VERSION@"
+
+// ZIO Blocks schema csv module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
 
 // Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same modules with the zio-blocks-next- prefix
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema-csv" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@"
+
+// ZIO Blocks schema csv for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-csv" % "@VERSION@"
 ```
 
 This guide assumes you can derive a `Schema` for a case class, as shown in [Your First Schema](./your-first-schema.md). The CSV section of [One Type, Many Formats](./one-type-many-formats.md#10-flatten-the-catalog-for-csv) shows how a CSV codec encodes and decodes a single row; here we build whole files on top of it.

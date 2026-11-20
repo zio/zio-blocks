@@ -48,25 +48,35 @@ val result: Either[SchemaError, Person] = Person.codec.decode(bytes)
 To include the base schema module with JSON support, add the following dependency to your `build.sbt`:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
 Additional format modules are separate artifacts:
 
 ```scala
+// ZIO Blocks schema avro module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
+// ZIO Blocks schema bson module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
+// ZIO Blocks schema csv module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv"         % "@VERSION@"
+// ZIO Blocks schema messagepack module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
+// ZIO Blocks schema thrift module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
+// ZIO Blocks schema toon module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
+// ZIO Blocks schema xml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml"         % "@VERSION@"
+// ZIO Blocks schema yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml"        % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 

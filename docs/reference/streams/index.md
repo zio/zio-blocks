@@ -48,12 +48,14 @@ val result = stream.take(5).runCollect
 Add the Streams module to your SBT build:
 
 ```scala
+// ZIO Blocks streams module
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 ```
 
 For Scala.js (JavaScript/Node.js):
 
 ```scala
+// ZIO Blocks streams module
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 

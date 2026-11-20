@@ -10,6 +10,7 @@ title: "Smithy"
 Add the library to your build configuration:
 
 ```scala
+// ZIO Blocks smithy module
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "@VERSION@"
 ```
 

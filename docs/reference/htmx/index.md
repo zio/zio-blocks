@@ -63,6 +63,7 @@ On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental
 ```scala
 scalaVersion := "3.9.0"
 
+// ZIO Blocks http htmx for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "@VERSION@"
 
 scalacOptions += "-experimental"

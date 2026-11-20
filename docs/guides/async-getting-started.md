@@ -28,6 +28,7 @@ By the end of this tutorial, you will be able to:
 To add the async module to your project, include this dependency in your `build.sbt`:
 
 ```scala
+// ZIO Blocks async module
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 ```
 

@@ -146,12 +146,14 @@ So on Scala 2.13 the sealed `MaybeValue` form is the compiler-checked native idi
 Add the `zio-blocks-maybe` module to your build:
 
 ```scala
+// ZIO Blocks maybe module
 libraryDependencies += "dev.zio" %% "zio-blocks-maybe" % "@VERSION@"
 ```
 
 For Scala.js:
 
 ```scala
+// ZIO Blocks maybe module
 libraryDependencies += "dev.zio" %%% "zio-blocks-maybe" % "@VERSION@"
 ```
 

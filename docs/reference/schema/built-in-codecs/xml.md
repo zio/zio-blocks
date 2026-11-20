@@ -45,6 +45,7 @@ Key features:
 To use the schema-xml module, add the following dependency to your `build.sbt`:
 
 ```scala
+// ZIO Blocks schema xml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-xml" % "@VERSION@"
 ```
 

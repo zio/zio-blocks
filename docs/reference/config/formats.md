@@ -51,6 +51,7 @@ Writing `tag: null` to unset a value from a lower-priority layer does not work. 
 `config-yaml` reads YAML through the `zio-blocks-schema-yaml` reader:
 
 ```scala
+// ZIO Blocks config yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
 ```
 
@@ -103,6 +104,7 @@ Non-scalar mapping keys are skipped rather than rejected, since a dotted key nam
 `config-json` reads JSON through the `zio-blocks-schema-json` parser:
 
 ```scala
+// ZIO Blocks config json module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
 ```
 
@@ -134,6 +136,7 @@ A malformed document yields `ConfigError.ParseError` with `valid JSON` as the ex
 `config-hocon` has its own parser with no external dependency, and it is the only adapter that supports substitutions and includes:
 
 ```scala
+// ZIO Blocks config hocon module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 ```
 

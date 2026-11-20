@@ -41,12 +41,14 @@ Markdown is the de facto standard for documentation, READMEs, and formatted text
 Add the dependency to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks markdown module
 libraryDependencies += "dev.zio" %% "zio-blocks-markdown" % "@VERSION@"
 ```
 
 For Scala.js, use the cross-build syntax:
 
 ```sbt
+// ZIO Blocks markdown module
 libraryDependencies += "dev.zio" %%% "zio-blocks-markdown" % "@VERSION@"
 ```
 
