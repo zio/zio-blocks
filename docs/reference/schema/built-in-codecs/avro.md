@@ -28,6 +28,7 @@ Rather than writing custom encoders or relying on string-based Avro schema confi
 Add the module to your `build.sbt` (JVM-only, not available for Scala.js):
 
 ```sbt
+// ZIO Blocks schema avro module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 ```
 

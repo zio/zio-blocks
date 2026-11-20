@@ -76,12 +76,14 @@ val result: Either[OpticCheck, Seq[Boolean]] = combined.eval(alice)
 ## Installation
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 

@@ -63,18 +63,22 @@ Add the HTTP model, its schema integration and the schema module (for the JSON e
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-http-model"        % "@VERSION@",
-  "dev.zio" %% "zio-blocks-http-model-schema" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema"            % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model"        % "@VERSION@"
+
+// ZIO Blocks http model schema module
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "@VERSION@"
+
+// ZIO Blocks schema module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"            % "@VERSION@"
 
 // Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-http-model"        % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-http-model-schema" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema"            % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model"        % "@VERSION@"
+
+// ZIO Blocks http model schema for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model-schema" % "@VERSION@"
+
+// ZIO Blocks schema for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"            % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

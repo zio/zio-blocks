@@ -57,12 +57,17 @@ ZIO Blocks has a tool for each of these allocations. In this guide, we replace t
 We use four modules: `streams`, `chunk`, `maybe` and `telemetry`. On Scala 2.13 and Scala 3.3 to 3.8, add:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-streams"   % "@VERSION@",
-  "dev.zio" %% "zio-blocks-chunk"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-maybe"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
-)
+// ZIO Blocks streams module
+libraryDependencies += "dev.zio" %% "zio-blocks-streams"   % "@VERSION@"
+
+// ZIO Blocks chunk module
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk"     % "@VERSION@"
+
+// ZIO Blocks maybe module
+libraryDependencies += "dev.zio" %% "zio-blocks-maybe"     % "@VERSION@"
+
+// ZIO Blocks telemetry module
+libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
 Scala 3.9 and newer use the `zio-blocks-next-*` artifact names and need `scalacOptions += "-experimental"`; [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) has the details. The `streams` and `telemetry` modules need JDK 21 or newer on the JVM. We assume you know what boxing is and have read [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) or written a `Stream` before.

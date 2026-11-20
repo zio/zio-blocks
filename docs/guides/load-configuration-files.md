@@ -77,20 +77,28 @@ Add the config module and the three format modules to your `build.sbt`. `config-
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-config"       % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config-json"  % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config-yaml"  % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
+
+// ZIO Blocks config hocon module
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
+
+// ZIO Blocks config json module
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json"  % "@VERSION@"
+
+// ZIO Blocks config yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml"  % "@VERSION@"
 
 // Scala 3.9 and newer (also needs scalacOptions += "-experimental")
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-config"       % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config-hocon" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config-json"  % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config-yaml"  % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config"       % "@VERSION@"
+
+// ZIO Blocks config hocon for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config-hocon" % "@VERSION@"
+
+// ZIO Blocks config json for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config-json"  % "@VERSION@"
+
+// ZIO Blocks config yaml for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml"  % "@VERSION@"
 ```
 
 For a Scala.js build, use `%%%` instead of `%%`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact names to pick for each Scala version.

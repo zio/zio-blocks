@@ -36,12 +36,14 @@ Without Resources, managing complex initialization and cleanup is tedious and er
 Add the ZIO Blocks Scope module to your `build.sbt`:
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 ```
 

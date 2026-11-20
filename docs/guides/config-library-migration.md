@@ -68,11 +68,17 @@ Remove the old configuration dependencies:
 
 ```scala
 // Before: pick the lines your project has
-libraryDependencies += "com.github.pureconfig" %% "pureconfig-core"     % "0.17.11" // Scala 3
-libraryDependencies += "com.github.pureconfig" %% "pureconfig"          % "0.17.11" // Scala 2.13
+// Scala 3
+libraryDependencies += "com.github.pureconfig" %% "pureconfig-core"     % "0.17.11"
+// Scala 2.13
+libraryDependencies += "com.github.pureconfig" %% "pureconfig"          % "0.17.11"
+// Typesafe Config library
 libraryDependencies += "com.typesafe"           % "config"              % "1.4.9"
+// ZIO Config core
 libraryDependencies += "dev.zio"               %% "zio-config"          % "4.1.0"
+// Automatic derivation of ZIO Config descriptors
 libraryDependencies += "dev.zio"               %% "zio-config-magnolia" % "4.1.0"
+// HOCON and JSON config sources (ZIO Config)
 libraryDependencies += "dev.zio"               %% "zio-config-typesafe" % "4.1.0"
 ```
 
@@ -81,10 +87,12 @@ Add the ZIO Blocks config module and its HOCON adapter:
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
+// ZIO Blocks config hocon module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 
 // Scala 3.9 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config"       % "@VERSION@"
+// ZIO Blocks config hocon for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-hocon" % "@VERSION@"
 ```
 

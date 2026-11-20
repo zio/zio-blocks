@@ -76,16 +76,16 @@ Add the `openapi` module, and the `schema-yaml` module for the YAML export, to y
 
 ```scala
 // Scala 2.13, and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-openapi"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-openapi"     % "@VERSION@"
+
+// ZIO Blocks schema yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
 
 // Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-openapi"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi"     % "@VERSION@"
+
+// ZIO Blocks schema yaml for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

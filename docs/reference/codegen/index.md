@@ -81,6 +81,7 @@ OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → S
 Add the library to your project:
 
 ```scala
+// ZIO Blocks codegen module
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 ```
 

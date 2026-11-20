@@ -18,6 +18,7 @@ It also carries trace context *between* processes. A trace that stops at your se
 Add the module to your build file:
 
 ```scala
+// ZIO Blocks telemetry otel module
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
 ```
 

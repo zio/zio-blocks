@@ -57,18 +57,22 @@ Add the HTTP model to your `build.sbt`, plus the HTML and schema modules that th
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-http-model" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-html"       % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema"     % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
+
+// ZIO Blocks html module
+libraryDependencies += "dev.zio" %% "zio-blocks-html"       % "@VERSION@"
+
+// ZIO Blocks schema module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"     % "@VERSION@"
 
 // Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-html"       % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@"
+
+// ZIO Blocks html for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-html"       % "@VERSION@"
+
+// ZIO Blocks schema for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

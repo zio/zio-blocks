@@ -58,6 +58,7 @@ In this guide, we solve both problems: bridge extensions eliminate `SchemaExprBo
 This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md), [Part 2: SQL Generation](./query-dsl-sql.md), and [Part 3: Extending the Expression Language](./query-dsl-extending.md). To add the schema module to an sbt build:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

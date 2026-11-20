@@ -56,12 +56,14 @@ The module you add depends on your Scala version.
 - **Scala 2.13 and Scala 3.3 to 3.8:**
 
   ```scala
+  // ZIO Blocks streams module
   libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
   ```
 
 - **Scala 3.9 and later:** use the `next` artifact and turn on experimental features:
 
   ```scala
+  // ZIO Blocks streams for Scala 3.9+ (experimental)
   libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
   scalacOptions += "-experimental"
   ```

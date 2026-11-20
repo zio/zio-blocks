@@ -70,12 +70,14 @@ This separation is powerful: you can build, manipulate, serialize, and test HTTP
 Add the following to your `build.sbt`:
 
 ```scala
+// ZIO Blocks http model module
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```scala
+// ZIO Blocks http model module
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model" % "@VERSION@"
 ```
 

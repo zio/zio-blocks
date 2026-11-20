@@ -47,6 +47,7 @@ This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md). You s
 Add the dependency:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

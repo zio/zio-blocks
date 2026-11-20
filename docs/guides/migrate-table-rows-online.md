@@ -74,6 +74,7 @@ scalacOptions += "-experimental"
 
 // JDBC drivers, for every Scala version
 libraryDependencies += "org.xerial"     % "sqlite-jdbc" % "3.53.4.0"
+// PostgreSQL JDBC driver (used by the database examples)
 libraryDependencies += "org.postgresql" % "postgresql"  % "42.7.14"
 ```
 

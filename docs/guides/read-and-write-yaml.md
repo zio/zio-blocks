@@ -54,16 +54,16 @@ Add the schema and YAML modules to your build:
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
+
+// ZIO Blocks schema yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
 
 // Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same modules with the zio-blocks-next- prefix
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@"
+
+// ZIO Blocks schema yaml for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
 ```
 
 [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and how to choose one per Scala version. Everything in this guide works on Scala 2.13 and Scala 3, except the `yaml"..."` interpolator, which is Scala 3 only in @VERSION@ (see [Build YAML Values in Code](#build-yaml-values-in-code)).

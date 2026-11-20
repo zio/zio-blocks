@@ -62,16 +62,16 @@ To follow along, add the schema module and its Avro module to your build. The re
 
 ```scala
 // Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
+
+// ZIO Blocks schema avro module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 
 // Scala 3.9 and newer: the same modules with the zio-blocks-next- prefix
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema-avro" % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@"
+
+// ZIO Blocks schema avro for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-avro" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

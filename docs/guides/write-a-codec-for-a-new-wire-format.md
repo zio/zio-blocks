@@ -81,6 +81,7 @@ ZIO Blocks already knows the shape of every type that has a `Schema`. A [`Derive
 The guide needs only the schema module:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 

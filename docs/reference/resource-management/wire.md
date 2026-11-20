@@ -99,12 +99,14 @@ Write a `Resource.from` as a `def`, not a `val`. A known bug in 0.0.56: a `Resou
 Add the following dependency to your `build.sbt`:
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %%% "zio-blocks-scope" % "@VERSION@"
 ```
 

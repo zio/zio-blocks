@@ -551,6 +551,7 @@ scalaVersion := "3.9.0"
 enablePlugins(ScalaJSPlugin)
 scalaJSUseMainModuleInitializer := true
 scalacOptions += "-experimental"
+// ZIO Blocks streams module
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 

@@ -87,6 +87,7 @@ Modules pull in the ZIO Blocks modules they build on, so you only list the ones 
 On Scala 2.13 or Scala 3.3 to 3.8, use the `zio-blocks-` prefix:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
@@ -95,6 +96,7 @@ On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental
 ```scala
 scalaVersion := "3.9.0"
 
+// ZIO Blocks schema for Scala 3.9+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 
 scalacOptions += "-experimental"
@@ -103,6 +105,7 @@ scalacOptions += "-experimental"
 For Scala.js, write `%%%` instead of `%%`:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 
@@ -125,10 +128,11 @@ def zioBlocks(module: String) = Def.setting {
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
 
-libraryDependencies ++= Seq(
-  zioBlocks("schema").value,
-  zioBlocks("streams").value
-)
+// ZIO Blocks schema module (the zio-blocks-next- prefix on Scala 3.9+)
+libraryDependencies += zioBlocks("schema").value
+
+// ZIO Blocks streams module (the zio-blocks-next- prefix on Scala 3.9+)
+libraryDependencies += zioBlocks("streams").value
 
 // The zio-blocks-next-* artifacts require -experimental.
 scalacOptions ++= {

@@ -145,12 +145,14 @@ The types below are the ones you meet when you use the library, grouped by the p
 The core module is sufficient to compile projections and run tests:
 
 ```scala
+// ZIO Blocks projection module
 libraryDependencies += "dev.zio" %% "zio-blocks-projection" % "@VERSION@"
 ```
 
 For durable SQLite persistence on the JVM, add the JDBC driver:
 
 ```scala
+// SQLite JDBC driver (used by the database examples)
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
 

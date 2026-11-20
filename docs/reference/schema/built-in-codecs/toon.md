@@ -30,12 +30,14 @@ Rather than hand-writing TOON parsing logic or relying on external libraries wit
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema toon module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
 ```sbt
+// ZIO Blocks schema toon module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-toon" % "@VERSION@"
 ```
 

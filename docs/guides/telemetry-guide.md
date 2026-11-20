@@ -23,6 +23,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
 On the JVM, the module needs JDK 21 or newer. The core module also cross-builds for Scala.js:
 
 ```scala
+// ZIO Blocks telemetry module
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 

@@ -45,11 +45,13 @@ Add the codegen and schema artifacts to your build. The generated code uses `der
 
 ```scala
 // Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-smithy"  % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-codegen" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@"
-)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-smithy"  % "@VERSION@"
+
+// ZIO Blocks codegen for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-codegen" % "@VERSION@"
+
+// ZIO Blocks schema for Scala 3.9+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

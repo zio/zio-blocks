@@ -26,6 +26,7 @@ Rather than writing custom encoders or relying on code generation from .thrift f
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema thrift module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
 ```
 
