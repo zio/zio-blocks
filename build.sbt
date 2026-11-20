@@ -716,7 +716,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC48" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC49" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.27"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.27"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -1845,7 +1845,7 @@ lazy val docs = project
     },
     publish / skip := true,
     libraryDependencies ++= Seq(
-      "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
+      "dev.zio"   %% "zio-prelude"    % "1.0.0-RC49",
       "dev.zio"   %% "zio-sbt-source" % "0.8.10",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0",
       // Lets the PostgreSQL connection-pool guide compile its HikariCP snippets; nothing connects.
