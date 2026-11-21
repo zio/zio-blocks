@@ -4,7 +4,7 @@ addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.8.10")
 resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"
 addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.8.6+9-2050a4ff-SNAPSHOT")
 addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.1")
-addSbtPlugin("pl.project13.scala" % "sbt-jmh"                  % "0.4.8")
+addSbtPlugin("com.github.sbt"     % "sbt-jmh"                  % "0.4.9")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.5.0")
 addSbtPlugin("com.eed3si9n"       % "sbt-buildinfo"            % "0.13.2")
 addSbtPlugin("com.github.sbt"     % "sbt-ci-release"           % "1.12.1")
