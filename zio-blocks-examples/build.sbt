@@ -35,7 +35,15 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(effectIntegration, gettingStarted, ironRefinedTypes, paginatedApi, jsonLines, shareOneModelJVM, shareOneModelJS)
+  .aggregate(
+    effectIntegration,
+    gettingStarted,
+    ironRefinedTypes,
+    paginatedApi,
+    jsonLines,
+    shareOneModelJVM,
+    shareOneModelJS
+  )
   .settings(
     commonSettings,
     name := "zio-blocks-examples",
@@ -60,7 +68,7 @@ lazy val effectIntegration = (project in file("effect-integration"))
       "dev.zio"       %% "zio"         % "2.1.27",
       "dev.zio"       %% "zio-streams" % "2.1.27",
       "org.typelevel" %% "cats-effect" % "3.7.1",
-      "co.fs2"        %% "fs2-core"    % "3.14.0"
+      "co.fs2"        %% "fs2-core"    % "3.16.0"
     )
   )
 
@@ -84,7 +92,7 @@ lazy val ironRefinedTypes = (project in file("iron-refined-types"))
     commonSettings,
     name := "iron-refined-types",
     libraryDependencies ++= Seq(
-      "dev.zio"            %% "zio-blocks-next-schema" % zioBlocksVersion,
+      "dev.zio"             %% "zio-blocks-next-schema" % zioBlocksVersion,
       ("io.github.iltotore" %% "iron-zio-blocks-schema" % "3.4.1").exclude("dev.zio", "zio-blocks-schema_3")
     )
   )
