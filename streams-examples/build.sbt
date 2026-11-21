@@ -43,5 +43,5 @@ libraryDependencies ++= Seq(
   zioBlocks("streams").value,
   zioBlocks("chunk").value,
   "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-  "dev.zio"     %% "zio-sbt-source" % "0.8.10"
+  "dev.zio"     %% "zio-sbt-source" % "0.8.12"
 )
