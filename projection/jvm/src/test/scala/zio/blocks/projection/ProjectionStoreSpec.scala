@@ -643,6 +643,25 @@ object ProjectionStoreSpec extends ZIOSpecDefault {
           } yield assertTrue(res.isFailure)
         }
       },
+      test("appending to a non-array column fails instead of corrupting it") {
+        withStoreSimple[User] { store =>
+          for {
+            _   <- store.insert(User("u1", "Alice", "a@b.com", 1L, 1L, active = true))
+            res <- store.updateFields("u1", Chunk(FieldUpdate.Append("name", "x"))).exit
+            row <- store.findById("u1")
+          } yield assertTrue(res.isFailure, row.exists(_.name == "Alice"))
+        }
+      },
+      test("appending an unsupported value fails instead of stringifying it") {
+        withStoreSimple[Tagged] { store =>
+          case class NotJson(value: String)
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", NotJson("x")))).exit
+            row <- store.findById("t1")
+          } yield assertTrue(res.isFailure, row.exists(_.tags.isEmpty))
+        }
+      },
       test("findAll decodes rows containing list columns") {
         withStoreSimple[Tagged] { store =>
           for {

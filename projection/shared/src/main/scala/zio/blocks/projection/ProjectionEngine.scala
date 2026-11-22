@@ -181,6 +181,9 @@ object ProjectionEngineConfig {
  *   registered schema migrations
  * @param evolutionSem
  *   semaphore guarding rebuilds
+ * @param shardCreationSem
+ *   semaphore guarding shard creation, so two fibers cannot create and cache
+ *   separate stores for the same routing key
  */
 final class ProjectionEngine private[projection] (
   private val specs: List[Projection[_]],
@@ -191,7 +194,8 @@ final class ProjectionEngine private[projection] (
   private val shardsRef: Ref[Map[String, Map[String, ProjectionStore[_]]]],
   private val pendingRebuildRef: Ref[Map[String, Boolean]],
   private val migrationRegistry: Ref[Map[String, zio.blocks.schema.migration.Migration[?, ?]]],
-  private val evolutionSem: Semaphore
+  private val evolutionSem: Semaphore,
+  private val shardCreationSem: Semaphore
 ) {
 
   /**
@@ -313,28 +317,42 @@ final class ProjectionEngine private[projection] (
 
   // Factory for shards: uses same store type as primary (SQLite on JVM, else InMemory)
   private def getOrCreateShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] = {
-    val specName = spec.name
+    val specName                                                                                = spec.name
+    def cached(outer: Map[String, Map[String, ProjectionStore[_]]]): Option[ProjectionStore[A]] =
+      outer.get(specName).flatMap(_.get(routingKey)).map(_.asInstanceOf[ProjectionStore[A]])
+
     shardsRef.get.flatMap { outer =>
-      outer.get(specName).flatMap(_.get(routingKey)) match {
-        case Some(cached) => ZIO.succeed(cached.asInstanceOf[ProjectionStore[A]])
-        case None         =>
-          val create: Task[ProjectionStore[A]] = {
-            implicit val schema: Schema[A] = spec.schema
-            implicit val ep: EntityPath[A] =
-              spec.entityPath.getOrElse(EntityPath[A](specName, "id"))
-            // If primary is SQLite, create SQLite shard with sanitized path
-            val primary = primaryStores.get(specName)
-            if (primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) {
-              SQLiteProjectionStore.make[A](shardStorePath(spec, routingKey), cache)
-            } else InMemoryProjectionStore.make[A]
-          }
-          create.flatMap { newStore =>
-            ensureShardSchemaCurrent(spec, newStore) *>
-              shardsRef.update { outer2 =>
-                val inner = outer2.getOrElse(specName, Map.empty)
-                outer2.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
+      cached(outer) match {
+        case Some(store) => ZIO.succeed(store)
+        case None        =>
+          // Re-check under the lock: two fibers must not create separate stores
+          // for the same key (for InMemory shards the loser's rows would vanish
+          // when the last cache write wins).
+          shardCreationSem.withPermit {
+            shardsRef.get.flatMap { outer2 =>
+              cached(outer2) match {
+                case Some(store) => ZIO.succeed(store)
+                case None        =>
+                  val create: Task[ProjectionStore[A]] = {
+                    implicit val schema: Schema[A] = spec.schema
+                    implicit val ep: EntityPath[A] =
+                      spec.entityPath.getOrElse(EntityPath[A](specName, "id"))
+                    // If primary is SQLite, create SQLite shard with sanitized path
+                    val primary = primaryStores.get(specName)
+                    if (primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) {
+                      SQLiteProjectionStore.make[A](shardStorePath(spec, routingKey), cache)
+                    } else InMemoryProjectionStore.make[A]
+                  }
+                  create.flatMap { newStore =>
+                    ensureShardSchemaCurrent(spec, newStore) *>
+                      shardsRef.update { outer3 =>
+                        val inner = outer3.getOrElse(specName, Map.empty)
+                        outer3.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
+                      }
+                        .as(newStore)
+                  }
               }
-                .as(newStore)
+            }
           }
       }
     }
@@ -992,6 +1010,7 @@ object ProjectionEngine {
       pendingRef    <- Ref.make(Map.empty[String, Boolean])
       migReg        <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem           <- Semaphore.make(1)
+      shardSem      <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
                            val spec = specAny.asInstanceOf[Projection[Any]]
@@ -1017,7 +1036,8 @@ object ProjectionEngine {
       shardsRef,
       pendingRef,
       migReg,
-      sem
+      sem,
+      shardSem
     )
 
   /**
@@ -1031,9 +1051,10 @@ object ProjectionEngine {
    *
    * When the primary store of a cross-entity projection is a
    * [[SQLiteProjectionStore]], the engine creates each shard as
-   * `<basePath>/<name>_shard_<key>.db`, relative to the working directory,
-   * wherever the primary store's file is. The key is cut to 64 characters, and
-   * characters other than letters, digits, `_` and `-` become `_`. With any
+   * `<basePath>/<name>_shard_<sanitized-key>_<hash>.db`, relative to the
+   * working directory, wherever the primary store's file is. The key keeps at
+   * most 24 safe characters and is followed by a short SHA-256 hash of the spec
+   * name and the exact key, so different keys never share a file. With any
    * other primary store, shards are in-memory stores.
    *
    * @param specs
@@ -1061,7 +1082,19 @@ object ProjectionEngine {
       pendingRef <- Ref.make(Map.empty[String, Boolean])
       migReg     <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem        <- Semaphore.make(1)
-    } yield new ProjectionEngine(specs, stores, eventStores, cache, config, shardsRef, pendingRef, migReg, sem)
+      shardSem   <- Semaphore.make(1)
+    } yield new ProjectionEngine(
+      specs,
+      stores,
+      eventStores,
+      cache,
+      config,
+      shardsRef,
+      pendingRef,
+      migReg,
+      sem,
+      shardSem
+    )
 
   /**
    * Like [[makeWithStores]] in that it takes event stores, but it creates the
@@ -1091,6 +1124,7 @@ object ProjectionEngine {
       pendingRef    <- Ref.make(Map.empty[String, Boolean])
       migReg        <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem           <- Semaphore.make(1)
+      shardSem      <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
                            val spec = specAny.asInstanceOf[Projection[Any]]
@@ -1115,7 +1149,8 @@ object ProjectionEngine {
       shardsRef,
       pendingRef,
       migReg,
-      sem
+      sem,
+      shardSem
     )
 
   private def createStoreForSpec(

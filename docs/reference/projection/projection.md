@@ -388,7 +388,7 @@ Before it applies the updates, the store runs `INSERT OR IGNORE`, which creates 
 
 ### Appending to List Fields
 
-A `List[A]` field is stored as one JSON text column. `FieldUpdate.Append` appends one element to that column with `json_insert`, without reading the whole row first. The element must be a primitive, `String`, temporal value or `UUID`: both stores render those as JSON directly, while any other value, such as a nested record, is written as its `toString` and will not decode back. For handlers that build the element from the event, the `.appendField` verb is the direct form: it produces a `ProjectionAction.AppendField` and uses `ctx.entityId` as the row ID.
+A `List[A]` field is stored as one JSON text column. `FieldUpdate.Append` appends one element to that column with `json_insert`, without reading the whole row first. The element must be a primitive, `String`, temporal value or `UUID`: both stores render those as JSON directly, while any other value, such as a nested record, fails the update instead of being written. Appending to a scalar column also fails. For handlers that build the element from the event, the `.appendField` verb is the direct form: it produces a `ProjectionAction.AppendField` and uses `ctx.entityId` as the row ID.
 
 ```scala mdoc:compile-only
 import zio.blocks.projection.*

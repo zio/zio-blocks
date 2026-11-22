@@ -36,6 +36,20 @@ import zio.blocks.sql.*
  */
 private[projection] object ProjectionTable {
 
+  /**
+   * The table metadata for `A`: `Table.derived` when it can handle the row
+   * type, otherwise this fallback for sequence/map fields.
+   *
+   * `Table.derived` throws `UnsupportedOperationException` for such fields, so
+   * callers must not invoke it directly in paths that also serve projections
+   * with list columns (schema evolution, store construction).
+   */
+  def tableFor[A](implicit schema: Schema[A]): Table[A] =
+    try Table.derived[A]
+    catch {
+      case _: UnsupportedOperationException => derived[A]
+    }
+
   def derived[A](implicit schema: Schema[A]): Table[A] = {
     val codec = schema.deriving(DbCodecDeriver).derive
     val name  = schema.reflect.modifiers.collectFirst { case Modifier.config("sql.table_name", value) =>

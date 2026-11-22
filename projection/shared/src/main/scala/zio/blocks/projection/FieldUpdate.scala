@@ -78,7 +78,8 @@ enum FieldUpdate {
    *
    * The element must be a value both stores can render as JSON directly: a
    * primitive, `String`, temporal value or `UUID`. Any other value, such as a
-   * nested record, is stored as its `toString` and will not decode back.
+   * nested record, fails the update instead of being stored. The field must be
+   * a sequence-backed column; appending to a scalar column also fails.
    *
    * On SQLite this is a single atomic
    * `json_insert(COALESCE(col, '[]'), '$[#]', json(?))` update; on the

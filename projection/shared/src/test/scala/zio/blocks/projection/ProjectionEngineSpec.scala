@@ -691,6 +691,41 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("shard creation")(
+      test("two sources first writing the same routing key share one shard") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hubA  <- InMemEventStore.make[Any]
+            hubB  <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("a")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+                     .from("b")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("a"       -> hubA.asInstanceOf[EventStore[Any]], "b" -> hubB.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _ <- engine.start
+            _ <- ZIO.collectAllPar(
+                   List(
+                     hubA.append("r1", RepoCreated("alice", "repo-1")),
+                     hubB.append("r2", RepoCreated("alice", "repo-2"))
+                   )
+                 )
+            rows <- pollUntil(engine.queryShard(spec, "alice").map(r => Option.when(r.size == 2)(r)))
+          } yield assertTrue(rows.exists(_.map(_.id).toSet == Set("r1", "r2")))
+        }
+      }
+    ),
     suite("shard schema evolution")(
       test("a freshly created shard records the current schema hash") {
         ZIO.scoped {

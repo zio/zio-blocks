@@ -20,7 +20,7 @@ import zio.*
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, Schema}
 import zio.blocks.schema.migration.{Migration, MigrationAction}
-import zio.blocks.sql.{SqlDialect, Table}
+import zio.blocks.sql.SqlDialect
 
 /**
  * Settings for the functions of [[SchemaEvolution]] that take one.
@@ -217,7 +217,7 @@ object SchemaEvolution {
         if (!isSimpleAddFieldMigration(m.asInstanceOf[Migration[?, ?]])) ZIO.succeed(false)
         else {
           val addActions = m.dynamicMigration.actions.collect { case a: MigrationAction.AddField => a }
-          val table      = Table.derived[A]
+          val table      = ProjectionTable.tableFor[A]
           val colMetaMap = table.columnsMeta.map(c => c.name -> c).toMap
           ZIO
             .foreachDiscard(addActions) { action =>

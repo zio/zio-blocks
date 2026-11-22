@@ -147,6 +147,33 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
     case other                        => DynamicValue.Primitive(PrimitiveValue.String(other.toString))
   }
 
+  private def isAppendValue(v: Any): Boolean = v match {
+    case null                       => true
+    case None                       => true
+    case Some(x)                    => isAppendValue(x)
+    case _: String                  => true
+    case _: Int                     => true
+    case _: Long                    => true
+    case _: Double                  => true
+    case _: Float                   => true
+    case _: java.lang.Boolean       => true
+    case _: Boolean                 => true
+    case _: Byte                    => true
+    case _: Short                   => true
+    case _: Char                    => true
+    case _: BigDecimal              => true
+    case _: java.math.BigDecimal    => true
+    case _: BigInt                  => true
+    case _: java.math.BigInteger    => true
+    case _: java.time.Instant       => true
+    case _: java.time.LocalDate     => true
+    case _: java.time.LocalDateTime => true
+    case _: java.time.LocalTime     => true
+    case _: java.time.Duration      => true
+    case _: java.util.UUID          => true
+    case _                          => false
+  }
+
   private def getLong(dv: DynamicValue): Long = dv match {
     case DynamicValue.Primitive(pv) =>
       pv match {
@@ -224,25 +251,33 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
             else current = current :+ (orig -> dvVal)
           case FieldUpdate.Append(field, value) =>
             if (error.isEmpty) {
-              val orig = snakeToOriginal.getOrElse(field, field)
-              val idx  = current.indexWhere(_._1 == orig)
-              if (idx >= 0) {
-                val appended = current(idx)._2 match {
-                  case DynamicValue.Sequence(elements) =>
-                    Some(DynamicValue.Sequence(elements :+ anyToDynamicValue(value)))
-                  case DynamicValue.Null =>
-                    Some(DynamicValue.Sequence(Chunk(anyToDynamicValue(value))))
-                  case other =>
-                    error = Some(
-                      zio.blocks.schema.SchemaError(
-                        s"cannot append to field '$field': expected a sequence but got $other"
-                      )
-                    )
-                    None
-                }
-                appended.foreach(nv => current = current.updated(idx, (orig, nv)))
+              if (!isAppendValue(value)) {
+                error = Some(
+                  zio.blocks.schema.SchemaError(
+                    s"Append supports primitive JSON values only, got ${value.getClass.getName}"
+                  )
+                )
               } else {
-                error = Some(zio.blocks.schema.SchemaError(s"unknown field '$field'"))
+                val orig = snakeToOriginal.getOrElse(field, field)
+                val idx  = current.indexWhere(_._1 == orig)
+                if (idx >= 0) {
+                  val appended = current(idx)._2 match {
+                    case DynamicValue.Sequence(elements) =>
+                      Some(DynamicValue.Sequence(elements :+ anyToDynamicValue(value)))
+                    case DynamicValue.Null =>
+                      Some(DynamicValue.Sequence(Chunk(anyToDynamicValue(value))))
+                    case other =>
+                      error = Some(
+                        zio.blocks.schema.SchemaError(
+                          s"cannot append to field '$field': expected a sequence but got $other"
+                        )
+                      )
+                      None
+                  }
+                  appended.foreach(nv => current = current.updated(idx, (orig, nv)))
+                } else {
+                  error = Some(zio.blocks.schema.SchemaError(s"unknown field '$field'"))
+                }
               }
             }
           case FieldUpdate.Increment(field, by) =>

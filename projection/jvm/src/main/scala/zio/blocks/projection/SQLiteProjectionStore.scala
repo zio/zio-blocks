@@ -83,20 +83,13 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
 ) extends ProjectionStore[A] {
 
   private val entityPath = summon[EntityPath[A]]
-  private val table      =
-    try Table.derived[A]
-    catch {
-      // sql.TableMetadata rejects sequence/map fields even though DbCodec
-      // derives them as one JSON text column. ProjectionTable mirrors the
-      // codec so AppendField has a column to update.
-      case _: UnsupportedOperationException => ProjectionTable.derived[A]
-    }
-  private val tblName   = table.name
-  private val allCols   = table.columns.mkString(", ")
-  private val codec     = table.codec
-  private val idColumn  = SqlNameMapper.SnakeCase(entityPath.entityIdField)
-  private val metaTable = "_projection_meta"
-  private val metaKey   = tblName
+  private val table      = ProjectionTable.tableFor[A]
+  private val tblName    = table.name
+  private val allCols    = table.columns.mkString(", ")
+  private val codec      = table.codec
+  private val idColumn   = SqlNameMapper.SnakeCase(entityPath.entityIdField)
+  private val metaTable  = "_projection_meta"
+  private val metaKey    = tblName
 
   private val validatedIdColumn = idColumn
   private val validatedTblName  = tblName
@@ -108,6 +101,13 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       throw new IllegalArgumentException(s"unknown field '$field' not in ${table.columns.mkString(",")}")
     else if (!field.matches("[a-zA-Z_][a-zA-Z0-9_]*"))
       throw new IllegalArgumentException(s"invalid field name '$field'")
+
+  private def validateAppendField(field: String): Unit = {
+    validateField(field)
+    val isJsonArray = table.columnsMeta.exists(c => c.name == field && c.dbValue == DbValue.DbString("[]"))
+    if (!isJsonArray)
+      throw new IllegalArgumentException(s"field '$field' is not a JSON-array column")
+  }
 
   private def validateColumnName(name: String): Unit =
     require(name.matches("[a-zA-Z_][a-zA-Z0-9_]*"), s"invalid column name $name")
@@ -206,24 +206,39 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
    */
   private def jsonFragment(value: Any): String =
     value match {
-      case null                      => "null"
-      case None                      => "null"
-      case Some(v)                   => jsonFragment(v)
-      case s: String                 => Json.String(s).print
-      case c: Char                   => Json.String(c.toString).print
-      case b: Boolean                => Json.Boolean(b).print
-      case b: java.lang.Boolean      => Json.Boolean(b.booleanValue).print
-      case i: Int                    => Json.Number(BigDecimal(i)).print
-      case l: Long                   => Json.Number(BigDecimal(l)).print
-      case sh: Short                 => Json.Number(BigDecimal(sh.toInt)).print
-      case by: Byte                  => Json.Number(BigDecimal(by.toInt)).print
-      case d: Double                 => Json.Number(BigDecimal(d)).print
-      case f: Float                  => Json.Number(BigDecimal(f.toDouble)).print
-      case bd: BigDecimal            => Json.Number(bd).print
-      case jbd: java.math.BigDecimal => Json.Number(BigDecimal(jbd)).print
-      case bi: BigInt                => Json.Number(BigDecimal(bi)).print
-      case jbi: java.math.BigInteger => Json.Number(BigDecimal(jbi)).print
-      case other                     => Json.String(other.toString).print
+      case null                 => "null"
+      case None                 => "null"
+      case Some(v)              => jsonFragment(v)
+      case s: String            => Json.String(s).print
+      case c: Char              => Json.String(c.toString).print
+      case b: Boolean           => Json.Boolean(b).print
+      case b: java.lang.Boolean => Json.Boolean(b.booleanValue).print
+      case i: Int               => Json.Number(BigDecimal(i)).print
+      case l: Long              => Json.Number(BigDecimal(l)).print
+      case sh: Short            => Json.Number(BigDecimal(sh.toInt)).print
+      case by: Byte             => Json.Number(BigDecimal(by.toInt)).print
+      case d: Double            =>
+        if (d.isNaN || d.isInfinite)
+          throw new IllegalArgumentException("Append does not support NaN or infinite numbers")
+        else Json.Number(BigDecimal(d)).print
+      case f: Float =>
+        if (f.isNaN || f.isInfinite)
+          throw new IllegalArgumentException("Append does not support NaN or infinite numbers")
+        else Json.Number(BigDecimal(f.toDouble)).print
+      case bd: BigDecimal               => Json.Number(bd).print
+      case jbd: java.math.BigDecimal    => Json.Number(BigDecimal(jbd)).print
+      case bi: BigInt                   => Json.Number(BigDecimal(bi)).print
+      case jbi: java.math.BigInteger    => Json.Number(BigDecimal(jbi)).print
+      case inst: java.time.Instant      => Json.String(inst.toString).print
+      case ld: java.time.LocalDate      => Json.String(ld.toString).print
+      case ldt: java.time.LocalDateTime => Json.String(ldt.toString).print
+      case lt: java.time.LocalTime      => Json.String(lt.toString).print
+      case dur: java.time.Duration      => Json.String(dur.toString).print
+      case uuid: java.util.UUID         => Json.String(uuid.toString).print
+      case other                        =>
+        throw new IllegalArgumentException(
+          s"Append supports primitive JSON values only, got ${other.getClass.getName}"
+        )
     }
 
   /**
@@ -324,7 +339,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             case FieldUpdate.Decrement(f, _) => validateField(f)
             case FieldUpdate.Max(f, _)       => validateField(f)
             case FieldUpdate.Min(f, _)       => validateField(f)
-            case FieldUpdate.Append(f, _)    => validateField(f)
+            case FieldUpdate.Append(f, _)    => validateAppendField(f)
           }
           ZIO.attemptBlocking {
             tx.transact {
