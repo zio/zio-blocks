@@ -273,6 +273,7 @@ final class HandlerBuilder[E, A] {
   def aggregateField(update: FieldUpdate): Projection[A]
   def updateWithField(fieldName: String, f: (E, ProjectionContext) => Any): Projection[A]
   def updateField(fieldName: String)(f: (E, ProjectionContext) => Any): Projection[A]
+  def appendField(fieldName: String)(f: (E, ProjectionContext) => Any): Projection[A]
   def update(selector: A => Any)(f: (E, ProjectionContext) => Any): Projection[A] // inline macro
 }
 ```
@@ -353,7 +354,7 @@ Running it prints one line for each user:
 
 ### Aggregating Fields
 
-`aggregate` and `aggregateField` apply one or more `FieldUpdate` operations, producing `ProjectionAction.Update`. This rewrites individual columns rather than the entire row, and numeric operations such as `Increment` are executed in SQL without reading the row first. The available `FieldUpdate` operations are `Set`, `Increment`, `Decrement`, `Max`, and `Min`. `aggregateField` is an alias for the single-update overload of `aggregate`:
+`aggregate` and `aggregateField` apply one or more `FieldUpdate` operations, producing `ProjectionAction.Update`. This rewrites individual columns rather than the entire row, and numeric operations such as `Increment` are executed in SQL without reading the row first. The available `FieldUpdate` operations are `Set`, `Increment`, `Decrement`, `Max`, `Min`, and `Append`. `aggregateField` is an alias for the single-update overload of `aggregate`:
 
 ```scala
 Projection.global[DailyStats]("dailyStats")
@@ -381,8 +382,34 @@ Each operation is one change to a column, run as SQL:
 | `Decrement(field, by)` | `SET col = COALESCE(col, 0) - ?` | Subtract from a counter |
 | `Max(field, value)` | `SET col = MAX(COALESCE(col, ?), ?)` | Keep the highest value |
 | `Min(field, value)` | `SET col = MIN(COALESCE(col, ?), ?)` | Keep the lowest value |
+| `Append(field, value)` | `SET col = json_insert(COALESCE(NULLIF(col, ''), '[]'), '$[#]', json(?))` | Append one element to a JSON array |
 
 Before it applies the updates, the store runs `INSERT OR IGNORE`, which creates the row with the default value of each column if it is missing. Incrementing a counter of a row that does not exist yet therefore gives `1`, and `COALESCE` treats a missing value as `0`. The updates of one event run in one transaction, and the arithmetic happens inside SQL, so several fibers incrementing the same counter produce the correct total without lost updates.
+
+### Appending to List Fields
+
+A `List[A]` field is stored as one JSON text column. `FieldUpdate.Append` appends one element to that column with `json_insert`, without reading the whole row first. The element must be a primitive, `String`, temporal value or `UUID`: both stores render those as JSON directly, while any other value, such as a nested record, is written as its `toString` and will not decode back. For handlers that build the element from the event, the `.appendField` verb is the direct form: it produces a `ProjectionAction.AppendField` and uses `ctx.entityId` as the row ID.
+
+```scala mdoc:compile-only
+import zio.blocks.projection.*
+import zio.blocks.schema.{Modifier, Schema}
+
+case class TaggedProfile(@Modifier.id id: String, tags: List[String])
+object TaggedProfile {
+  implicit val schema: Schema[TaggedProfile]         = Schema.derived[TaggedProfile]
+  implicit val entityPath: EntityPath[TaggedProfile] = EntityPath.derived[TaggedProfile]
+}
+case class TagAdded(tag: String)
+object TagAdded { implicit val schema: Schema[TagAdded] = Schema.derived[TagAdded] }
+
+val spec = Projection[TaggedProfile]("taggedProfiles")
+  .from("profiles").routeToSelf
+  .on[TagAdded]
+  .appendField("tags")((e, _) => e.tag)
+```
+
+Append is **not idempotent**: replaying the same action appends the element again. The engine normally applies each event once, because the watermark advances after a successful write, but a crash between the write and the watermark update can replay an event. If duplicates are unacceptable, derive the list from `Upsert`/`Set` with the full value, or deduplicate in the handler.
+
 
 A field can also be named with a selector instead of a string. `FieldUpdate.increment[DailyStats](_.userCount)` picks the field at compile time and maps it to the column `user_count`, as `update` does, so a typo does not compile. The factories are `setValue`, `increment`, `decrement`, `maxValue` and `minValue`.
 

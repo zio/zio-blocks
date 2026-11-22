@@ -77,6 +77,14 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
   case class OrderPlaced(item: String)
   object OrderPlaced { implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced] }
 
+  case class Tagged(@Modifier.id id: String, tags: List[String])
+  object Tagged {
+    implicit val schema: Schema[Tagged]         = Schema.derived[Tagged]
+    implicit val entityPath: EntityPath[Tagged] = EntityPath.derived[Tagged]
+  }
+  case class TagAdded(tag: String)
+  object TagAdded { implicit val schema: Schema[TagAdded] = Schema.derived[TagAdded] }
+
   // ---------------------------------------------------------------------------
   // In-memory EventStore stub for tests
   // ---------------------------------------------------------------------------
@@ -678,6 +686,32 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             empty  <- engine.queryShard(spec, "nobody")
             shards <- engine.shardsMap
           } yield assertTrue(empty.isEmpty, !shards.get("users").exists(_.contains("nobody")))
+        }
+      }
+    ),
+    suite("appendField")(
+      test("appendField handler appends to a list field") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[Tagged]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[Tagged]("tagged")
+                     .from("events")
+                     .routeToSelf
+                     .on[TagAdded]
+                     .appendField("tags")((e, _) => e.tag)
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("events"  -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _    <- engine.start
+            _    <- hub.append("t1", TagAdded("scala"))
+            _    <- hub.append("t1", TagAdded("zio"))
+            rows <- pollUntil(engine.query(spec, "t1").map(_.filter(_.tags.size == 2)))
+          } yield assertTrue(rows.exists(_.tags == List("scala", "zio")))
         }
       }
     ),

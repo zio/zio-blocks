@@ -78,6 +78,19 @@ object ProjectionActionSpec extends ZIOSpecDefault {
         assertTrue(action match { case ProjectionAction.Update(m) => m.isEmpty; case _ => false })
       }
     ),
+    suite("AppendField")(
+      test("AppendField carries entity id, field and value") {
+        val action = ProjectionAction.AppendField("u1", "tags", "scala")
+        assertTrue(action match {
+          case ProjectionAction.AppendField(id, field, value) =>
+            id == "u1" && field == "tags" && value == "scala"
+          case _ => false
+        })
+      },
+      test("AppendField companion helper") {
+        assertTrue(ProjectionAction.appendField("u1", "tags", 1) == ProjectionAction.AppendField("u1", "tags", 1))
+      }
+    ),
     suite("Sentinels")(
       test("Delete has no payload") {
         val action: ProjectionAction[Nothing] = ProjectionAction.Delete
@@ -100,16 +113,19 @@ object ProjectionActionSpec extends ZIOSpecDefault {
     suite("Exhaustive pattern matching")(
       test("pattern match covers all cases") {
         def describe[A](action: ProjectionAction[A]): String = action match {
-          case ProjectionAction.Insert(v)    => s"insert:$v"
-          case ProjectionAction.Upsert(v)    => s"upsert:$v"
-          case ProjectionAction.Update(mods) => s"update:${mods.length}"
-          case ProjectionAction.Delete       => "delete"
-          case ProjectionAction.Truncate     => "truncate"
-          case ProjectionAction.Noop         => "noop"
+          case ProjectionAction.Insert(v)                     => s"insert:$v"
+          case ProjectionAction.Upsert(v)                     => s"upsert:$v"
+          case ProjectionAction.Update(mods)                  => s"update:${mods.length}"
+          case ProjectionAction.AppendField(id, field, value) =>
+            s"append:$id:$field:$value"
+          case ProjectionAction.Delete   => "delete"
+          case ProjectionAction.Truncate => "truncate"
+          case ProjectionAction.Noop     => "noop"
         }
         assertTrue(describe(ProjectionAction.Insert(1)) == "insert:1")
         assertTrue(describe(ProjectionAction.Upsert("x")) == "upsert:x")
         assertTrue(describe(ProjectionAction.Update(Chunk.empty)) == "update:0")
+        assertTrue(describe(ProjectionAction.AppendField("u1", "tags", "a")) == "append:u1:tags:a")
         assertTrue(describe(ProjectionAction.Delete) == "delete")
         assertTrue(describe(ProjectionAction.Truncate) == "truncate")
         assertTrue(describe(ProjectionAction.Noop) == "noop")

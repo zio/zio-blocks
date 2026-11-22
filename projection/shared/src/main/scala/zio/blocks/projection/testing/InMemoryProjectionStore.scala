@@ -199,13 +199,22 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
 
   private def decDV(dv: DynamicValue, by: Long): DynamicValue = incDV(dv, -by)
 
+  private def validateAppendField(field: String): Unit = {
+    val orig = snakeToOriginal.getOrElse(field, field)
+    if (!snakeToOriginal.values.exists(_ == orig) && !snakeToOriginal.contains(field))
+      throw new IllegalArgumentException(
+        s"unknown field '$field' not in ${snakeToOriginal.values.toList.sorted.mkString(",")}"
+      )
+  }
+
   private def applyUpdatesToRecord(
     record: DynamicValue,
     updates: Chunk[FieldUpdate]
   ): Either[zio.blocks.schema.SchemaError, DynamicValue] =
     record match {
       case DynamicValue.Record(fields) =>
-        var current = fields
+        var current                                      = fields
+        var error: Option[zio.blocks.schema.SchemaError] = None
         updates.foreach {
           case FieldUpdate.Set(field, value) =>
             val orig  = snakeToOriginal.getOrElse(field, field)
@@ -213,6 +222,29 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
             val idx   = current.indexWhere(_._1 == orig)
             if (idx >= 0) current = current.updated(idx, (orig, dvVal))
             else current = current :+ (orig -> dvVal)
+          case FieldUpdate.Append(field, value) =>
+            if (error.isEmpty) {
+              val orig = snakeToOriginal.getOrElse(field, field)
+              val idx  = current.indexWhere(_._1 == orig)
+              if (idx >= 0) {
+                val appended = current(idx)._2 match {
+                  case DynamicValue.Sequence(elements) =>
+                    Some(DynamicValue.Sequence(elements :+ anyToDynamicValue(value)))
+                  case DynamicValue.Null =>
+                    Some(DynamicValue.Sequence(Chunk(anyToDynamicValue(value))))
+                  case other =>
+                    error = Some(
+                      zio.blocks.schema.SchemaError(
+                        s"cannot append to field '$field': expected a sequence but got $other"
+                      )
+                    )
+                    None
+                }
+                appended.foreach(nv => current = current.updated(idx, (orig, nv)))
+              } else {
+                error = Some(zio.blocks.schema.SchemaError(s"unknown field '$field'"))
+              }
+            }
           case FieldUpdate.Increment(field, by) =>
             val orig = snakeToOriginal.getOrElse(field, field)
             val idx  = current.indexWhere(_._1 == orig)
@@ -252,7 +284,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
               }
             }
         }
-        Right(DynamicValue.Record(current))
+        error match {
+          case Some(e) => Left(e)
+          case None    => Right(DynamicValue.Record(current))
+        }
       case other =>
         Left(zio.blocks.schema.SchemaError(s"Expected Record but got $other"))
     }
@@ -299,6 +334,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
       DynamicValue.Primitive(PrimitiveValue.String(entityId))
     } else if (reflect.isOption || reflect.isMaybe) {
       DynamicValue.Null
+    } else if (reflect.isSequence) {
+      DynamicValue.Sequence(Chunk.empty)
+    } else if (reflect.isMap) {
+      DynamicValue.Map(Chunk.empty)
     } else {
       reflect.asPrimitive match {
         case Some(p) =>
@@ -362,7 +401,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
   def updateFields(entityId: String, updates: Chunk[FieldUpdate]): Task[Unit] =
     if (updates.isEmpty) ZIO.unit
     else
-      mapRef.modify { m =>
+      ZIO.attempt(updates.foreach {
+        case FieldUpdate.Append(field, _) => validateAppendField(field)
+        case _                            => ()
+      }) *> mapRef.modify { m =>
         m.get(entityId) match {
           case Some(cur) =>
             applyUpdatesToA(cur, updates) match {
