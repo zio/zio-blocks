@@ -225,8 +225,8 @@ object ProjectionEngineValidationSpec extends ZIOSpecDefault {
         assertTrue(p.scope.isInstanceOf[ProjectionScope.CrossEntity])
       }
     ),
-    suite("RoutedBy extractor throwing fallback to ctx.entityId")(
-      test("extractor throwing falls back to entityId and still inserts") {
+    suite("RoutedBy extractor throwing fails the event")(
+      test("extractor throwing does not fall back to entityId or the primary store") {
         ZIO.scoped {
           for {
             cache <- TransactorCache.make()
@@ -247,12 +247,13 @@ object ProjectionEngineValidationSpec extends ZIOSpecDefault {
                         cache
                       )
             _ <- engine.start
-            // sanitize line needs slash handling: test with "a/b.." to hit replaceAll branch via shard path
-            _  <- hub.append("entity-1", BadEvent("throw"))
-            _  <- hub.append("entity-2", BadEvent("a/b.."))
-            r1 <- pollUntil(engine.query(spec, "entity-1"))
-            r2 <- pollUntil(engine.query(spec, "entity-2"))
-          } yield assertTrue(r1.exists(_.name == "throw"), r2.exists(_.name == "a/b.."))
+            // sanitize line needs slash handling: test with "a/b.." to hit the shard path branch
+            _       <- hub.append("entity-1", BadEvent("throw"))
+            _       <- hub.append("entity-2", BadEvent("a/b.."))
+            r1      <- pollUntil(engine.query(spec, "entity-1"))
+            r2      <- pollUntil(engine.query(spec, "entity-2"))
+            primary <- store.findAll
+          } yield assertTrue(r1.isEmpty, r2.exists(_.name == "a/b.."), primary.isEmpty)
         }
       }
     ),

@@ -690,6 +690,61 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("routing failures")(
+      test("extractor failure fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](e =>
+                       if (e.repoName == "bad") throw new RuntimeException("extractor boom") else e.ownerId
+                     )
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("alice", "bad"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+            read    <- engine.query(spec, "r1")
+          } yield assertTrue(primary.isEmpty, seq == 0L, read.isEmpty)
+        }
+      },
+      test("blank routing key fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("  ", "no-owner"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+          } yield assertTrue(primary.isEmpty, seq == 0L)
+        }
+      }
+    ),
     suite("appendField")(
       test("appendField handler appends to a list field") {
         ZIO.scoped {
