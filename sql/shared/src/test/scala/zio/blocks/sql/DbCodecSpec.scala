@@ -151,6 +151,16 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[WithCustomLines] = Schema.derived
   }
 
+  case class Embedding(values: List[Double])
+  object Embedding {
+    implicit val schema: Schema[Embedding] = Schema.derived
+  }
+
+  case class WithEmbedding(id: Int, embedding: Embedding)
+  object WithEmbedding {
+    implicit val schema: Schema[WithEmbedding] = Schema.derived
+  }
+
   case class WithChar(c: Char)
   object WithChar {
     implicit val schema: Schema[WithChar] = Schema.derived
@@ -569,6 +579,23 @@ object DbCodecSpec extends ZIOSpecDefault {
       IndexedSeq(DbValue.DbString("override"))
   }
 
+  /** Vector-style codec used by the type-registry tests; writes DbValue.Raw. */
+  private val embeddingCodec: DbCodec[Embedding] = new DbCodec[Embedding] {
+    val columns: IndexedSeq[String] = IndexedSeq("value")
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Embedding =
+      Embedding(List(1.0, 2.0))
+
+    override def readValue(reader: DbResultReader, startIndex: Int): Embedding =
+      Embedding(List(1.0, 2.0))
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Embedding): Unit =
+      writer.setRaw(startIndex, "vector", value.values.mkString("[", ",", "]"))
+
+    def toDbValues(value: Embedding): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.Raw("vector", value.values.mkString("[", ",", "]")))
+  }
+
   private val tagsStringCodec: DbCodec[Tags] =
     DbCodec[String].transform(json =>
       tagsJsonCodec.decode(json) match {
@@ -869,6 +896,70 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           result.isFailure,
           result.failed.toOption.exists(_.isInstanceOf[UnsupportedOperationException])
+        )
+      }
+    ),
+    suite("dialect type registry")(
+      test("withTypeRegistry uses the mapping for a nested record field instead of JSONB") {
+        val registry = DbTypeRegistry.empty.register(
+          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+        )
+        val deriver = DbCodecDeriver.withTypeRegistry(registry)
+        val codec   = WithEmbedding.schema.deriving(deriver).derive
+        val decoded = codec.readValue(
+          new RecordReader(Map("id" -> 1, "embedding" -> "not-json")),
+          IndexedSeq("id", "embedding")
+        )
+        val expectedVector = Embedding(List(3.0, 4.0)).values.mkString("[", ",", "]")
+        assertTrue(
+          decoded == WithEmbedding(1, Embedding(List(1.0, 2.0))),
+          codec.toDbValues(WithEmbedding(7, Embedding(List(3.0, 4.0)))) ==
+            IndexedSeq(DbValue.DbInt(7), DbValue.Raw("vector", expectedVector))
+        )
+      },
+      test("withTypeRegistry uses the mapping for a top-level record type") {
+        val registry = DbTypeRegistry.empty.register(
+          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+        )
+        val codec          = Embedding.schema.deriving(DbCodecDeriver.withTypeRegistry(registry)).derive
+        val expectedVector = Embedding(List(5.0, 6.0)).values.mkString("[", ",", "]")
+        assertTrue(
+          codec.toDbValues(Embedding(List(5.0, 6.0))) ==
+            IndexedSeq(DbValue.Raw("vector", expectedVector))
+        )
+      },
+      test("field codec override wins over the type registry") {
+        val fieldCodec = new DbCodec[Embedding] {
+          val columns: IndexedSeq[String]                                              = IndexedSeq("value")
+          def readValue(reader: DbResultReader, labels: IndexedSeq[String]): Embedding =
+            Embedding(List(9.0))
+          override def readValue(reader: DbResultReader, startIndex: Int): Embedding =
+            Embedding(List(9.0))
+          def writeValue(writer: DbParamWriter, startIndex: Int, value: Embedding): Unit =
+            writer.setString(startIndex, "field")
+          def toDbValues(value: Embedding): IndexedSeq[DbValue] =
+            IndexedSeq(DbValue.DbString("field"))
+        }
+        val registry = DbTypeRegistry.empty.register(
+          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+        )
+        val deriver = DbCodecDeriver
+          .withTypeRegistry(registry)
+          .withFieldCodec(TypeId.of[WithEmbedding], "embedding", fieldCodec)
+        val codec   = WithEmbedding.schema.deriving(deriver).derive
+        val decoded = codec.readValue(
+          new RecordReader(Map("id" -> 1, "embedding" -> "not-json")),
+          IndexedSeq("id", "embedding")
+        )
+        assertTrue(decoded == WithEmbedding(1, Embedding(List(9.0))))
+      },
+      test("DbTypeRegistry.register replaces a mapping for the same type") {
+        val first    = DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+        val second   = DbTypeMapping(TypeId.of[Embedding], "halfvec", embeddingCodec)
+        val registry = DbTypeRegistry.empty.register(first).register(second)
+        assertTrue(
+          registry.get(TypeId.of[Embedding]).contains(second),
+          registry.mappings.toList == List(second)
         )
       }
     ),

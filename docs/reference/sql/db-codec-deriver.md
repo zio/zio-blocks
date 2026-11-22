@@ -123,11 +123,44 @@ val rowCodec: DbCodec[RowDetail] =
 Resolution order for a field is:
 
 1. `DbCodecDeriver.withFieldCodec` / `DbCodec.derivedWith` override for `(parent type, field name)`.
-2. `@Modifier.config("sql.inline", "true")` on a nested record (flatten into parent columns).
-3. JSONB for non-inline nested records, sequences, and maps.
-4. The normal single-column codec.
+2. A `DbTypeRegistry` mapping for the field's `TypeId` (see below).
+3. `@Modifier.config("sql.inline", "true")` on a nested record (flatten into parent columns).
+4. JSONB for non-inline nested records, sequences, and maps.
+5. The normal single-column codec.
 
 Use this for driver-specific field types and for real SQL array columns (`DbCodec.arrayOf`); see [DbCodec](./db-codec.md#dbcodecarrayof--sql-array-columns).
+
+## Dialect type registry
+
+When a dialect has several custom types, register them once instead of
+overriding each field:
+
+```scala mdoc:compile-only
+import _root_.zio
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
+
+val registry =
+  DbTypeRegistry.empty
+    .register(DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec))
+
+val deriver = DbCodecDeriver.withTypeRegistry(registry)
+val codec   = RowDetail.schema.deriving(deriver).derive
+```
+
+Mappings apply to record fields (including nested record/sequence fields that
+would otherwise use JSONB) and to top-level record/wrapper derivation. A
+`withFieldCodec` override takes precedence over a registry mapping. A mapping's
+codec is expected to use [`DbValue.Raw`](./db-value.md#raw--driver-specific-values)
+for the write side so driver-specific values stay parameterized. A mapping for
+a sequence field is keyed by the sequence's own `TypeId` (for example
+`TypeId.of[List[Embedding]]`), not by the element type; `deriveSequence` itself
+does not consult the registry.
+
+The registry is intentionally explicit and immutable: derivation walks a
+`Reflect` tree at runtime, so there is no implicit lookup point. See
+[ADR-002](../../adr/2026-11-22-sql-postgres-type-extension.md) for the intended
+`zio-blocks-sql-postgres` module shape and the deferred read/DDL work.
 
 ## See Also
 

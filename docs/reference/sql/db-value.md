@@ -59,4 +59,8 @@ val frag = sql"INSERT INTO items (embedding) VALUES (${DbValue.Raw("vector", vec
 `Raw` is a trust boundary: the value is handed to the JDBC driver as-is. Pass a driver-understood object (or a `String` in the driver's text format), never raw SQL. Use the standard `DbValue` variants and normal `DbParam` binding everywhere else; do not reach for `Raw` or `SqlLiteral` just to avoid writing a `DbCodec`.
 :::
 
+For a dialect-wide type mapping (`vector`, `tsvector`, ...), see
+[`DbTypeRegistry`](./db-codec-deriver.md#dialect-type-registry) and
+[ADR-002](../../adr/2026-11-22-sql-postgres-type-extension.md).
+
 See [Frag](./frag.md), [DbCodec](./db-codec.md), and the [SQL module index](./index.md).
