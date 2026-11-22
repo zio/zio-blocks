@@ -60,6 +60,8 @@ trait DbResultReader {
   def getUUID(label: String): java.util.UUID
   def getArray(index: Int): Array[String]    // default: throws UnsupportedOperationException
   def getArray(label: String): Array[String] // default: throws UnsupportedOperationException
+  def getArrayObjects(index: Int): Array[AnyRef]    // default: boxes getArray
+  def getArrayObjects(label: String): Array[AnyRef] // default: boxes getArray
 
   // Metadata and NULL detection
   def columnLabel(index: Int): String
@@ -69,6 +71,8 @@ trait DbResultReader {
   def isNull(label: String): Boolean // default: false
 }
 ```
+
+`getArray` returns string elements only. `getArrayObjects` is the general read path used by [`DbCodec.arrayOf`](./db-codec.md#dbcodecarrayof--sql-array-columns): it returns the driver's element objects (boxed integers, UUIDs, strings, ...). The shared default adapts `getArray` for backends that only expose strings; the JDBC reader overrides it and boxes primitive arrays. A SQL `NULL` array decodes to `null`.
 
 ## Usage
 

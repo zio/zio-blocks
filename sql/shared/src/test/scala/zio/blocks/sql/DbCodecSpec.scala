@@ -448,6 +448,12 @@ object DbCodecSpec extends ZIOSpecDefault {
 
     def getString(columnLabel: String): String = valueFor(columnLabel).asInstanceOf[String]
 
+    override def getArrayObjects(index: Int): Array[AnyRef] =
+      valueFor(index).asInstanceOf[Array[AnyRef]]
+
+    override def getArrayObjects(label: String): Array[AnyRef] =
+      valueFor(label).asInstanceOf[Array[AnyRef]]
+
     def getBigDecimal(index: Int): java.math.BigDecimal = unsupported("getBigDecimal(index)")
 
     def getBigDecimal(label: String): java.math.BigDecimal = unsupported("getBigDecimal(label)")
@@ -494,6 +500,37 @@ object DbCodecSpec extends ZIOSpecDefault {
     def hasColumn(columnLabel: String): Boolean = valuesByLabel.contains(columnLabel)
 
     def wasNull: Boolean = lastWasNull
+  }
+
+  private final class ArrayRecordingWriter extends DbParamWriter {
+    var elementType: String       = null
+    var elements: IndexedSeq[Any] = null
+    var nullSqlType: Int          = -1
+
+    private def unsupported(name: String): Nothing = throw new UnsupportedOperationException(name)
+
+    def setInt(index: Int, value: Int): Unit                               = unsupported("setInt")
+    def setLong(index: Int, value: Long): Unit                             = unsupported("setLong")
+    def setDouble(index: Int, value: Double): Unit                         = unsupported("setDouble")
+    def setFloat(index: Int, value: Float): Unit                           = unsupported("setFloat")
+    def setBoolean(index: Int, value: Boolean): Unit                       = unsupported("setBoolean")
+    def setString(index: Int, value: String): Unit                         = unsupported("setString")
+    def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit       = unsupported("setBigDecimal")
+    def setBytes(index: Int, value: Array[Byte]): Unit                     = unsupported("setBytes")
+    def setShort(index: Int, value: Short): Unit                           = unsupported("setShort")
+    def setByte(index: Int, value: Byte): Unit                             = unsupported("setByte")
+    def setLocalDate(index: Int, value: java.time.LocalDate): Unit         = unsupported("setLocalDate")
+    def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit = unsupported("setLocalDateTime")
+    def setLocalTime(index: Int, value: java.time.LocalTime): Unit         = unsupported("setLocalTime")
+    def setInstant(index: Int, value: java.time.Instant): Unit             = unsupported("setInstant")
+    def setDuration(index: Int, value: java.time.Duration): Unit           = unsupported("setDuration")
+    def setUUID(index: Int, value: java.util.UUID): Unit                   = unsupported("setUUID")
+    def setNull(index: Int, sqlType: Int): Unit                            = nullSqlType = sqlType
+
+    def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit = {
+      this.elementType = elementType
+      this.elements = elements
+    }
   }
 
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
@@ -714,6 +751,75 @@ object DbCodecSpec extends ZIOSpecDefault {
           value == WithCustomLines(7, List(CartLine("apple", 2))),
           codec.toDbValues(WithCustomLines(8, List(CartLine("pear", 3)))) ==
             IndexedSeq(DbValue.DbInt(8), DbValue.DbString("[{\"title\":\"pear\",\"quantity\":3}]"))
+        )
+      }
+    ),
+    suite("array codec")(
+      test("arrayOf round-trips string elements through getArrayObjects and setArray") {
+        val codec   = DbCodec.arrayOf(DbCodec[String], "varchar")
+        val decoded = codec.readValue(
+          new RecordReader(Map("tags" -> Array[AnyRef]("organic", "vegan"))),
+          IndexedSeq("tags")
+        )
+        val writer = new ArrayRecordingWriter
+        codec.writeValue(writer, 1, Array("organic", "vegan"))
+
+        assertTrue(
+          decoded.toList == List("organic", "vegan"),
+          writer.elementType == "varchar",
+          writer.elements == IndexedSeq("organic", "vegan"),
+          codec.toDbValues(Array("organic", "vegan")) ==
+            IndexedSeq(DbValue.DbArray("varchar", IndexedSeq("organic", "vegan")))
+        )
+      },
+      test("arrayOf decodes boxed integer elements") {
+        val codec   = DbCodec.arrayOf(DbCodec[Int], "integer")
+        val decoded = codec.readValue(
+          new RecordReader(Map("ids" -> Array[AnyRef](Int.box(1), Int.box(2), Int.box(3)))),
+          IndexedSeq("ids")
+        )
+        assertTrue(decoded.toList == List(1, 2, 3))
+      },
+      test("arrayOf decodes UUID elements from driver objects and strings") {
+        val uuid1     = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val uuid2     = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440001")
+        val uuidCodec =
+          DbCodec[String].transform[java.util.UUID](java.util.UUID.fromString)(_.toString)
+        val codec = DbCodec.arrayOf(uuidCodec, "uuid")
+
+        val fromObjects = codec.readValue(
+          new RecordReader(Map("ids" -> Array[AnyRef](uuid1, uuid2))),
+          IndexedSeq("ids")
+        )
+        val fromStrings = codec.readValue(
+          new RecordReader(Map("ids" -> Array[AnyRef](uuid1.toString, uuid2.toString))),
+          IndexedSeq("ids")
+        )
+
+        assertTrue(
+          fromObjects.toList == List(uuid1, uuid2),
+          fromStrings.toList == List(uuid1, uuid2)
+        )
+      },
+      test("arrayOf returns null for a SQL NULL array") {
+        val codec   = DbCodec.arrayOf(DbCodec[String], "varchar")
+        val decoded = codec.readValue(new RecordReader(Map("tags" -> null)), IndexedSeq("tags"))
+        assertTrue(decoded == null)
+      },
+      test("arrayOf writes SQL NULL for a null array") {
+        val codec  = DbCodec.arrayOf(DbCodec[String], "varchar")
+        val writer = new ArrayRecordingWriter
+        codec.writeValue(writer, 1, null)
+        assertTrue(
+          writer.nullSqlType == 0,
+          codec.toDbValues(null) == IndexedSeq(DbValue.DbNull)
+        )
+      },
+      test("arrayOf rejects a multi-column element codec") {
+        val result = scala.util.Try(DbCodec.arrayOf(deriveCodec[SimpleRecord], "record"))
+        assertTrue(
+          result.isFailure,
+          result.failed.toOption.exists(_.isInstanceOf[UnsupportedOperationException])
         )
       }
     ),

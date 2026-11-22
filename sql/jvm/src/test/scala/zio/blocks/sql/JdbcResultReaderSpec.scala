@@ -141,6 +141,36 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
           stmt.close()
         }
       }
+    },
+    test("getArrayObjects(index) boxes primitive array elements and frees the SQL array") {
+      val calls  = ArrayBuffer.empty[String]
+      val reader = new JdbcResultReader(resultSetWithArray(calls, Array(1, 2, 3)))
+
+      val elements = reader.getArrayObjects(2)
+
+      assertTrue(
+        elements.toList == List(Int.box(1), Int.box(2), Int.box(3)),
+        calls.contains("free")
+      )
+    },
+    test("getArrayObjects(label) returns object array elements and frees the SQL array") {
+      val calls  = ArrayBuffer.empty[String]
+      val reader = new JdbcResultReader(resultSetWithArray(calls, Array("a", "b")))
+
+      val elements = reader.getArrayObjects("tags")
+
+      assertTrue(
+        elements.toList == List("a", "b"),
+        calls.contains("free")
+      )
+    },
+    test("getArrayObjects returns null for a SQL NULL array") {
+      val calls  = ArrayBuffer.empty[String]
+      val reader = new JdbcResultReader(resultSetWithArray(calls, null))
+
+      val elements = reader.getArrayObjects(1)
+
+      assertTrue(elements == null, !calls.contains("free"))
     }
   )
 
@@ -163,6 +193,38 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
           case other      => throw new UnsupportedOperationException(s"Unexpected ResultSet method: $other")
         }
       }
+    }
+
+    Proxy
+      .newProxyInstance(getClass.getClassLoader, Array(classOf[ResultSet]), handler)
+      .asInstanceOf[ResultSet]
+  }
+
+  private def resultSetWithArray(calls: ArrayBuffer[String], raw: AnyRef): ResultSet = {
+    val array = Proxy
+      .newProxyInstance(
+        getClass.getClassLoader,
+        Array(classOf[java.sql.Array]),
+        new InvocationHandler {
+          override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
+            method.getName match {
+              case "getArray" => raw
+              case "free"     => calls += "free"; null
+              case "toString" => "JdbcResultReaderSpec.ArrayProxy"
+              case other      => throw new UnsupportedOperationException(s"Unexpected Array method: $other")
+            }
+        }
+      )
+      .asInstanceOf[java.sql.Array]
+
+    val handler = new InvocationHandler {
+      override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
+        method.getName match {
+          case "getArray" => if (raw == null) null else array
+          case "wasNull"  => java.lang.Boolean.FALSE
+          case "toString" => "JdbcResultReaderSpec.ResultSetWithArray"
+          case other      => throw new UnsupportedOperationException(s"Unexpected ResultSet method: $other")
+        }
     }
 
     Proxy
