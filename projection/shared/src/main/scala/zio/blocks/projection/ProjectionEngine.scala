@@ -343,14 +343,27 @@ final class ProjectionEngine private[projection] (
   /**
    * Compute the on-disk store path for a shard.
    *
+   * The file name keeps a short, filesystem-safe prefix of the routing key for
+   * humans, then appends a SHA-256-derived suffix over the exact spec name and
+   * raw routing key. The hash makes distinct keys distinct even when their
+   * sanitized prefixes collide (`alice/x` vs `alice_x`) or when the prefix is
+   * truncated. Length is bounded independently of the routing-key length.
+   *
    * Exposed at package scope so tests can pin the encoding without creating a
    * database.
    */
   private[projection] def shardStorePath(spec: Projection[_], routingKey: String): String = {
     val base      = spec.entityPath.map(_.basePath).getOrElse("projections")
-    val sanitized = routingKey.replaceAll("[^a-zA-Z0-9_-]", "_").take(64)
-    s"$base/${spec.name}_shard_$sanitized.db"
+    val sanitized = routingKey.map(c => if (isSafeShardChar(c)) c else '_').take(24)
+    val digest    = java.security.MessageDigest
+      .getInstance("SHA-256")
+      .digest(s"${spec.name}\u0000$routingKey".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    val hash = digest.take(8).map(b => "%02x".format(b & 0xff)).mkString
+    s"$base/${spec.name.take(48)}_shard_${sanitized}_$hash.db"
   }
+
+  private def isSafeShardChar(c: Char): Boolean =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 
   /**
    * Open an existing shard for reading without creating it.

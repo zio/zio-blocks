@@ -716,6 +716,58 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("shard paths")(
+      test("sanitized-prefix collisions produce distinct deterministic paths") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            slash   = engine.shardStorePath(spec, "alice/x")
+            under   = engine.shardStorePath(spec, "alice_x")
+            again   = engine.shardStorePath(spec, "alice/x")
+          } yield assertTrue(slash != under, slash == again)
+        }
+      },
+      test("long keys that share a truncated prefix produce distinct paths") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            prefix  = "a" * 200
+            first   = engine.shardStorePath(spec, prefix + "x")
+            second  = engine.shardStorePath(spec, prefix + "y")
+          } yield assertTrue(first != second)
+        }
+      },
+      test("shard file names are filesystem-safe and length-bounded") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            path    = engine.shardStorePath(spec, "../evil key/" + ("z" * 500))
+            name    = path.split('/').last
+          } yield assertTrue(name.length <= 120, name.matches("[a-zA-Z0-9_.-]+"), !path.contains("evil key"))
+        }
+      }
+    ),
     suite("global")(
       test("global projection single file") {
         ZIO.scoped {

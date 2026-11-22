@@ -231,7 +231,7 @@ Projection.global[DailyStats]("dailyStats")
 
 #### `routedBy`
 
-`routedBy[E]` reads a key from each event with `selector`. Events with the same key go to the same store, called a shard, `<basePath>/<name>_shard_<key>.db`, even when they were recorded under different entities. Within a shard, the row is still the one with the event's entity ID. Using it on any source makes the projection [`CrossEntity`](#projection-scope):
+`routedBy[E]` reads a key from each event with `selector`. Events with the same key go to the same store, called a shard, `<basePath>/<name>_shard_<sanitized-key>_<hash>.db`, even when they were recorded under different entities. Within a shard, the row is still the one with the event's entity ID. Using it on any source makes the projection [`CrossEntity`](#projection-scope):
 
 ```scala
 Projection[CustomerOrder]("customer_orders")
@@ -502,7 +502,7 @@ The three scopes keep their files in different places:
 | Scope                   | File Location                              |
 |-------------------------|--------------------------------------------|
 | `PerEntity` (default)   | `<basePath>/<name>.db`                     |
-| `CrossEntity(routedBy)` | `<basePath>/<name>_shard_<key>.db` per key |
+| `CrossEntity(routedBy)` | `<basePath>/<name>_shard_<sanitized-key>_<hash>.db` per key |
 | `Global`                | `global/<name>.db`                         |
 
 ```scala mdoc:compile-only
@@ -573,7 +573,7 @@ Every entity has its own row, and the events recorded under an entity ID update 
 
 Here the cabinet has a drawer for each customer. The note says "order 7 placed, customer Alice", so it is filed in Alice's drawer and not in a drawer for order 7. Inside the drawer each order still has its own card. This scope answers the question "what belongs together under this customer?".
 
-Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with the routing mode [`routedBy`](#routedby), for example `routedBy[OrderPlaced](_.customerId)`. Any source that uses `routedBy` makes the projection `CrossEntity`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<key>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice.db`. In the file name the key is cut to 64 characters, and any character other than letters, digits, `_` and `-` is replaced by `_`. If the key cannot be read from an event, the engine uses the entity ID.
+Events are grouped by a key that is read from the event, not by the ID they were recorded under. You say which part of the event picks the drawer with the routing mode [`routedBy`](#routedby), for example `routedBy[OrderPlaced](_.customerId)`. Any source that uses `routedBy` makes the projection `CrossEntity`. Each routing key gets its own store, called a shard, next to the main one: `<basePath>/<name>_shard_<sanitized-key>_<hash>.db`. With SQLite each shard is its own file, such as `customer_orders_shard_alice_4f2a9c1d3b7e8065.db`. The file name keeps at most 24 characters of the key, replacing anything other than letters, digits, `_` and `-` with `_`, and appends a short SHA-256 hash of the spec name and the exact key. The hash keeps `alice/x` and `alice_x` in different files and keeps the name short for long keys. If the key cannot be read from an event, the engine uses the entity ID.
 
 The routing key only chooses the shard. A row keeps its own ID, so two rows in the same shard still need different IDs. To read a row you give its ID: the engine looks in the main store first, and then in the shards it has opened since it was created. It opens a shard when it routes the first event to it. It uses the scope to know that there are shards to look in; it does not use the key to pick one.
 
