@@ -877,4 +877,22 @@ trait DbParamWriter {
    * `elementType`.
    */
   def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit
+
+  /**
+   * Binds a driver-specific value produced by [[DbValue.Raw]].
+   *
+   * `sqlType` is the dialect-specific SQL type name carried by the `Raw` value
+   * (for example `"vector"` or `"jsonb"`). JDBC implementations bind `value`
+   * with `PreparedStatement.setObject(index, value, Types.OTHER)` so the value
+   * stays parameterized; drivers that understand `Types.OTHER` infer the
+   * concrete type from the object.
+   *
+   * The default throws [[UnsupportedOperationException]] so existing custom
+   * writers keep compiling. Only the backends that can bind driver-specific
+   * objects need to override it.
+   */
+  def setRaw(index: Int, sqlType: String, value: Any): Unit =
+    throw new UnsupportedOperationException(
+      s"DbParamWriter does not support raw driver-specific binding for SQL type '$sqlType'"
+    )
 }

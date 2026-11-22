@@ -162,6 +162,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       case DbValue.DbDuration(x)      => writer.setDuration(idx, x)
       case DbValue.DbUUID(x)          => writer.setUUID(idx, x)
       case DbValue.DbArray(t, elems)  => writer.setArray(idx, t, elems)
+      case DbValue.Raw(t, x)          => writer.setRaw(idx, t, x)
     }
 
   private def writeAny(writer: DbParamWriter, idx: Int, v: Any): Unit =

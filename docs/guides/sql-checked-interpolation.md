@@ -140,6 +140,19 @@ Prefer checked `sql(tables)` for all hand-written queries; reserve `SqlLiteral` 
 
 A query whose `WHERE` clause depends on which search fields a user filled in does not need `SqlLiteral`: build one `Frag` per condition and join them, as [How to Build a Query from Optional Search Filters](./build-a-query-from-optional-search-filters.md) shows.
 
+### Driver-specific values are not SQL — use `DbValue.Raw`
+
+`SqlLiteral` is for SQL *syntax*, not for values. A value that has no standard `DbValue` representation — a PostgreSQL `PGobject`, a pgvector embedding, and so on — should remain a bound parameter via [`DbValue.Raw`](../reference/sql/db-value.md#raw--driver-specific-values):
+
+```scala mdoc:silent
+// A driver-specific value, e.g. an org.postgresql.util.PGobject with type "vector"
+val vec: Any = "[1.0,2.0,3.0]"
+
+val qVector: Frag = sql"INSERT INTO items (embedding) VALUES (${DbValue.Raw("vector", vec)})"
+```
+
+Inlining such a value with `SqlLiteral` would put it in the SQL text (injection risk, no prepared-statement reuse). `Raw` keeps it parameterized and binds it with `Types.OTHER`.
+
 ## Comparison
 
 | Form | Quote/paren check | Identifier check | Needs `Table` | Use when |

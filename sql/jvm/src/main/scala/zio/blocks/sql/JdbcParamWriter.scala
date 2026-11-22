@@ -67,4 +67,16 @@ private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends Db
     val sqlArray = conn.createArrayOf(elementType, elements.toArray)
     underlying.setArray(index, sqlArray)
   }
+
+  /**
+   * Binds a driver-specific value with `Types.OTHER`. PostgreSQL uses this for
+   * `PGobject`-based types (jsonb, pgvector, ...), inferring the concrete type
+   * from the object itself. The `sqlType` name is metadata for logging/DDL and
+   * is validated here so a malformed `Raw` fails early.
+   */
+  override def setRaw(index: Int, sqlType: String, value: Any): Unit = {
+    require(sqlType != null && sqlType.nonEmpty, "DbValue.Raw requires a non-empty SQL type name")
+    if (value == null) underlying.setNull(index, java.sql.Types.OTHER)
+    else underlying.setObject(index, value, java.sql.Types.OTHER)
+  }
 }

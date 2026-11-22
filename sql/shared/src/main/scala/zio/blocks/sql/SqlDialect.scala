@@ -81,6 +81,7 @@ object SqlDialect {
       case _: DbValue.DbDuration      => "INTERVAL"
       case _: DbValue.DbUUID          => "UUID"
       case _: DbValue.DbArray         => "TEXT[]"
+      case r: DbValue.Raw             => r.sqlType
     }
 
     /** Returns `?`. */
@@ -118,6 +119,7 @@ object SqlDialect {
       case _: DbValue.DbDuration      => "TEXT"
       case _: DbValue.DbUUID          => "TEXT"
       case _: DbValue.DbArray         => "TEXT"
+      case r: DbValue.Raw             => r.sqlType
     }
 
     /** Returns `?`. */

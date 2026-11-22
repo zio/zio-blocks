@@ -101,6 +101,14 @@ object DbValueSpec extends ZIOSpecDefault {
       val v    = DbValue.DbUUID(uuid)
       assertTrue(v.value == uuid)
     },
+    test("Raw keeps the driver value and SQL type name") {
+      val pgObject = new Object
+      val v        = DbValue.Raw("vector", pgObject)
+      assertTrue(
+        v.sqlType == "vector",
+        v.value.asInstanceOf[AnyRef] eq pgObject
+      )
+    },
     test("all DbValue types are case classes or case objects") {
       assertTrue(
         DbValue.DbNull.isInstanceOf[DbValue] &&
