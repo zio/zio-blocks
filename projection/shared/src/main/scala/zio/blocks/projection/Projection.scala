@@ -585,8 +585,8 @@ final class FromBuilder[A] private[projection] (
 
   /**
    * Applies each event to the entity it was recorded under (`ctx.entityId`). In
-   * a cross-entity projection, the engine picks the shard the same way as for
-   * `routeToAll`.
+   * a cross-entity projection, the engine puts such an event in the shard of
+   * that entity ID.
    */
   def routeToSelf: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToSelf, Nil))

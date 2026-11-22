@@ -238,7 +238,8 @@ The engine logs an event that fails and goes on with the next one. An event fail
 
 - its handler throws;
 - no handler matches it, which is logged at debug level only;
-- the store rejects the action.
+- the store rejects the action;
+- for a cross-entity projection, the routing key extractor throws or returns a blank key, or the engine cannot open the shard the event belongs to. The engine never writes the routed row to the primary store instead.
 
 The watermark moves only after an event succeeds. So the next event that succeeds moves it past the failed one, and the failed event is never retried.
 :::

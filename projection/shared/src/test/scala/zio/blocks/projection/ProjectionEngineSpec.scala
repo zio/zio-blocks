@@ -63,6 +63,8 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
   object CountInc { implicit val schema: Schema[CountInc] = Schema.derived[CountInc] }
   case class RepoCreated(ownerId: String, repoName: String)
   object RepoCreated { implicit val schema: Schema[RepoCreated] = Schema.derived[RepoCreated] }
+  case class AuditRecorded(note: String)
+  object AuditRecorded { implicit val schema: Schema[AuditRecorded] = Schema.derived[AuditRecorded] }
 
   // Simple Order global model
   case class OrderSummary(
@@ -686,6 +688,101 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             empty  <- engine.queryShard(spec, "nobody")
             shards <- engine.shardsMap
           } yield assertTrue(empty.isEmpty, !shards.get("users").exists(_.contains("nobody")))
+        }
+      }
+    ),
+    suite("routing failures")(
+      test("extractor failure fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](e =>
+                       if (e.repoName == "bad") throw new RuntimeException("extractor boom") else e.ownerId
+                     )
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("alice", "bad"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+            read    <- engine.query(spec, "r1")
+          } yield assertTrue(primary.isEmpty, seq == 0L, read.isEmpty)
+        }
+      },
+      test("blank routing key fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("  ", "no-owner"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+          } yield assertTrue(primary.isEmpty, seq == 0L)
+        }
+      },
+      test("routeToAll events in a cross-entity projection are still placed in a shard") {
+        ZIO.scoped {
+          for {
+            cache  <- TransactorCache.make()
+            store  <- InMemoryProjectionStore.make[User]
+            repos  <- InMemEventStore.make[Any]
+            audits <- InMemEventStore.make[Any]
+            spec    = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+                     .from("audits")
+                     .routeToAll
+                     .on[AuditRecorded]
+                     .insert((e, ctx) => User(ctx.entityId, e.note, "audit", 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map(
+                          "repos"  -> repos.asInstanceOf[EventStore[Any]],
+                          "audits" -> audits.asInstanceOf[EventStore[Any]]
+                        ),
+                        cache
+                      )
+            _ <- engine.start
+            _ <- repos.append("r1", RepoCreated("alice", "repo-1"))
+            _ <- pollUntil(engine.queryShard(spec, "alice").map(rows => Option.when(rows.nonEmpty)(rows)))
+            // Appended live so the shared watermark cannot skip it. The scope
+            // extractor (`_.ownerId`) throws on this event type, so the
+            // documented placement falls back to the event's entity ID.
+            _       <- audits.append("a1", AuditRecorded("created"))
+            audit   <- pollUntil(engine.queryShard(spec, "a1").map(rows => Option.when(rows.nonEmpty)(rows)))
+            primary <- store.findAll
+          } yield assertTrue(
+            audit.exists(_.map(_.name) == Chunk("created")),
+            primary.isEmpty
+          )
         }
       }
     ),

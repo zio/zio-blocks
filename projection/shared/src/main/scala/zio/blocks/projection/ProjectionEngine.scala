@@ -22,8 +22,6 @@ import zio.blocks.projection.testing.InMemoryProjectionStore
 import zio.blocks.schema.Schema
 import zio.stream.ZStream
 
-import scala.util.Try
-
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -391,45 +389,51 @@ final class ProjectionEngine private[projection] (
     }
   }
 
-  // Chooses the store for an event: the primary store, or, for a cross-entity projection, the shard of the event's
-  // routing key (its entity ID when no `routedBy` function applies to the event). Creating a shard does not open its
-  // file, so the fallback to the primary store below is never reached: a shard that cannot be opened makes the action
-  // fail, and the event is logged as `apply failed` and skipped
+  // Cross-entity routing policy: extraction errors, blank keys, and shard
+  // creation failures fail the event so the watermark is not advanced and the
+  // error is visible in the log. Silent fallback to the primary store is
+  // deliberately not allowed: it would put routed rows in the wrong read model.
+  private def openShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] =
+    getOrCreateShard(spec, routingKey).catchAll { e =>
+      ZIO.logError(
+        s"ProjectionEngine[${spec.name}] failed to open shard for routing key '$routingKey': ${e.getMessage}"
+      ) *> ZIO.fail(e)
+    }
+
   private def resolveTargetStore[A](
     spec: Projection[A],
     event: Any,
     ctx: ProjectionContext,
     sourceName: String
-  ): Task[ProjectionStore[A]] = {
-    // Use ctx fallback to ensure parameter is not unused
-    val fallbackEntityId = ctx.entityId
+  ): Task[ProjectionStore[A]] =
     spec.scope match {
       case ProjectionScope.Global =>
         ZIO.succeed(primaryStoreFor(spec))
       case ProjectionScope.CrossEntity(extractor) =>
-        val routingKeyAttempt: Option[String] = {
-          val fromBinding = spec.bindings.find(_.sourceName == sourceName).flatMap { b =>
-            b.routing match {
-              case rm: RoutingMode.RoutedBy[?] =>
-                Try(rm.asInstanceOf[RoutingMode.RoutedBy[Any]].extractAny(event)).toOption
-              case _ => None
-            }
-          }
-          fromBinding.orElse(Try(extractor(event)).toOption).orElse(Some(fallbackEntityId))
-        }
-        routingKeyAttempt match {
-          case Some(key) =>
-            getOrCreateShard(spec, key).catchAll { _ =>
-              ZIO.succeed(primaryStoreFor(spec))
-            }
+        ZIO.attempt(spec.routingKey(event, ctx, sourceName)).flatMap {
+          case Some(key) if key != null && key.trim.nonEmpty => openShard(spec, key)
+          case Some(_)                                       =>
+            ZIO.fail(
+              new IllegalArgumentException(
+                s"routing key extraction returned a blank key for ${event.getClass.getSimpleName}"
+              )
+            )
           case None =>
-            ZIO.succeed(primaryStoreFor(spec))
+            // `routeToAll`, and a source without a binding, have no key of their
+            // own. A cross-entity projection still places such an event in a
+            // shard: the key the scope's `routedBy` extractor reads from it, or
+            // else its entity ID (see `Projection.routeToAll`). A throwing
+            // extractor falls back the same way.
+            ZIO
+              .attempt(extractor(event))
+              .map(key => if (key != null && key.trim.nonEmpty) key else ctx.entityId)
+              .catchAll(_ => ZIO.succeed(ctx.entityId))
+              .flatMap(key => openShard(spec, key))
         }
       case _ =>
         // PerEntity or default: use primary
         ZIO.succeed(primaryStoreFor(spec))
     }
-  }
 
   private def applyAction[A](
     store: ProjectionStore[A],
