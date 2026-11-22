@@ -25,8 +25,15 @@ Key properties:
 The structural shape of `DbCodecDeriver` is:
 
 ```scala
-class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase)
-    extends Deriver[DbCodec]
+class DbCodecDeriver(
+  columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase
+) extends Deriver[DbCodec] {
+  def withFieldCodec[P, F](
+    parentTypeId: TypeId[P],
+    fieldName: String,
+    codec: DbCodec[F]
+  ): DbCodecDeriver
+}
 
 object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
   def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver
@@ -71,6 +78,56 @@ val widgetCodec     = Widget.schema.deriving(identityDeriver).derive
 ```scala mdoc
 widgetCodec.columns
 ```
+
+## Field codec overrides
+
+A `given DbCodec[FieldType]` in scope is **not** consulted for a record field. Derivation follows the field's `Schema`; non-inline nested records, sequences, and maps use the JSONB fallback regardless of any called codec. This is the usual cause of `JSONB decode error: expected '{'` when a column such as a pgvector embedding stores text like `[1,2,3]`.
+
+Register the field codec explicitly with `withFieldCodec`:
+
+```scala mdoc:reset
+import zio.blocks.schema.Schema
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
+
+case class Embedding(values: List[Double])
+object Embedding { implicit val schema: Schema[Embedding] = Schema.derived }
+
+case class RowDetail(id: Int, embedding: Embedding)
+object RowDetail { implicit val schema: Schema[RowDetail] = Schema.derived }
+
+val embeddingCodec: DbCodec[Embedding] =
+  DbCodec[String].transform[Embedding] { text =>
+    Embedding(text.stripPrefix("[").stripSuffix("]").split(",").toList.map(_.toDouble))
+  }(e => e.values.mkString("[", ",", "]"))
+
+val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[RowDetail], "embedding", embeddingCodec)
+val rowCodec = RowDetail.schema.deriving(deriver).derive
+
+rowCodec.columns
+```
+
+`DbCodec.derivedWith` accepts the same field overrides through the `DerivationBuilder` API and is the more concise form:
+
+```scala mdoc:compile-only
+import _root_.zio
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
+
+val rowCodec: DbCodec[RowDetail] =
+  DbCodec.derivedWith[RowDetail](
+    _.instance(TypeId.of[RowDetail], "embedding", embeddingCodec)
+  )
+```
+
+Resolution order for a field is:
+
+1. `DbCodecDeriver.withFieldCodec` / `DbCodec.derivedWith` override for `(parent type, field name)`.
+2. `@Modifier.config("sql.inline", "true")` on a nested record (flatten into parent columns).
+3. JSONB for non-inline nested records, sequences, and maps.
+4. The normal single-column codec.
+
+Use this for driver-specific field types and for real SQL array columns (`DbCodec.arrayOf`); see [DbCodec](./db-codec.md#dbcodecarrayof--sql-array-columns).
 
 ## See Also
 

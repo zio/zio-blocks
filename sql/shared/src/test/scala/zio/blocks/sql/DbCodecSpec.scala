@@ -543,6 +543,26 @@ object DbCodecSpec extends ZIOSpecDefault {
 
   private val tagsJsonCodec = Tags.schema.deriving(JsonCodecDeriver).derive
 
+  /**
+   * Sentinel field codec: it never parses JSON, so any test that passes with it
+   * proves the JSONB fallback was bypassed.
+   */
+  private val sentinelTagsCodec: DbCodec[Tags] = new DbCodec[Tags] {
+    val columns: IndexedSeq[String] = IndexedSeq("value")
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Tags =
+      Tags(List("override"))
+
+    override def readValue(reader: DbResultReader, startIndex: Int): Tags =
+      Tags(List("override"))
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Tags): Unit =
+      writer.setString(startIndex, "override")
+
+    def toDbValues(value: Tags): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.DbString("override"))
+  }
+
   private val tagsStringCodec: DbCodec[Tags] =
     DbCodec[String].transform(json =>
       tagsJsonCodec.decode(json) match {
@@ -752,6 +772,29 @@ object DbCodecSpec extends ZIOSpecDefault {
           codec.toDbValues(WithCustomLines(8, List(CartLine("pear", 3)))) ==
             IndexedSeq(DbValue.DbInt(8), DbValue.DbString("[{\"title\":\"pear\",\"quantity\":3}]"))
         )
+      },
+      test("derivedWith uses a field codec override for a nested record field instead of JSONB") {
+        val codec = DbCodec.derivedWith[WithCustomTags](
+          _.instance(TypeId.of[WithCustomTags], "tags", sentinelTagsCodec)
+        )
+        val value = codec.readValue(
+          new RecordReader(Map("id" -> 1, "tags" -> "not-json")),
+          IndexedSeq("id", "tags")
+        )
+        assertTrue(
+          value == WithCustomTags(1, Tags(List("override"))),
+          codec.toDbValues(WithCustomTags(2, Tags(List("ignored")))) ==
+            IndexedSeq(DbValue.DbInt(2), DbValue.DbString("override"))
+        )
+      },
+      test("withFieldCodec uses the override for a nested record field instead of JSONB") {
+        val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[WithCustomTags], "tags", sentinelTagsCodec)
+        val codec   = WithCustomTags.schema.deriving(deriver).derive
+        val value   = codec.readValue(
+          new RecordReader(Map("id" -> 3, "tags" -> "not-json")),
+          IndexedSeq("id", "tags")
+        )
+        assertTrue(value == WithCustomTags(3, Tags(List("override"))))
       }
     ),
     suite("array codec")(

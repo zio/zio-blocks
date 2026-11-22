@@ -59,9 +59,59 @@ import zio.blocks.typeid.AnnotationArg
  * @see
  *   [[https://zioblocks.com/reference/sql/db-codec-deriver/ DbCodecDeriver]]
  */
-class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
+class DbCodecDeriver(
+  columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase,
+  private val fieldCodecOverrides: Map[(TypeId[?], String), DbCodec[?]] = Map.empty
+) extends Deriver[DbCodec] {
 
   private val SqlNullType = 0
+
+  /**
+   * Returns a new deriver that uses `codec` for the field `fieldName` of
+   * records whose type is `parentTypeId`, bypassing both the normal derived
+   * codec and the JSONB fallback for nested records/sequences.
+   *
+   * This is the supported override for a struct field whose column is not the
+   * default representation — for example a pgvector `Embedding`, a real SQL
+   * array, or any driver-specific type. A `given DbCodec[FieldType]` in scope
+   * is **not** consulted automatically for fields; register it here (or with
+   * `DbCodec.derivedWith(...instance(...))`) instead.
+   *
+   * {{{
+   * import zio.blocks.schema.Schema
+   * import zio.blocks.typeid.TypeId
+   *
+   * case class Embedding(values: List[Double])
+   * object Embedding {
+   *   implicit val schema: Schema[Embedding] = Schema.derived
+   *   val codec: DbCodec[Embedding] =
+   *     DbCodec[String].transform[Embedding] { text =>
+   *       Embedding(text.stripPrefix("[").stripSuffix("]").split(",").toList.map(_.toDouble))
+   *     }(e => e.values.mkString("[", ",", "]"))
+   * }
+   *
+   * case class RowDetail(id: Int, embedding: Embedding)
+   * object RowDetail { implicit val schema: Schema[RowDetail] = Schema.derived }
+   *
+   * val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[RowDetail], "embedding", Embedding.codec)
+   * val codec   = Schema.derived[RowDetail].deriving(deriver).derive
+   * }}}
+   */
+  def withFieldCodec[P, F](parentTypeId: TypeId[P], fieldName: String, codec: DbCodec[F]): DbCodecDeriver =
+    new DbCodecDeriver(
+      columnNameMapper,
+      fieldCodecOverrides.updated((parentTypeId, fieldName), codec)
+    )
+
+  private[sql] def withFieldCodecAny(
+    parentTypeId: TypeId[?],
+    fieldName: String,
+    codec: DbCodec[?]
+  ): DbCodecDeriver =
+    new DbCodecDeriver(
+      columnNameMapper,
+      fieldCodecOverrides.updated((parentTypeId, fieldName), codec)
+    )
 
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
@@ -175,11 +225,16 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         val isRecordField = field.value.isRecord
         val shouldInline  = isRecordField && (isFieldInline || inlineAllRecordFields)
 
-        if (isRecordField && !shouldInline) {
-          val boundReflect = toBoundReflect(field.value)
-          fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
-        } else {
-          fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
+        fieldCodecOverrides.get((typeId, field.name)) match {
+          case Some(overrideCodec) =>
+            fieldCodecs(idx) = overrideCodec.asInstanceOf[DbCodec[Any]]
+          case None =>
+            if (isRecordField && !shouldInline) {
+              val boundReflect = toBoundReflect(field.value)
+              fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
+            } else {
+              fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
+            }
         }
       }
       idx += 1
@@ -786,7 +841,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 }
 
 /** The deriver that maps column names with [[SqlNameMapper.SnakeCase]]. */
-object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
+object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase, Map.empty) {
 
   /** Returns a deriver that maps column names with `mapper`. */
   def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver =

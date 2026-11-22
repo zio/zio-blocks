@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema, SchemaError}
-import zio.blocks.schema.derive.DerivationBuilder
+import zio.blocks.schema.derive.{DerivationBuilder, InstanceOverrideByTypeAndTermName}
 import zio.blocks.schema.json.JsonCodec
 
 /**
@@ -263,13 +263,37 @@ object DbCodec extends DbCodecOpaquePriority {
    * // Vector(DbString(MUG-1), DbString(kitchen,gift))
    * }}}
    *
+   * Field overrides are forced when `derivedWith` is called, so they should be
+   * constant codecs.
+   *
    * @see
    *   [[https://zioblocks.com/reference/sql/db-codec/ DbCodec]]
    */
   inline def derivedWith[A](
     configure: DerivationBuilder[DbCodec, A] => DerivationBuilder[DbCodec, A]
-  ): DbCodec[A] =
-    configure(builder[A]).derive
+  ): DbCodec[A] = {
+    val configured = configure(builder[A])
+    val overrides  = configured.instanceOverrides
+    var deriver    = configured.deriver
+    var i          = 0
+    while (i < overrides.length) {
+      overrides(i) match {
+        case InstanceOverrideByTypeAndTermName(parentTypeId, termName, instance) =>
+          deriver = deriver match {
+            case d: DbCodecDeriver =>
+              d.withFieldCodecAny(
+                parentTypeId,
+                termName,
+                instance.force.asInstanceOf[DbCodec[?]]
+              )
+            case d => d
+          }
+        case _ => ()
+      }
+      i += 1
+    }
+    configured.copy(deriver = deriver).derive
+  }
 
   /**
    * Returns a one-column codec that stores `A` as JSON text through

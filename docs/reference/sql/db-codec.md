@@ -190,6 +190,8 @@ productCodec.columns
 productCodec.columnCount
 ```
 
+The `DbCodec.derivedWith`/`DbCodecDeriver.withFieldCodec` form of `instance(parentTypeId, fieldName, codec)` overrides both single-column fields and nested record/sequence fields; a nested record field no longer silently falls back to JSONB when such an override is supplied. The equivalent deriver-level form is `DbCodecDeriver.withFieldCodec(parentTypeId, fieldName, codec)`, which can be passed to `Schema#deriving` directly. (The type-level `instance(typeId, codec)` overload still uses normal derivation for nested record fields.) A `given DbCodec[FieldType]` in scope is not consulted automatically for a field — see [DbCodecDeriver](./db-codec-deriver.md#field-codec-overrides).
+
 ### `DbCodec.jsonb` — JSONB column codec
 
 `DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonCodec[A]` for the encode/decode pair, and one accepting explicit functions.
