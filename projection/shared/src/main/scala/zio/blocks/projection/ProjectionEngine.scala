@@ -329,12 +329,51 @@ final class ProjectionEngine private[projection] (
             } else InMemoryProjectionStore.make[A]
           }
           create.flatMap { newStore =>
-            shardsRef.update { outer2 =>
-              val inner = outer2.getOrElse(specName, Map.empty)
-              outer2.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
-            }.as(newStore)
+            ensureShardSchemaCurrent(spec, newStore) *>
+              shardsRef.update { outer2 =>
+                val inner = outer2.getOrElse(specName, Map.empty)
+                outer2.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
+              }
+                .as(newStore)
           }
       }
+    }
+  }
+
+  /**
+   * Validate a newly opened shard against the current schema hash.
+   *
+   * Shards are created lazily by routed writes and are not part of the primary
+   * schema-evolution rebuild. On first open the hash is recorded; on a later
+   * open an additive schema change is repaired with the registered migration
+   * shortcut, while any other mismatch fails the routed write instead of
+   * writing into a stale-schema shard. A full shard-registry rebuild is
+   * intentionally not attempted here (see
+   * `docs/reference/projection/migration.md`).
+   */
+  private[projection] def ensureShardSchemaCurrent[A](
+    spec: Projection[A],
+    store: ProjectionStore[A]
+  ): Task[Unit] = {
+    val current = currentHashFor(spec)
+    store.getSchemaHash.flatMap {
+      case None =>
+        store.updateSchemaHash(current)
+      case Some(stored) if stored == current =>
+        ZIO.unit
+      case Some(stored) =>
+        migrationRegistry.get.flatMap { regs =>
+          SchemaEvolution.tryMigrationShortcutForSpec(spec, store, regs.get(spec.name), current).flatMap {
+            case true  => ZIO.unit
+            case false =>
+              ZIO.fail(
+                new IllegalStateException(
+                  s"shard schema hash mismatch for ${spec.name}: stored $stored, current $current. " +
+                    "Shard stores are not rebuilt automatically; delete the shard databases or run a manual rebuild."
+                )
+              )
+          }
+        }
     }
   }
 
@@ -369,6 +408,11 @@ final class ProjectionEngine private[projection] (
    * In-memory shards only exist in [[shardsRef]]; once evicted they are
    * unreachable. SQLite shards are opened only when the backing file already
    * exists, so a read cannot create an empty shard database.
+   *
+   * A shard that exists on disk is validated with [[ensureShardSchemaCurrent]]
+   * before it is returned, using the same policy as a routed write. A
+   * stale-schema shard therefore fails the read instead of returning stale
+   * rows, and is not handed back to be cached in [[shardsRef]].
    */
   private def shardStoreForRead[A](spec: Projection[A], routingKey: String): Task[Option[ProjectionStore[A]]] = {
     val primary = primaryStores.get(spec.name)
@@ -384,7 +428,9 @@ final class ProjectionEngine private[projection] (
             implicit val schema: Schema[A] = spec.schema
             implicit val ep: EntityPath[A] =
               spec.entityPath.getOrElse(EntityPath[A](spec.name, "id"))
-            SQLiteProjectionStore.make[A](path, cache).map(Some(_))
+            SQLiteProjectionStore
+              .make[A](path, cache)
+              .flatMap(store => ensureShardSchemaCurrent(spec, store).as(Some(store)))
         }
     }
   }
@@ -762,7 +808,9 @@ final class ProjectionEngine private[projection] (
    * which looks rows up by entity id across the primary and warm shards. If the
    * shard does not exist, an empty chunk is returned without creating an empty
    * shard database. In-memory shards that are not currently cached are
-   * unreachable; SQLite shards are reopened from disk when their file exists.
+   * unreachable; SQLite shards are reopened from disk when their file exists. A
+   * reopened shard is schema-validated before its rows are returned, so a
+   * stale-schema shard fails the read rather than yielding stale rows.
    *
    * @param spec
    *   the cross-entity projection to read
