@@ -690,6 +690,66 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("shard schema evolution")(
+      test("a freshly created shard records the current schema hash") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _      <- engine.start
+            _      <- hub.append("r1", RepoCreated("alice", "repo-1"))
+            _      <- Live.live(ZIO.sleep(300.millis))
+            shards <- engine.shardsMap
+            hash   <- shards("users")("alice").getSchemaHash
+          } yield assertTrue(hash.contains(SchemaHash.compute[User]))
+        }
+      },
+      test("ensureShardSchemaCurrent stamps a shard with no stored hash") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            _      <- engine.ensureShardSchemaCurrent(spec, store)
+            hash   <- store.getSchemaHash
+          } yield assertTrue(hash.contains(SchemaHash.compute[User]))
+        }
+      },
+      test("ensureShardSchemaCurrent rejects a stale shard instead of accepting it") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            _      <- store.updateSchemaHash("stale")
+            result <- engine.ensureShardSchemaCurrent(spec, store).exit
+            hash   <- store.getSchemaHash
+          } yield assertTrue(result.isFailure, hash.contains("stale"))
+        }
+      }
+    ),
     suite("routing failures")(
       test("extractor failure fails the event without writing to the primary store") {
         ZIO.scoped {

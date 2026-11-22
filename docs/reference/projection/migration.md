@@ -46,6 +46,8 @@ object SchemaHash {
 - The fingerprints are the same: nothing happens.
 - They differ: the rows are out of date. The engine takes the [shortcut](#adding-fields-without-a-rebuild--registermigration) if one is registered and fits, and otherwise [rebuilds](#full-rebuild) the rows. With [`lazyRebuild`](#rebuilding-later--lazyrebuild) on, it only marks the projection for a later rebuild.
 
+**Shards.** The fingerprint is kept per store, so each shard of a cross-entity projection has one too. A shard is checked when the engine first opens it, not at `start`: a new shard stores the current fingerprint; a shard whose fingerprint matches opens normally; a shard whose fingerprint differs takes the same `addField` shortcut when one is registered, and otherwise the routed write fails with a shard schema hash mismatch. The watermark stays on the primary store; shards have none of their own.
+
 The fingerprint changes when you:
 
 - rename the row class;
@@ -306,7 +308,7 @@ An event that cannot be decoded fails the whole read:
 These cases are not handled yet:
 
 - **Several sources.** A projection that reads several event stores keeps one watermark for all of them, although each store numbers its events from 1. An event appended to one source while the application is stopped can fall below the watermark set by another source, and is then never applied. A full rebuild replays only the first source, and the events of the others below the watermark are lost; deleting the store file does not help.
-- **Cross-entity projections.** A full rebuild writes every row to the main file and leaves the shard files as they were. Later events for those rows fail with `no column named ...`, and queries return the stale rows of the main file. To rebuild such a projection, stop the application and delete the main file and its shard files.
+- **Cross-entity projections.** A full rebuild writes every row to the main file and leaves the shard files as they were. Each shard is checked the next time the engine opens it: a matching fingerprint opens normally, an `addField` migration is applied, and any other change fails the routed write with a shard schema hash mismatch instead of writing to a stale-schema file. There is no shard registry that rebuilds every shard automatically. To recover from a non-additive change, stop the application, delete the main file and its shard files, and let the engine rebuild from the event store; shards created before the fingerprint check existed are stamped with the current fingerprint on first open, so drift from before the upgrade is not detected.
 - **Engines without event stores.** An engine created with `make` or `makeWithConfig` has no event stores, so it cannot rebuild: it logs `no EventStore for source ...`, keeps the old fingerprint, and queries fail on the changed table.
 - **`TestEngine`.** It starts the engine inside `make`, on new in-memory stores, so a test can neither store an old fingerprint first nor register a migration before `start`. Test a migration with two engines in a row on SQLite files, as the examples on this page do.
 
