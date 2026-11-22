@@ -21,6 +21,8 @@ trait ProjectionStore[A] {
   def delete(entityId: String): Task[Unit]
   def truncate: Task[Unit]
   def findById(entityId: String): Task[Option[A]]
+  def findAll: Task[Chunk[A]]
+  def findAllIfMaterialized: Task[Option[Chunk[A]]]
 
   // Watermark and schema hash
   def getLastProcessedSeq: Task[Long]

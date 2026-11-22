@@ -435,6 +435,36 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
         }
       }
 
+  def findAll: Task[Chunk[A]] =
+    ensureTables *>
+      cache.get(path).flatMap { tx =>
+        ZIO.attemptBlocking {
+          tx.connect {
+            val con  = summon[DbCon]
+            val conn = con.connection
+            val sql  = s"SELECT $allCols FROM $validatedTblName ORDER BY $validatedIdColumn ASC"
+            val ps   = conn.prepareStatement(sql)
+            try {
+              val rs   = ps.executeQuery()
+              val rows = scala.collection.mutable.ListBuffer.empty[A]
+              try {
+                while (rs.next()) rows += codec.readValue(rs.reader, 1)
+              } finally rs.close()
+              Chunk.fromIterable(rows)
+            } finally ps.close()
+          }
+        }
+      }
+
+  override def findAllIfMaterialized: Task[Option[Chunk[A]]] =
+    ZIO
+      .attempt(java.nio.file.Files.exists(java.nio.file.Paths.get(path)))
+      .catchAll(_ => ZIO.succeed(false))
+      .flatMap {
+        case false => ZIO.none
+        case true  => findAll.map(Some(_))
+      }
+
   /** Reads the watermark from `_projection_meta`, or `0` if it has no row. */
   def getLastProcessedSeq: Task[Long] =
     ensureTables *>
