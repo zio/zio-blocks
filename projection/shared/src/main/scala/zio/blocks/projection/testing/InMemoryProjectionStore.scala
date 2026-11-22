@@ -21,6 +21,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.projection.{EntityPath, FieldUpdate, ProjectionStore}
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.sql.SqlNameMapper
+import scala.collection.immutable.VectorMap
 
 /**
  * A [[zio.blocks.projection.ProjectionStore]] kept in memory, for tests.
@@ -52,7 +53,7 @@ import zio.blocks.sql.SqlNameMapper
  *   its ID field
  */
 class InMemoryProjectionStore[A: Schema: EntityPath] private (
-  private val mapRef: Ref[Map[String, A]],
+  private val mapRef: Ref[VectorMap[String, A]],
   private val seqRef: Ref[Long],
   private val hashRef: Ref[Option[String]]
 ) extends ProjectionStore[A] {
@@ -389,11 +390,14 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
 
   /** Removes every row, and keeps the watermark and the schema hash. */
   def truncate: Task[Unit] =
-    mapRef.set(Map.empty)
+    mapRef.set(VectorMap.empty)
 
   /** Reads the row of `entityId`. */
   def findById(entityId: String): Task[Option[A]] =
     mapRef.get.map(_.get(entityId))
+
+  def findAll: Task[Chunk[A]] =
+    mapRef.get.map(m => Chunk.fromIterable(m.values))
 
   /** Reads the watermark, `0` in a new store. */
   def getLastProcessedSeq: Task[Long] =
@@ -420,7 +424,7 @@ object InMemoryProjectionStore {
    */
   def make[A: Schema: EntityPath]: Task[InMemoryProjectionStore[A]] =
     for {
-      map  <- Ref.make(Map.empty[String, A])
+      map  <- Ref.make(VectorMap.empty[String, A])
       seq  <- Ref.make(0L)
       hash <- Ref.make(Option.empty[String])
     } yield new InMemoryProjectionStore[A](map, seq, hash)
@@ -442,7 +446,7 @@ object InMemoryProjectionStore {
     hash: Option[String] = None
   ): Task[InMemoryProjectionStore[A]] =
     for {
-      mapRef  <- Ref.make(map)
+      mapRef  <- Ref.make(VectorMap.from(map))
       seqRef  <- Ref.make(seq)
       hashRef <- Ref.make(hash)
     } yield new InMemoryProjectionStore[A](mapRef, seqRef, hashRef)

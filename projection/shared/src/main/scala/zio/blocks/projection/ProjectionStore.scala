@@ -130,6 +130,33 @@ trait ProjectionStore[A] {
   def findById(entityId: String): Task[Option[A]]
 
   /**
+   * Read every entity in the store.
+   *
+   * The result is a materialized [[zio.blocks.chunk.Chunk]]; callers that need
+   * bounded memory should page through [[findById]] or add a store-specific
+   * scan API. Ordering is deterministic but implementation-defined:
+   * [[zio.blocks.projection.testing.InMemoryProjectionStore]] returns insertion
+   * order (an upsert keeps the original position, a delete followed by a
+   * re-insert moves to the end), while `SQLiteProjectionStore` orders by the
+   * entity id column.
+   */
+  def findAll: Task[Chunk[A]]
+
+  /**
+   * Read every entity only if the backing storage has already been
+   * materialized.
+   *
+   * Returns `None` when the store has never written anything, without creating
+   * the backing table or database file. This is the lookup-only path used by
+   * `ProjectionEngine.queryShard` so that reading an unwritten shard does not
+   * leave an empty shard database behind.
+   *
+   * The default implementation delegates to [[findAll]], which is appropriate
+   * for stores whose backing storage always exists in memory.
+   */
+  def findAllIfMaterialized: Task[Option[Chunk[A]]] = findAll.map(Some(_))
+
+  /**
    * The watermark: the sequence number of the last event applied to the rows,
    * or `0` if none has been applied yet. The engine reads it at startup, to
    * continue after that event.

@@ -171,6 +171,61 @@ object InMemorySpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("findAll")(
+      test("findAll returns empty chunk for an empty store") {
+        withStore[User] { store =>
+          store.findAll.map(rows => assertTrue(rows.isEmpty))
+        }
+      },
+      test("findAll preserves insertion order") {
+        withStore[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val c = User("c", "C", "c@b.com", 3L, 3L, active = true)
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.insert(c)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b, c))
+        }
+      },
+      test("upsert keeps the original insertion position") {
+        withStore[User] { store =>
+          val a  = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b  = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val b2 = b.copy(name = "B2")
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.upsert(b2)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b2))
+        }
+      },
+      test("delete then re-insert moves the row to the end") {
+        withStore[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.delete("a")
+            _    <- store.insert(a)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(b, a))
+        }
+      },
+      test("truncate empties findAll") {
+        withStore[User] { store =>
+          for {
+            _    <- store.insert(User("a", "A", "a@b.com", 1L, 1L, active = true))
+            _    <- store.truncate
+            rows <- store.findAll
+          } yield assertTrue(rows.isEmpty)
+        }
+      }
+    ),
     suite("delete and truncate")(
       test("delete removes existing") {
         withStore[User] { store =>

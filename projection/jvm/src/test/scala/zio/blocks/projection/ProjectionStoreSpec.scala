@@ -237,6 +237,63 @@ object ProjectionStoreSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("findAll")(
+      test("findAll orders rows by entity id") {
+        withStoreSimple[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val c = User("c", "C", "c@b.com", 3L, 3L, active = true)
+          for {
+            _    <- store.insert(b)
+            _    <- store.insert(a)
+            _    <- store.insert(c)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b, c))
+        }
+      },
+      test("findAll reflects upserts") {
+        withStoreSimple[User] { store =>
+          val u  = User("u1", "Old", "old@b.com", 1L, 1L, active = true)
+          val u2 = u.copy(name = "New", age = 42L)
+          for {
+            _    <- store.insert(u)
+            _    <- store.upsert(u2)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(u2))
+        }
+      },
+      test("findAll returns empty chunk after truncate") {
+        withStoreSimple[User] { store =>
+          for {
+            _    <- store.insert(User("u1", "A", "a@b.com", 1L, 1L, active = true))
+            _    <- store.truncate
+            rows <- store.findAll
+          } yield assertTrue(rows.isEmpty)
+        }
+      },
+      test("findAllIfMaterialized does not create an unmaterialized database") {
+        ZIO.scoped {
+          for {
+            dir    <- ZIO.attempt(java.nio.file.Files.createTempDirectory("proj-unmaterialized"))
+            path    = dir.resolve("never.db").toString
+            cache  <- TransactorCache.make()
+            store  <- SQLiteProjectionStore.make[User](path, cache)
+            rows   <- store.findAllIfMaterialized
+            exists <- ZIO.attempt(java.nio.file.Files.exists(java.nio.file.Paths.get(path)))
+            _      <- ZIO.attempt(java.nio.file.Files.deleteIfExists(dir)).ignore
+          } yield assertTrue(rows.isEmpty, !exists)
+        }
+      },
+      test("findAllIfMaterialized returns rows after a write") {
+        withStoreSimple[User] { store =>
+          val u = User("u1", "A", "a@b.com", 1L, 1L, active = true)
+          for {
+            _    <- store.insert(u)
+            rows <- store.findAllIfMaterialized
+          } yield assertTrue(rows.contains(Chunk(u)))
+        }
+      }
+    ),
     suite("upsert")(
       test("upsert inserts when not exists") {
         withStoreSimple[User] { store =>
