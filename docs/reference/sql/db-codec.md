@@ -227,6 +227,8 @@ codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
 ```
 
+A decode failure reports the offending column, the schema error (including its path), and a short escaped prefix of the input, for example `JSONB decode error at column 'embedding' (index 2): ...; input: "[1.0,2.0..."`. This makes the common "a driver-specific column is being decoded as JSONB" mistake identifiable from the exception alone. Callers that can propagate failure as a value can use the in-package `decodeJsonbEither` step instead.
+
 Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonCodec`:
 
 ```scala mdoc

@@ -202,10 +202,55 @@ object DbCodec extends DbCodecOpaquePriority {
   // Matches java.sql.Types.NULL (0); kept local so shared sources stay free of java.sql.
   private val SqlNullType = 0
 
-  private def decodeJsonb[A](input: String)(using jsonCodec: JsonCodec[A]): A =
+  private def decodeJsonb[A](input: String, column: String, index: Option[Int])(using jsonCodec: JsonCodec[A]): A =
     decodeJsonbEither[A](input) match {
       case Right(value) => value
-      case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
+      case Left(err)    => throw jsonbDecodeError(input, column, index, err)
+    }
+
+  private def jsonbDecodeError(
+    input: String,
+    column: String,
+    index: Option[Int],
+    err: SchemaError
+  ): RuntimeException = {
+    val location = index match {
+      case Some(i) => s"column '$column' (index $i)"
+      case None    => s"column '$column'"
+    }
+    new RuntimeException(
+      s"JSONB decode error at $location: $err; input: ${previewInput(input)}"
+    )
+  }
+
+  /**
+   * Renders a short, escaped prefix of a JSONB input for error messages. Keeps
+   * the message single-line and bounded regardless of payload size.
+   */
+  private def previewInput(input: String, maxChars: Int = 80): String =
+    if (input == null) "null"
+    else {
+      val sb        = new StringBuilder("\"")
+      var i         = 0
+      var truncated = false
+      while (i < input.length && !truncated) {
+        if (sb.length >= maxChars) truncated = true
+        else {
+          input.charAt(i) match {
+            case '"'                           => sb.append("\\\"")
+            case '\\'                          => sb.append("\\\\")
+            case '\n'                          => sb.append("\\n")
+            case '\r'                          => sb.append("\\r")
+            case '\t'                          => sb.append("\\t")
+            case c if c < ' ' || c == '\u007f' => sb.append(f"\\u${c.toInt}%04x")
+            case c                             => sb.append(c)
+          }
+          i += 1
+        }
+      }
+      if (i < input.length) sb.append("...")
+      sb.append("\"")
+      sb.toString
     }
 
   /** Decodes a JSON column value, returning the decode error as a `Left`. */
@@ -315,7 +360,25 @@ object DbCodec extends DbCodecOpaquePriority {
    * }}}
    */
   def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A] =
-    DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
+    new DbCodec[A] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        val label = columnLabels.head
+        decodeJsonb(reader.getString(label), label, None)
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): A = {
+        val label = reader.columnLabel(startIndex)
+        decodeJsonb(reader.getString(startIndex), label, Some(startIndex))
+      }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+        writer.setString(startIndex, jsonCodec.encodeToString(value))
+
+      def toDbValues(value: A): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbString(jsonCodec.encodeToString(value)))
+    }
 
   /**
    * Returns a one-column codec that stores `A` as the text `encode` returns and
@@ -329,11 +392,39 @@ object DbCodec extends DbCodecOpaquePriority {
    * `NULL` reads as `None`.
    */
   def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decodeJsonb[A](str))
-    )(
-      _.map(value => jsonCodec.encodeToString(value))
-    )
+    new DbCodec[Option[A]] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) None
+        else {
+          val input = reader.getString(label)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonb(input, label, None))
+        }
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+        if (reader.isNull(startIndex)) None
+        else {
+          val input = reader.getString(startIndex)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonb(input, reader.columnLabel(startIndex), Some(startIndex)))
+        }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+        value match {
+          case Some(v) => writer.setString(startIndex, jsonCodec.encodeToString(v))
+          case None    => writer.setNull(startIndex, SqlNullType)
+        }
+
+      def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+        value match {
+          case Some(v) => IndexedSeq(DbValue.DbString(jsonCodec.encodeToString(v)))
+          case None    => IndexedSeq(DbValue.DbNull)
+        }
+    }
 
   /**
    * Returns the nullable form of `jsonb(encode, decode)`: `None` is stored as

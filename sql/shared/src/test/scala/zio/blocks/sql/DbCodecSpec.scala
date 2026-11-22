@@ -533,6 +533,12 @@ object DbCodecSpec extends ZIOSpecDefault {
     }
   }
 
+  private def thrown(thunk: => Any): Throwable =
+    scala.util.Try(thunk) match {
+      case scala.util.Failure(t) => t
+      case scala.util.Success(v) => throw new AssertionError(s"expected an exception, got $v")
+    }
+
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
     s.deriving(DbCodecDeriver).derive
 
@@ -1187,6 +1193,57 @@ object DbCodecSpec extends ZIOSpecDefault {
         }
 
         assertTrue(codec.readValue(reader, IndexedSeq("value")) == JsonPayload("hello", 2))
+      },
+      test("jsonb decode error names the column, path, and input prefix") {
+        val codec     = DbCodec.jsonb[JsonPayload]
+        val schemaErr = DbCodec.decodeJsonbEither[JsonPayload]("not-json").left.toOption.get.toString
+        val error     = thrown {
+          codec.readValue(
+            new SingleStringColumnReader("embedding", "not-json"),
+            IndexedSeq("embedding")
+          )
+        }
+        assertTrue(
+          error.getMessage.startsWith("JSONB decode error at column 'embedding'"),
+          error.getMessage.contains(schemaErr),
+          error.getMessage.contains("input: \"not-json\"")
+        )
+      },
+      test("jsonb decode error includes the 1-based column index on the positional path") {
+        val codec  = DbCodec.jsonb[JsonPayload]
+        val reader = new RecordReader(
+          scala.collection.immutable.ListMap("id" -> 1, "payload" -> "not-json")
+        )
+        val error = thrown(codec.readValue(reader, 2))
+        assertTrue(error.getMessage.contains("column 'payload' (index 2)"))
+      },
+      test("jsonb decode error escapes and truncates the input preview") {
+        val codec = DbCodec.jsonb[JsonPayload]
+        val input = "a\n" + ("b" * 200)
+        val error = thrown {
+          codec.readValue(new SingleStringColumnReader("payload", input), IndexedSeq("payload"))
+        }
+        assertTrue(
+          error.getMessage.contains("input: \"a\\nb"),
+          error.getMessage.contains("...")
+        )
+      },
+      test("jsonbOption decode error names the column") {
+        val codec = DbCodec.jsonbOption[JsonPayload]
+        val error = thrown {
+          codec.readValue(
+            new SingleStringColumnReader("payload", "not-json"),
+            IndexedSeq("payload")
+          )
+        }
+        assertTrue(error.getMessage.startsWith("JSONB decode error at column 'payload'"))
+      },
+      test("jsonbOption returns None when NULL is only reported after the read") {
+        val codec = DbCodec.jsonbOption[JsonPayload]
+        assertTrue(
+          codec.readValue(new SingleStringColumnReader("payload", null), IndexedSeq("payload")) == None,
+          codec.readValue(new SingleStringColumnReader("payload", null), 1) == None
+        )
       }
     ),
     suite("inline field flattening")(

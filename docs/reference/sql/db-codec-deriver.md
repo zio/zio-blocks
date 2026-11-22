@@ -81,7 +81,7 @@ widgetCodec.columns
 
 ## Field codec overrides
 
-A `given DbCodec[FieldType]` in scope is **not** consulted for a record field. Derivation follows the field's `Schema`; non-inline nested records, sequences, and maps use the JSONB fallback regardless of any called codec. This is the usual cause of `JSONB decode error: expected '{'` when a column such as a pgvector embedding stores text like `[1,2,3]`.
+A `given DbCodec[FieldType]` in scope is **not** consulted for a record field. Derivation follows the field's `Schema`; non-inline nested records, sequences, and maps use the JSONB fallback regardless of any called codec. This is the usual cause of `JSONB decode error: expected '{'` when a column such as a pgvector embedding stores text like `[1,2,3]`. Forgetting the override now produces an error naming the field, the schema path, and a prefix of the offending value.
 
 Register the field codec explicitly with `withFieldCodec`:
 
