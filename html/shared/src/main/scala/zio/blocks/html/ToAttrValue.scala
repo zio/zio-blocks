@@ -17,17 +17,13 @@
 package zio.blocks.html
 
 /**
- * Converts a value to attribute text for the attribute positions of
- * `html"..."`. The `String`, `Char`, `Iterable[String]`, [[Js]] and [[Css]]
- * instances HTML-escape the text. The interpolator then parses the text back
- * and rendering escapes it again, so an `&` in a value renders as `&amp;amp;`,
- * which is a known bug.
+ * Typeclass for converting values to HTML attribute values. Escaping of
+ * attribute values is handled uniformly at render time by [[Dom]].
  */
 trait ToAttrValue[-A] {
 
   /**
-   * Converts the value to the text of an HTML attribute value, escaping it
-   * where the type can carry markup.
+   * Converts the value to the text of an HTML attribute value.
    */
   def toAttrValue(a: A): String
 }
@@ -41,11 +37,10 @@ object ToAttrValue {
   def apply[A](implicit ev: ToAttrValue[A]): ToAttrValue[A] = ev
 
   /**
-   * Renders a `String` with `&`, `<`, `>`, `"` and `'` replaced by character
-   * references.
+   * Renders a `String` value. Escaping is handled at render time by [[Dom]].
    */
   implicit val stringToAttrValue: ToAttrValue[String] = new ToAttrValue[String] {
-    def toAttrValue(a: String): String = Escape.html(a)
+    def toAttrValue(a: String): String = a
   }
 
   /** Renders an `Int` in decimal, with no escaping needed. */
@@ -71,21 +66,21 @@ object ToAttrValue {
     def toAttrValue(a: Boolean): String = a.toString
   }
 
-  /** Renders a `Char` as a one-character string, escaped like a `String`. */
+  /** Renders a `Char` as a one-character string. */
   implicit val charToAttrValue: ToAttrValue[Char] = new ToAttrValue[Char] {
-    def toAttrValue(a: Char): String = Escape.html(a.toString)
+    def toAttrValue(a: Char): String = a.toString
   }
 
-  /** Renders the source text of a [[Js]] value, escaped like a `String`. */
+  /** Renders the source text of a [[Js]] value. */
   implicit val jsToAttrValue: ToAttrValue[Js] = new ToAttrValue[Js] {
-    def toAttrValue(a: Js): String = Escape.html(a.value)
+    def toAttrValue(a: Js): String = a.value
   }
 
   /**
-   * Renders a [[Css]] value with its `render` text, escaped like a `String`.
+   * Renders a [[Css]] value with its `render` text.
    */
   implicit val cssToAttrValue: ToAttrValue[Css] = new ToAttrValue[Css] {
-    def toAttrValue(a: Css): String = Escape.html(a.render)
+    def toAttrValue(a: Css): String = a.render
   }
 
   /**
@@ -101,8 +96,7 @@ object ToAttrValue {
     }
 
   /**
-   * Renders each string with the escaping of a `String` and joins them with a
-   * single space.
+   * Renders each string and joins them with a single space.
    */
   implicit def iterableStringToAttrValue: ToAttrValue[Iterable[String]] =
     new ToAttrValue[Iterable[String]] {
@@ -112,7 +106,7 @@ object ToAttrValue {
         var sep = false
         while (it.hasNext) {
           if (sep) sb.append(' ')
-          sb.append(Escape.html(it.next()))
+          sb.append(it.next())
           sep = true
         }
         sb.toString
