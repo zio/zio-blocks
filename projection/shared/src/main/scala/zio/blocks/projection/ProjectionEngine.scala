@@ -424,12 +424,14 @@ final class ProjectionEngine private[projection] (
     ctx: ProjectionContext
   ): Task[Unit] =
     action match {
-      case ProjectionAction.Insert(v)    => store.insert(v)
-      case ProjectionAction.Upsert(v)    => store.upsert(v)
-      case ProjectionAction.Update(mods) => store.updateFields(ctx.entityId, mods)
-      case ProjectionAction.Delete       => store.delete(ctx.entityId)
-      case ProjectionAction.Truncate     => store.truncate
-      case ProjectionAction.Noop         => ZIO.unit
+      case ProjectionAction.Insert(v)                           => store.insert(v)
+      case ProjectionAction.Upsert(v)                           => store.upsert(v)
+      case ProjectionAction.Update(mods)                        => store.updateFields(ctx.entityId, mods)
+      case ProjectionAction.AppendField(entityId, field, value) =>
+        store.updateFields(entityId, Chunk(FieldUpdate.Append(field, value)))
+      case ProjectionAction.Delete   => store.delete(ctx.entityId)
+      case ProjectionAction.Truncate => store.truncate
+      case ProjectionAction.Noop     => ZIO.unit
     }
 
   private def processBatch[A](

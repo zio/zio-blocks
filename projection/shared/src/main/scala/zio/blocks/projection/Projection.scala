@@ -531,6 +531,15 @@ final class HandlerBuilder[E, A] private[projection] (
   /** Same as `updateWithField(fieldName, f)`. */
   def updateField(fieldName: String)(f: (E, ProjectionContext) => Any): Projection[A] =
     updateWithField(fieldName, f)
+
+  /**
+   * Handler that atomically appends one element to a JSON-array field.
+   *
+   * The field must be a sequence-backed column (for example `List[String]`).
+   * Like `FieldUpdate.Append`, this is not idempotent.
+   */
+  def appendField(fieldName: String)(f: (E, ProjectionContext) => Any): Projection[A] =
+    add((e, ctx) => ProjectionAction.AppendField(ctx.entityId, fieldName, f(e, ctx)))
 }
 
 // ---------------------------------------------------------------------------

@@ -71,6 +71,20 @@ enum FieldUpdate {
    * `NULL` value as `value`.
    */
   case Min(field: String, value: Long) extends FieldUpdate
+
+  /**
+   * Append one element to a JSON-array-backed field (for example a
+   * `List[String]` column).
+   *
+   * On SQLite this is a single atomic
+   * `json_insert(COALESCE(col, '[]'), '$[#]', json(?))` update; on the
+   * in-memory store it appends to the field's `DynamicValue.Sequence`. The
+   * operation is not idempotent: replaying the same action appends the element
+   * again. Exactly-once event processing (the engine's watermark) makes this
+   * safe in normal operation; projections that must tolerate duplicate delivery
+   * should model the field as a set/map update instead once that is available.
+   */
+  case Append(field: String, value: Any) extends FieldUpdate
 }
 
 /**
@@ -156,4 +170,7 @@ object FieldUpdate {
   /** Same as `Min(field, value)`, using a column name written out in full. */
   def minValue(field: String, value: Long): FieldUpdate.Min =
     FieldUpdate.Min(field, value)
+
+  def append(field: String, value: Any): FieldUpdate.Append =
+    FieldUpdate.Append(field, value)
 }

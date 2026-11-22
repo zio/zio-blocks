@@ -40,6 +40,8 @@ trait ProjectionStore[A] {
 You rarely call these methods yourself: the engine does. You create a store to pass to `ProjectionEngine.makeWithStores`, or implement the trait for another database.
 :::
 
+`findAll` returns every row in a deterministic order: `InMemoryProjectionStore` keeps insertion order, and `SQLiteProjectionStore` orders by the entity ID column. `findAllIfMaterialized` is the same read, but returns `None` instead of creating a table or database file when the store has never been written; the engine uses it for `queryShard`, so reading a shard that does not exist leaves no empty file behind. Both calls materialize the whole result: there is no cursor or streaming variant, which suits bounded read models rather than unbounded tables.
+
 ## Motivation
 
 Events record everything that happened, but they answer questions such as "what is Alice's email now?" badly: you would have to replay all of her events every time. A read model keeps the current answer instead, one row per user, and updates it as events arrive.

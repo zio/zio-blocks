@@ -77,6 +77,12 @@ object InMemorySpec extends ZIOSpecDefault {
     implicit val entityPath: EntityPath[OptionalEntity] = EntityPath.derived[OptionalEntity]
   }
 
+  case class Tagged(@Modifier.id id: String, name: String, tags: List[String])
+  object Tagged {
+    implicit val schema: Schema[Tagged]         = Schema.derived[Tagged]
+    implicit val entityPath: EntityPath[Tagged] = EntityPath.derived[Tagged]
+  }
+
   case class UserCreated(name: String, email: String)
   object UserCreated {
     implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
@@ -459,6 +465,47 @@ object InMemorySpec extends ZIOSpecDefault {
             res <- store.findById("s1")
           } yield assertTrue(res.exists(_.count == 8L))
         }
+      }
+    ),
+    suite("append field")(
+      test("appends an element to an existing list") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", List("a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "b")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "b")))
+        }
+      },
+      test("appending to a missing row creates it with the appended element") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.updateFields("new", Chunk(FieldUpdate.Append("tags", "first")))
+            res <- store.findById("new")
+          } yield assertTrue(res.exists(_.tags == List("first")))
+        }
+      },
+      test("appending twice is not idempotent") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "a")))
+        }
+      },
+      test("unknown append field fails") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("missing", "x"))).either
+          } yield assertTrue(res.isLeft)
+        }
+      },
+      test("FieldUpdate.append helper constructs Append") {
+        val update = FieldUpdate.append("tags", "x")
+        assertTrue(update == FieldUpdate.Append("tags", "x"))
       }
     ),
     suite("meta operations")(

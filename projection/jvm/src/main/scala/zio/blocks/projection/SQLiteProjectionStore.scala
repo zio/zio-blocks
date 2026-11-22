@@ -19,6 +19,7 @@ package zio.blocks.projection
 import zio.*
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
+import zio.blocks.schema.json.Json
 import zio.blocks.sql.*
 
 /**
@@ -82,13 +83,20 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
 ) extends ProjectionStore[A] {
 
   private val entityPath = summon[EntityPath[A]]
-  private val table      = Table.derived[A]
-  private val tblName    = table.name
-  private val allCols    = table.columns.mkString(", ")
-  private val codec      = table.codec
-  private val idColumn   = SqlNameMapper.SnakeCase(entityPath.entityIdField)
-  private val metaTable  = "_projection_meta"
-  private val metaKey    = tblName
+  private val table      =
+    try Table.derived[A]
+    catch {
+      // sql.TableMetadata rejects sequence/map fields even though DbCodec
+      // derives them as one JSON text column. ProjectionTable mirrors the
+      // codec so AppendField has a column to update.
+      case _: UnsupportedOperationException => ProjectionTable.derived[A]
+    }
+  private val tblName   = table.name
+  private val allCols   = table.columns.mkString(", ")
+  private val codec     = table.codec
+  private val idColumn  = SqlNameMapper.SnakeCase(entityPath.entityIdField)
+  private val metaTable = "_projection_meta"
+  private val metaKey   = tblName
 
   private val validatedIdColumn = idColumn
   private val validatedTblName  = tblName
@@ -192,6 +200,33 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
     }
 
   /**
+   * Render a runtime value as a JSON literal so `json_insert` embeds a JSON
+   * string/number/boolean instead of relying on SQLite's implicit parameter
+   * conversion (which would turn a Boolean into 0/1).
+   */
+  private def jsonFragment(value: Any): String =
+    value match {
+      case null                      => "null"
+      case None                      => "null"
+      case Some(v)                   => jsonFragment(v)
+      case s: String                 => Json.String(s).print
+      case c: Char                   => Json.String(c.toString).print
+      case b: Boolean                => Json.Boolean(b).print
+      case b: java.lang.Boolean      => Json.Boolean(b.booleanValue).print
+      case i: Int                    => Json.Number(BigDecimal(i)).print
+      case l: Long                   => Json.Number(BigDecimal(l)).print
+      case sh: Short                 => Json.Number(BigDecimal(sh.toInt)).print
+      case by: Byte                  => Json.Number(BigDecimal(by.toInt)).print
+      case d: Double                 => Json.Number(BigDecimal(d)).print
+      case f: Float                  => Json.Number(BigDecimal(f.toDouble)).print
+      case bd: BigDecimal            => Json.Number(bd).print
+      case jbd: java.math.BigDecimal => Json.Number(BigDecimal(jbd)).print
+      case bi: BigInt                => Json.Number(BigDecimal(bi)).print
+      case jbi: java.math.BigInteger => Json.Number(BigDecimal(jbi)).print
+      case other                     => Json.String(other.toString).print
+    }
+
+  /**
    * Inserts `a` as a new row. A row with the same ID fails the task with a
    * `SQLiteException` from the unique index.
    */
@@ -289,6 +324,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             case FieldUpdate.Decrement(f, _) => validateField(f)
             case FieldUpdate.Max(f, _)       => validateField(f)
             case FieldUpdate.Min(f, _)       => validateField(f)
+            case FieldUpdate.Append(f, _)    => validateField(f)
           }
           ZIO.attemptBlocking {
             tx.transact {
@@ -318,6 +354,21 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                   try {
                     val pw = ps.paramWriter
                     writeAny(pw, 1, value)
+                    pw.setString(2, entityId)
+                    ps.executeUpdate()
+                    ()
+                  } finally ps.close()
+                case FieldUpdate.Append(field, value) =>
+                  val col = quoted(field)
+                  // json_insert(..., '$[#]', ?) appends to a JSON array. Treat
+                  // NULL or the empty-string default as an empty array; any
+                  // other malformed JSON value fails loudly in SQLite.
+                  val sql =
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = json_insert(COALESCE(NULLIF($col, ''), '[]'), '$$[#]', json(?)) WHERE ${quoted(validatedIdColumn)} = ?"
+                  val ps = conn.prepareStatement(sql)
+                  try {
+                    val pw = ps.paramWriter
+                    pw.setString(1, jsonFragment(value))
                     pw.setString(2, entityId)
                     ps.executeUpdate()
                     ()
