@@ -56,7 +56,7 @@ In this guide, we solve this by writing the plumbing once: one adapter converts 
 Add the HTTP model to your `build.sbt`, plus the HTML and schema modules that the later sections use for the catalog page and the JSON codecs:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 
 // ZIO Blocks html module
@@ -65,13 +65,13 @@ libraryDependencies += "dev.zio" %% "zio-blocks-html"       % "@VERSION@"
 // ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"     % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@"
 
-// ZIO Blocks html for Scala 3.9+ (experimental)
+// ZIO Blocks html for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-html"       % "@VERSION@"
 
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"     % "@VERSION@"
 scalacOptions += "-experimental"
 ```

@@ -39,7 +39,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 Each format lives in its own module. To follow along, add the schema module and the six format modules to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"             % "@VERSION@"
 
 // ZIO Blocks schema yaml module
@@ -60,25 +60,25 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@
 // ZIO Blocks schema csv module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv"         % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same modules with the zio-blocks-next- prefix
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental"): the same modules with the zio-blocks-next- prefix
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"             % "@VERSION@"
 
-// ZIO Blocks schema yaml for Scala 3.9+ (experimental)
+// ZIO Blocks schema yaml for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-yaml"        % "@VERSION@"
 
-// ZIO Blocks schema xml for Scala 3.9+ (experimental)
+// ZIO Blocks schema xml for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-xml"         % "@VERSION@"
 
-// ZIO Blocks schema toon for Scala 3.9+ (experimental)
+// ZIO Blocks schema toon for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-toon"        % "@VERSION@"
 
-// ZIO Blocks schema messagepack for Scala 3.9+ (experimental)
+// ZIO Blocks schema messagepack for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-messagepack" % "@VERSION@"
 
-// ZIO Blocks schema avro for Scala 3.9+ (experimental)
+// ZIO Blocks schema avro for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-avro"        % "@VERSION@"
 
-// ZIO Blocks schema csv for Scala 3.9+ (experimental)
+// ZIO Blocks schema csv for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-csv"         % "@VERSION@"
 ```
 

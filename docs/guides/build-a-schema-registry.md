@@ -61,16 +61,16 @@ In this guide, we solve this by letting the `Schema` describe itself: `Schema#to
 To follow along, add the schema module and its Avro module to your build. The registry stores schemas in Avro, for a reason explained in [Choose a Storage Format](#choose-a-storage-format):
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
 
 // ZIO Blocks schema avro module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 
-// Scala 3.9 and newer: the same modules with the zio-blocks-next- prefix
+// Scala 3.10 and newer: the same modules with the zio-blocks-next- prefix
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@"
 
-// ZIO Blocks schema avro for Scala 3.9+ (experimental)
+// ZIO Blocks schema avro for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-avro" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

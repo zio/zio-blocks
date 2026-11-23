@@ -36,10 +36,10 @@ At the end, we run the finished page and try it in a browser. We recommend readi
 The datastar module is for Scala 3 only: there is no Scala 2.13 artifact. Add it to your `build.sbt`:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-datastar" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "@VERSION@"
 ```
 

@@ -70,7 +70,7 @@ The generator handles data types only. It writes no HTTP clients or servers; if 
 To follow along, add the openapi and codegen modules to your `build.sbt`. The code we generate also needs the schema module:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-openapi" % "@VERSION@"
 
 // ZIO Blocks codegen module
@@ -79,13 +79,13 @@ libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 // ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"  % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi" % "@VERSION@"
 
-// ZIO Blocks codegen for Scala 3.9+ (experimental)
+// ZIO Blocks codegen for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-codegen" % "@VERSION@"
 
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@"
 scalacOptions += "-experimental"
 ```
@@ -644,10 +644,10 @@ val generator = LocalProject("openapi-examples")
 lazy val bookstoreApp = (project in file("bookstore-app"))
   .settings(
     run / fork := true,
-    // ZIO Blocks schema for Scala 3.9+ (experimental)
+    // ZIO Blocks schema for Scala 3.10+ (experimental)
     libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@",
 
-    // ZIO Blocks OpenAPI support for Scala 3.9+ (experimental)
+    // ZIO Blocks OpenAPI support for Scala 3.10+ (experimental)
     libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi" % "@VERSION@",
     // The app reads the spec's examples at run time, so the spec is also on its classpath.
     Compile / unmanagedResourceDirectories += (generator / baseDirectory).value / "src" / "main" / "openapi",
@@ -694,7 +694,7 @@ Try making `giftMessage` required in `bookstore.json` and compiling again: the f
 
 ## Read a YAML Spec
 
-Many specs are written in YAML instead of JSON. The openapi module reads JSON only, but the schema-yaml module reads YAML text into a `Yaml` value, and `Yaml#toJson` converts it into the same `Json` tree that `OpenAPICodec.openAPICodec` decodes. Add `zio-blocks-schema-yaml` (`zio-blocks-next-schema-yaml` on Scala 3.9 and newer) to the generator's dependencies.
+Many specs are written in YAML instead of JSON. The openapi module reads JSON only, but the schema-yaml module reads YAML text into a `Yaml` value, and `Yaml#toJson` converts it into the same `Json` tree that `OpenAPICodec.openAPICodec` decodes. Add `zio-blocks-schema-yaml` (`zio-blocks-next-schema-yaml` on Scala 3.10 and newer) to the generator's dependencies.
 
 Only the parsing step changes. Here is the start of our spec in YAML:
 

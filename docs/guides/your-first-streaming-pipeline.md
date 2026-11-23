@@ -41,15 +41,15 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the streams module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-Scala 3.9 and newer use the `zio-blocks-next-streams` artifact name; the code in this tutorial is the same for every Scala version. On the JVM, the streams module needs JDK 21 or newer. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
+Scala 3.10 and newer use the `zio-blocks-next-streams` artifact name; the code in this tutorial is the same for every Scala version. On the JVM, the streams module needs JDK 21 or newer. For scala-cli, Scala.js, or cross-building, see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md).
 
 ## 2. Background: A Stream Is a Recipe
 

@@ -45,12 +45,12 @@ Add the module to your build:
 libraryDependencies += "dev.zio" %% "zio-blocks-datastar" % "@VERSION@"
 ```
 
-On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental features. The `zio-blocks-next-*` artifacts are compiled with `-experimental`, so code that calls them must be too:
+On Scala 3.10 or newer, use the `zio-blocks-next-` prefix and enable experimental features. The `zio-blocks-next-*` artifacts are compiled with `-experimental`, so code that calls them must be too:
 
 ```scala
 scalaVersion := "3.9.0"
 
-// ZIO Blocks datastar for Scala 3.9+ (experimental)
+// ZIO Blocks datastar for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-datastar" % "@VERSION@"
 
 scalacOptions += "-experimental"
@@ -63,7 +63,7 @@ For Scala.js, use `%%%` instead of `%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 3.x only. The module is not published for Scala 2.13. Scala 3.3 to 3.8 use `zio-blocks-datastar`, and Scala 3.9 and newer use `zio-blocks-next-datastar`, as described in [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md).
+Supported Scala versions: Scala 3.x only. The module is not published for Scala 2.13. Scala 3.9 use `zio-blocks-datastar`, and Scala 3.10 and newer use `zio-blocks-next-datastar`, as described in [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md).
 
 :::note[The package is `zio.http.datastar`]
 Despite living under `zio/blocks/datastar` in the source tree, the package is `zio.http.datastar`. The package object extends `DatastarAttributes`, so a single wildcard import brings every `data*` helper into scope.

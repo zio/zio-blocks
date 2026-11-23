@@ -63,10 +63,10 @@ Add a field to the case class and you must remember to change the JSON, the `Gen
 Add the Avro module to your build. It runs on the JVM only; there is no Scala.js artifact:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-avro" % "@VERSION@"
 ```
 

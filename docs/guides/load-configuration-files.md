@@ -76,7 +76,7 @@ In this guide, the config module decodes the settings into a case class from its
 Add the config module and the three format modules to your `build.sbt`. `config-hocon` depends only on `zio-blocks-config`; `config-json` and `config-yaml` also bring in the schema and schema-yaml modules, so add only the formats you read:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
 
 // ZIO Blocks config hocon module
@@ -88,16 +88,16 @@ libraryDependencies += "dev.zio" %% "zio-blocks-config-json"  % "@VERSION@"
 // ZIO Blocks config yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml"  % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config"       % "@VERSION@"
 
-// ZIO Blocks config hocon for Scala 3.9+ (experimental)
+// ZIO Blocks config hocon for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-hocon" % "@VERSION@"
 
-// ZIO Blocks config json for Scala 3.9+ (experimental)
+// ZIO Blocks config json for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-json"  % "@VERSION@"
 
-// ZIO Blocks config yaml for Scala 3.9+ (experimental)
+// ZIO Blocks config yaml for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml"  % "@VERSION@"
 ```
 

@@ -56,10 +56,10 @@ Every method returns a `ConnectionIO`, every caller composes them in a for-compr
 Replace the Magnum or doobie dependencies with the ZIO Blocks `sql` module and your JDBC driver. The `sql` module is published for Scala 3 only:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs -experimental
+// Scala 3.10 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 scalacOptions += "-experimental"
 
@@ -633,7 +633,7 @@ Things that work differently, or don't exist yet:
 Work through these steps in order; each one leaves the project compiling:
 
 1. Upgrade to Scala 3 if you are coming from doobie on Scala 2.
-2. Replace the Magnum or doobie dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` with `-experimental` on Scala 3.9 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
+2. Replace the Magnum or doobie dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` with `-experimental` on Scala 3.10 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
 3. Give every entity a `given Schema[E] = Schema.derived`, and remove `@Table`, `@Id`, `derives DbCodec`, `Read` and `Write`.
 4. Replace `@SqlName` with `@Modifier.rename`, `@Id` on a field that isn't named `id` with `@Modifier.id`, and custom table names with `@Modifier.config("sql.table_name", ...)`.
 5. Port custom column types from `biMap` or `Meta#timap` to `DbCodec#transform`.

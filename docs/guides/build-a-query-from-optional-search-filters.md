@@ -72,10 +72,10 @@ In this guide, each condition is a `Frag` that carries its own SQL text and its 
 Add the `sql` module and the SQLite JDBC driver to your `build.sbt`:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 scalacOptions += "-experimental"
 

@@ -58,10 +58,10 @@ In this guide, we keep the same `Schema` and change only how we call its codec: 
 We use the schema module from the [Your First Schema](./your-first-schema.md) tutorial; [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains which artifact each Scala version needs:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 

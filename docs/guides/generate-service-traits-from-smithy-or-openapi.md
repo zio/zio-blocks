@@ -44,13 +44,13 @@ When the model gains an operation or an error, nothing tells you the trait is st
 Add the codegen and schema artifacts to your build. The generated code uses `derives Schema`, so the output needs the schema module as well as the generator modules:
 
 ```scala
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-smithy"  % "@VERSION@"
 
-// ZIO Blocks codegen for Scala 3.9+ (experimental)
+// ZIO Blocks codegen for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-codegen" % "@VERSION@"
 
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@"
 scalacOptions += "-experimental"
 ```

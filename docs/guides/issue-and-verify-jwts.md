@@ -55,10 +55,10 @@ The ZIO Blocks `jwt` module does these checks for us, in a fixed order, and retu
 Add the module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-jwt" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-jwt" % "@VERSION@"
 ```
 

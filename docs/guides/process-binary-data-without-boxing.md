@@ -63,10 +63,10 @@ In this guide, we read the same bytes as a stream on a primitive *lane*: ZIO Blo
 Add the streams module to your `build.sbt`. With ZIO Blocks @VERSION@, the artifact name depends on the Scala version:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs the -experimental compiler flag
+// Scala 3.10 and newer, which also needs the -experimental compiler flag
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

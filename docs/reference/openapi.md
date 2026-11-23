@@ -34,15 +34,15 @@ The OpenAPI module bridges the gap by letting you author API specs as Scala code
 ## Installation
 
 ```scala
-// Scala 2.13, and Scala 3.3 to 3.8
+// Scala 2.13, and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-openapi" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-The module brings in `zio-blocks-schema`, which provides `Schema[A]` integration. For Scala.js, use `%%%` instead of `%%`. To export documents as YAML, also add `zio-blocks-schema-yaml` (`zio-blocks-next-schema-yaml` on Scala 3.9 and newer).
+The module brings in `zio-blocks-schema`, which provides `Schema[A]` integration. For Scala.js, use `%%%` instead of `%%`. To export documents as YAML, also add `zio-blocks-schema-yaml` (`zio-blocks-next-schema-yaml` on Scala 3.10 and newer).
 
 ## How They Work Together
 

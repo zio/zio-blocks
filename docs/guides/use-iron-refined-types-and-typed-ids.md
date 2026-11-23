@@ -55,12 +55,12 @@ In this guide, we move each rule into a type. Iron writes the rule in the type i
 
 This guide builds on [Your First Schema](./your-first-schema.md): you should know how to derive a `Schema` for a case class and decode JSON with it. [How to Define Validated Newtypes](./validated-newtypes.md) shows the plain ZIO Blocks way to attach a check to a type, which we compare with Iron at the end.
 
-Iron is a Scala 3 library, and its 3.4 releases are built with Scala 3.9, so this guide needs Scala 3.9 or newer. Add the schema module and Iron's ZIO Blocks module, which brings Iron itself, to your `build.sbt`:
+Iron is a Scala 3 library, and its 3.4 releases are built with Scala 3.9, so this guide needs Scala 3.10 or newer. Add the schema module and Iron's ZIO Blocks module, which brings Iron itself, to your `build.sbt`:
 
 ```scala
 scalaVersion := "3.9.0"
 
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"            %% "zio-blocks-next-schema" % "@VERSION@"
 
 // Iron refined types for ZIO Blocks schemas
@@ -71,7 +71,7 @@ libraryDependencies += .exclude("dev.zio", "zio-blocks-schema_3")
 scalacOptions += "-experimental"
 ```
 
-On Scala 3.9 and newer, ZIO Blocks is published as `zio-blocks-next-*`, and those artifacts need `-experimental`. Iron's module depends on the other artifact line, `zio-blocks-schema` 0.0.51, which holds the same packages. The `exclude` keeps that second copy off the classpath, so Iron's instances run against the `zio-blocks-next-schema` we chose.
+On Scala 3.10 and newer, ZIO Blocks is published as `zio-blocks-next-*`, and those artifacts need `-experimental`. Iron's module depends on the other artifact line, `zio-blocks-schema` 0.0.51, which holds the same packages. The `exclude` keeps that second copy off the classpath, so Iron's instances run against the `zio-blocks-next-schema` we chose.
 
 We use these imports throughout. The `zioBlocksSchema.given` import brings Iron's `Schema` instances into scope:
 
@@ -312,7 +312,7 @@ Iron and a hand-written validated newtype both end with a type that only holds v
 
 | Concern                     | Iron refined type                                         | Validated newtype                                     |
 | --------------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| Scala versions              | Scala 3.9 and newer                                       | Scala 2.13 and Scala 3                                |
+| Scala versions              | Scala 3.10 and newer                                       | Scala 2.13 and Scala 3                                |
 | Extra dependency            | `iron-zio-blocks-schema`                                  | None                                                  |
 | Writing a rule              | A constraint type, such as `MinLength[1] & MaxLength[30]` | A smart constructor, such as `Quantity.parse`         |
 | Literals                    | Checked at compile time                                   | Checked at runtime, by the smart constructor          |

@@ -71,10 +71,10 @@ In this guide, we give each type a single description, mostly through its `Schem
 Add the `sql` module and the JDBC drivers to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 scalacOptions += "-experimental"
 

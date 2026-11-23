@@ -46,7 +46,7 @@ In this guide, we put each kind of ZIO Blocks call where it belongs, and write o
 Add the ZIO Blocks modules this guide uses, the SQLite JDBC driver, and your effect system. The examples are tested with ZIO 2.1.27, cats-effect 3.7.1 and fs2 3.14.0:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"  % "@VERSION@"
 
 // ZIO Blocks sql module
@@ -61,7 +61,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-async"   % "@VERSION@"
 // ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope"   % "@VERSION@"
 
-// Scala 3.9 and newer: the same modules as zio-blocks-next-*, plus -experimental
+// Scala 3.10 and newer: the same modules as zio-blocks-next-*, plus -experimental
 // and so on
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"

@@ -38,10 +38,10 @@ In this guide, we replace each blocking call with an asynchronous one that retur
 To add the streams module to your project, include one of these dependencies in your `build.sbt`. The async module comes with it:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental"): the same module with the zio-blocks-next- prefix
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental"): the same module with the zio-blocks-next- prefix
 libraryDependencies += "dev.zio" %% "zio-blocks-next-streams" % "@VERSION@"
 ```
 

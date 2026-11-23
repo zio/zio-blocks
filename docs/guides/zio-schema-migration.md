@@ -48,15 +48,15 @@ libraryDependencies += "dev.zio" %% "zio-schema-avro"       % "1.x.x"
 **After (ZIO Blocks Schema):**
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-The other codec formats are optional modules. On Scala 3.9 and newer, each of them also takes the `zio-blocks-next-` prefix, for example `zio-blocks-next-schema-avro`:
+The other codec formats are optional modules. On Scala 3.10 and newer, each of them also takes the `zio-blocks-next-` prefix, for example `zio-blocks-next-schema-avro`:
 
 ```scala
 // ZIO Blocks schema avro module

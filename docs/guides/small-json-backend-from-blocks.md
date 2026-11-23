@@ -68,7 +68,7 @@ We build the backend in nine steps:
 
 We recommend reading from top to bottom — each section builds on the previous one.
 
-To follow along, add the modules the backend uses, plus the SQLite JDBC driver, to your `build.sbt`. Scala 3.3 to 3.8 use the `zio-blocks-*` artifacts:
+To follow along, add the modules the backend uses, plus the SQLite JDBC driver, to your `build.sbt`. Scala 3.9 use the `zio-blocks-*` artifacts:
 
 ```scala
 // ZIO Blocks schema module
@@ -99,31 +99,31 @@ libraryDependencies += "dev.zio"   %% "zio-blocks-telemetry"         % "@VERSION
 libraryDependencies += "org.xerial" % "sqlite-jdbc"                  % "3.53.4.0"
 ```
 
-Scala 3.9 and newer use the `zio-blocks-next-*` artifacts instead, and need the `-experimental` compiler flag:
+Scala 3.10 and newer use the `zio-blocks-next-*` artifacts instead, and need the `-experimental` compiler flag:
 
 ```scala
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-schema"            % "@VERSION@"
 
-// ZIO Blocks config for Scala 3.9+ (experimental)
+// ZIO Blocks config for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-config"            % "@VERSION@"
 
-// ZIO Blocks config yaml for Scala 3.9+ (experimental)
+// ZIO Blocks config yaml for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-config-yaml"       % "@VERSION@"
 
-// ZIO Blocks scope for Scala 3.9+ (experimental)
+// ZIO Blocks scope for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-scope"             % "@VERSION@"
 
-// ZIO Blocks sql for Scala 3.9+ (experimental)
+// ZIO Blocks sql for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-sql"               % "@VERSION@"
 
-// ZIO Blocks http model for Scala 3.9+ (experimental)
+// ZIO Blocks http model for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-http-model"        % "@VERSION@"
 
-// ZIO Blocks http model schema for Scala 3.9+ (experimental)
+// ZIO Blocks http model schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-http-model-schema" % "@VERSION@"
 
-// ZIO Blocks telemetry for Scala 3.9+ (experimental)
+// ZIO Blocks telemetry for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-telemetry"         % "@VERSION@"
 
 // SQLite JDBC driver (used by the database examples)

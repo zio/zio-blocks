@@ -39,7 +39,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the smithy and codegen modules to your `build.sbt`. The code we generate also needs the schema module:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy"  % "@VERSION@"
 
 // ZIO Blocks codegen module
@@ -48,13 +48,13 @@ libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 // ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"  % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-smithy"  % "@VERSION@"
 
-// ZIO Blocks codegen for Scala 3.9+ (experimental)
+// ZIO Blocks codegen for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-codegen" % "@VERSION@"
 
-// ZIO Blocks schema for Scala 3.9+ (experimental)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"  % "@VERSION@"
 scalacOptions += "-experimental"
 ```
@@ -524,7 +524,7 @@ val generator = LocalProject("smithy-examples")
 lazy val ordersApp = (project in file("orders-app"))
   .settings(
     run / fork := true,
-    // ZIO Blocks schema for Scala 3.9+ (experimental)
+    // ZIO Blocks schema for Scala 3.10+ (experimental)
     libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@",
     Compile / sourceGenerators += Def.task {
       val model     = (generator / baseDirectory).value / "src" / "main" / "smithy" / "orders.smithy"

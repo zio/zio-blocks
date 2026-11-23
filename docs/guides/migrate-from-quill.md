@@ -55,10 +55,10 @@ Nothing in `bornBefore` mentions SQL, and the compiler checks it as Scala. Porti
 Replace the Quill dependencies with the ZIO Blocks `sql` module and your JDBC driver. The `sql` module is published for Scala 3 only, as is Quill's Scala 3 build:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs -experimental
+// Scala 3.10 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 scalacOptions += "-experimental"
 
@@ -590,7 +590,7 @@ Things that work differently, or don't exist yet:
 Work through these steps in order; each one leaves the project compiling:
 
 1. Make sure the project is on Scala 3.
-2. Replace the Quill dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` with `-experimental` on Scala 3.9 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
+2. Replace the Quill dependencies with `zio-blocks-sql` (or `zio-blocks-next-sql` with `-experimental` on Scala 3.10 and newer), and add `zio-blocks-sql-zio` if you use ZIO.
 3. Give every entity a `given Schema[E] = Schema.derived`, and rename `id` fields if two joined tables share the name.
 4. Replace `querySchema` and `schemaMeta` with `@Modifier.config("sql.table_name", ...)`, `@Modifier.rename` and `@Modifier.id` on the entity.
 5. Port each `MappedEncoding` pair to one `DbCodec#transform`.

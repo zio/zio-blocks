@@ -57,16 +57,16 @@ This guide builds on [Your First Schema](./your-first-schema.md): you should kno
 Add the schema module, and the TOON module for the second-format section, to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
 
 // ZIO Blocks schema toon module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema"      % "@VERSION@"
 
-// ZIO Blocks schema toon for Scala 3.9+ (experimental)
+// ZIO Blocks schema toon for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-toon" % "@VERSION@"
 ```
 

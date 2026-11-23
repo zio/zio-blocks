@@ -50,10 +50,10 @@ In this guide, we solve this by giving the code under test a tracer, a logger an
 Add the `telemetry` module and ZIO Test to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 

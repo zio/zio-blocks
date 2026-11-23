@@ -88,10 +88,10 @@ Add a field or a new status, and both functions must change in step. A missing f
 Add the BSON module and the MongoDB Java driver to your build. The module runs on the JVM only, and the code in this guide compiles on Scala 2.13 and Scala 3:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-bson" % "@VERSION@"
 
 // The synchronous MongoDB Java driver

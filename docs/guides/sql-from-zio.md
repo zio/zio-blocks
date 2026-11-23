@@ -63,10 +63,10 @@ In this guide, we solve this with the `sql-zio` module. Its `TransactorZIO` retu
 Add `sql-zio` and the SQLite JDBC driver to your `build.sbt`. `sql-zio` brings in the `sql` module and ZIO 2.1.27:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs -experimental
+// Scala 3.10 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql-zio" % "@VERSION@"
 scalacOptions += "-experimental"
 

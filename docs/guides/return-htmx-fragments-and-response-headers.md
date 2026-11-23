@@ -52,10 +52,10 @@ In this guide, we replace each string with a typed value: the request headers `H
 The HTMX module is for Scala 3 only. Add it to your `build.sbt`:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-http-htmx" % "@VERSION@"
 ```
 
