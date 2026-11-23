@@ -56,14 +56,15 @@ A connection pool solves this. It opens a fixed number of connections up front a
 Add the `sql` module, the PostgreSQL JDBC driver and HikariCP to your `build.sbt`:
 
 ```scala
-// Scala 3.3 LTS
+// Scala 3.9 LTS
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 
 // The PostgreSQL JDBC driver and the HikariCP pool, for every Scala version
 libraryDependencies += "org.postgresql" % "postgresql" % "42.7.14"
+// JDBC connection pool
 libraryDependencies += "com.zaxxer"     % "HikariCP"   % "7.1.0"
 ```
 

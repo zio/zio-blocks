@@ -46,33 +46,40 @@ In this guide, we put each kind of ZIO Blocks call where it belongs, and write o
 Add the ZIO Blocks modules this guide uses, the SQLite JDBC driver, and your effect system. The examples are tested with ZIO 2.1.27, cats-effect 3.7.1 and fs2 3.14.0:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema"  % "@VERSION@",
-  "dev.zio" %% "zio-blocks-sql"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-streams" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-async"   % "@VERSION@",
-  "dev.zio" %% "zio-blocks-scope"   % "@VERSION@"
-)
+// Scala 2.13 and Scala 3.9
+libraryDependencies += "dev.zio" %% "zio-blocks-schema"  % "@VERSION@"
 
-// Scala 3.9 and newer: the same modules as zio-blocks-next-*, plus -experimental
-libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@" // and so on
+// ZIO Blocks sql module
+libraryDependencies += "dev.zio" %% "zio-blocks-sql"     % "@VERSION@"
+
+// ZIO Blocks streams module
+libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
+
+// ZIO Blocks async module
+libraryDependencies += "dev.zio" %% "zio-blocks-async"   % "@VERSION@"
+
+// ZIO Blocks scope module
+libraryDependencies += "dev.zio" %% "zio-blocks-scope"   % "@VERSION@"
+
+// Scala 3.10 and newer: the same modules as zio-blocks-next-*, plus -experimental
+// and so on
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"
 
 // The SQLite JDBC driver
 libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 
 // For a ZIO application
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio"         % "2.1.27",
-  "dev.zio" %% "zio-streams" % "2.1.27"
-)
+libraryDependencies += "dev.zio" %% "zio"         % "2.1.27"
+
+// ZIO Streams
+libraryDependencies += "dev.zio" %% "zio-streams" % "2.1.27"
 
 // For a cats-effect application
-libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats-effect" % "3.7.1",
-  "co.fs2"        %% "fs2-core"    % "3.14.0"
-)
+libraryDependencies += "org.typelevel" %% "cats-effect" % "3.7.1"
+
+// fs2 core streams (Cats Effect interop)
+libraryDependencies += "co.fs2"        %% "fs2-core"    % "3.14.0"
 ```
 
 The `sql` module is published for Scala 3 only, so the orders model and the programs that use it are Scala 3. The bridges themselves (the resource, `Async` and stream helpers below) compile on Scala 2.13 and Scala 3. The `streams` module needs JDK 21 or newer at runtime.

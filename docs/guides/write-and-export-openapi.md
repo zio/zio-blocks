@@ -75,17 +75,17 @@ The ZIO Blocks `openapi` module replaces the string with a typed model of the Op
 Add the `openapi` module, and the `schema-yaml` module for the YAML export, to your `build.sbt`:
 
 ```scala
-// Scala 2.13, and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-openapi"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
-)
+// Scala 2.13, and Scala 3.9
+libraryDependencies += "dev.zio" %% "zio-blocks-openapi"     % "@VERSION@"
 
-// Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-openapi"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
-)
+// ZIO Blocks schema yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
+
+// Scala 3.10 and newer
+libraryDependencies += "dev.zio" %% "zio-blocks-next-openapi"     % "@VERSION@"
+
+// ZIO Blocks schema yaml for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-schema-yaml" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

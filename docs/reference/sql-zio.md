@@ -18,10 +18,10 @@ The module offers two integration styles. The `TransactorZIO` class wraps the sy
 Add `sql-zio` to your `build.sbt`. It brings in the `sql` module and ZIO:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs -experimental
+// Scala 3.10 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql-zio" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

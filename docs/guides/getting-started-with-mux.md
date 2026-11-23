@@ -37,7 +37,7 @@ We'll learn these concepts through:
 We recommend reading from top to bottom — each section builds on the previous one.
 
 :::info[Scala 3]
-The code examples in this tutorial use **Scala 3 syntax** (`zio-blocks-mux` supports Scala 3.3.7 and 3.9.0 on JVM and Scala.js). For complete API signatures, see the [Mux Reference](../reference/mux.mdx).
+The code examples in this tutorial use **Scala 3 syntax** (`zio-blocks-mux` supports Scala 3.9.0 and 3.10.0 on JVM and Scala.js). For complete API signatures, see the [Mux Reference](../reference/mux.mdx).
 :::
 
 ## The Big Picture

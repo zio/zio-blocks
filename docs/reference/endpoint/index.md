@@ -41,18 +41,22 @@ The endpoint module is a cross-platform library (JVM + Scala.js). Add the depend
 
 **JVM (Scala 3.x):**
 ```scala
+// ZIO Blocks endpoint module
 libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
 ```
 
 **Scala.js (Scala 3.x):**
 ```scala
+// ZIO Blocks endpoint module
 libraryDependencies += "dev.zio" %%% "zio-blocks-endpoint" % "@VERSION@"
 ```
 
 **For Scala 3.10+**, use `zio-blocks-next-endpoint` and add `scalacOptions += "-experimental"` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)):
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint" % "@VERSION@"  // JVM
-libraryDependencies += "dev.zio" %%% "zio-blocks-next-endpoint" % "@VERSION@" // Scala.js
+// JVM
+libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint" % "@VERSION@"
+// Scala.js
+libraryDependencies += "dev.zio" %%% "zio-blocks-next-endpoint" % "@VERSION@"
 ```
 
 Supported Scala versions: 3.x (Scala 3 only — the endpoint module uses Scala 3-only DSL and macro code).

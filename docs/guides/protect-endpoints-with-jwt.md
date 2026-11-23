@@ -56,21 +56,29 @@ Declaring the requirement does not fix it either. ZIO Blocks' endpoint module ha
 Add the HTTP model, the JWT module and the config module to your `build.sbt`. The endpoint module is only needed for the `AuthType` section:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-http-model" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-jwt"        % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-endpoint"   % "@VERSION@" // optional
-)
+// Scala 2.13 and Scala 3.9
+libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 
-// Scala 3.9 and newer
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-jwt"        % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config"     % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-endpoint"   % "@VERSION@" // optional
-)
+// ZIO Blocks jwt module
+libraryDependencies += "dev.zio" %% "zio-blocks-jwt"        % "@VERSION@"
+
+// ZIO Blocks config module
+libraryDependencies += "dev.zio" %% "zio-blocks-config"     % "@VERSION@"
+
+// optional
+libraryDependencies += "dev.zio" %% "zio-blocks-endpoint"   % "@VERSION@"
+
+// Scala 3.10 and newer
+libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@"
+
+// ZIO Blocks jwt for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-jwt"        % "@VERSION@"
+
+// ZIO Blocks config for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config"     % "@VERSION@"
+
+// optional
+libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint"   % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 

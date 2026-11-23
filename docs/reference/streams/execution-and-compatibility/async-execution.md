@@ -36,6 +36,7 @@ Every asynchronous addition follows one naming convention: the synchronous name 
 The streams module carries the asynchronous effect type with it — `zio-blocks-streams` depends on `zio-blocks-async`, so one coordinate is all you add:
 
 ```scala
+// ZIO Blocks streams module
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 

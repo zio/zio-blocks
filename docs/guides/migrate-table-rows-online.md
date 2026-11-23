@@ -65,15 +65,16 @@ In this guide, we let the `dataMigration` module do the bookkeeping. It keeps th
 Add the `dataMigration` module, which brings in the `sql` and `schema` modules, and the JDBC drivers of the databases you use to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-data-migration" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-data-migration" % "@VERSION@"
 scalacOptions += "-experimental"
 
 // JDBC drivers, for every Scala version
 libraryDependencies += "org.xerial"     % "sqlite-jdbc" % "3.53.4.0"
+// PostgreSQL JDBC driver (used by the database examples)
 libraryDependencies += "org.postgresql" % "postgresql"  % "42.7.14"
 ```
 

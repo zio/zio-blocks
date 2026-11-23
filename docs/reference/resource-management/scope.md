@@ -55,6 +55,7 @@ If you've used `try/finally`, `Using`, or ZIO's `Scope`, this is the same proble
 Add the following dependency to your `build.sbt`:
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 

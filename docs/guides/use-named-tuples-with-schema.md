@@ -53,7 +53,7 @@ This guide builds on [Your First Schema](./your-first-schema.md) (deriving a `Sc
 // Scala 3.7 and 3.8
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

@@ -15,20 +15,20 @@ This guide gets ZIO Blocks onto your classpath. You'll pick the modules you need
 
 ## The Artifact Name Depends on Your Scala Version
 
-ZIO Blocks publishes every module under two names. The artifacts built with Scala 2.13 and Scala 3.3 LTS are called `zio-blocks-<module>`. The artifacts built with the latest Scala 3 release are called `zio-blocks-next-<module>`:
+ZIO Blocks publishes every module under two names. The artifacts built with Scala 2.13 and Scala 3.9 LTS are called `zio-blocks-<module>`. The artifacts built for Scala 3.10 and newer are called `zio-blocks-next-<module>`:
 
 | Your Scala version | Artifact name                  | Built with |
 |--------------------|--------------------------------|------------|
 | 2.13.x             | `zio-blocks-<module>`          | 2.13.18    |
-| 3.3.x to 3.8.x     | `zio-blocks-<module>`          | 3.3.7 LTS  |
-| 3.9.x and newer    | `zio-blocks-next-<module>`     | 3.9.0      |
+| 3.9.x              | `zio-blocks-<module>`          | 3.9.0 LTS  |
+| 3.10.x and newer   | `zio-blocks-next-<module>`     | 3.10.0     |
 
-A Scala 3.9 build can still use `zio-blocks-<module>`, but `zio-blocks-next-<module>` is the build made for it. The reverse does not work: a Scala 3.3 to 3.8 compiler cannot read code compiled by Scala 3.9, so `zio-blocks-next-<module>` fails there with a "Forward incompatible TASTy file" error.
+A Scala 3.9 build uses `zio-blocks-<module>`. A Scala 3.10 build uses `zio-blocks-next-<module>`. The reverse does not work: a Scala 3.9 compiler cannot read code compiled by Scala 3.10, so `zio-blocks-next-<module>` fails there with a "Forward incompatible TASTy file" error.
 
 ## Prerequisites
 
 - **sbt 1.x** or **scala-cli**.
-- **JDK 11+** for Scala 2.13 and Scala 3.3 to 3.8; **JDK 17+** for the `zio-blocks-next-*` artifacts.
+- **JDK 11+** for Scala 2.13 and Scala 3.9; **JDK 17+** for the `zio-blocks-next-*` artifacts.
 - **JDK 21+** on the JVM for `streams`, `telemetry`, and `telemetry-otel`, and for every module built on `streams`: `http-model`, `http-model-schema`, `endpoint`, `datastar`, `http-htmx`, `sql`, `sql-zio`, `data-migration`, and `projection`.
 - For Scala.js, **Scala.js 1.22.0+** (the `sbt-scalajs` plugin in `project/plugins.sbt`). Older linkers reject the artifacts with `IRVersionNotSupportedException`.
 
@@ -84,17 +84,19 @@ Modules pull in the ZIO Blocks modules they build on, so you only list the ones 
 
 ## Add a Dependency With sbt
 
-On Scala 2.13 or Scala 3.3 to 3.8, use the `zio-blocks-` prefix:
+On Scala 2.13 or Scala 3.9, use the `zio-blocks-` prefix:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
-On Scala 3.9 or newer, use the `zio-blocks-next-` prefix and enable experimental features. The `zio-blocks-next-*` artifacts are compiled with `-experimental`, so code that calls them must be too. Without the flag, the compiler reports that a definition "is marked @experimental":
+On Scala 3.10 or newer, use the `zio-blocks-next-` prefix and enable experimental features. The `zio-blocks-next-*` artifacts are compiled with `-experimental`, so code that calls them must be too. Without the flag, the compiler reports that a definition "is marked @experimental":
 
 ```scala
 scalaVersion := "3.9.0"
 
+// ZIO Blocks schema for Scala 3.10+ (experimental)
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 
 scalacOptions += "-experimental"
@@ -103,6 +105,7 @@ scalacOptions += "-experimental"
 For Scala.js, write `%%%` instead of `%%`:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 
@@ -116,7 +119,7 @@ scalaVersion       := crossScalaVersions.value.head
 
 val zioBlocksVersion = "@VERSION@"
 
-// Scala 3.9+ uses the zio-blocks-next-* artifacts; older versions use zio-blocks-*.
+// Scala 3.10+ uses the zio-blocks-next-* artifacts; older versions use zio-blocks-*.
 def zioBlocks(module: String) = Def.setting {
   val prefix = CrossVersion.partialVersion(scalaVersion.value) match {
     case Some((3, minor)) if minor >= 9 => "zio-blocks-next"
@@ -125,10 +128,11 @@ def zioBlocks(module: String) = Def.setting {
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
 
-libraryDependencies ++= Seq(
-  zioBlocks("schema").value,
-  zioBlocks("streams").value
-)
+// ZIO Blocks schema module (the zio-blocks-next- prefix on Scala 3.10+)
+libraryDependencies += zioBlocks("schema").value
+
+// ZIO Blocks streams module (the zio-blocks-next- prefix on Scala 3.10+)
+libraryDependencies += zioBlocks("streams").value
 
 // The zio-blocks-next-* artifacts require -experimental.
 scalacOptions ++= {
@@ -147,14 +151,14 @@ In a Scala.js or `crossProject` build, change `%%` to `%%%` inside `zioBlocks`.
 scala-cli may report that a module "is outdated, update to 0.017". Ignore the hint: `0.017` is a mistyped February release that Maven ranks above the current versions, and following it downgrades you.
 :::
 
-On Scala 2.13 or Scala 3.3 to 3.8:
+On Scala 2.13 or Scala 3.9:
 
 ```scala
 //> using scala 3.3.7
 //> using dep dev.zio::zio-blocks-schema:@VERSION@
 ```
 
-On Scala 3.9 or newer:
+On Scala 3.10 or newer:
 
 ```scala
 //> using scala 3.9.0

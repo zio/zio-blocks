@@ -56,16 +56,18 @@ This keeps HTTP request handling clean, testable, and portable across different 
 Add the following to your `build.sbt`:
 
 ```
+// ZIO Blocks http model schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```
+// ZIO Blocks http model schema module
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. Scala 2.13 and Scala 3.3 to 3.8 use `zio-blocks-http-model-schema`. On Scala 3.9 and newer, use `zio-blocks-next-http-model-schema` and add `scalacOptions += "-experimental"`, because the `zio-blocks-next-*` artifacts are compiled with `-experimental` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
+Supported Scala versions: Scala 2.13 and Scala 3.x. Scala 2.13 and Scala 3.9 use `zio-blocks-http-model-schema`. On Scala 3.10 and newer, use `zio-blocks-next-http-model-schema` and add `scalacOptions += "-experimental"`, because the `zio-blocks-next-*` artifacts are compiled with `-experimental` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
 
 ## How They Work Together
 

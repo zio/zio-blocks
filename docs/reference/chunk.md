@@ -86,12 +86,14 @@ The practical result is that Chunk gives you a sequence type that's genuinely ef
 Chunk is available in the core `zio-blocks` library:
 
 ```scala
+// ZIO Blocks chunk module
 libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "@VERSION@"
 ```
 
 For Scala.js support:
 
 ```scala
+// ZIO Blocks chunk module
 libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
 ```
 

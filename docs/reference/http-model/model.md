@@ -70,16 +70,18 @@ This separation is powerful: you can build, manipulate, serialize, and test HTTP
 Add the following to your `build.sbt`:
 
 ```scala
+// ZIO Blocks http model module
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```scala
+// ZIO Blocks http model module
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.9 and newer the artifact is `zio-blocks-next-http-model` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). The artifacts are cross-platform for JVM and Scala.js.
+Supported Scala versions: Scala 2.13 and Scala 3.x. On Scala 3.10 and newer the artifact is `zio-blocks-next-http-model` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 

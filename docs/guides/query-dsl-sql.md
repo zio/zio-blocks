@@ -47,6 +47,7 @@ This guide builds on [Part 1: Expressions](./query-dsl-reified-optics.md). You s
 Add the dependency:
 
 ```scala
+// ZIO Blocks schema module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
@@ -932,7 +933,7 @@ The `Dump` macros read `System.getProperty("zib.sql.dumpDir")` at compile time f
 The simplest way to set it is as a JVM flag on the sbt command line:
 
 ```bash
-sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/compile"
+sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/compile"
 ```
 
 If you prefer not to type `-D` every time, export it through `SBT_OPTS`:

@@ -28,12 +28,14 @@ All typeclasses are derived automatically via compile-time resolution and provid
 Add the following to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks combinators module
 libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```sbt
+// ZIO Blocks combinators module
 libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 

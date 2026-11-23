@@ -51,11 +51,14 @@ In this guide, we solve this by giving every test a database of its own, built f
 Add the `sql` module, the SQLite JDBC driver and ZIO Test to your `build.sbt`:
 
 ```scala
-// Scala 3.9 and newer, with scalacOptions += "-experimental"; on Scala 3.3 to 3.8 the artifact is "zio-blocks-sql"
+// Scala 3.10 and newer, with scalacOptions += "-experimental"; on Scala 3.9 the artifact is "zio-blocks-sql"
 libraryDependencies += "dev.zio"   %% "zio-blocks-next-sql" % "@VERSION@"
+// SQLite JDBC driver (used by the database examples)
 libraryDependencies += "org.xerial" % "sqlite-jdbc"         % "3.53.4.0"
 
+// ZIO Test: the test library (test scope)
 libraryDependencies += "dev.zio" %% "zio-test"     % "2.1.27" % Test
+// ZIO Test sbt integration (test scope)
 libraryDependencies += "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 ```
 

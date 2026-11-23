@@ -27,12 +27,14 @@ Rather than writing custom encoders or relying on string-based schema configurat
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema messagepack module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
 ```sbt
+// ZIO Blocks schema messagepack module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-messagepack" % "@VERSION@"
 ```
 

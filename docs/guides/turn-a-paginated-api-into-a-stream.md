@@ -48,11 +48,14 @@ This loop works, but the state lives in two `var`s, the error path throws, and t
 The examples need the `streams`, `async` and `schema` modules. Add them to your `build.sbt`:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-schema" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-streams" % "@VERSION@",
-  "dev.zio" %% "zio-blocks-async" % "@VERSION@"
-)
+// ZIO Blocks schema module
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
+
+// ZIO Blocks streams module
+libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
+
+// ZIO Blocks async module
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
 ```
 
 The code below uses these imports:

@@ -32,16 +32,18 @@ Rather than hand-writing YAML parsing logic or relying on external libraries wit
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-yaml" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
 ```sbt
+// ZIO Blocks schema yaml module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-yaml" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-yaml` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.10 and newer, use the `zio-blocks-next-schema-yaml` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
 
 ## Introduction
 

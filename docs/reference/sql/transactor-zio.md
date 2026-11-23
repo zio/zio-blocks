@@ -131,10 +131,10 @@ import _root_.zio
 Add the `zio-blocks-sql-zio` artifact to your build. It depends on `zio-blocks-sql`, so you do not need to declare both:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 
-// Scala 3.9 and newer, which also needs -experimental
+// Scala 3.10 and newer, which also needs -experimental
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql-zio" % "@VERSION@"
 scalacOptions += "-experimental"
 ```

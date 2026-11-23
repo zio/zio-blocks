@@ -59,10 +59,10 @@ In this guide, we describe the embedding once, as a type with a `DbCodec`, and l
 Add the `sql` module and the PostgreSQL JDBC driver to your `build.sbt`. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names:
 
 ```scala
-// Scala 3.3 to 3.8
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-sql" % "@VERSION@"
 scalacOptions += "-experimental"
 

@@ -39,16 +39,18 @@ Rather than writing custom parsers or relying on string-based configuration, you
 Add the module to your `build.sbt`:
 
 ```sbt
+// ZIO Blocks schema csv module
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
 ```sbt
+// ZIO Blocks schema csv module
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. On Scala 3.9 and newer, use the `zio-blocks-next-schema-csv` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
+Supported Scala versions: 2.13.x and 3.x. On Scala 3.10 and newer, use the `zio-blocks-next-schema-csv` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
 
 ## Introduction
 

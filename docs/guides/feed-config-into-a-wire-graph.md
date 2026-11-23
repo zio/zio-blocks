@@ -77,17 +77,17 @@ In this guide, the config module turns each settings section into a typed case c
 Add the config module and its YAML format to your `build.sbt`. The config module depends on the scope and context modules, so `Scope`, `Resource`, `Wire` and `Context` come with it:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-config"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
-)
+// Scala 2.13 and Scala 3.9
+libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
 
-// Scala 3.9 and newer (also needs scalacOptions += "-experimental")
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@",
-  "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
-)
+// ZIO Blocks config yaml module
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
+
+// Scala 3.10 and newer (also needs scalacOptions += "-experimental")
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config"      % "@VERSION@"
+
+// ZIO Blocks config yaml for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio" %% "zio-blocks-next-config-yaml" % "@VERSION@"
 ```
 
 This guide assumes you have loaded a case class from a layered `ConfigSource`, as in [Build a Typed Configuration Loader](./typed-config-loader.md), and that you have built a `Resource` and used it inside `Scope.global.scoped`, as in [Compile-Time Resource Safety with Scope](./compile-time-resource-safety-with-scope.md). The snippets below share these imports:

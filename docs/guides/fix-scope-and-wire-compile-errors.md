@@ -34,6 +34,7 @@ Every Scope error has a known cause and a short fix. This page maps each message
 Add the module to your build:
 
 ```scala
+// ZIO Blocks scope module
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 

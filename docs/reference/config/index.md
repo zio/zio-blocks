@@ -43,20 +43,25 @@ Most configuration libraries make you choose between two unpleasant options: a s
 The core module provides sources, decoding, and flags:
 
 ```scala
+// ZIO Blocks config module
 libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
 ```
 
 Each file format is a separate artifact, so you depend only on the ones you use:
 
 ```scala
+// ZIO Blocks config yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml"  % "@VERSION@"
+// ZIO Blocks config json module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-json"  % "@VERSION@"
+// ZIO Blocks config hocon module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
 ```scala
+// ZIO Blocks config module
 libraryDependencies += "dev.zio" %%% "zio-blocks-config" % "@VERSION@"
 ```
 

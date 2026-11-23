@@ -68,36 +68,66 @@ We build the backend in nine steps:
 
 We recommend reading from top to bottom — each section builds on the previous one.
 
-To follow along, add the modules the backend uses, plus the SQLite JDBC driver, to your `build.sbt`. Scala 3.3 to 3.8 use the `zio-blocks-*` artifacts:
+To follow along, add the modules the backend uses, plus the SQLite JDBC driver, to your `build.sbt`. Scala 3.9 use the `zio-blocks-*` artifacts:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio"   %% "zio-blocks-schema"            % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-config"            % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-config-yaml"       % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-scope"             % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-sql"               % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-http-model"        % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-http-model-schema" % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-telemetry"         % "@VERSION@",
-  "org.xerial" % "sqlite-jdbc"                  % "3.53.4.0"
-)
+// ZIO Blocks schema module
+libraryDependencies += "dev.zio"   %% "zio-blocks-schema"            % "@VERSION@"
+
+// ZIO Blocks config module
+libraryDependencies += "dev.zio"   %% "zio-blocks-config"            % "@VERSION@"
+
+// ZIO Blocks config yaml module
+libraryDependencies += "dev.zio"   %% "zio-blocks-config-yaml"       % "@VERSION@"
+
+// ZIO Blocks scope module
+libraryDependencies += "dev.zio"   %% "zio-blocks-scope"             % "@VERSION@"
+
+// ZIO Blocks sql module
+libraryDependencies += "dev.zio"   %% "zio-blocks-sql"               % "@VERSION@"
+
+// ZIO Blocks http model module
+libraryDependencies += "dev.zio"   %% "zio-blocks-http-model"        % "@VERSION@"
+
+// ZIO Blocks http model schema module
+libraryDependencies += "dev.zio"   %% "zio-blocks-http-model-schema" % "@VERSION@"
+
+// ZIO Blocks telemetry module
+libraryDependencies += "dev.zio"   %% "zio-blocks-telemetry"         % "@VERSION@"
+
+// SQLite JDBC driver (used by the database examples)
+libraryDependencies += "org.xerial" % "sqlite-jdbc"                  % "3.53.4.0"
 ```
 
-Scala 3.9 and newer use the `zio-blocks-next-*` artifacts instead, and need the `-experimental` compiler flag:
+Scala 3.10 and newer use the `zio-blocks-next-*` artifacts instead, and need the `-experimental` compiler flag:
 
 ```scala
-libraryDependencies ++= Seq(
-  "dev.zio"   %% "zio-blocks-next-schema"            % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-config"            % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-config-yaml"       % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-scope"             % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-sql"               % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-http-model"        % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-http-model-schema" % "@VERSION@",
-  "dev.zio"   %% "zio-blocks-next-telemetry"         % "@VERSION@",
-  "org.xerial" % "sqlite-jdbc"                       % "3.53.4.0"
-)
+// ZIO Blocks schema for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-schema"            % "@VERSION@"
+
+// ZIO Blocks config for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-config"            % "@VERSION@"
+
+// ZIO Blocks config yaml for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-config-yaml"       % "@VERSION@"
+
+// ZIO Blocks scope for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-scope"             % "@VERSION@"
+
+// ZIO Blocks sql for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-sql"               % "@VERSION@"
+
+// ZIO Blocks http model for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-http-model"        % "@VERSION@"
+
+// ZIO Blocks http model schema for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-http-model-schema" % "@VERSION@"
+
+// ZIO Blocks telemetry for Scala 3.10+ (experimental)
+libraryDependencies += "dev.zio"   %% "zio-blocks-next-telemetry"         % "@VERSION@"
+
+// SQLite JDBC driver (used by the database examples)
+libraryDependencies += "org.xerial" % "sqlite-jdbc"                       % "3.53.4.0"
 scalacOptions += "-experimental"
 ```
 

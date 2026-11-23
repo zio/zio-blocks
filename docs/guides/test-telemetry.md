@@ -50,18 +50,18 @@ In this guide, we solve this by giving the code under test a tracer, a logger an
 Add the `telemetry` module and ZIO Test to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.3 to 3.8
+// Scala 2.13 and Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 
-// Scala 3.9 and newer
+// Scala 3.10 and newer
 libraryDependencies += "dev.zio" %% "zio-blocks-next-telemetry" % "@VERSION@"
 scalacOptions += "-experimental"
 
 // Either way
-libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-test"     % "2.1.27" % Test,
-  "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
-)
+libraryDependencies += "dev.zio" %% "zio-test"     % "2.1.27" % Test
+
+// ZIO Test sbt integration (test scope)
+libraryDependencies += "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 ```
 
 The `telemetry` module needs **JDK 21 or newer** on the JVM, to compile as well as to run. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and the JDK each module needs.
