@@ -9,9 +9,6 @@ Purpose: JMH is JVM-only, so this is a hand-rolled Node benchmark for the JS
          cell under test:
            - `++3.8.3` -> native `js.async` / `js.await` backend (Scala 3.8+)
            - `++3.3.7` -> dotty-cps-async (DCA) backend (Scala 3.3.x JS)
-         Scala 2 JS uses the shared def-macro; its allocation shape is already
-         gated on the JVM by `async-benchmarks-scala2` (the emitted flatMap
-         chain is platform-neutral), so it is not re-measured here.
 
 Host   : Apple M3 Ultra, macOS (Darwin 25.3.0, arm64)
 Runtime: Node v26.0.0, run with `--expose-gc` (supplied by the module `jsEnv`)
