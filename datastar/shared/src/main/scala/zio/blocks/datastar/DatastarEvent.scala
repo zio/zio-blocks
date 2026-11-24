@@ -201,6 +201,10 @@ object DatastarEvent {
     def renderSSE: String =
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSE
 
+    /**
+     * Returns the UTF-8 bytes of `renderSSE`. It throws the same exceptions as
+     * `renderSSE`.
+     */
     def renderSSEBytes: Array[Byte] =
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSEBytes
   }
@@ -249,6 +253,10 @@ object DatastarEvent {
     def renderSSE: String =
       PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSE
 
+    /**
+     * Returns the UTF-8 bytes of `renderSSE`. It throws the same exceptions as
+     * `renderSSE`.
+     */
     def renderSSEBytes: Array[Byte] =
       PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSEBytes
   }
@@ -362,6 +370,10 @@ object DatastarEvent {
      */
     def renderSSE: String = inner.renderSSE
 
+    /**
+     * Returns the UTF-8 bytes of `renderSSE`. It throws the same exceptions as
+     * `renderSSE`.
+     */
     def renderSSEBytes: Array[Byte] = inner.renderSSEBytes
   }
 

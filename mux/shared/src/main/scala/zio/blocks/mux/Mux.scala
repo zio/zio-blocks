@@ -86,6 +86,16 @@ object Mux {
   def apply[Id, In, Out](capacity: Int)(using Pollable[In], Pollable[Out]): Mux[Id, In, Out] =
     apply(capacity, DefaultStreamQueueCapacity)
 
+  /**
+   * Creates a multiplexer holding at most `capacity` concurrent streams, with
+   * each stream's inbound and outbound queues holding at most
+   * `streamQueueCapacity` messages (see the one-argument `apply` for sizing
+   * guidance).
+   *
+   * It throws an `IllegalArgumentException` when `capacity` is not positive or
+   * when `streamQueueCapacity` is not a positive power of two. The one-argument
+   * `apply` passes `DefaultStreamQueueCapacity` (256).
+   */
   def apply[Id, In, Out](capacity: Int, streamQueueCapacity: Int)(using
     Pollable[In],
     Pollable[Out]

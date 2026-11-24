@@ -103,6 +103,15 @@ import scala.quoted.*
  */
 sealed trait Pollable[A]
 
+/**
+ * The companion of [[Pollable]]. Its `derived` given builds the evidence at
+ * compile time with the checks described on [[Pollable]], so `Mux.apply` finds
+ * it for a message type with no explicit instance. Compilation fails for a
+ * message type that overlaps `MuxError` or `MuxEmpty`, and for a bare type
+ * parameter, abstract type member, opaque alias or match type, because
+ * disjointness cannot be proven for it. A generic container such as `List[A]`
+ * is accepted.
+ */
 object Pollable {
 
   /**
