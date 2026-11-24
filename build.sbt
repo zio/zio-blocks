@@ -1687,7 +1687,6 @@ lazy val docs = project
     moduleName := "zio-blocks-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    scalacOptions += "-experimental",
     projectName  := (ThisBuild / name).value,
     readmeBanner := {
       val logoBase = "https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo"
