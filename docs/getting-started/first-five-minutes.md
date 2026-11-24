@@ -23,7 +23,7 @@ No block needs a runtime, an effect type or any setup: every call on this page i
 
 ## Add Two Dependencies
 
-The program needs two artifacts; Chunk comes along with Schema. On Scala 2.13 and Scala 3.9, add them to `build.sbt`:
+The program needs two artifacts; Chunk comes along with Schema. On Scala 3, add them to `build.sbt`:
 
 ```scala
 // ZIO Blocks schema module

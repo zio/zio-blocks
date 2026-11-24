@@ -226,7 +226,6 @@ jobs:
         platform:
         - JS
         scala:
-        - 2.13.x
         - 3.9.x
         - 3.10.x
     steps:
@@ -388,7 +387,7 @@ jobs:
         retry_wait_seconds: 1800
         command: sbt ci-release
       env:
-        CI_SNAPSHOT_RELEASE: ++2.13.18 publish
+        CI_SNAPSHOT_RELEASE: ++2.13.18; chunkJVM/publish; typeidJVM/publish; maybeJVM/publish; markdownJVM/publish; schemaJVM/publish
         PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}

@@ -60,7 +60,7 @@ The blocks avoid work that slows down common Scala code. [Chunk](../reference/ch
 
 ## The Same Code on Every Platform
 
-Most blocks build for Scala 2.13 and Scala 3, on the JVM and on Scala.js, from the same source code. You can move a project from Scala 2.13 to Scala 3 without changing how you call a block. The few blocks that are narrower, such as SQL, which needs Scala 3, say so in the catalog on the [overview](../index.md).
+Most blocks build for Scala 3.9 and 3.10, on the JVM and on Scala.js, from the same source code; the five foundation modules (`chunk`, `typeid`, `maybe`, `markdown`, `schema`) also build for Scala 2.13, on the JVM only. The few blocks that are narrower, such as SQL, which needs Scala 3, say so in the catalog on the [overview](../index.md).
 
 ## Putting the Ideas Together
 

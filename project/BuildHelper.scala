@@ -15,6 +15,18 @@ object BuildHelper {
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
   val Scala3Golem: String = "3.8.3"
 
+  /**
+   * The legacy Scala 2.13 lane.
+   *
+   * 2.13 is kept only for the foundation modules (`chunk`, `typeid`, `maybe`,
+   * `markdown`, `schema`), and only on the JVM (see `jsSettingsNoScala2`).
+   * Every other module cross-builds Scala 3 only, so `stdSettings` defaults to
+   * the Scala 3 lines. Do not add modules here: the lane exists so downstream
+   * libraries that cannot move yet keep a foundation to build on, not as a
+   * general 2.13 build.
+   */
+  val Scala2Versions: Seq[String] = Seq(Scala3, Scala3Next, Scala213)
+
   // The first Scala 3 minor version of the next line. From it on, modules are published as
   // `zio-blocks-next-*` and compiled with -experimental; below it, Scala 3 builds are the main
   // line (`zio-blocks-*`), which must not use -experimental (see `stdSettings`).
@@ -179,7 +191,7 @@ object BuildHelper {
 
   def stdSettings(
     prjName: String,
-    scalaVersions: Seq[String] = Seq(Scala3, Scala3Next, Scala213)
+    scalaVersions: Seq[String] = Seq(Scala3, Scala3Next)
   ): Seq[Def.Setting[?]] =
     Seq(
       name := prjName,
@@ -327,5 +339,13 @@ object BuildHelper {
     coverageEnabled          := false,
     Test / parallelExecution := false,
     Test / fork              := false
+  )
+
+  /**
+   * `jsSettings` for the legacy Scala 2.13 modules: their 2.13 lane is JVM
+   * only, so the Scala.js builds drop it and publish 3.9 / 3.10 only.
+   */
+  def jsSettingsNoScala2: Seq[Def.Setting[?]] = jsSettings ++ Seq(
+    crossScalaVersions := crossScalaVersions.value.filterNot(_ == Scala213)
   )
 }

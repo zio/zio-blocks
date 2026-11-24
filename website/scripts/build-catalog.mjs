@@ -32,7 +32,7 @@ export const REFERENCE_FOLDS = [
 
 /** Principle texts shown instead of the (first sentence of the) text in docs/index.md. */
 export const PRINCIPLE_TEXT = {
-  'Cross-Platform': 'Most blocks cross-build for JVM and Scala.js on Scala 2.13 and 3.x. Adopt Scala 3 on your timeline.',
+  'Cross-Platform': 'Most blocks build for JVM and Scala.js on Scala 3.9 and 3.10. The five foundation modules also build for Scala 2.13, on the JVM only.',
 };
 
 /** Category headings shown under a different name than the `###` heading in docs/index.md. */
