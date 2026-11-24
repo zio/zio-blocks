@@ -62,8 +62,9 @@ sealed trait DatastarEvent {
   def renderSSE: String
 
   /**
-   * Returns the exact UTF-8 bytes of [[renderSSE]], encoded directly without
-   * building the whole-event string or calling `String#getBytes`.
+   * Returns the exact UTF-8 bytes of [[renderSSE]]. The built-in
+   * implementations build the whole-event string with [[renderSSE]] and then
+   * encode it with `String#getBytes` using UTF-8.
    */
   def renderSSEBytes: Array[Byte]
 }
