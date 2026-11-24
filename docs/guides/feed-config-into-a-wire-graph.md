@@ -77,7 +77,7 @@ In this guide, the config module turns each settings section into a typed case c
 Add the config module and its YAML format to your `build.sbt`. The config module depends on the scope and context modules, so `Scope`, `Resource`, `Wire` and `Context` come with it:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
 
 // ZIO Blocks config yaml module

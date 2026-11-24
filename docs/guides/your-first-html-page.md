@@ -37,7 +37,7 @@ At the end, we save the finished page as `book.html` and open it in a browser. W
 To follow along, add the HTML module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-html" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")

@@ -65,7 +65,7 @@ In this guide, we derive one TOON codec per type from its `Schema` instead. The 
 Add the TOON module to your `build.sbt`. It depends on the schema module, so you don't need to add that separately:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")

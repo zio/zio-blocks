@@ -59,7 +59,7 @@ Add the following dependency to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
-Supported Scala versions: **2.13.x** and **3.x**.
+Supported Scala versions: **3.9.x** and **3.10.x**.
 
 ## Quickstart
 

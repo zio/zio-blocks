@@ -61,7 +61,7 @@ In this guide, we solve this by letting the `Schema` describe itself: `Schema#to
 To follow along, add the schema module and its Avro module to your build. The registry stores schemas in Avro, for a reason explained in [Choose a Storage Format](#choose-a-storage-format):
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
 
 // ZIO Blocks schema avro module

@@ -14,7 +14,7 @@ Add the library to your build configuration:
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.9.x and 3.10.x
 
 ## Quick Start
 

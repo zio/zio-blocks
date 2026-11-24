@@ -39,7 +39,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the smithy and codegen modules to your `build.sbt`. The code we generate also needs the schema module:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy"  % "@VERSION@"
 
 // ZIO Blocks codegen module

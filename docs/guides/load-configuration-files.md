@@ -76,7 +76,7 @@ In this guide, the config module decodes the settings into a case class from its
 Add the config module and the three format modules to your `build.sbt`. `config-hocon` depends only on `zio-blocks-config`; `config-json` and `config-yaml` also bring in the schema and schema-yaml modules, so add only the formats you read:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
 
 // ZIO Blocks config hocon module
@@ -576,7 +576,7 @@ A Scala.js application in the browser has no files, no environment variables and
 
 The simplest is to compile the configuration into the program: put the HOCON text in a `String` constant, or the split files in a map like `bundledFiles`, and parse it with `ConfigSource.fromHocon` or `parseBundled` exactly as above. The settings are then fixed at build time, which suits values such as the catalog's page size.
 
-Settings that change per deployment, such as the API host, come from the server at startup. The page fetches the text with the browser's `fetch`, and parses it once the text arrives. This snippet needs Scala.js, so the build of this page doesn't compile it; it compiles with Scala.js 1.22.0 on Scala 2.13 and Scala 3.9:
+Settings that change per deployment, such as the API host, come from the server at startup. The page fetches the text with the browser's `fetch`, and parses it once the text arrives. This snippet needs Scala.js, so the build of this page doesn't compile it; it compiles with Scala.js 1.22.0 on Scala 3.9:
 
 ```scala
 import scala.concurrent.ExecutionContext.Implicits.global

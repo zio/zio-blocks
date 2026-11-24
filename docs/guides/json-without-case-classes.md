@@ -47,7 +47,7 @@ In this guide, we solve this with `Json`, an immutable tree that mirrors the JSO
 To follow along, add the schema module to your build. `Json` lives in it; no extra JSON module is needed:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer: the same module with the zio-blocks-next- prefix

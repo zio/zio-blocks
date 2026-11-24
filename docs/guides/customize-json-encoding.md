@@ -63,7 +63,7 @@ In this guide, we keep `Schema.derived` and change the format instead, with one 
 We use the same schema module as the [Your First Schema](./your-first-schema.md) tutorial:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")

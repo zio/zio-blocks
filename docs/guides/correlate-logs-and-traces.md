@@ -98,7 +98,7 @@ Tracing already solves the "which steps belong together" half: a trace is one id
 Add the `telemetry`, `telemetry-otel`, `http-model` and `async` modules to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry"      % "@VERSION@"
 
 // ZIO Blocks telemetry otel module

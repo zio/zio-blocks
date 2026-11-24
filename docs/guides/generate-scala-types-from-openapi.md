@@ -70,7 +70,7 @@ The generator handles data types only. It writes no HTTP clients or servers; if 
 To follow along, add the openapi and codegen modules to your `build.sbt`. The code we generate also needs the schema module:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-openapi" % "@VERSION@"
 
 // ZIO Blocks codegen module

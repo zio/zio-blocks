@@ -32,7 +32,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
 
 **Note:** This module is JVM-only and is not available for Scala.js.
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.9.x and 3.10.x
 
 ## Introduction
 
