@@ -54,7 +54,7 @@ ZIO Blocks has a tool for each of these allocations. In this guide, we replace t
 
 ## Prerequisites
 
-We use four modules: `streams`, `chunk`, `maybe` and `telemetry`. On Scala 2.13 and Scala 3.9, add:
+We use four modules: `streams`, `chunk`, `maybe` and `telemetry`. On Scala 3.9, add:
 
 ```scala
 // ZIO Blocks streams module

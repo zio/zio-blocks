@@ -38,14 +38,14 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the schema module to your `build.sbt`. Optics are part of it, so there is nothing else to install:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")
 libraryDependencies += "dev.zio" %% "zio-blocks-next-schema" % "@VERSION@"
 ```
 
-The code in this tutorial is the same for Scala 2.13 and Scala 3.
+The code in this tutorial is the same for Scala 3.9 and 3.10.
 
 ## 2. Background: Paths Into Immutable Data
 

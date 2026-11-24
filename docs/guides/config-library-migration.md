@@ -85,7 +85,7 @@ libraryDependencies += "dev.zio"               %% "zio-config-typesafe" % "4.1.0
 Add the ZIO Blocks config module and its HOCON adapter:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-config"       % "@VERSION@"
 // ZIO Blocks config hocon module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
@@ -513,7 +513,7 @@ A few habits from the old libraries don't carry over:
 
 - **No effect system.** `Config.load` is a plain function call that returns an `Either`. There is no ZIO runtime to set up and no `bootstrap` layer; a ZIO application wraps the call in `ZIO.fromEither` where it needs an effect.
 - **No reload or watch.** A load reads the sources once. To pick up a changed file, load again, as in the example below. Runtime switches that change while the service runs are covered by [Flags](../reference/config/flags.md), not by `Config`.
-- **Every Scala version and Scala.js.** `zio-blocks-config` and `zio-blocks-config-hocon` are built for Scala 2.13 and Scala 3.9 LTS, on the JVM and Scala.js. `ConfigSource.fromFile` is JVM-only, and on Scala.js `SysPropSource` is always empty; `ConfigSource.fromHocon` and `EnvSource` work on both platforms.
+- **Every Scala version and Scala.js.** `zio-blocks-config` and `zio-blocks-config-hocon` are built for Scala 3.9 LTS, on the JVM and Scala.js. `ConfigSource.fromFile` is JVM-only, and on Scala.js `SysPropSource` is always empty; `ConfigSource.fromHocon` and `EnvSource` work on both platforms.
 - **Nothing is read implicitly.** `ConfigFactory.load()` merges system properties, `application.conf` and `reference.conf` on its own. In ZIO Blocks, each layer is a source we name, and the order of `orElse` calls is the order of precedence. `SysPropSource` reads JVM system properties by their dotted names when a `-D` override layer is wanted.
 
 Loading is an ordinary call, so reloading is a function we call again whenever the service wants fresh values:

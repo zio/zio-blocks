@@ -14,7 +14,7 @@ Add the library to your build configuration:
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.9.x and 3.10.x
 
 ## Quick Start
 
@@ -381,7 +381,7 @@ object ShapeId {
 }
 ```
 
-`ShapeRef` exists to give `ShapeId` and `ShapeId.Member` a common supertype without a Scala 3 union type, so the same signatures compile on 2.13.
+`ShapeRef` exists to give `ShapeId` and `ShapeId.Member` a common supertype, so the signatures do not depend on a union type.
 
 Rendering follows the IDL: a shape is `namespace#name`, and a member appends `$` and the member name:
 

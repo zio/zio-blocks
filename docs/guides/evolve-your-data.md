@@ -37,7 +37,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the schema module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer

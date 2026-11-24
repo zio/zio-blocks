@@ -62,7 +62,7 @@ In this guide, we let a `Schema` do the parsing, keep the "missing" and "malform
 Add the HTTP model, its schema integration and the schema module (for the JSON error body) to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model"        % "@VERSION@"
 
 // ZIO Blocks http model schema module

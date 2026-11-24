@@ -74,7 +74,7 @@ In this guide, we let the stream own the handle: it opens the handle when it sta
 Add the streams module to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-streams" % "@VERSION@"
 
 // Scala 3.10 and newer, which also needs -experimental

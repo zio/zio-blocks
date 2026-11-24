@@ -14,7 +14,7 @@ keywords:
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `async` module provides `Async[A]` — a small asynchronous effect type for Scala 2.13 and Scala 3, targeting both JVM and Scala.js.
+The `async` module provides `Async[A]` — a small asynchronous effect type for Scala 3.9 and 3.10, targeting both JVM and Scala.js.
 
 An `Async[A]` value is a computation that either yields an `A` or fails with a `Throwable`. Unlike a lazy effect type, building one *runs* it: the synchronous work happens as you construct it, and only a computation that genuinely has to wait for something is left pending. [Evaluation model](#evaluation-model) explains where that line falls.
 
@@ -50,7 +50,7 @@ In a cross-built project, use `%%%` so the same line resolves for both JVM and S
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 ```
 
-The module publishes for JVM and Scala.js, on Scala 2.13 and Scala 3. That single coordinate is all you add: it brings `zio-blocks-combinators` with it, along with `dotty-cps-async` on Scala 3 or `scala-reflect` on Scala 2, both of which power the direct-style rewrite.
+The module publishes for JVM and Scala.js on Scala 3.9 and 3.10. That single coordinate is all you add: it brings `zio-blocks-combinators` with it, along with `dotty-cps-async`, which powers the direct-style rewrite.
 
 ## Overview
 
@@ -738,7 +738,7 @@ traceCalls("Vector.map")(Async.async(Vector(1, 2, 3).map(sku => fetchPrice(sku).
 
 Where a collection method would throw on its own, it still does: `reduce` over an empty receiver fails with `UnsupportedOperationException`, which arrives as an ordinary `Async` failure you can `catchAll`.
 
-The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither asks you to add anything to your build.
+The rewrite is performed by `dotty-cps-async`, and it does not ask you to add anything to your build.
 
 Scala.js 3.8 and later takes a hybrid route, decided per call site. An `await` in direct position compiles to JavaScript's own `async`/`await`, which is the fastest path available; an `await` sitting under a lambda, a by-name argument, or a nested method falls back to the `dotty-cps-async` transform, because the native primitive is not legal in those positions. Nothing about this is yours to configure — the wider `Async.async` surface works either way.
 
@@ -1458,7 +1458,7 @@ The core API behaves identically everywhere by design, and the cross-platform te
 | `CompletionStage` interop    | yes |    no    | JVM only                                                           |
 | `js.Promise` interop         |  no |   yes    | Scala.js only                                                      |
 
-All of it works on Scala 2.13 and Scala 3.
+All of it works on Scala 3.9 and 3.10.
 
 ### Where Suspended Work Runs
 

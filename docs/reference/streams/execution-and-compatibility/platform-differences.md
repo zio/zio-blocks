@@ -281,7 +281,7 @@ For the reader the point is a guarantee rather than a test detail: a cross-platf
 
 ## Scala 2 Versus Scala 3
 
-There is no public-API difference between Scala 2.13 and Scala 3 in the streams module. Each version tree holds exactly two files, `LowPriorityJvmTypeInferPlatform.scala` and `internal/InternalVersionSpecific.scala`, and both declare `private[streams]` traits — implementation detail for `JvmType` inference and for primitive pull loops, invisible from user code.
+There is no per-Scala-version public-API difference in the streams module. The two files that used to be split per version, `LowPriorityJvmTypeInferPlatform.scala` and `internal/InternalVersionSpecific.scala`, declare `private[streams]` traits — implementation detail for `JvmType` inference and for primitive pull loops, invisible from user code.
 
 The axis that changes what you can call is JVM versus Scala.js, which is what the [availability matrix](#availability-matrix) above records. [Scala 2 Compatibility](./scala-2-compatibility.md) covers the syntax differences that do affect how you write against the API, such as wildcard imports and implicit resolution.
 

@@ -979,26 +979,12 @@ val combined = first ++ second
 val result = combined.runCollect
 ```
 
-For unrelated element types, Scala 3 produces a direct union while Scala 2 produces `Either`:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2.13">
-
-```scala
-val combined: Stream[Nothing, Either[String, Int]] =
-  Stream.succeed("left") ++ Stream.succeed(1)
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3.x">
+For unrelated element types, Scala 3 produces a direct union:
 
 ```scala
 val combined: Stream[Nothing, String | Int] =
   Stream.succeed("left") ++ Stream.succeed(1)
 ```
-
-  </TabItem>
-</Tabs>
 
 ```scala mdoc
 import zio.blocks.streams.*

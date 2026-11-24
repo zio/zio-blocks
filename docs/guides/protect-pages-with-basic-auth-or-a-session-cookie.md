@@ -55,7 +55,7 @@ ZIO Blocks gives us the typed pieces: `Header.Authorization.Basic` decodes Basic
 Add the HTTP model and the HTML module to your `build.sbt`. The HTML module builds the pages and escapes the text we put in them:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 
 // ZIO Blocks html module

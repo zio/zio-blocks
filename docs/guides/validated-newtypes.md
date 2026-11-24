@@ -53,7 +53,7 @@ In this guide, we follow the "parse, don't validate" approach instead: we turn r
 This guide builds on [Your First Schema](./your-first-schema.md): you should know how to derive a `Schema` for a case class and decode JSON with it. Add the schema module, and the TOON module used in one section, to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
 
 // ZIO Blocks schema toon module

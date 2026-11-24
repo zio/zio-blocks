@@ -50,7 +50,7 @@ In ZIO Blocks, a type derives a `Schema` once. The JSON codec is derived from th
 Add the schema module, which includes the JSON codec:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")

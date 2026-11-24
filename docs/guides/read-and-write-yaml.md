@@ -53,7 +53,7 @@ In this guide, we solve this with `zio-blocks-schema-yaml`: a codec derived from
 Add the schema and YAML modules to your build:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"      % "@VERSION@"
 
 // ZIO Blocks schema yaml module

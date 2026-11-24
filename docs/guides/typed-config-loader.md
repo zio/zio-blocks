@@ -37,7 +37,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 To follow along, add the config module and its YAML adapter to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-config"      % "@VERSION@"
 // ZIO Blocks config yaml module
 libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"

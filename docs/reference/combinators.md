@@ -40,7 +40,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 Supported platforms:
-- **Tuples, Concat, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
+- **Tuples, Concat, Eithers**: JVM, Scala.js (Scala 3.9 and 3.10)
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
 ## Motivation
@@ -439,11 +439,11 @@ The combinator types integrate with other ZIO Blocks modules through systematic 
 
 ## Scala 2 vs Scala 3: Compatibility and Differences
 
-The combinators module works across Scala 2.13 and Scala 3.x with **full source compatibility**. Write your code once; it compiles on both versions. However, certain features are version-specific due to language capabilities:
+The combinators module builds for Scala 3.9 and 3.10 only; its Scala 2.13 build ended with the 0.0.x line. The comparison below is kept as historical reference for codebases still on the last 2.13 artifact.
 
 ### Tuples: Version Differences
 
-**Scala 2.13 Limitations:**
+**Scala 2.13 limitations (historical):**
 - Maximum arity of 22 (the standard library tuple limit)
 - Tuple flattening only works when the left argument is a tuple (right argument cannot be recursively flattened)
 - No `EmptyTuple` type (use `Unit` as identity instead)

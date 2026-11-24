@@ -3,14 +3,14 @@ id: jwt
 title: "JWT"
 ---
 
-`zio-blocks-jwt` is a zero-dependency, cross-platform (JVM + Scala.js) JWT library for Scala 2.13 and Scala 3.
+`zio-blocks-jwt` is a zero-dependency, cross-platform (JVM + Scala.js) JWT library for Scala 3.9 and 3.10.
 
 ## Getting Started
 
 Add the dependency to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-jwt" % "@VERSION@"
 
 // Scala 3.10 and newer (also needs scalacOptions += "-experimental")
