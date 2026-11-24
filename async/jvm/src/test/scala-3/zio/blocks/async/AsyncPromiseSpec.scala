@@ -24,7 +24,6 @@ import zio.test._
  *
  * Scala 3 takes the completer through a `?=>` context function, so the body
  * reads `Async.promise[String] { succeed("hello") }` with no explicit `c =>`.
- * The Scala 2 equivalent (`implicit` lambda parameter) is in `scala-2/`.
  */
 object AsyncPromiseSpec extends ZIOSpecDefault {
 

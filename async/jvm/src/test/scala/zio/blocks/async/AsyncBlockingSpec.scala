@@ -977,8 +977,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
         }
       ),
       // `.await` inside a `List.map` closure has EAGER semantics on every backend
-      // (dotty-cps-async + native `js.await` on Scala 3, `internal.AsyncMacros` on
-      // Scala 2): strict `List.map` applies the closure to every element first,
+      // (dotty-cps-async, and native `js.await` on Scala.js): strict `List.map`
+      // applies the closure to every element first,
       // producing `List[Async[B]]`, and the awaits are then sequenced
       // left-to-right via `Async.collectAll` (fail-fast on the first failure).
       // This matches how `Array.map(async ...)` composes in real JavaScript.
@@ -1167,7 +1167,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
         // NOTE: *multiple* guards (`if ... if ...`, i.e. chained `withFilter`) are
         // supported by the Scala 2 macro but NOT by dotty-cps-async on Scala 3
         // (it has no `AsyncShift[WithFilter]` for a nested `withFilter`), so that
-        // case is a Scala-2-only superset covered in `AsyncAwaitValAscriptionSpec`.
+        // case was a Scala-2-only superset, no longer exercised now that the
+        // Scala 2 backend is gone.
       ),
       // `.await` inside `Option` HOF closures. An `Option` holds at most one
       // element, so the eager/lazy distinction (which separates `List.map` from
@@ -1238,8 +1239,9 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
         // NOTE: an Option for-comprehension *guard* (`for { i <- opt if p }`,
         // desugaring to `opt.withFilter(p)`) is supported by the Scala 2 macro but
         // NOT by dotty-cps-async on Scala 3 (it has no `AsyncShift[Option#WithFilter]`
-        // — unlike `List`, for which a single guard works). It is therefore a
-        // Scala-2-only superset, covered in `AsyncAwaitScala2HofSpec`.
+        // — unlike `List`, for which a single guard works). It was therefore a
+        // Scala-2-only superset, no longer exercised now that the Scala 2 backend
+        // is gone.
       ),
       // `.await` inside `Vector` HOF closures. Unlike `List.map` (eager via DCA's
       // special `ListAsyncShift`), `Vector.map`/`foreach`/`flatMap` are all
@@ -1549,9 +1551,9 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }.block
           assertTrue(r == None, !ran)
         }
-        // NOTE: `Map.filter`/`filterNot` with `.await` is a Scala-2-only superset
+        // NOTE: `Map.filter`/`filterNot` with `.await` was a Scala-2-only superset
         // — dotty-cps-async has no working `MapOpsAsyncShift.filter` and crashes —
-        // so it is covered (Scala 2 only) in `AsyncAwaitScala2HofSpec`.
+        // so it is not exercised here now that the Scala 2 backend is gone.
       ),
       // `.await` inside a `takeWhile` / `dropWhile` predicate. These are
       // **prefix-ordered** (only meaningful on ordered `Seq` receivers — `List` /
@@ -1747,8 +1749,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           // NOTE: the guard-evaluation COUNT is an implementation detail that
           // differs across backends (the Scala 2 macro evaluates it exactly once
           // per element; dotty-cps-async may evaluate it more than once), so only
-          // the RESULT is asserted here. The "exactly once" guarantee for the
-          // Scala 2 macro is covered in `AsyncAwaitScala2HofSpec`.
+          // the RESULT is asserted here. The "exactly once" guarantee belonged to
+          // the removed Scala 2 macro.
           val r = Async.async {
             List(1, 2, 3, 4).collect { case i if i % 2 == 0 => Async.succeed(i).await }
           }.block
@@ -1818,8 +1820,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
         },
         // Only the NON-pair `Map.collect` (result `Iterable[B]`) is cross-version:
         // dotty-cps-async has no Map-specific collect shift, so a pair-yielding
-        // `Map.collect` (result `Map[K2, V2]`) is a compile error on Scala 3 and is
-        // rejected on Scala 2 too (covered in `AsyncAwaitScala2HofSpec`).
+        // `Map.collect` (result `Map[K2, V2]`) is a compile error on Scala 3 and was
+        // rejected on Scala 2 too.
         test("Map.collect with a non-pair body widens to an Iterable") {
           val r = Async.async {
             Map(1 -> 10, 2 -> 20).collect { case (k, v) => Async.succeed(k + v).await }
@@ -2032,8 +2034,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(r)
         }
       )
-      // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
-      // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
+      // NOTE: `val`-type-ascription preservation was a Scala-2-macro-specific
+      // behavior (that backend is gone). On
       // Scala 3, dotty-cps-async pushes the val's expected type INTO `.await`
       // (`val n: Long = intAsync.await` elaborates as `await[Long](intAsync)` and
       // does NOT compile), so the cases cannot be asserted identically here.

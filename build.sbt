@@ -2058,10 +2058,6 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     //     + CpsMonad) but NOT `scala-3-dca-direct` (it ships its own
     //     AsyncDirect).
     //   - Scala 3.x < 3.8 → DCA only (older Scala 3 lacks `js.async`).
-    //   - Scala 2 → the shared `scala-2` def-macro (`internal.AsyncMacros`)
-    //     emits a platform-neutral flatMap chain, so no JS-specific source dir
-    //     is needed; JS behavior is covered by
-    //     `js/src/test/scala-2/.../AsyncJsAwaitSpec`.
     //
     // Intentionally validated on the repo default Scala 3.8.3 rather than
     // bumping BuildHelper.Scala3 to 3.8.4-RC1. 3.8.4 fixes the narrow
