@@ -77,95 +77,12 @@ object BuildHelper {
     if result.exists
   } yield result
 
-  /**
-   * Find all applicable Scala 3.x minor version directories.
-   *
-   * Supports three directory naming conventions:
-   *   - `scala-3.X` (without suffix): for version X up to but not including the
-   *     next version-specific directory. Only the best match (highest X <=
-   *     target) is included.
-   *   - `scala-3.X+` (with +): for version X and ALL later versions. All
-   *     matching directories are included.
-   *   - `scala-3.X-` (with -): for versions BEFORE X (not including X). All
-   *     matching directories are included.
-   *
-   * Examples with scala-3, scala-3.5+, scala-3.7:
-   *   - Scala 3.7 uses: scala-3, scala-3.5+, scala-3.7
-   *   - Scala 3.6 uses: scala-3, scala-3.5+
-   *   - Scala 3.4 uses: scala-3
-   *
-   * Examples with scala-3, scala-3.5, scala-3.7:
-   *   - Scala 3.7 uses: scala-3, scala-3.7 (scala-3.5 superseded)
-   *   - Scala 3.6 uses: scala-3, scala-3.5
-   *   - Scala 3.4 uses: scala-3
-   *
-   * Examples with scala-3.5-, scala-3.5+:
-   *   - Scala 3.7 uses: scala-3.5+ (mutually exclusive)
-   *   - Scala 3.5 uses: scala-3.5+ (mutually exclusive)
-   *   - Scala 3.4 uses: scala-3.5- (mutually exclusive)
-   *   - Scala 3.3 uses: scala-3.5- (mutually exclusive)
-   *
-   * @param targetMinor
-   *   the minor version of the Scala 3 compiler being used
-   * @param platforms
-   *   the platforms to search (e.g., Seq("shared", "jvm"))
-   * @param conf
-   *   "main" or "test"
-   * @param baseDir
-   *   the base directory of the project
-   * @return
-   *   all applicable version strings (e.g., Seq("3.5+", "3.7")), sorted
-   *   ascending by minor version
-   */
-  def findApplicableScala3MinorDirs(
-    targetMinor: Int,
-    platforms: Seq[String],
-    conf: String,
-    baseDir: File
-  ): Seq[String] = {
-    val Scala3PlusPattern  = """scala-3\.(\d+)\+""".r
-    val Scala3MinusPattern = """scala-3\.(\d+)-""".r
-    val Scala3ExactPattern = """scala-3\.(\d+)""".r
-
-    val allDirs = for {
-      platform <- platforms
-      dir       = baseDir.getParentFile / platform.toLowerCase / "src" / conf
-      if dir.exists
-      child <- dir.listFiles().toSeq
-      if child.isDirectory
-    } yield child.getName
-
-    // scala-3.X+ directories: include if X <= target (i.e., target >= X)
-    val plusMinors = allDirs.collect { case Scala3PlusPattern(m) =>
-      scala.util.Try(m.toInt).toOption
-    }.flatten.distinct.filter(_ <= targetMinor)
-
-    // scala-3.X- directories: include if target < X (i.e., target is before X)
-    val minusMinors = allDirs.collect { case Scala3MinusPattern(m) =>
-      scala.util.Try(m.toInt).toOption
-    }.flatten.distinct.filter(targetMinor < _)
-
-    // scala-3.X directories: include only the best match (highest X <= target)
-    val exactMinors = allDirs.collect { case Scala3ExactPattern(m) =>
-      scala.util.Try(m.toInt).toOption
-    }.flatten.distinct.filter(_ <= targetMinor)
-
-    val bestExact = exactMinors.sorted.lastOption
-
-    val result = plusMinors.map(m => s"3.$m+") ++ minusMinors.map(m => s"3.$m-") ++ bestExact.map(m => s"3.$m").toSeq
-    result.sortBy(s => s.stripSuffix("+").stripSuffix("-").stripPrefix("3.").toInt)
-  }
-
   def crossPlatformSources(scalaVer: String, platform: String, conf: String, baseDir: File): Seq[File] = {
-    val platforms = Seq("shared", platform)
-    val versions  = CrossVersion.partialVersion(scalaVer) match {
-      case Some((2, 12))    => Seq("2.12-2.13")
-      case Some((2, 13))    => Seq("2.13+", "2.12-2.13")
-      case Some((3, minor)) =>
-        val base          = Seq("2.13+", "3")
-        val minorSpecific = findApplicableScala3MinorDirs(minor.toInt, platforms, conf, baseDir)
-        base ++ minorSpecific
-      case _ => Seq()
+    val versions = CrossVersion.partialVersion(scalaVer) match {
+      // Scala 3.9 and the 3.10+ line share one version directory: there is no per-minor split
+      // any more. 2.13 needs no entry here; sbt adds `scala-2` and `scala-2.13` itself.
+      case Some((3, _)) => Seq("3")
+      case _            => Seq()
     }
     platformSpecificSources(platform, conf, baseDir)(versions*)
   }
