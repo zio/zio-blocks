@@ -6,7 +6,8 @@ const DOCS_BASE = '/';
 /** docs/index.md is served at /overview: the landing page owns `/` (see scripts/set-docs-home.mjs). */
 const DOCS_HOME = '/overview';
 const PLATFORMS = ['JVM', 'JS'];
-const SCALA_VERSIONS = ['2.13', '3.x'];
+// `2.13 (JVM)` marks a block that keeps a Scala 2.13 build on the JVM only.
+const SCALA_VERSIONS = ['2.13', '2.13 (JVM)', '3.x'];
 const BLOCK_COLUMNS = ['Block', 'Artifact', 'Platform', 'Scala', 'Description'];
 const DIVES = [
   ['schema', 'Schema'],

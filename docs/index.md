@@ -17,7 +17,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 
 - **Zero Lock-In**: No dependency on ZIO, Cats Effect, or any other effect system. Use a block with whatever stack you already have.
 - **Modular**: Each block is a separate artifact. Depend on exactly what you need.
-- **Cross-Platform**: Most blocks cross-build for JVM and Scala.js, and for Scala 2.13 and 3.x with source compatibility—adopt Scala 3 on your timeline, not ours. The catalog below records the exceptions per block.
+- **Cross-Platform**: Most blocks build for JVM and Scala.js on Scala 3.9 (LTS) and 3.10 (Scala Next). Five foundation modules — `chunk`, `typeid`, `maybe`, `markdown` and `schema` — also build for Scala 2.13, on the JVM only. The catalog below records the versions per block.
 - **High Performance**: Implementations that avoid boxing, minimize allocations, and use platform-specific features where they pay off.
 - **Type Safety**: Scala's type system carries the correctness guarantees, without runtime overhead.
 
@@ -59,10 +59,10 @@ and each row links to its own reference page.
 
 ## All Blocks
 
-Every block is published under the `dev.zio` organization. Most cross-build for
-**Scala 2.13 and 3.x** on both **JVM and Scala.js** with full source compatibility —
-adopt Scala 3 on your timeline, not ours. The handful of modules that are narrower
-say so in their own row.
+Every block is published under the `dev.zio` organization. Most build for **Scala 3.9 and 3.10**
+on **JVM and Scala.js**. The five foundation modules — `chunk`, `typeid`, `maybe`, `markdown` and
+`schema` — additionally build for **Scala 2.13, on the JVM only**; every other module is Scala 3
+only. Each row records its own versions.
 
 ### Meta Programming
 
@@ -70,16 +70,16 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Schema](./reference/schema/index.md) | `zio-blocks-schema` | JVM · JS | 2.13 · 3.x | Type-safe schemas with automatic codec, optic, and validator derivation |
-| [Avro Codec](./reference/schema/built-in-codecs/avro.md) | `zio-blocks-schema-avro` | JVM | 2.13 · 3.x | Apache Avro binary serialization with automatic schema generation |
-| [BSON Codec](./reference/schema/built-in-codecs/bson.md) | `zio-blocks-schema-bson` | JVM | 2.13 · 3.x | MongoDB-compatible BSON serialization with native type support |
-| [CSV Codec](./reference/schema/built-in-codecs/csv.md) | `zio-blocks-schema-csv` | JVM · JS | 2.13 · 3.x | RFC 4180-compliant CSV serialization |
-| [MessagePack Codec](./reference/schema/built-in-codecs/messagepack.md) | `zio-blocks-schema-messagepack` | JVM · JS | 2.13 · 3.x | Compact binary serialization with optimized streaming |
-| [Thrift Codec](./reference/schema/built-in-codecs/thrift.md) | `zio-blocks-schema-thrift` | JVM | 2.13 · 3.x | Apache Thrift binary serialization with TBinaryProtocol |
-| [TOON Codec](./reference/schema/built-in-codecs/toon.md) | `zio-blocks-schema-toon` | JVM · JS | 2.13 · 3.x | Token-oriented notation 30–60% smaller than JSON, tuned for LLM prompts |
-| [XML Codec](./reference/schema/built-in-codecs/xml.md) | `zio-blocks-schema-xml` | JVM · JS | 2.13 · 3.x | Zero-dependency XML serialization with fluent navigation and patching |
-| [YAML Codec](./reference/schema/built-in-codecs/yaml.md) | `zio-blocks-schema-yaml` | JVM · JS | 2.13 · 3.x | Human-readable YAML serialization with JSON interop |
-| [TypeId](./reference/typeid.md) | `zio-blocks-typeid` | JVM · JS | 2.13 · 3.x | Compile-time type identity with rich metadata |
+| [Schema](./reference/schema/index.md) | `zio-blocks-schema` | JVM · JS | 2.13 (JVM) · 3.x | Type-safe schemas with automatic codec, optic, and validator derivation |
+| [Avro Codec](./reference/schema/built-in-codecs/avro.md) | `zio-blocks-schema-avro` | JVM | 3.x | Apache Avro binary serialization with automatic schema generation |
+| [BSON Codec](./reference/schema/built-in-codecs/bson.md) | `zio-blocks-schema-bson` | JVM | 3.x | MongoDB-compatible BSON serialization with native type support |
+| [CSV Codec](./reference/schema/built-in-codecs/csv.md) | `zio-blocks-schema-csv` | JVM · JS | 3.x | RFC 4180-compliant CSV serialization |
+| [MessagePack Codec](./reference/schema/built-in-codecs/messagepack.md) | `zio-blocks-schema-messagepack` | JVM · JS | 3.x | Compact binary serialization with optimized streaming |
+| [Thrift Codec](./reference/schema/built-in-codecs/thrift.md) | `zio-blocks-schema-thrift` | JVM | 3.x | Apache Thrift binary serialization with TBinaryProtocol |
+| [TOON Codec](./reference/schema/built-in-codecs/toon.md) | `zio-blocks-schema-toon` | JVM · JS | 3.x | Token-oriented notation 30–60% smaller than JSON, tuned for LLM prompts |
+| [XML Codec](./reference/schema/built-in-codecs/xml.md) | `zio-blocks-schema-xml` | JVM · JS | 3.x | Zero-dependency XML serialization with fluent navigation and patching |
+| [YAML Codec](./reference/schema/built-in-codecs/yaml.md) | `zio-blocks-schema-yaml` | JVM · JS | 3.x | Human-readable YAML serialization with JSON interop |
+| [TypeId](./reference/typeid.md) | `zio-blocks-typeid` | JVM · JS | 2.13 (JVM) · 3.x | Compile-time type identity with rich metadata |
 
 ### Resource Management
 
@@ -87,40 +87,40 @@ All of these ship in `zio-blocks-scope`.
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Scope](./reference/resource-management/index.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Compile-time safe resource boundaries that keep values from escaping their lifetime |
-| [Resource](./reference/resource-management/resource.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Lazy recipes that pair acquisition with finalization, composable with `map`, `flatMap`, and `zip` |
-| [Unscoped](./reference/resource-management/unscoped.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Marker typeclass for plain data that can safely leave a scope |
-| [DeferHandle](./reference/resource-management/defer-handle.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Handle returned by `Scope.defer` for cancelling a registered finalizer |
-| [Finalizer](./reference/resource-management/finalizer.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Minimal capability interface for registering cleanup actions |
-| [Finalization](./reference/resource-management/finalization.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Result of running a scope's finalizers, including any cleanup errors |
+| [Scope](./reference/resource-management/index.md) | `zio-blocks-scope` | JVM · JS | 3.x | Compile-time safe resource boundaries that keep values from escaping their lifetime |
+| [Resource](./reference/resource-management/resource.md) | `zio-blocks-scope` | JVM · JS | 3.x | Lazy recipes that pair acquisition with finalization, composable with `map`, `flatMap`, and `zip` |
+| [Unscoped](./reference/resource-management/unscoped.md) | `zio-blocks-scope` | JVM · JS | 3.x | Marker typeclass for plain data that can safely leave a scope |
+| [DeferHandle](./reference/resource-management/defer-handle.md) | `zio-blocks-scope` | JVM · JS | 3.x | Handle returned by `Scope.defer` for cancelling a registered finalizer |
+| [Finalizer](./reference/resource-management/finalizer.md) | `zio-blocks-scope` | JVM · JS | 3.x | Minimal capability interface for registering cleanup actions |
+| [Finalization](./reference/resource-management/finalization.md) | `zio-blocks-scope` | JVM · JS | 3.x | Result of running a scope's finalizers, including any cleanup errors |
 
 ### Dependency Injection
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Wire](./reference/resource-management/wire.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Compile-time safe recipes for constructing a service and its dependencies |
-| [Context](./reference/context.md) | `zio-blocks-context` | JVM · JS | 2.13 · 3.x | Type-indexed heterogeneous collections |
+| [Wire](./reference/resource-management/wire.md) | `zio-blocks-scope` | JVM · JS | 3.x | Compile-time safe recipes for constructing a service and its dependencies |
+| [Context](./reference/context.md) | `zio-blocks-context` | JVM · JS | 3.x | Type-indexed heterogeneous collections |
 
 ### Configuration & Feature Flags
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Configuration](./reference/config/index.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
-| [Config YAML](./reference/config/formats.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
-| [Config JSON](./reference/config/formats.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
-| [Config HOCON](./reference/config/formats.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
+| [Configuration](./reference/config/index.md) | `zio-blocks-config` | JVM · JS | 3.x | Typed configuration loading, feature flags, and rollout rules |
+| [Config YAML](./reference/config/formats.md) | `zio-blocks-config-yaml` | JVM · JS | 3.x | YAML source adapter for `ConfigSource` |
+| [Config JSON](./reference/config/formats.md) | `zio-blocks-config-json` | JVM · JS | 3.x | JSON source adapter for `ConfigSource` |
+| [Config HOCON](./reference/config/formats.md) | `zio-blocks-config-hocon` | JVM · JS | 3.x | HOCON source adapter for `ConfigSource` |
 
 ### Web & HTTP
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [MediaType](./reference/media-type.md) | `zio-blocks-mediatype` | JVM · JS | 2.13 · 3.x | Type-safe IANA media types with 2,600+ predefined types |
-| [HTTP Model](./reference/http-model/index.md) | `zio-blocks-http-model` | JVM · JS | 2.13 · 3.x | Pure HTTP data model with URL parsing, headers, cookies, and forms |
-| [HTTP Model Schema](./reference/http-model/schema.md) | `zio-blocks-http-model-schema` | JVM · JS | 2.13 · 3.x | Schema-based typed access to the HTTP model |
-| [Endpoint](./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 2.13 · 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
-| [OpenAPI](./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 2.13 · 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
-| [JWT](./reference/jwt.md) | `zio-blocks-jwt` | JVM · JS | 2.13 · 3.x | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support |
-| [HTML](./reference/html.md) | `zio-blocks-html` | JVM · JS | 2.13 · 3.x | Type-safe HTML templating with XSS protection |
+| [MediaType](./reference/media-type.md) | `zio-blocks-mediatype` | JVM · JS | 3.x | Type-safe IANA media types with 2,600+ predefined types |
+| [HTTP Model](./reference/http-model/index.md) | `zio-blocks-http-model` | JVM · JS | 3.x | Pure HTTP data model with URL parsing, headers, cookies, and forms |
+| [HTTP Model Schema](./reference/http-model/schema.md) | `zio-blocks-http-model-schema` | JVM · JS | 3.x | Schema-based typed access to the HTTP model |
+| [Endpoint](./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
+| [OpenAPI](./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
+| [JWT](./reference/jwt.md) | `zio-blocks-jwt` | JVM · JS | 3.x | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support |
+| [HTML](./reference/html.md) | `zio-blocks-html` | JVM · JS | 3.x | Type-safe HTML templating with XSS protection |
 | [Datastar](./reference/datastar/index.md) | `zio-blocks-datastar` | JVM · JS | 3.x | Typed Datastar attribute and signal DSL, plus the SSE events that patch a live page |
 | [HTMX](./reference/htmx/index.md) | `zio-blocks-http-htmx` | JVM · JS | 3.x | Typed HTMX DSL for compile-time-checked HTMX attributes |
 
@@ -128,30 +128,30 @@ All of these ship in `zio-blocks-scope`.
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
-| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
-| [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
+| [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 (JVM) · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
+| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 (JVM) · 3.x | Optional values that store a present reference as is, without a wrapper object (Scala 3) |
+| [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
 
 ### Concurrency
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Async](./reference/async.md) | `zio-blocks-async` | JVM · JS | 2.13 · 3.x | Zero-allocation asynchronous effect type with direct-style `await` |
+| [Async](./reference/async.md) | `zio-blocks-async` | JVM · JS | 3.x | Zero-allocation asynchronous effect type with direct-style `await` |
 | [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 3.x | Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols |
-| [RingBuffer](./reference/ringbuffer/index.mdx) | `zio-blocks-ringbuffer` | JVM · JS | 2.13 · 3.x | Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC) |
+| [RingBuffer](./reference/ringbuffer/index.mdx) | `zio-blocks-ringbuffer` | JVM · JS | 3.x | Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC) |
 
 ### Streams
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Streams](./reference/streams/index.md) | `zio-blocks-streams` | JVM · JS | 2.13 · 3.x | Pull-based streaming with typed errors, zero boxing, and synchronous or asynchronous execution |
+| [Streams](./reference/streams/index.md) | `zio-blocks-streams` | JVM · JS | 3.x | Pull-based streaming with typed errors, zero boxing, and synchronous or asynchronous execution |
 
 ### Telemetry
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Telemetry](./reference/telemetry/index.md) | `zio-blocks-telemetry` | JVM · JS | 2.13 · 3.x | Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics |
-| [OTLP Export](./reference/telemetry/otel/index.md) | `zio-blocks-telemetry-otel` | JVM | 2.13 · 3.x | OTLP exporters bridging telemetry signals to an OpenTelemetry collector |
+| [Telemetry](./reference/telemetry/index.md) | `zio-blocks-telemetry` | JVM · JS | 3.x | Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics |
+| [OTLP Export](./reference/telemetry/otel/index.md) | `zio-blocks-telemetry-otel` | JVM | 3.x | OTLP exporters bridging telemetry signals to an OpenTelemetry collector |
 
 ### Persistence
 
@@ -166,9 +166,9 @@ All of these ship in `zio-blocks-scope`.
 
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
-| [Code Generation](./reference/codegen/index.md) | `zio-blocks-codegen` | JVM | 2.13 · 3.x | Generic Scala code generation IR and emitter |
-| [Docs](./reference/docs.md) | `zio-blocks-markdown` | JVM · JS | 2.13 · 3.x | GitHub Flavored Markdown parsing, rendering, and programmatic construction |
-| [Smithy](./reference/smithy.md) | `zio-blocks-smithy` | JVM | 2.13 · 3.x | Smithy IDL parser and AST library for API modeling |
+| [Code Generation](./reference/codegen/index.md) | `zio-blocks-codegen` | JVM | 3.x | Generic Scala code generation IR and emitter |
+| [Docs](./reference/docs.md) | `zio-blocks-markdown` | JVM · JS | 2.13 (JVM) · 3.x | GitHub Flavored Markdown parsing, rendering, and programmatic construction |
+| [Smithy](./reference/smithy.md) | `zio-blocks-smithy` | JVM | 3.x | Smithy IDL parser and AST library for API modeling |
 
 ---
 

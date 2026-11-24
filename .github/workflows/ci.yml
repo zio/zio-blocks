@@ -226,7 +226,6 @@ jobs:
         platform:
         - JS
         scala:
-        - 2.13.x
         - 3.9.x
         - 3.10.x
     steps:
@@ -354,9 +353,10 @@ jobs:
         command: sbt ci-release
       env:
         PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-        PGP_SECRET: ${{ secrets.PGP_SECRET }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        CI_RELEASE: ++3.9.0; publishSigned; ++3.10.0; publishSigned; ++2.13.18; chunkJVM/publishSigned; typeidJVM/publishSigned; maybeJVM/publishSigned; markdownJVM/publishSigned; schemaJVM/publishSigned
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+        PGP_SECRET: ${{ secrets.PGP_SECRET }}
   release-213:
     name: release (Scala 2.13 snapshots)
     runs-on: ubuntu-latest
@@ -388,7 +388,7 @@ jobs:
         retry_wait_seconds: 1800
         command: sbt ci-release
       env:
-        CI_SNAPSHOT_RELEASE: ++2.13.18 publish
+        CI_SNAPSHOT_RELEASE: ++2.13.18; chunkJVM/publish; typeidJVM/publish; maybeJVM/publish; markdownJVM/publish; schemaJVM/publish
         PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
         SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
