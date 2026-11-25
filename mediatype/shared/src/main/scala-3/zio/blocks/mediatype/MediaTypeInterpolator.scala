@@ -18,9 +18,22 @@ package zio.blocks.mediatype
 
 import scala.quoted.*
 
+/**
+ * Provides the `mediaType` string interpolator. The package object
+ * `zio.blocks.mediatype` extends this trait, so importing the package (`import
+ * zio.blocks.mediatype._` on Scala 2, `import zio.blocks.mediatype.*` on Scala
+ * 3) brings the interpolator into scope.
+ */
 trait MediaTypeInterpolator {
 
   extension (inline ctx: StringContext) {
+
+    /**
+     * Returns the media type written in the literal string, such as
+     * `mediaType"text/plain; charset=utf-8"`. The string is checked at compile
+     * time: an empty string, a missing `/`, an empty main type or subtype, or
+     * an interpolated value makes the compilation fail.
+     */
     inline def mediaType(inline args: Any*): MediaType =
       ${ MediaTypeInterpolatorMacros.apply('ctx, 'args) }
   }
