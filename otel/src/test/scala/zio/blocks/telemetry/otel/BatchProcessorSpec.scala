@@ -21,6 +21,7 @@ import zio.test._
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -91,7 +92,9 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         (1 to 10).foreach(processor.enqueue)
         processor.forceFlush()
         val items = captured.get().flatten
-        assertTrue(items.size <= 5)
+        // Bounded eviction drops the oldest: 1..5 are discarded, 6..10 are
+        // kept in FIFO order in a single batch.
+        assertTrue(items == List(6, 7, 8, 9, 10))
       } finally {
         processor.shutdown()
         pe.shutdown()
@@ -273,6 +276,264 @@ object BatchProcessorSpec extends ZIOSpecDefault {
       pe.shutdown()
       val totalAttempts = attempts.get()
       assertTrue(totalAttempts >= 1 && totalAttempts < 100)
+    },
+    test("shutdown during backoff returns without sleeping out the delay") {
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        attempts.incrementAndGet()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 60000L
+        )
+      processor.enqueue("x")
+      val flushThread = new Thread {
+        override def run(): Unit = processor.forceFlush()
+      }
+      flushThread.start()
+      Thread.sleep(500)
+      val startNanos = System.nanoTime()
+      processor.shutdown()
+      flushThread.join(10000)
+      pe.shutdown()
+      val elapsedMillis = (System.nanoTime() - startNanos) / 1000000L
+      // A 60s backoff (capped at 30s) must not be slept out: shutdown wakes
+      // the waiter and returns promptly with only a couple of attempts made.
+      assertTrue(!flushThread.isAlive, elapsedMillis < 5000L, attempts.get() < 5)
+    },
+    test("interrupt during backoff stops retries without shutdown and restores the flag") {
+      // A virtual thread parks in a long (capped 30s) backoff; interrupting it
+      // must terminate the flush promptly with exactly one export attempt and
+      // the interrupt status restored. Latch coordination (first attempt done)
+      // replaces sleep-based timing: whether the interrupt lands mid-wait or
+      // just before wait entry, the outcome is identical.
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val firstAttempt                          = new CountDownLatch(1)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        val n = attempts.incrementAndGet()
+        if (n == 1) firstAttempt.countDown()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 60000L
+        )
+      processor.enqueue("x")
+      val interruptedAfter = new AtomicBoolean(false)
+      val flushThread      = Thread
+        .ofVirtual()
+        .unstarted(new Runnable {
+          override def run(): Unit = {
+            processor.forceFlush()
+            interruptedAfter.set(Thread.currentThread().isInterrupted)
+          }
+        })
+      flushThread.start()
+      val started = firstAttempt.await(10, TimeUnit.SECONDS)
+      flushThread.interrupt()
+      flushThread.join(10000)
+      val totalAttempts = attempts.get()
+      processor.shutdown()
+      pe.shutdown()
+      assertTrue(started, !flushThread.isAlive, totalAttempts == 1, interruptedAfter.get())
+    },
+    test("preexisting interrupt at backoff entry does not retry and preserves the flag") {
+      // The flush thread is already interrupted when it reaches the backoff:
+      // the first wait throws immediately, the flag is restored, and no
+      // second export attempt is made.
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        attempts.incrementAndGet()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 60000L
+        )
+      processor.enqueue("x")
+      val interruptedAfter = new AtomicBoolean(false)
+      val flushThread      = Thread
+        .ofVirtual()
+        .unstarted(new Runnable {
+          override def run(): Unit = {
+            Thread.currentThread().interrupt()
+            processor.forceFlush()
+            interruptedAfter.set(Thread.currentThread().isInterrupted)
+          }
+        })
+      val startNanos = System.nanoTime()
+      flushThread.start()
+      flushThread.join(10000)
+      val elapsedMillis = (System.nanoTime() - startNanos) / 1000000L
+      val totalAttempts = attempts.get()
+      processor.shutdown()
+      pe.shutdown()
+      // A 60s backoff (capped at 30s) must not be slept out.
+      assertTrue(!flushThread.isAlive, totalAttempts == 1, interruptedAfter.get(), elapsedMillis < 5000L)
+    },
+    test("preinterrupted zero backoff does not retry and preserves the flag") {
+      // Zero delay never reaches wait, so only the entry isInterrupted check
+      // can observe the pre-existing interrupt: exactly one export attempt,
+      // flag still set afterwards.
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        attempts.incrementAndGet()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 0L
+        )
+      processor.enqueue("x")
+      val interruptedAfter = new AtomicBoolean(false)
+      val flushThread      = Thread
+        .ofVirtual()
+        .unstarted(new Runnable {
+          override def run(): Unit = {
+            Thread.currentThread().interrupt()
+            processor.forceFlush()
+            interruptedAfter.set(Thread.currentThread().isInterrupted)
+          }
+        })
+      flushThread.start()
+      flushThread.join(10000)
+      val totalAttempts = attempts.get()
+      processor.shutdown()
+      pe.shutdown()
+      assertTrue(!flushThread.isAlive, totalAttempts == 1, interruptedAfter.get())
+    },
+    test("interrupted flush attempts each queued batch exactly once") {
+      // maxBatchSize 1 turns three items into three batches. Interrupting the
+      // first batch's backoff cancels its retries; the preserved flag bounds
+      // each later queued batch to a single attempt — no drops, no retries.
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val firstAttempt                          = new CountDownLatch(1)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        val n = attempts.incrementAndGet()
+        if (n == 1) firstAttempt.countDown()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxBatchSize = 1,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 60000L
+        )
+      processor.enqueue("a")
+      processor.enqueue("b")
+      processor.enqueue("c")
+      val interruptedAfter = new AtomicBoolean(false)
+      val flushThread      = Thread
+        .ofVirtual()
+        .unstarted(new Runnable {
+          override def run(): Unit = {
+            processor.forceFlush()
+            interruptedAfter.set(Thread.currentThread().isInterrupted)
+          }
+        })
+      flushThread.start()
+      val started = firstAttempt.await(10, TimeUnit.SECONDS)
+      flushThread.interrupt()
+      flushThread.join(10000)
+      val totalAttempts = attempts.get()
+      processor.shutdown()
+      pe.shutdown()
+      assertTrue(started, !flushThread.isAlive, totalAttempts == 3, interruptedAfter.get())
+    },
+    test("shutdown racing backoff entry never misses the notify (latch-coordinated)") {
+      // Each iteration shuts down immediately once the first export attempt
+      // has started — racing shutdown's notify against the flush thread's
+      // backoff entry with no sleep-based coordination. A missed notify
+      // would park the flush thread for the full (capped 30s) backoff and
+      // trip the join timeout.
+      val failures = (1 to 20).flatMap { _ =>
+        val pe                                    = PlatformExecutor.create()
+        val attempts                              = new AtomicInteger(0)
+        val attemptLatch                          = new CountDownLatch(1)
+        val exportFn: Seq[String] => ExportResult = { _ =>
+          attempts.incrementAndGet()
+          attemptLatch.countDown()
+          ExportResult.Failure(retryable = true, message = "always fails")
+        }
+        val processor =
+          new BatchProcessor[String](
+            exportFn,
+            executor = pe.executor,
+            maxRetries = 100,
+            flushIntervalMillis = 600000L,
+            retryBaseMillis = 60000L
+          )
+        try {
+          processor.enqueue("x")
+          val flushThread = new Thread {
+            override def run(): Unit = processor.forceFlush()
+          }
+          flushThread.start()
+          val started = attemptLatch.await(10, TimeUnit.SECONDS)
+          processor.shutdown()
+          flushThread.join(10000)
+          pe.shutdown()
+          if (!started || flushThread.isAlive || attempts.get() >= 5)
+            Some(s"started=$started alive=${flushThread.isAlive} attempts=${attempts.get()}")
+          else None
+        } finally pe.shutdown()
+      }
+      assertTrue(failures.isEmpty)
+    },
+    test("forceFlush then shutdown delivers each item exactly once") {
+      val pe                   = PlatformExecutor.create()
+      val (exportFn, captured) = collectingExporter[Int]()
+      val processor            =
+        new BatchProcessor[Int](exportFn, executor = pe.executor, maxBatchSize = 10, flushIntervalMillis = 600000L)
+      try {
+        (1 to 100).foreach(processor.enqueue)
+        processor.forceFlush()
+        processor.shutdown()
+        val items = captured.get().flatten
+        assertTrue(items.size == 100 && items.toSet == (1 to 100).toSet)
+      } finally pe.shutdown()
+    },
+    test("concurrent forceFlush and shutdown deliver each item exactly once") {
+      val pe                   = PlatformExecutor.create()
+      val (exportFn, captured) = collectingExporter[Int]()
+      val processor            =
+        new BatchProcessor[Int](exportFn, executor = pe.executor, maxBatchSize = 10, flushIntervalMillis = 600000L)
+      try {
+        (1 to 100).foreach(processor.enqueue)
+        val flushThread = new Thread {
+          override def run(): Unit = processor.forceFlush()
+        }
+        flushThread.start()
+        processor.shutdown()
+        flushThread.join(10000)
+        val items = captured.get().flatten
+        assertTrue(!flushThread.isAlive && items.size == 100 && items.toSet == (1 to 100).toSet)
+      } finally pe.shutdown()
     }
   ) @@ TestAspect.sequential
 }

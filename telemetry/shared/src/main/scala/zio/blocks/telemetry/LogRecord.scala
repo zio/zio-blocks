@@ -19,43 +19,35 @@ package zio.blocks.telemetry
 import scala.language.implicitConversions
 
 /**
- * The message of a [[LogRecord]]: a ready string ([[LogMessage.Simple]]) or a
- * template whose string is built on first use ([[LogMessage.Templated]]).
+ * Log message body — either a simple string or a structured template.
+ * Structured templates defer string construction until formatting.
  */
 sealed trait LogMessage {
 
-  /** Returns the message text. */
+  /**
+   * Get the formatted string representation. Lazy for Templated.
+   */
   def value: String
 }
 
-/** Creates [[LogMessage]]s. */
 object LogMessage {
 
-  /** A message that is already a string. */
+  /**
+   * Simple string message — already formatted.
+   */
   final case class Simple(text: String) extends LogMessage {
-
-    /** Returns `text`. */
     def value: String             = text
     override def toString: String = text
   }
 
   /**
-   * A message kept as text `parts` and the `args` between them, joined into a
-   * string on the first call to `value` and cached. The built-in formatters
-   * read only `value`.
-   *
-   * It equals another `Templated` or a [[LogMessage.Simple]] with the same
-   * text. A known bug: `Simple#equals` does not return `true` in the other
-   * direction.
+   * Structured template — parts and args stored separately. String is
+   * constructed lazily on first access to `value`. Formatters can access
+   * parts/args directly for structured output.
    */
   final class Templated(val parts: Array[String], val args: Array[Any]) extends LogMessage {
     @volatile private var cached: String = null
 
-    /**
-     * Returns `parts(0) + args(0) + parts(1) + ...`, built on the first call;
-     * parts without a matching arg are appended as they are, and extra args are
-     * ignored.
-     */
     def value: String = {
       var v = cached
       if (v == null) {
@@ -83,205 +75,315 @@ object LogMessage {
     override def hashCode(): Int = value.hashCode
   }
 
-  /**
-   * Converts a string to a [[LogMessage.Simple]] where a `LogMessage` is
-   * expected.
-   */
   implicit def fromString(s: String): LogMessage = Simple(s)
 
-  /** Returns a [[LogMessage.Simple]] with the text `s`. */
   def apply(s: String): LogMessage = Simple(s)
 }
 
 /**
- * One log entry: the message, its severity, when it happened, its attributes
- * and the span it was logged in. A [[LogRecordProcessor]] receives it and a
- * [[LogFormatter]] renders it; `log.*` calls and [[Logger]]s build it for you.
+ * Represents an immutable log record with trace correlation support.
  *
- * The trace fields are plain numbers, with 0 meaning "no span": check
- * `hasTraceId` and `hasSpanId`. Records from `log.*` calls carry their source
- * location as the `code.filepath`, `code.namespace`, `code.function` and
- * `code.lineno` attributes.
+ * A LogRecord contains a log message, its severity level, timing information,
+ * and optional trace context for distributed tracing correlation. Trace fields
+ * use primitive sentinel values (0 = absent) instead of Option wrappers for
+ * zero allocation on the logging hot path.
  *
- * @see
- *   [[https://zioblocks.com/reference/telemetry/logging/log-record/ LogRecord]]
+ * Source metadata (file, fully-qualified function, line) is stored in private
+ * scalar fields, separate from user attributes — the native read/write API
+ * never aliases `attribute("code.file.path")` (or its siblings) into these
+ * fields. Exporters combine both at the boundary using the stable OpenTel keys
+ * (`code.file.path`, `code.function.name`, `code.line.number`); see
+ * `LogRecord.isSourceCollision` for the collision policy.
  *
- * @param timestampNanos
- *   The time when the event occurred, in nanoseconds since Unix epoch
- * @param observedTimestampNanos
- *   The time when the event was observed/recorded, in nanoseconds since Unix
- *   epoch
- * @param severity
- *   The severity level of the log record
- * @param severityText
- *   The text representation of the severity level
- * @param body
- *   The log message body
- * @param attributes
- *   Additional attributes/metadata associated with the log record
- * @param traceIdHi
- *   High 64 bits of trace ID (0 with traceIdLo == 0 means absent)
- * @param traceIdLo
- *   Low 64 bits of trace ID (0 with traceIdHi == 0 means absent)
- * @param spanId
- *   Span ID as Long (0 means absent)
- * @param traceFlags
- *   Trace flags as Byte (0 means none/absent)
- * @param resource
- *   The resource that generated this log record
- * @param instrumentationScope
- *   The instrumentation scope (library/tool) that generated this log record
- * @param throwable
- *   Optional throwable whose stack trace is deferred to export time
+ * User attributes live in a private type-specialized store. They are readable
+ * only through `LogRecord.attribute` (single lookup) and
+ * [[LogRecord.foreachAttribute]] (ordered enumeration of user attributes only,
+ * never source metadata). The container itself is never exposed.
+ *
+ * Absence convention: `sourceFile` / `sourceFunction` are `""` and `sourceLine`
+ * is `0` when no source was captured (direct `Logger` calls, builder defaults).
  */
-final case class LogRecord(
-  timestampNanos: Long,
-  observedTimestampNanos: Long,
-  severity: Severity,
-  severityText: String,
-  body: LogMessage,
-  attributes: Attributes,
-  traceIdHi: Long,
-  traceIdLo: Long,
-  spanId: Long,
-  traceFlags: Byte,
-  resource: Resource,
-  instrumentationScope: InstrumentationScope,
-  throwable: Option[Throwable] = None
+final class LogRecord private (
+  val timestampNanos: Long,
+  val observedTimestampNanos: Long,
+  val severity: Severity,
+  val severityText: String,
+  val body: LogMessage,
+  val traceIdHi: Long,
+  val traceIdLo: Long,
+  val spanId: Long,
+  val traceFlags: Byte,
+  val resource: Resource,
+  val instrumentationScope: InstrumentationScope,
+  val throwable: Option[Throwable],
+  private val sourceFileValue: String,
+  private val sourceFunctionValue: String,
+  private val sourceLineValue: Int,
+  private[telemetry] val userAttributes: Attributes
 ) {
 
-  /** Returns `true` when either half of the trace id is not 0. */
+  /**
+   * Whether this log record has a trace ID set.
+   */
   def hasTraceId: Boolean = traceIdHi != 0L || traceIdLo != 0L
 
-  /** Returns `true` when the span id is not 0. */
+  /**
+   * Whether this log record has a span ID set.
+   */
   def hasSpanId: Boolean = spanId != 0L
+
+  /**
+   * Compile-time captured source file path, or `""` when absent. Never
+   * absolutized or shortened — exactly what the macro captured.
+   */
+  def sourceFile: String = sourceFileValue
+
+  /**
+   * Compile-time captured fully-qualified function name
+   * (`namespace.methodName`, without arguments), or `""` when absent.
+   */
+  def sourceFunction: String = sourceFunctionValue
+
+  /**
+   * Compile-time captured line number, or `0` when absent.
+   */
+  def sourceLine: Int = sourceLineValue
+
+  /**
+   * Typed user-attribute lookup. Returns `None` when absent. Canonical source
+   * keys read back only user-supplied values here — never source metadata.
+   *
+   * The key kind must match the stored kind: mismatched-kind lookup is
+   * unsupported and can fail when the value is extracted. Prefer the
+   * `AttributeKey` matching how the value was written; for input whose kind is
+   * unknown, use the `String` overload, which reports the stored kind.
+   */
+  def attribute[A](key: AttributeKey[A]): Option[A] =
+    userAttributes.get(key)
+
+  /**
+   * Untyped user-attribute lookup. Returns `None` when absent. Canonical source
+   * keys read back only user-supplied values here — never source metadata.
+   */
+  def attribute(key: String): Option[AttributeValue] =
+    userAttributes.findRaw(key)
+
+  /**
+   * Enumerates user attributes in insertion order as `(key, value)` pairs.
+   * Source metadata is never enumerated here — exporters write it explicitly
+   * from [[sourceFile]], [[sourceFunction]], and [[sourceLine]].
+   *
+   * This is the external convenience entry point: every pair arrives as an
+   * `AttributeValue` wrapper, so per-attribute boxing applies (primitives box
+   * on the way out). Hot exporters iterate the typed store directly instead;
+   * use this for inspection, tests, and custom sinks where clarity beats the
+   * last nanosecond.
+   */
+  def foreachAttribute(f: (String, AttributeValue) => Unit): Unit =
+    userAttributes.foreach(f)
+
+  /**
+   * Returns a copy with one additional user attribute. This is the extension
+   * point for custom [[LogEnrichment]] instances. Source metadata is never
+   * touched: a key that collides with a canonical source key is stored as an
+   * ordinary user attribute, and exporters apply the source-wins collision
+   * policy at the boundary.
+   */
+  def withAttribute[A](key: AttributeKey[A], value: A): LogRecord =
+    addingUserAttributes(Attributes.of(key, value))
+
+  /**
+   * Returns a copy with a different body. Source and user attributes stay.
+   * Public so custom `LogEnrichment` instances defined outside this package can
+   * replace the body while preserving everything else.
+   */
+  def withBody(body: LogMessage): LogRecord =
+    copy(body = body)
+
+  /**
+   * Returns a copy with a different severity (text follows the level). Source
+   * and user attributes stay. Public so custom `LogEnrichment` instances
+   * defined outside this package can escalate the level while preserving
+   * everything else.
+   */
+  def withSeverity(severity: Severity): LogRecord =
+    copy(severity = severity, severityText = severity.text)
+
+  /**
+   * Returns a copy with a different throwable. Source and user attributes stay.
+   * Public so custom `LogEnrichment` instances defined outside this package can
+   * attach a cause while preserving everything else.
+   */
+  def withThrowable(throwable: Option[Throwable]): LogRecord =
+    copy(throwable = throwable)
+
+  /**
+   * Returns a copy with `attrs` merged into the user attributes (right side
+   * wins on conflicts). Source metadata stays. Package-internal: external code
+   * adds user attributes through [[withAttribute]] instead, so the container
+   * type never crosses the public record API.
+   */
+  private[telemetry] def addingUserAttributes(attrs: Attributes): LogRecord =
+    copy(userAttributes = userAttributes ++ attrs)
+
+  /**
+   * Private copy helper: every field defaults to its current value, so the
+   * public operation methods stay one-liners without exposing the container (or
+   * a public `copy`) on the record API.
+   */
+  private def copy(
+    timestampNanos: Long = timestampNanos,
+    observedTimestampNanos: Long = observedTimestampNanos,
+    severity: Severity = severity,
+    severityText: String = severityText,
+    body: LogMessage = body,
+    traceIdHi: Long = traceIdHi,
+    traceIdLo: Long = traceIdLo,
+    spanId: Long = spanId,
+    traceFlags: Byte = traceFlags,
+    resource: Resource = resource,
+    instrumentationScope: InstrumentationScope = instrumentationScope,
+    throwable: Option[Throwable] = throwable,
+    sourceFile: String = sourceFileValue,
+    sourceFunction: String = sourceFunctionValue,
+    sourceLine: Int = sourceLineValue,
+    userAttributes: Attributes = userAttributes
+  ): LogRecord =
+    new LogRecord(
+      timestampNanos,
+      observedTimestampNanos,
+      severity,
+      severityText,
+      body,
+      traceIdHi,
+      traceIdLo,
+      spanId,
+      traceFlags,
+      resource,
+      instrumentationScope,
+      throwable,
+      sourceFile,
+      sourceFunction,
+      if (sourceLine <= 0) 0 else sourceLine,
+      userAttributes
+    )
+
+  override def equals(obj: Any): Boolean =
+    (this eq obj.asInstanceOf[AnyRef]) || (obj match {
+      case other: LogRecord =>
+        timestampNanos == other.timestampNanos &&
+        observedTimestampNanos == other.observedTimestampNanos &&
+        severity == other.severity &&
+        severityText == other.severityText &&
+        body == other.body &&
+        traceIdHi == other.traceIdHi &&
+        traceIdLo == other.traceIdLo &&
+        spanId == other.spanId &&
+        traceFlags == other.traceFlags &&
+        resource == other.resource &&
+        instrumentationScope == other.instrumentationScope &&
+        throwable == other.throwable &&
+        sourceFileValue == other.sourceFileValue &&
+        sourceFunctionValue == other.sourceFunctionValue &&
+        sourceLineValue == other.sourceLineValue &&
+        userAttributes == other.userAttributes
+      case _ => false
+    })
+
+  override def hashCode(): Int = {
+    var h = timestampNanos.hashCode()
+    h = 31 * h + observedTimestampNanos.hashCode()
+    h = 31 * h + severity.hashCode()
+    h = 31 * h + severityText.hashCode
+    h = 31 * h + body.hashCode()
+    h = 31 * h + traceIdHi.hashCode()
+    h = 31 * h + traceIdLo.hashCode()
+    h = 31 * h + spanId.hashCode()
+    h = 31 * h + traceFlags.hashCode()
+    h = 31 * h + resource.hashCode()
+    h = 31 * h + instrumentationScope.hashCode()
+    h = 31 * h + throwable.hashCode()
+    h = 31 * h + sourceFileValue.hashCode
+    h = 31 * h + sourceFunctionValue.hashCode
+    h = 31 * h + sourceLineValue.hashCode()
+    h = 31 * h + userAttributes.hashCode()
+    h
+  }
+
+  override def toString: String =
+    s"LogRecord($severityText, ${body.value}, source=$sourceFunctionValue:$sourceLineValue)"
 }
 
-/** Creates [[LogRecordBuilder]]s. */
 object LogRecord {
 
-  /** Returns a builder with the defaults that [[LogRecordBuilder]] lists. */
-  def builder: LogRecordBuilder = LogRecordBuilder()
-}
-
-/**
- * Builds a [[LogRecord]] step by step; each setter returns a new builder.
- *
- * The defaults: both timestamps are the time of `build`, the severity is
- * `Severity.Info`, the body is empty, there are no attributes and no trace ids,
- * the resource is `Resource.empty` and the instrumentation scope is named
- * `"unknown"`. The severity text always comes from the severity, and the record
- * has no exception.
- *
- * {{{
- * val record = LogRecord.builder
- *   .setSeverity(Severity.Warn)
- *   .setBody("disk almost full")
- *   .setAttribute(AttributeKey.long("disk.free_mb"), 512L)
- *   .build
- *
- * record.severity.text // WARN
- * record.attributes.get(AttributeKey.long("disk.free_mb")) // Some(512)
- * record.hasTraceId // false
- * }}}
- */
-final case class LogRecordBuilder(
-  timestampNanos: Option[Long] = None,
-  observedTimestampNanos: Option[Long] = None,
-  severity: Severity = Severity.Info,
-  body: LogMessage = LogMessage.Simple(""),
-  attributes: Attributes = Attributes.empty,
-  traceIdHi: Long = 0L,
-  traceIdLo: Long = 0L,
-  spanId: Long = 0L,
-  traceFlags: Byte = 0,
-  resource: Resource = Resource.empty,
-  instrumentationScope: InstrumentationScope = InstrumentationScope(name = "unknown")
-) {
+  /**
+   * Creates a new LogRecordBuilder for constructing LogRecord instances. The
+   * builder's state is fully encapsulated: no constructor, field, or `copy` on
+   * it exposes the attribute container — only the typed setters below and
+   * `build`.
+   */
+  def builder: LogRecordBuilder = LogRecordBuilder.empty
 
   /**
-   * Sets the timestamp (time when the event occurred).
+   * Exporter collision policy for canonical source keys.
+   *
+   * A user attribute whose key equals a canonical source key (`code.file.path`,
+   * `code.function.name`, `code.line.number`) is suppressed at export
+   * boundaries only when the matching source field is present — source wins per
+   * field, never duplicated. When the source field is absent, the user
+   * attribute passes through unchanged, so external input routed through user
+   * attributes is never lost silently.
    */
-  def setTimestamp(nanos: Long): LogRecordBuilder =
-    copy(timestampNanos = Some(nanos))
+  private[telemetry] def isSourceCollision(
+    key: String,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int
+  ): Boolean =
+    (key == SourceLocation.CodeFilePath && sourceFile != null && sourceFile.nonEmpty) ||
+      (key == SourceLocation.CodeFunctionName && sourceFunction != null && sourceFunction.nonEmpty) ||
+      (key == SourceLocation.CodeLineNumber && sourceLine != 0)
 
   /**
-   * Sets the observed timestamp (time when the event was recorded).
+   * Internal fast-path constructor. Null source strings coerce to absent
+   * (`""`), non-positive lines coerce to absent (`0`); the caller owns
+   * `userAttributes` exclusively after this call (zero-copy handoff, e.g. from
+   * `AttributesBuilder.buildAndReset`).
    */
-  def setObservedTimestamp(nanos: Long): LogRecordBuilder =
-    copy(observedTimestampNanos = Some(nanos))
-
-  /**
-   * Sets the severity level of the log record.
-   */
-  def setSeverity(sev: Severity): LogRecordBuilder =
-    copy(severity = sev)
-
-  /**
-   * Sets the log message body.
-   */
-  def setBody(msg: String): LogRecordBuilder =
-    copy(body = LogMessage(msg))
-
-  /**
-   * Sets the log message body from a LogMessage.
-   */
-  def setBody(msg: LogMessage): LogRecordBuilder =
-    copy(body = msg)
-
-  /**
-   * Adds an attribute. A key that is already there stays, and the new value
-   * wins on lookup, as with `Attributes#++`.
-   */
-  def setAttribute[A](key: AttributeKey[A], value: A): LogRecordBuilder =
-    copy(attributes = attributes ++ Attributes.of(key, value))
-
-  /**
-   * Sets the trace ID for correlation with distributed traces.
-   */
-  def setTraceId(hi: Long, lo: Long): LogRecordBuilder =
-    copy(traceIdHi = hi, traceIdLo = lo)
-
-  /**
-   * Sets the span ID for correlation with distributed traces.
-   */
-  def setSpanId(id: Long): LogRecordBuilder =
-    copy(spanId = id)
-
-  /**
-   * Sets the trace flags (e.g., sampled flag).
-   */
-  def setTraceFlags(flags: Byte): LogRecordBuilder =
-    copy(traceFlags = flags)
-
-  /**
-   * Sets the resource that generated this log record.
-   */
-  def setResource(res: Resource): LogRecordBuilder =
-    copy(resource = res)
-
-  /**
-   * Sets the instrumentation scope.
-   */
-  def setInstrumentationScope(scope: InstrumentationScope): LogRecordBuilder =
-    copy(instrumentationScope = scope)
-
-  /** Builds the record, using the current time for any timestamp not set. */
-  def build: LogRecord = {
-    val now = EpochClock.epochNanos()
-    LogRecord(
-      timestampNanos = timestampNanos.getOrElse(now),
-      observedTimestampNanos = observedTimestampNanos.getOrElse(now),
-      severity = severity,
-      severityText = severity.text,
-      body = body,
-      attributes = attributes,
-      traceIdHi = traceIdHi,
-      traceIdLo = traceIdLo,
-      spanId = spanId,
-      traceFlags = traceFlags,
-      resource = resource,
-      instrumentationScope = instrumentationScope
+  private[telemetry] def create(
+    timestampNanos: Long,
+    observedTimestampNanos: Long,
+    severity: Severity,
+    severityText: String,
+    body: LogMessage,
+    sourceFile: String,
+    sourceFunction: String,
+    sourceLine: Int,
+    userAttributes: Attributes,
+    traceIdHi: Long,
+    traceIdLo: Long,
+    spanId: Long,
+    traceFlags: Byte,
+    resource: Resource,
+    instrumentationScope: InstrumentationScope,
+    throwable: Option[Throwable]
+  ): LogRecord =
+    new LogRecord(
+      timestampNanos,
+      observedTimestampNanos,
+      severity,
+      severityText,
+      body,
+      traceIdHi,
+      traceIdLo,
+      spanId,
+      traceFlags,
+      resource,
+      instrumentationScope,
+      throwable,
+      if (sourceFile == null) "" else sourceFile,
+      if (sourceFunction == null) "" else sourceFunction,
+      if (sourceLine <= 0) 0 else sourceLine,
+      userAttributes
     )
-  }
 }

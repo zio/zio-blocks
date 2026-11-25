@@ -275,7 +275,7 @@ logRecorder.records.foreach { r =>
   val inSpan = placeOrderContext.exists { s =>
     r.spanId == s.spanId.value && r.traceIdHi == s.traceIdHi && r.traceIdLo == s.traceIdLo
   }
-  println(s"${r.severity} ${r.body.value} reason=${r.attributes.get(reason)}")
+  println(s"${r.severity} ${r.body.value} reason=${r.attribute(reason)}")
   println(s"in placeOrder span: $inSpan")
 }
 ```
@@ -284,7 +284,7 @@ The code above:
 
 - `LogRecord#severity` is a `Severity` value, here `Severity.Error`, so a test compares it with `==` instead of parsing a level name.
 - `LogRecord#body` holds the message; `body.value` is its text.
-- `LogRecord#attributes` holds the fields, read with the same typed keys as span attributes.
+- `LogRecord#attribute` holds the user fields, read with the same typed keys as span attributes. There is no `record.attributes` accessor; `foreachAttribute` enumerates user attributes only.
 - `LogRecord#spanId`, `LogRecord#traceIdHi` and `LogRecord#traceIdLo` identify the span that was active when the line was written. The tracer and the logger share the active span without any setup, so the record carries the ids of `placeOrder`.
 
 Assert on the severity, the message and the fields, never on a formatted line. Formatted lines also carry a timestamp, and in version 0.0.56 the text formatter prints a class inside a package with its full name and two numbers in the location brackets, a known bug in that version.

@@ -41,6 +41,27 @@ import zio.blocks.scope.Wire
  *
  * @see
  *   [[https://zioblocks.com/reference/config/ Config]]
+ *
+ * ==Two configuration systems==
+ *
+ * This module offers two parallel systems — pick one per use case:
+ *
+ *   - '''Shape''': schema-derived `Config.load` decodes a whole typed document
+ *     `A`; `DynamicFlag`/`StaticFlag` handle one named value (boolean, int,
+ *     string, ...).
+ *   - '''Typing''': `Config.load` uses a `Schema[A]`-derived decoder; flags use
+ *     a `Flag.Reader[A]` instance.
+ *   - '''Source''': `Config.load` reads any `ConfigSource`; flags read a
+ *     `FlagSource` → system property → env → default.
+ *   - '''Reloads''': `Config.load` re-loads on demand; `DynamicFlag` re-reads
+ *     rollout expressions live.
+ *   - '''Provenance''': `loadWithProvenance` versus the flag dump/registry
+ *     APIs.
+ *   - '''Use when''': startup/service config versus feature flags, rollouts and
+ *     kill switches.
+ *
+ * Neither replaces the other: service config belongs in `Config.load`,
+ * per-request switches belong in flags.
  */
 object Config {
 

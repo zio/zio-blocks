@@ -181,8 +181,7 @@ Both outputs are active simultaneously, alongside the default console output —
 Every `log.*` method is a Scala inline macro. The macro generates something like this for `log.info("msg", "key" -> 42L)`:
 
 ```
-Conceptual expansion of:
-  log.info("request received", "user_id" -> userId, "attempt" -> 3)
+Conceptual expansion of `log.info("msg", "key" -> 42L)`:
 
 Expands to (pseudocode):
   if (Severity.Info.number >= GlobalLogState.globalMinLevel) {
@@ -190,10 +189,12 @@ Expands to (pseudocode):
     if (state != null && Severity.Info.number >= state.effectiveLevel(<current class name>)) {
       val now = EpochClock.epochNanos()
       val builder = AttributeBuilderPool.get()
-        .put("code.filepath", "<source file>")
-        .put("code.namespace", "<current package>")
-        .put("code.function", "<current method>")
-        .put("code.lineno", <line number>.toLong)
+      // source metadata travels as dedicated values, computed once at
+      // compile time — never inserted into the builder, so user attributes
+      // stay source-free:
+      //   sourceFile     = "<source file>"
+      //   sourceFunction = "<fully-qualified enclosing class>.<enclosing method>"
+      //   sourceLine     = <line number>
       // for each enrichment argument, the macro calls the right builder method:
       builder.put("user_id", userId)      // resolved as (String, String)
       builder.put("attempt", 3.toLong)    // resolved as (String, Int) -> toLong
@@ -202,6 +203,7 @@ Expands to (pseudocode):
       // reads span context from ContextStorage
       val spanCtx = state.logger.currentSpanContext()
       state.logger.emitRaw(now, Severity.Info, "INFO", "request received",
+                           sourceFile, sourceFunction, sourceLine,
                            builder, traceIdHi, traceIdLo, spanId, traceFlags,
                            resource, scope, None)
     }
@@ -209,7 +211,7 @@ Expands to (pseudocode):
 ```
 
 The important things the macro does:
-- Captures `code.filepath`, `code.namespace`, `code.function`, `code.lineno` at compile time
+- Captures the source file, fully-qualified function name, and line number at compile time and passes them as dedicated values (the record's `sourceFile` / `sourceFunction` / `sourceLine`)
 - Resolves each enrichment argument type at compile time and calls the specific builder method (no runtime dispatch on the fast path)
 - For rate-limited variants (`infoEvery`, `warnAtMost`), hashes the source position into a `siteId` constant so each call site gets its own rate-limit slot
 
@@ -247,11 +249,7 @@ import java.util.UUID
 implicit val uuidEnrichment: LogEnrichment[(String, UUID)] =
   new LogEnrichment[(String, UUID)] {
     def enrich(record: LogRecord, value: (String, UUID)): LogRecord =
-      record.copy(
-        attributes = record.attributes ++ Attributes.of(
-          AttributeKey.string(value._1), value._2.toString
-        )
-      )
+      record.withAttribute(AttributeKey.string(value._1), value._2.toString)
   }
 
 // Now this compiles and works
@@ -268,17 +266,13 @@ import java.time.Instant
 implicit val instantEnrichment: LogEnrichment[(String, Instant)] =
   new LogEnrichment[(String, Instant)] {
     def enrich(record: LogRecord, value: (String, Instant)): LogRecord =
-      record.copy(
-        attributes = record.attributes ++ Attributes.of(
-          AttributeKey.string(value._1), value._2.toString
-        )
-      )
+      record.withAttribute(AttributeKey.string(value._1), value._2.toString)
   }
 
 log.info("event occurred", "timestamp" -> Instant.now())
 ```
 
-**Performance note.** The built-in enrichments for `(String, String)`, `(String, Long)`, `(String, Int)`, `(String, Double)`, and `(String, Boolean)` go through the attribute builder's primitive path: no `AttributeValue` boxing. Custom enrichments through `LogEnrichment` go through `record.copy(attributes = ...)`, which does allocate an `Attributes` merge. For very hot paths, prefer the built-in types.
+**Performance note.** The built-in enrichments for `(String, String)`, `(String, Long)`, `(String, Int)`, `(String, Double)`, and `(String, Boolean)` go through the attribute builder's primitive path: no `AttributeValue` boxing. Custom enrichments through `LogEnrichment` go through `record.withAttribute`, which allocates one small `Attributes` merge per enrichment. For very hot paths, prefer the built-in types.
 
 ### Multiple outputs simultaneously
 
@@ -325,17 +319,33 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 
 The text formatter writes one line per record:
 ```
-2026-05-14T09:30:00.123Z WARN  [PaymentService.handleRequest:87] slow query {table="orders", duration_ms=450}
+2026-05-14T09:30:00.123Z WARN  slow query [PaymentService.handleRequest] src/main/scala/com/example/PaymentService.scala:87 {table="orders", duration_ms=450}
 ```
+
+The message comes first, then the compact function in brackets, then the captured file path as a contiguous `path:line` token. (An older layout printed the location before the body — `WARN  [PaymentService.handleRequest:87] slow query {...}`.) The path is the compile-time source path the macro captured, preserved exactly: never absolutized, never shortened — backslashes stay literal, so Windows `C:\...` paths survive intact — with the method kept outside the token. Only CR/LF/tab/control characters are escaped. When no path was captured you get the compact `[PaymentService.handleRequest:87]` fallback instead; a bare line renders as `[line:87]`; with no location at all nothing renders.
 
 The JSON formatter writes the same record in the OTLP log data model:
 ```json
-{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
+{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.file.path","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.function.name","value":{"stringValue":"com.example.PaymentService.handleRequest"}},{"key":"code.line.number","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
 
 The JSON format follows the OTLP log data model directly, making it compatible with any OTLP-aware log processor (Grafana Loki, OpenTelemetry Collector, etc.).
 
+One caveat on the text `path:line` token: it is the source file path as seen by the compiler that built the code. For a library compiled from another checkout, for CI artifacts, or for logs emitted inside a container image without sources, that file may live elsewhere or not exist at all — treat the token as an informational pointer, not a guarantee the file opens there.
+
 The text formatter caches the timestamp prefix per second (the part before milliseconds) using two `@volatile` fields, so it avoids repeated date formatting work on high-throughput paths.
+
+### Migrating to private record storage (pre-1.0 breaking change)
+
+`LogRecord` no longer exposes its storage. Source metadata lives in private scalar fields and user attributes in a private type-specialized store:
+
+- Read captured source from `record.sourceFile`, `record.sourceFunction`, `record.sourceLine` (`""` / `""` / `0` when absent; non-positive lines normalize to `0`). There is no `record.attributes` accessor, no `copy(attributes = ...)`, and no product/unapply accessors.
+- Read user attributes with `record.attribute(key)` — typed via `AttributeKey[A]` returning `Option[A]`, or untyped via `String` returning `Option[AttributeValue]` — and enumerate them with `record.foreachAttribute { (key, value) => ... }`, which yields user attributes only, in insertion order. Both conveniences box values into `AttributeValue` wrappers; hot exporters iterate the typed store directly instead.
+- `attribute("code.file.path")` (and its siblings) reads back only *user* attributes with those names — never the captured source. A user attribute sharing a canonical source key is suppressed at export boundaries only when that source field is present; when the source field is absent it passes through unchanged. Nothing is lost silently. The typed lookup requires the key kind to match the stored kind — mismatched-kind lookup is unsupported and can fail on extraction — so prefer the `AttributeKey` matching how each value was written, and use the untyped `String` overload (which reports the stored kind) for input whose kind is unknown.
+- Custom `LogEnrichment` instances add attributes with `record.withAttribute(key, value)` and replace body, severity, or throwable with `record.withBody` / `record.withSeverity` / `record.withThrowable` instead of `record.copy(...)`; the built-in `String` / `Throwable` / `Severity` / tuple instances already preserve source.
+- `LogRecordBuilder` is obtained only from `LogRecord.builder` and exposes no storage: no public constructor, fields, `attributes` accessor, or `copy` — the typed setters (`setSourceFile` / `setSourceFunction` / `setSourceLine`, `setThrowable`, `addAttributes`, and the rest) are the only way in and `build` is the only way out.
+
+Exported output is unchanged when no user attribute collides with a canonical source key: JSON and OTLP still write the canonical `code.*` attributes first. Text output changes only in the collision case — a user `code.*` attribute no longer feeds the location prefix; the prefix comes from the dedicated source fields, and without source there is no location rendering.
 
 ### Testing with telemetry
 
@@ -1173,9 +1183,7 @@ import zio.blocks.telemetry._
 import java.util.UUID
 
 implicit val uuidEnrichment: LogEnrichment[(String, UUID)] =
-  (record, kv) => record.copy(
-    attributes = record.attributes ++ Attributes.of(AttributeKey.string(kv._1), kv._2.toString)
-  )
+  (record, kv) => record.withAttribute(AttributeKey.string(kv._1), kv._2.toString)
 ```
 
 Then `log.info("action", "id" -> someUuid)` compiles and works.

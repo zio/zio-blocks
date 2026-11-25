@@ -16,7 +16,15 @@
 
 package zio.blocks.telemetry.otel
 
-/** Helpers shared by the OTLP JSON exporters. */
+/**
+ * Shared helpers for the OTLP JSON exporters (trace, log, metric).
+ *
+ * Exporters batch through [[BatchProcessor]] and POST OTLP JSON via
+ * [[HttpSender]]. Note the flush asymmetry: the trace and log exporters buffer
+ * through a batch processor (so `forceFlush` pushes queued items), while the
+ * metric exporter is pull-based (`exportMetrics` collects on demand) and its
+ * `forceFlush` is a no-op by design.
+ */
 private[otel] object OtlpJsonExporter {
 
   /**

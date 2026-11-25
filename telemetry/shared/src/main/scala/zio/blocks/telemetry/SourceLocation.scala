@@ -27,3 +27,30 @@ final case class SourceLocation(
   methodName: String,
   lineNumber: Int
 )
+
+object SourceLocation {
+
+  /**
+   * Stable OpenTelemetry code attribute keys. Source metadata travels in
+   * dedicated `LogRecord` scalar fields and is combined with user attributes at
+   * export boundaries (text, JSON, OTLP) — never by aliasing user attributes
+   * named this way into source fields. Exporters suppress a user attribute with
+   * one of these keys only when the matching source field is present (see
+   * `LogRecord.isSourceCollision`); otherwise the user value passes through
+   * unchanged.
+   */
+  private[telemetry] final val CodeFilePath     = "code.file.path"
+  private[telemetry] final val CodeFunctionName = "code.function.name"
+  private[telemetry] final val CodeLineNumber   = "code.line.number"
+
+  /**
+   * Stable OpenTelemetry `code.function.name`: the fully-qualified function
+   * name without arguments (`namespace.methodName`). Single source of truth,
+   * evaluated at macro-expansion time (spliced as a literal, so hot log calls
+   * pay no concatenation) and reused by the programmatic `log` helpers.
+   */
+  private[telemetry] def qualifiedFunctionName(namespace: String, methodName: String): String =
+    if (namespace == null || namespace.isEmpty) methodName
+    else if (methodName == null || methodName.isEmpty) namespace
+    else namespace + "." + methodName
+}

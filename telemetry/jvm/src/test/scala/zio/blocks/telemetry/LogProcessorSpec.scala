@@ -106,19 +106,14 @@ object LogProcessorSpec extends ZIOSpecDefault {
   }
 
   private def logRecord(
-    namespace: String = "com.example.MyClass",
-    method: Option[String] = Some("myMethod"),
-    line: Long = 42L,
+    functionName: String = "com.example.MyClass.myMethod",
+    line: Int = 42,
     includeUserAttrs: Boolean = true,
     includeOtherAttr: Boolean = true,
-    throwable: Option[Throwable] = None
+    throwable: Option[Throwable] = None,
+    extra: Attributes = Attributes.empty
   ): LogRecord = {
     val builder = Attributes.builder
-      .put("code.filepath", "Test.scala")
-      .put("code.namespace", namespace)
-      .put("code.lineno", line)
-
-    method.foreach(builder.put("code.function", _))
 
     if (includeUserAttrs) {
       builder.put("userId", "abc")
@@ -134,29 +129,24 @@ object LogProcessorSpec extends ZIOSpecDefault {
       builder.put(AttributeKey.booleanSeq("flags"), List(true, false))
     }
 
-    LogRecord(
-      timestampNanos = 1719792600123000000L,
-      observedTimestampNanos = 1719792600123000000L,
-      severity = Severity.Info,
-      severityText = "INFO",
-      body = LogMessage("test message"),
-      attributes = builder.build,
-      traceIdHi = 0L,
-      traceIdLo = 0L,
-      spanId = 0L,
-      traceFlags = 0,
-      resource = Resource.empty,
-      instrumentationScope = InstrumentationScope("test"),
-      throwable = throwable
-    )
+    LogRecord.builder
+      .setTimestamp(1719792600123000000L)
+      .setObservedTimestamp(1719792600123000000L)
+      .setSeverity(Severity.Info)
+      .setBody(LogMessage("test message"))
+      .setSourceFile("Test.scala")
+      .setSourceFunction(functionName)
+      .setSourceLine(line)
+      .addAttributes(builder.build)
+      .addAttributes(extra)
+      .setThrowable(throwable)
+      .setResource(Resource.empty)
+      .setInstrumentationScope(InstrumentationScope("test"))
+      .build
   }
 
   private def emitterBuilder(): Attributes.AttributesBuilder =
     Attributes.builder
-      .put("code.filepath", "Emitter.scala")
-      .put("code.namespace", "com.example.EmitterClass")
-      .put("code.function", "emitMethod")
-      .put("code.lineno", 7L)
       .put("userId", "abc")
       .put("count", 5L)
 
@@ -176,7 +166,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       val rendered       = rendered0.trim
 
       assertTrue(
-        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [MyClass.myMethod:42] test message"),
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  test message [MyClass.myMethod] Test.scala:42 {"),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
@@ -185,21 +175,19 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("nums=[1, 2]"),
         rendered.contains("rates=[1.5, 2.5]"),
         rendered.contains("flags=[true, false]"),
-        !rendered.contains("code.filepath"),
-        !rendered.contains("code.namespace"),
-        !rendered.contains("code.function"),
-        !rendered.contains("code.lineno"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.function.name"),
+        !rendered.contains("code.line.number"),
         rendered.contains("java.lang.IllegalStateException: boom")
       )
     },
-    test("onEmit handles namespace without dot method absent line zero and no throwable") {
+    test("onEmit handles a dotless function name with no line number and no throwable") {
       val processor      = new StdoutLogRecordProcessor()
       val (_, rendered0) = captureStdout(
         processor.onEmit(
           logRecord(
-            namespace = "PlainClass",
-            method = None,
-            line = 0L,
+            functionName = "PlainClass",
+            line = 0,
             includeUserAttrs = false,
             includeOtherAttr = false,
             throwable = None
@@ -209,9 +197,71 @@ object LogProcessorSpec extends ZIOSpecDefault {
       val rendered = rendered0.trim
 
       assertTrue(
-        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [PlainClass] test message"),
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  test message [PlainClass] Test.scala"),
         !rendered.contains("{"),
         !rendered.contains("Exception")
+      )
+    },
+    test("onEmit agrees with TextLogFormatter.formatRecord on source-location presentation") {
+      val processor      = new StdoutLogRecordProcessor()
+      val record         = logRecord()
+      val (_, rendered0) = captureStdout(processor.onEmit(record))
+      val rendered       = rendered0.trim
+
+      val sb = new StringBuilder
+      TextLogFormatter.formatRecord(sb, record)
+
+      assertTrue(rendered == sb.toString)
+    },
+    test("onEmit suppresses colliding user keys while rendering source location and survivors") {
+      val processor = new StdoutLogRecordProcessor()
+      val record    = logRecord(
+        extra = Attributes.builder
+          .put("code.file.path", "intruder.scala")
+          .put("code.line.number", 1L)
+          .put("survivor", "yes")
+          .build
+      )
+      val (_, rendered0) = captureStdout(processor.onEmit(record))
+      val rendered       = rendered0.trim
+
+      val sb = new StringBuilder
+      TextLogFormatter.formatRecord(sb, record)
+
+      assertTrue(
+        rendered == "2024-07-01T00:10:00.123Z INFO  test message [MyClass.myMethod] Test.scala:42 " +
+          "{userId=\"abc\", count=5, ratio=2.5, active=true, tags=[\"alpha\", \"beta\"], nums=[1, 2], " +
+          "rates=[1.5, 2.5], flags=[true, false], survivor=\"yes\"}",
+        rendered == sb.toString,
+        !rendered.contains("intruder.scala"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.line.number")
+      )
+    },
+    test("onEmit preserves Windows backslashes literally in path:line") {
+      val processor = new StdoutLogRecordProcessor()
+      val record    = LogRecord.builder
+        .setTimestamp(1719792600123000000L)
+        .setObservedTimestamp(1719792600123000000L)
+        .setSeverity(Severity.Info)
+        .setBody(LogMessage("Payment authorized"))
+        .setSourceFile("C:\\work\\src\\PaymentService.scala")
+        .setSourceFunction("com.example.PaymentService.handle")
+        .setSourceLine(42)
+        .setResource(Resource.empty)
+        .setInstrumentationScope(InstrumentationScope("test"))
+        .build
+      val (_, rendered0) = captureStdout(processor.onEmit(record))
+      val rendered       = rendered0.trim
+
+      val sb = new StringBuilder
+      TextLogFormatter.formatRecord(sb, record)
+
+      assertTrue(
+        rendered == "2024-07-01T00:10:00.123Z INFO  Payment authorized " +
+          "[PaymentService.handle] C:\\work\\src\\PaymentService.scala:42",
+        rendered == sb.toString,
+        !rendered.contains("\\\\")
       )
     },
     test("shutdown and forceFlush are no-ops") {
@@ -232,7 +282,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       val rendered       = rendered0.trim
 
       assertTrue(
-        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [MyClass.myMethod:42] test message"),
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  test message [MyClass.myMethod] Test.scala:42 {"),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
@@ -241,10 +291,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("nums=[1, 2]"),
         rendered.contains("rates=[1.5, 2.5]"),
         rendered.contains("flags=[true, false]"),
-        !rendered.contains("code.filepath"),
-        !rendered.contains("code.namespace"),
-        !rendered.contains("code.function"),
-        !rendered.contains("code.lineno"),
+        !rendered.contains("code.file.path"),
+        !rendered.contains("code.function.name"),
+        !rendered.contains("code.line.number"),
         rendered.contains("java.lang.IllegalStateException: boom")
       )
     },
@@ -268,7 +317,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       val rendered = writer.writes.headOption.getOrElse("")
       assertTrue(
         writer.writes.size == 1,
-        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [(com.example.MyClass,12,19).myMethod:42] test message"),
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  test message [MyClass.myMethod] Test.scala:42 {"),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
@@ -362,6 +411,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
         severity = Severity.Info,
         severityText = "INFO",
         body = "emitted message",
+        sourceFile = "Emitter.scala",
+        sourceFunction = "com.example.EmitterClass.emitMethod",
+        sourceLine = 7,
         builder = builder,
         traceIdHi = 0L,
         traceIdLo = 0L,
@@ -376,7 +428,7 @@ object LogProcessorSpec extends ZIOSpecDefault {
       assertTrue(
         writer.writes.size == 1,
         rendered.startsWith(
-          "2024-07-01T00:10:00.123Z INFO  [(com.example.EmitterClass,12,24).emitMethod:7] emitted message"
+          "2024-07-01T00:10:00.123Z INFO  emitted message [EmitterClass.emitMethod] Emitter.scala:7"
         ),
         rendered.contains("userId=\"abc\""),
         rendered.contains("count=5"),
@@ -393,6 +445,9 @@ object LogProcessorSpec extends ZIOSpecDefault {
           severity = Severity.Info,
           severityText = "INFO",
           body = "emitted message",
+          sourceFile = "Emitter.scala",
+          sourceFunction = "com.example.EmitterClass.emitMethod",
+          sourceLine = 7,
           builder = builder,
           traceIdHi = 0L,
           traceIdLo = 0L,
