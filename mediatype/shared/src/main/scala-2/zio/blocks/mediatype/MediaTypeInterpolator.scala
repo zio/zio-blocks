@@ -19,9 +19,27 @@ package zio.blocks.mediatype
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+/**
+ * Provides the `mediaType` string interpolator. The package object
+ * `zio.blocks.mediatype` extends this trait, so importing the package (`import
+ * zio.blocks.mediatype._` on Scala 2, `import zio.blocks.mediatype.*` on Scala
+ * 3) brings the interpolator into scope.
+ */
 trait MediaTypeInterpolator {
 
+  /**
+   * Adds the `mediaType` method to `StringContext`. Scala 2 needs this implicit
+   * class to attach the interpolator, whereas Scala 3 defines the method as an
+   * extension.
+   */
   implicit class MediaTypeStringContext(val sc: StringContext) {
+
+    /**
+     * Returns the media type written in the literal string, such as
+     * `mediaType"text/plain; charset=utf-8"`. The string is checked at compile
+     * time: an empty string, a missing `/`, an empty main type or subtype, or
+     * an interpolated value makes the compilation fail.
+     */
     def mediaType(args: Any*): MediaType = macro MediaTypeMacros.mediaTypeImpl
   }
 }
