@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Persistence"
-description: "Introduction to the Persistence blocks of ZIO Blocks: the SQL module, its ZIO integration, data migration and event-sourced projections."
+title: "Data Access"
+description: "Introduction to the Data Access blocks of ZIO Blocks: the SQL module, its ZIO integration, data migration and event-sourced projections."
 ---
 
 ## Introduction

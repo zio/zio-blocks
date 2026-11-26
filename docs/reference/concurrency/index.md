@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Concurrency"
-description: "Introduction to the Concurrency blocks of ZIO Blocks: Async, Mux and RingBuffer."
+title: "Concurrency & Resilience"
+description: "Introduction to the Concurrency & Resilience blocks of ZIO Blocks: Async, Mux and RingBuffer."
 ---
 
 ## Introduction
