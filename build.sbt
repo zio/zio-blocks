@@ -2068,9 +2068,8 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // can fail to compile on 3.8.3; revisit when 3.8.4 is stable.
     Compile / unmanagedSourceDirectories ++= {
       val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
-      val jsMain     = baseDirectory.value / "src" / "main"
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, n)) if n >= 8 => Seq(sharedMain / "scala-3-dca", jsMain / "scala-3.8")
+        case Some((3, n)) if n >= 8 => Seq(sharedMain / "scala-3-dca")
         case Some((3, _))           => Seq(sharedMain / "scala-3-dca", sharedMain / "scala-3-dca-direct")
         case _                      => Seq.empty
       }
