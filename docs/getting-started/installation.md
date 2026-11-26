@@ -32,7 +32,7 @@ A Scala 3.9 build uses `zio-blocks-<module>`. A Scala 3.10 build uses `zio-block
 
 - **sbt 1.x** or **scala-cli**.
 - **JDK 11+** for Scala 2.13 and Scala 3.9; **JDK 17+** for the `zio-blocks-next-*` artifacts.
-- **JDK 21+** on the JVM for `streams`, `telemetry`, and `telemetry-otel`, and for every module built on `streams`: `http-model`, `http-model-schema`, `endpoint`, `datastar`, `http-htmx`, `sql`, `sql-zio`, `data-migration`, and `projection`.
+- **JDK 21+** on the JVM for `streams`, `telemetry`, and `telemetry-otel`, and for every module built on `streams`: `http-model`, `http-model-schema`, `mux`, `endpoint`, `datastar`, `http-htmx`, `sql`, `sql-zio`, `data-migration`, and `projection`.
 - For Scala.js, **Scala.js 1.22.0+** (the `sbt-scalajs` plugin in `project/plugins.sbt`). Older linkers reject the artifacts with `IRVersionNotSupportedException`.
 
 ## Pick Your Modules
@@ -197,7 +197,7 @@ Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi").toJsonStrin
 
 ## Things to Know
 
-- **Scala 3 only.** Only `chunk`, `typeid`, `maybe`, `markdown` and `schema` publish Scala 2.13 artifacts, and only on the JVM. Every other module has no Scala 2.13 artifacts: the schema codecs (`schema-avro`, `schema-bson`, `schema-csv`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `schema-xml`, `schema-yaml`), plus `scope`, `context`, `combinators`, `ringbuffer`, `async`, `streams`, `config`, `config-yaml`, `config-json`, `config-hocon`, `mediatype`, `http-model`, `http-model-schema`, `endpoint`, `openapi`, `html`, `jwt`, `telemetry`, `codegen`, `smithy`, `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx`.
+- **Scala 3 only.** Only `chunk`, `typeid`, `maybe`, `markdown` and `schema` publish Scala 2.13 artifacts, and only on the JVM. Every other module has no Scala 2.13 artifacts: the schema codecs (`schema-avro`, `schema-bson`, `schema-csv`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `schema-xml`, `schema-yaml`), plus `scope`, `context`, `combinators`, `ringbuffer`, `async`, `streams`, `config`, `config-yaml`, `config-json`, `config-hocon`, `mediatype`, `http-model`, `http-model-schema`, `mux`, `endpoint`, `openapi`, `html`, `jwt`, `telemetry`, `codegen`, `smithy`, `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx`.
 - **JVM only.** `schema-avro`, `schema-bson`, `schema-thrift`, `codegen`, `smithy`, `telemetry-otel`, `sql-zio`, and `projection` have no Scala.js artifacts. The `sql` module's JDBC classes are also JVM-only.
 - **Third-party dependencies.** Most modules depend only on the Scala standard library. The exceptions are:
 

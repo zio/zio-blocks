@@ -43,7 +43,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-http-model" % "@VERSION@"
 scalacOptions += "-experimental"
 ```
 
-The code in this guide is the same on Scala 2.13 and Scala 3. The HTTP model depends on the ZIO Blocks streams module, which is compiled for Java 21, so run the program on **JDK 21 or newer**. The server parts use `com.sun.net.httpserver`, so they are JVM only.
+The code in this guide is the same on Scala 3.9 and 3.10. The HTTP model depends on the ZIO Blocks streams module, which is compiled for Java 21, so run the program on **JDK 21 or newer**. The server parts use `com.sun.net.httpserver`, so they are JVM only.
 
 You should have read [How to Serve http-model Requests with the JDK HTTP Server](./serve-http-model-requests.md), because we reuse its adapter. For streams, [Your First Streaming Pipeline](./your-first-streaming-pipeline.md) covers creating and running a `Stream`.
 

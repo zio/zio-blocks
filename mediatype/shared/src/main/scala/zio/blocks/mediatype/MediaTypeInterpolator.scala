@@ -21,8 +21,7 @@ import scala.quoted.*
 /**
  * Provides the `mediaType` string interpolator. The package object
  * `zio.blocks.mediatype` extends this trait, so importing the package (`import
- * zio.blocks.mediatype._` on Scala 2, `import zio.blocks.mediatype.*` on Scala
- * 3) brings the interpolator into scope.
+ * zio.blocks.mediatype.*`) brings the interpolator into scope.
  */
 trait MediaTypeInterpolator {
 

@@ -15,7 +15,7 @@ title: "TypeDefinition"
 
 `TypeDefinition` has 9 concrete implementations:
 
-| Type            | Purpose                     | Scala Feature                              |
+| Type            | Purpose                     | Scala language feature                   |
 |-----------------|-----------------------------|--------------------------------------------|
 | `CaseClass`     | Product types with fields   | Scala 2 & 3                                |
 | `SealedTrait`   | Sum types (ADTs) with cases | Scala 2 & 3                                |

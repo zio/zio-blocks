@@ -287,9 +287,9 @@ val file = ScalaFile(
 )
 ```
 
-## Cross-Scala Compatibility
+## Output Dialects
 
-The emitter handles both **Scala 3** and **Scala 2** natively:
+The emitter writes either **Scala 3** or **Scala 2** source. The codegen module itself builds on Scala 3 only, so the dialect is a property of the output, not of the library:
 
 - **Scala 3 features**: Enums, derives clauses, `*` imports, `as` renames, opaque types
 - **Scala 2 fallback**: Sealed traits, `_` imports, `=>` renames, type aliases

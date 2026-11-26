@@ -275,15 +275,9 @@ private inline def missingMember(inline code: String, member: String): Boolean =
   typeCheckErrors(code).exists(error => error.message.contains(member) && error.message.contains("not a member"))
 ```
 
-The spec covers `Reader.AsyncReader#toSync` (both directly and through wildcard imports, so a re-export cannot reintroduce it), `Stream#run`, `Stream#runCollect`, `Stream#start`, and `Sink.create`. Scala 2 has no `typeCheckErrors`, so those five references live in a fixture at `streams/js/src/test/negative-scala-2/BlockingApiPlacement.scala`, alongside two further references — `Writer#concatAsync` and `Writer#contramapAsync` — that name members `Writer` has on neither platform. That path sits outside the normal test source directories on purpose: it is not compiled by the ordinary Scala 2 test run, and no build task in this repository currently wires it in, so on Scala 2 the placement is documented by the fixture rather than enforced by it.
+The spec covers `Reader.AsyncReader#toSync` (both directly and through wildcard imports, so a re-export cannot reintroduce it), `Stream#run`, `Stream#runCollect`, `Stream#start`, and `Sink.create`, all in-band via `scala.compiletime.testing.typeCheckErrors`.
 
 For the reader the point is a guarantee rather than a test detail: a cross-platform source that uses a blocking terminal fails at compile time on Scala.js. It will not build a Scala.js artifact that throws in a browser, and it will not pass a JVM build and then fail a JS one for a reason that only shows up under load.
-
-## Scala 2 Versus Scala 3
-
-There is no per-Scala-version public-API difference in the streams module. The two files that used to be split per version, `LowPriorityJvmTypeInferPlatform.scala` and `internal/InternalVersionSpecific.scala`, declare `private[streams]` traits — implementation detail for `JvmType` inference and for primitive pull loops, invisible from user code.
-
-The axis that changes what you can call is JVM versus Scala.js, which is what the [availability matrix](#availability-matrix) above records. [Scala 2 Compatibility](./scala-2-compatibility.md) covers the syntax differences that do affect how you write against the API, such as wildcard imports and implicit resolution.
 
 ## See Also
 

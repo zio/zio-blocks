@@ -51,7 +51,7 @@ Validate any change near these loops against the streams JMH benchmarks (`stream
 ```bash
 # Discover project names and Scala versions
 sbt projects
-sbt 'show crossScalaVersions'              # note the 2.13.x version
+sbt 'show crossScalaVersions'              # 2.13.18 appears only on the five foundation modules
 
 # sbt command template (use for ALL sbt invocations):
 GD="$(git rev-parse --absolute-git-dir)" && mkdir -p "$GD/agent-logs"   # works in worktrees, where .git is a file
@@ -84,7 +84,7 @@ mdoc captures only Scala's `Console.out` (`println`), not `System.out` or `Syste
 A page that starts the JDK HTTP server (`com.sun.net.httpserver`) inside mdoc loses everything the handler threads print: the JDK creates its dispatcher thread without inheriting thread-locals, so `Console.out` on that thread is the terminal, not mdoc's capture. Capture `Console.out` once in an `mdoc:invisible` block at the top of the page and have every thread write to that stream (see `PageOutput` in `docs/guides/small-json-backend-from-blocks.md`); mdoc keeps one console per page, so lines still land under the statement that is running.
 If mdoc reports `skipping file, the compiler produced no classfiles and reported no errors`, the Scala 3 compiler crashed on the page; mdoc hides the stack trace. mdoc compiles a page's blocks as members of a class, so reproduce with `scala-cli compile` on the same code wrapped in `class Outer { ... }` to see the crash. Bisect a page by running mdoc on one truncated copy at a time: with several files in one `--in` directory, mdoc reports only the first failure and leaves the other outputs unevaluated. One known trigger is in `docs/dev/library-issues.md` (a sealed trait whose case classes sit in its companion, inside a class).
 
-`<scala2>` = the 2.13.x version from `show crossScalaVersions`.
+`<scala2>` = `2.13.18`, the version the five foundation modules cross-build; the root `crossScalaVersions` no longer lists 2.13.
 
 Not every project supports every version — check `show <project>/crossScalaVersions` if
 `++3.9.0` doesn't apply. One exception worth knowing: `streamsJVM`/`streamsJS`/

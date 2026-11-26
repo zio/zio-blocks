@@ -97,7 +97,7 @@ For Scala.js support:
 libraryDependencies += "dev.zio" %%% "zio-blocks-chunk" % "@VERSION@"
 ```
 
-Supports Scala 2.13.x and 3.x.
+Supports Scala 2.13.x (JVM only) and 3.x.
 
 ## Factory Methods
 

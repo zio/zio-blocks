@@ -11,17 +11,13 @@ keywords:
   - "Unscoped"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 This guide is a lookup table for the errors that `Scope`, `Resource.from` and `Wire` report. Find your error message in the [Quick Index](#quick-index), jump to its entry, and leave with a fix. Each entry shows the smallest code that triggers the error, the real compiler output (rendered by mdoc, not pasted), one or two sentences on why it happens, and the corrected code.
 
 The entries cover:
 
 - the errors you will most likely hit first: escaping `$[A]` values, the `$` receiver rule, dependency cycles (which crash the macro in 0.0.56), duplicate providers, and dependencies the macro cannot build;
-- every remaining code from E1 to E17, in code order;
-- the leak warning (W1) and the closed-scope runtime errors (RE1 to RE3);
-- the differences between the Scala 2 and Scala 3 macros.
+- every remaining code from E1 to E13, in code order;
+- the leak warning (W1) and the closed-scope runtime errors (RE1 to RE3).
 
 ## The Problem
 
@@ -78,7 +74,6 @@ Three more things to know before you search:
 | E6 | `Cannot extract types from wire expression.` | [Pass a real wire](#e6-cannot-extract-wire-types) |
 | E12 | `Constructor of ... has multiple parameters of type ...` | [Wrap one of the parameters](#e12-duplicate-parameter-type) |
 | E13 | `Expected varargs of Wire[?, ?] expressions.` | [List the wires inline](#e13-invalid-varargs) |
-| E14-E17 | `Cannot derive Unscoped for ...` (Scala 2 only) | [Fix the type or write the instance](#e14-e17-unscoped-derivation) |
 | W1 | `── Scope Warning ──` / `... is being leaked from scope` | [Stay inside `$`, or add `Unscoped`](#w1-leak-warning) |
 | RE1 | `IllegalStateException`: `Cannot allocate resource: scope is already closed.` | [Allocate while the scope is open](#re1-allocate-on-closed-scope) |
 | RE2 | `IllegalStateException`: `Cannot open child scope: scope is already closed.` | [Open while the parent is open](#re2-open-on-closed-scope) |
@@ -131,24 +126,7 @@ class Book(val title: String)
 val book = Scope.global.scoped { _ => new Book("Zionomicon") }
 ```
 
-`Unscoped` instances exist for primitives, `String`, collections, `Option`, `Either` and tuples of up to four elements, as long as every element type is itself `Unscoped`. For your own data, declare an instance. In Scala 3, case classes, sealed traits and enums whose fields are all `Unscoped` get one automatically. In Scala 2 you derive it explicitly:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.scope._
-
-final case class Book(title: String)
-object Book {
-  implicit val unscoped: Unscoped[Book] = Unscoped.derived[Book]
-}
-
-val book: Book = Scope.global.scoped { _ => Book("Zionomicon") }
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
+`Unscoped` instances exist for primitives, `String`, collections, `Option`, `Either` and tuples of up to four elements, as long as every element type is itself `Unscoped`. For your own data, declare an instance. Case classes, sealed traits and enums whose fields are all `Unscoped` get one automatically:
 
 ```scala mdoc:silent:reset
 import zio.blocks.scope.*
@@ -158,10 +136,7 @@ final case class Book(title: String) // Unscoped is derived automatically
 val book: Book = Scope.global.scoped { _ => Book("Zionomicon") }
 ```
 
-</TabItem>
-</Tabs>
-
-For a class that isn't a case class, write the instance by hand: `given Unscoped[Book] = new Unscoped[Book] {}` in Scala 3, or `implicit val unscopedBook: Unscoped[Book] = new Unscoped[Book] {}` in Scala 2. Only do this for pure data, never for a type that holds a resource.
+For a class that isn't a case class, write the instance by hand: `given Unscoped[Book] = new Unscoped[Book] {}`. Only do this for pure data, never for a type that holds a resource.
 
 If you return a case class that has a resource field, the error names the field's type, not the case class:
 
@@ -510,19 +485,6 @@ A `Seq` only exists at run time, so the macro can't see which wires it holds. Li
 Resource.from[Catalog](Wire.shared[Db])
 ```
 
-E13 is Scala 3 only.
-
-### E14 to E17: `Unscoped` Derivation Errors (Scala 2 Only) {#e14-e17-unscoped-derivation}
-
-These four errors come from Scala 2's `Unscoped.derived[A]` macro, which you call yourself (see the Scala 2 tab in [Returning a Scoped Value](#escaping-scoped-value)). All of them start with `Cannot derive Unscoped for`:
-
-- **E14, type parameter not deducible.** A subtype of a sealed generic type has a type parameter the macro can't work out from the parent's type arguments. Give the subtype concrete type arguments, or simplify the hierarchy.
-- **E15, sealed type with no known subclasses.** Define at least one subclass in the same file as the sealed type.
-- **E16, no `Unscoped` instance for a field or subtype.** For example, `Unscoped.derived[Receipt]` where `Receipt` has a `Db` field. Remove the resource from the type, or give the field's type its own instance if it's pure data.
-- **E17, no primary constructor.** Write the instance by hand: `implicit val unscoped: Unscoped[A] = new Unscoped[A] {}`.
-
-Scala 3 doesn't use these codes. Its `Unscoped` derivation is a `given` built on `Mirror`, so the same mistakes produce the compiler's standard `No given instance of type ...Unscoped[...]` message, as in [Returning a Scoped Value](#escaping-scoped-value).
-
 ## Warnings
 
 ### W1: Value Leaked from Its Scope {#w1-leak-warning}
@@ -598,17 +560,6 @@ shop3.close()
 The value behind `db` has already been released. Make every `$` call before the owning scope closes.
 
 `defer` on a closed scope is not an error: the finalizer is ignored and you get a no-op handle back. Calling `scoped` from a thread that doesn't own the scope throws a different `IllegalStateException`, `Cannot create child scope: current thread '...' does not own this scope`. The tutorial's [Thread Ownership](./compile-time-resource-safety-with-scope.md#11-thread-ownership) section covers that case.
-
-## Scala 2 and Scala 3 Differences
-
-Both macro implementations render their errors with the same `ErrorMessages` functions, so the boxes read the same in both versions. The differences:
-
-- **E13** is reported only by Scala 3.
-- **E14 to E17** are reported only by Scala 2, by `Unscoped.derived`. Scala 3 reports the same mistakes with the compiler's standard `No given instance` message.
-- **Escaping a scope** is a missing implicit in both versions, but Scala 2 uses its own wording for a missing implicit.
-- **Type names** are printed with `toString` in Scala 2 and with `show` in Scala 3, so some types are formatted slightly differently.
-
-mdoc compiles this page with Scala 3, so every rendered message above is Scala 3 output.
 
 ## Putting It Together
 

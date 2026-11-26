@@ -66,7 +66,7 @@ libraryDependencies += "dev.zio" %% "zio-test-sbt" % "2.1.27" % Test
 
 The `telemetry` module needs **JDK 21 or newer** on the JVM, to compile as well as to run. [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) explains the two artifact names and the JDK each module needs.
 
-The order service and its tests compile on Scala 2.13 and Scala 3. The section on the global `log` object is Scala 3 only: in version 0.0.56, the `log.*` calls don't compile on Scala 2.13 outside the library's own package, a known bug in that version.
+The order service and its tests compile on Scala 3.9 and 3.10. The section on the global `log` object is Scala 3 only.
 
 We assume you have seen the `log`, `trace` and `metric` objects before. If not, the tutorial [Instrument a Program with Logs, Traces and Metrics](./instrument-a-program-with-logs-traces-and-metrics.md) introduces them.
 
@@ -136,7 +136,7 @@ The code above:
 
 - `PaymentGateway.approveAll` and `PaymentGateway.declineAll` are two fake gateways for the tests; a real one would call a payment provider.
 - The counters are public `val`s, created once from the meter. A test reads them back, and keeping one instance per counter matters: every call to a counter builder registers a new instrument.
-- `Logger#info` and `Logger#error` take their fields as `(String, AttributeValue)` pairs. Unlike the global `log.*` calls, they are plain methods, so they also compile on Scala 2.13.
+- `Logger#info` and `Logger#error` take their fields as `(String, AttributeValue)` pairs. Unlike the global `log.*` calls, they are plain methods.
 - `SpanStatus.Error(reason)` marks the span as failed. Nothing sets it for us: a span whose block throws still ends with the status `Unset`.
 
 In production, the service gets the global tracer and meter, and a logger that prints to standard output:

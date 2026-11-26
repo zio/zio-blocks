@@ -11,9 +11,6 @@ keywords:
   - "Pollable"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 The `async` module provides `Async[A]` — a small asynchronous effect type for Scala 3.9 and 3.10, targeting both JVM and Scala.js.
 
 An `Async[A]` value is a computation that either yields an `A` or fails with a `Throwable`. Unlike a lazy effect type, building one *runs* it: the synchronous work happens as you construct it, and only a computation that genuinely has to wait for something is left pending. [Evaluation model](#evaluation-model) explains where that line falls.
@@ -212,7 +209,7 @@ So for long, wait-heavy work whose depth comes from recursion, reach for `collec
 
 Say a computation has hit a real wait. When the thing it waits for finally arrives, what makes the rest of the block run? Each platform answers with whatever its own runtime does fastest, so the answers differ:
 
-- **JVM, and Scala.js on Scala 2 or Scala 3 before 3.8** — nothing runs it for you. The value sits there until something asks it for a result: `.block`, `.start`, or an interop converter. Build a value and never drive it, and the code after the wait does not run late — it never runs at all.
+- **JVM, and Scala.js on Scala 3 before 3.8** — nothing runs it for you. The value sits there until something asks it for a result: `.block`, `.start`, or an interop converter. Build a value and never drive it, and the code after the wait does not run late — it never runs at all.
 - **Scala.js on Scala 3.8 and later** — the block compiles into a real JavaScript async function, and JavaScript already has something whose job is resuming those: the event loop. It is always running, you did not start it, and you cannot opt out of it. So once the awaited value arrives, your code carries on by itself, whether or not anyone is watching.
 
 ```scala
@@ -370,8 +367,8 @@ object Async {
   def start[A](body: => A): Async.Running[A]
   val never: Async[Nothing]
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
-  def async[A](body: A): Async[A]                       // rewritten in place: a macro on Scala 2,
-                                                        // a transparent inline def on Scala 3.
+  def async[A](body: A): Async[A]                       // rewritten in place: a transparent
+                                                        // inline def.
                                                         // See the Direct Style pattern
 
   // JVM only
@@ -604,28 +601,7 @@ def legacyApi(onSuccess: String => Unit, onError: Throwable => Unit): Unit =
 
 That signature is the problem. Because `legacyApi` returns `Unit`, there is no value to return from your own function, nothing to pass to another function, and no way to say "do this, then that" — the result only ever appears inside a callback body, so the rest of your program has to be written in there too.
 
-`Async.promise` inverts it. It gives you a `Completer[A]`, which is a value that can be completed later, and hands you back an `Async[A]` representing the eventual result. You pass the completer's two methods where `legacyApi` expects its two functions. The body is written slightly differently on each Scala version — `c =>` on Scala 2, `c ?=>` on Scala 3, for the reason explained under [`Completer`](#completer):
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.async._
-
-def legacyApi(onSuccess: String => Unit, onError: Throwable => Unit): Unit =
-  onSuccess("done")
-
-val async: Async[String] = Async.promise[String] { c =>
-  legacyApi(
-    result => c.succeed(result),
-    err    => c.fail(err)
-  )
-}
-val result: String = async.block  // waits for the callback; this stub already fired
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
+`Async.promise` inverts it. It gives you a `Completer[A]`, which is a value that can be completed later, and hands you back an `Async[A]` representing the eventual result. You pass the completer's two methods where `legacyApi` expects its two functions. The body binds the completer with `c ?=>`, for the reason explained under [`Completer`](#completer):
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -641,9 +617,6 @@ val async: Async[String] = Async.promise[String] { c ?=>
 }
 val result: String = async.block  // waits for the callback; this stub already fired
 ```
-
-</TabItem>
-</Tabs>
 
 The two lines inside `legacyApi` are the whole bridge: whichever callback fires, it completes `c`, and completing `c` completes the `Async[String]`. Note what has been gained — `async` is an ordinary value. You can return it, store it, or chain `map` and `flatMap` onto it, and the callback API is no longer visible to anything downstream.
 
@@ -692,7 +665,7 @@ fetchOrder(orderId).catchAll(_ => fetchOrder(9001)).flatMap { order =>
 
 So `await` is not a method that blocks or waits. It is a marker the rewrite removes, and everything after it becomes the continuation that runs once the value arrives. Direct style therefore costs nothing over writing the chain yourself — by the time the code runs, it *is* that chain. Choose whichever reads better.
 
-One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, and both Scala versions reject it at compile time — Scala 2 through `@compileTimeOnly`, Scala 3 by aborting the macro expansion. You will not ship this mistake.
+One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, and the compiler rejects it at compile time by aborting the macro expansion. You will not ship this mistake.
 
 Within the block, `await` is not restricted to statement position. It also works inside the closures you pass to the strict collections — `List`, `Option`, `Vector`, `Set`, `Map`, `Array`, `Queue`, `ArraySeq` — for `map`, `foreach`, `flatMap`, `filter`, `filterNot`, `collect`, `find`, `exists`, `forall`, `foldLeft`, `foldRight`, `reduce` and `reduceLeft`, and in for-comprehensions over them:
 
@@ -706,7 +679,7 @@ val names: Async[List[String]] = Async.async {
 }
 ```
 
-Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported everywhere. Lazy collections are outside the set entirely — force them to a strict collection first.
+Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside and a `Map.collect` whose closure yields a pair are both unsupported. Lazy collections are outside the set entirely — force them to a strict collection first.
 
 The semantics are nearly uniform. Each method is lazy and sequential — the closure for element *n+1* runs only after element *n*'s `await` has completed — with one exception: `map` over a `List` or an `Array` applies the closure to every element first, so every call in it happens before the first `await` resolves, and only then awaits the results left to right, failing fast. A `List(a, b, c).map(fetch(_).await)` therefore starts all three fetches before it waits on the first, while `Vector(a, b, c).map(fetch(_).await)` performs them one after another. A failed `await` short-circuits the remaining awaits, and the result keeps the receiver's collection type. Use `Async.collectAll` when you want lazy receivers' calls overlapped.
 
@@ -1113,22 +1086,19 @@ final class Completer[A] extends Pollable[A] {
 }
 ```
 
-`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result is a plain ready value: drivers and combinators see no `Pollable`. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result is a plain ready value: drivers and combinators see no `Pollable`. The body takes the completer as a context parameter:
 
 ```scala
-// Scala 2 — the completer is an ordinary function parameter
-def promise[A](body: Completer[A] => Unit): Async[A]
-
-// Scala 3 — the completer is a context parameter of the body
+// The completer is a context parameter of the body
 inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
 ```
 
-The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free ready path described under [Evaluation Model](#evaluation-model).)
+The `?=>` makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }`. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free ready path described under [Evaluation Model](#evaluation-model).)
 
-Being a given is not just bookkeeping: it buys you top-level `succeed` and `fail` helpers that find the completer themselves, so on Scala 3 the bridge need not name it at all.
+Being a given is not just bookkeeping: it buys you top-level `succeed` and `fail` helpers that find the completer themselves, so the bridge need not name it at all.
 
 ```scala
-// Scala 3 only — `succeed` and `fail` take the Completer as a given.
+// `succeed` and `fail` take the Completer as a given.
 val fetched: Async[Int] = Async.promise[Int] { c ?=>
   legacyLookup(onOk = value => succeed(value), onErr = cause => fail(cause))
 }
@@ -1136,24 +1106,9 @@ val fetched: Async[Int] = Async.promise[Int] { c ?=>
 
 Naming it, as the examples below do, is equally valid and reads better when the callback is registered several lines away from where it fires.
 
-:::warning[Do not write the Scala 2 binder on Scala 3]
-On Scala 3, `Async.promise[Int] { (c: Completer[Int]) => ... }` compiles. The typed binder turns the body into an ordinary function value, which the context function discards, so its statements never run. The `Async` never completes, and the only sign is compiler warning E190 at the call site. Write `{ c ?=> ... }` on Scala 3, as in the example below.
+:::warning[Do not write a typed binder]
+`Async.promise[Int] { (c: Completer[Int]) => ... }` compiles. The typed binder turns the body into an ordinary function value, which the context function discards, so its statements never run. The `Async` never completes, and the only sign is compiler warning E190 at the call site. Write `{ c ?=> ... }`, as in the example below.
 :::
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.async._
-
-val async: Async[Int] = Async.promise[Int] { c =>
-  new Thread(() => { Thread.sleep(20); c.succeed(42) }).start()
-}
-val result: Int = async.block  // => 42
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -1163,9 +1118,6 @@ val async: Async[Int] = Async.promise[Int] { c ?=>
 }
 val result: Int = async.block  // => 42
 ```
-
-</TabItem>
-</Tabs>
 
 Now a case from the JDK rather than a sleeping thread. `AsynchronousFileChannel` reads a file without blocking, and reports the outcome through a `CompletionHandler` with two methods: `completed` when the bytes arrive, `failed` when the read goes wrong. Those two are exactly `succeed` and `fail`, so the bridge is almost mechanical:
 
@@ -1222,7 +1174,7 @@ def readChunk(path: Path, size: Int): Async[ByteBuffer] =
 
 The completer is created for you and named `c`, and there is no `peek` at the end — `promise` returns the `Async` itself.
 
-Prefer this version. Write the completer out by hand when the registration does not fit neatly in a single block, when you need to keep the completer around to complete it from elsewhere, or when you want identical source on Scala 2 and Scala 3 — `new Completer[A]` has no context-function syntax to differ over.
+Prefer this version. Write the completer out by hand when the registration does not fit neatly in a single block, or when you need to keep the completer around to complete it from elsewhere.
 
 `readChunk` returns before a single byte has been read. Nothing blocks, no thread waits, and the caller receives an `Async[ByteBuffer]` that behaves like any other — `map` it, `zipWith` another read, recover it with `catchAll`, or `block` on it at the edge of the program.
 

@@ -77,28 +77,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-next-mux" % "@VERSION@"
 
 The code in this guide uses only the JDK besides the mux module. It runs on the JVM: `Mux` is also published for Scala.js, but the examples use `java.net.Socket`, threads and blocking reads, which Scala.js does not have.
 
-The code is written for Scala 3, because it uses the union types that `Mux#open`, `MuxStream#send`, `MuxStream#receive`, `MuxStream#offerInbound` and `MuxStream#takeOutbound` return on Scala 3, and the companion examples use top-level definitions. On Scala 2.13 the same five methods return `Either[MuxError, A]`, so each match changes shape. For example, delivering one message, as the reader loop below does:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import java.util.concurrent.locks.LockSupport
-import scala.annotation.tailrec
-import zio.blocks.mux._
-
-@tailrec def deliver(stream: MuxStream[Int, String, String], message: String): Unit =
-  stream.offerInbound(message) match {
-    case Right(())                   => ()
-    case Left(MuxError.QueueFull(_)) =>
-      LockSupport.parkNanos(1000000L)
-      deliver(stream, message)
-    case Left(_) => () // closed or cancelled on our side: drop the frame
-  }
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
+The code is written for Scala 3, because it uses the union types that `Mux#open`, `MuxStream#send`, `MuxStream#receive`, `MuxStream#offerInbound` and `MuxStream#takeOutbound` return on Scala 3, and the companion examples use top-level definitions. For example, delivering one message, as the reader loop below does:
 
 ```scala mdoc:compile-only
 import java.util.concurrent.locks.LockSupport
@@ -115,8 +94,6 @@ import zio.blocks.mux._
   }
 ```
 
-</TabItem>
-</Tabs>
 
 ## How the Pieces Fit
 

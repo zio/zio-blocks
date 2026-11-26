@@ -3,7 +3,7 @@ id: emitter-config
 title: "EmitterConfig"
 ---
 
-`EmitterConfig` controls how `ScalaEmitter` formats Scala code. Customize indentation, import sorting, trailing commas, and target Scala version (2 vs 3) by creating a configured instance.
+`EmitterConfig` controls how `ScalaEmitter` formats Scala code. Customize indentation, import sorting, trailing commas, and the syntax of the emitted code (Scala 3 or Scala 2) by creating a configured instance. The codegen module itself builds on Scala 3 only.
 
 ## Use Cases
 
@@ -297,9 +297,9 @@ import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
-## Cross-Scala Behavior
+## Output Dialects
 
-The `scala3Syntax` field affects code generation:
+The `scala3Syntax` field affects the code the emitter generates:
 
 ### Scala 3 Features
 

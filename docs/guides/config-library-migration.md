@@ -58,7 +58,7 @@ def load(root: Config): BookstoreConfig = {
 val config = load(ConfigFactory.load()) // throws ConfigException.Missing on the first missing key
 ```
 
-Every field is read by name, a renamed field compiles but fails at startup, and the optional discount needs its own `hasPath` check. ZIO Blocks replaces all of this with one call that walks a case class with a derived `Schema`, runs the same way on Scala 2.13, Scala 3 and Scala.js, and parses HOCON without Typesafe Config.
+Every field is read by name, a renamed field compiles but fails at startup, and the optional discount needs its own `hasPath` check. ZIO Blocks replaces all of this with one call that walks a case class with a derived `Schema`, runs the same way on Scala 3.9, 3.10 and Scala.js, and parses HOCON without Typesafe Config.
 
 ## Prerequisites
 

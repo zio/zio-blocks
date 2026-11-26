@@ -47,7 +47,7 @@ object CopiesPerTitle extends IOApp.Simple {
 
 The ZIO Streams version has the same shape with `ZStream`, `runFold` and `ZIOAppDefault`. Ox removes the effect type, but it is Scala 3.10+ and JDK 21+ only, and it reports failures as exceptions rather than typed errors.
 
-ZIO Blocks Streams runs the same pipeline as a direct call: `runFold` blocks the calling thread and returns `Either[E, Z]`, with the stream's typed error on the left. The same `Stream` compiles on Scala 2.13 and Scala 3, and on Scala.js it runs through the asynchronous terminals.
+ZIO Blocks Streams runs the same pipeline as a direct call: `runFold` blocks the calling thread and returns `Either[E, Z]`, with the stream's typed error on the left. The same `Stream` compiles on Scala 3.9 and 3.10, and on Scala.js it runs through the asynchronous terminals.
 
 ## Prerequisites
 
@@ -503,7 +503,7 @@ val firstOrderIds: List[Long] = Scope.global.scoped { scope =>
 println(firstOrderIds)
 ```
 
-On Scala 2.13, pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, read each lane with its own method, as [Primitive Streams Signal the End Without Boxing](#primitive-streams-signal-the-end-without-boxing) describes; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
+Pass the scope as `parsedOrders.start(scope)`. The reader closes with the scope. For a primitive stream, read each lane with its own method, as [Primitive Streams Signal the End Without Boxing](#primitive-streams-signal-the-end-without-boxing) describes; the [Reader reference](../reference/streams/primitives/reader.md) covers the primitive read methods.
 
 ### Batches
 
@@ -696,7 +696,7 @@ Ox builds its operators on structured concurrency: `mapPar`, `merge` and `flatte
 - **`mapPar` is unordered.** Ox's `mapPar` keeps input order, and its `mapParUnordered` does not. ZIO Blocks' `mapPar` behaves like `mapParUnordered`. See [`mapPar` emits in completion order](#mappar-emits-in-completion-order).
 - **`Chunk`, not `Seq`.** `grouped(n)` emits a `Chunk`, and `runCollect` returns one.
 - **`flattenPar` becomes `flatMapPar` or `Stream.mergeAll`.**
-- **More platforms.** Ox 1.1.0 needs Scala 3.9 and JDK 21. ZIO Blocks Streams also runs on Scala 2.13, Scala 3.9 and Scala.js; only the JVM needs JDK 21.
+- **More platforms.** Ox 1.1.0 needs Scala 3.9 and JDK 21. ZIO Blocks Streams runs on Scala 3.9, Scala 3.10 and Scala.js; only the JVM needs JDK 21.
 - **No time-based operators.** Ox's `throttle`, `debounce`, `groupedWithin`, `Flow.tick` and `retry` have no counterpart.
 
 ## Traps When Migrating
@@ -820,7 +820,7 @@ You gain:
 - **Typed errors without an effect type.** `Stream[E, A]` carries `E`, and every terminal returns `Either[E, Z]`.
 - **Primitive lanes with zero boxing.** A `Stream[Nothing, Int]` keeps its elements as `int`s from source to sink. See [zero-boxing](../reference/streams/execution-and-compatibility/zero-boxing.md).
 - **Scope integration.** `Stream.fromResource` runs each pass in its own ZIO Blocks `Scope`, and `start` hands out a reader that the scope closes.
-- **Wide platform support.** Scala 2.13, Scala 3 and Scala.js, from the same source.
+- **Wide platform support.** Scala 3.9, Scala 3.10 and Scala.js, from the same source.
 
 What is different:
 
@@ -851,7 +851,7 @@ Consume each `Async` value once. Calling `toFuture` and `block` on the same valu
 
 ## Migration Checklist
 
-1. Add `zio-blocks-streams` (Scala 2.13, 3.9) or `zio-blocks-next-streams` plus `-experimental` (Scala 3.10+), and `import zio.blocks.streams._`. Run on JDK 21 or later.
+1. Add `zio-blocks-streams` (Scala 3.9) or `zio-blocks-next-streams` plus `-experimental` (Scala 3.10+), and `import zio.blocks.streams._`. Run on JDK 21 or later.
 2. Replace `Stream[IO, A]`, `ZStream[R, E, A]` or `Flow[A]` with `Stream[E, A]`. Use `Nothing` for `E` when the stream cannot fail.
 3. Replace `evalMap(a => IO(f(a)))` and `mapZIO(a => ZIO.attempt(f(a)))` with `map(f)`. Use `Stream.attempt` where the code can throw and you want a typed error.
 4. Replace `parEvalMap`, `mapZIOPar` and Ox `mapPar` with `mapPar` (or `mapParAsync` for `Async` code), and sort the output if order matters.
