@@ -28,7 +28,7 @@ Compile / unmanagedSources := {
   }
 }
 
-val zioBlocksVersion = "0.0.56"
+val zioBlocksVersion = "0.017"
 
 // For Scala 3.10+, artifacts are published as `zio-blocks-next-*`; older Scala versions use `zio-blocks-*`.
 def zioBlocks(module: String) = Def.setting {
