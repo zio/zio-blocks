@@ -31,12 +31,11 @@ Links in prose (descriptions, notes, deep-dive text) must be `https://` URLs or 
 rewritten to site-relative URLs (`/reference/...`) and checked against `docs/` at build time. Platforms are `JVM`/`JS`; Scala versions are `2.13`, `2.13 (JVM)` or `3.x`. On the page there is one tile per artifact: rows that share an
 artifact (Scope, Resource, Unscoped, ... and Wire all live in `zio-blocks-scope`) are collapsed into the first row, a
 category that lost rows loses its note, and a category left empty is dropped (`scripts/lib/collapse.mjs`). A category can be shown under a different name
-than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently `Streams` -> `Streaming` and `Configuration & Feature Flags` -> `Configuration`); a rename
+than its `###` heading through `CATEGORY_RENAMES` in `scripts/build-catalog.mjs` (currently none: the headings are the categories zio.dev/ecosystem shares with this site, listed in zio/zio's `website/ecosystem-categories.json`); a rename
 for a heading that no longer exists fails the build. `PRINCIPLE_TEXT` shows a principle with different text than the docs (currently `Cross-Platform`, tightened); a name
-that no longer exists fails the build (`scripts/lib/override.mjs`). `CATEGORY_SPLITS` shows one docs category as two (currently `Meta Programming` -> `Meta Programming` plus
-`Codecs`, the rows whose name ends in ` Codec`), moving the docs note with the moved rows
+that no longer exists fails the build (`scripts/lib/override.mjs`). `CATEGORY_SPLITS` shows one docs category as two (currently none), moving the docs note with the moved rows
 (`scripts/lib/split.mjs`). On wide screens the tile grid has three columns, and consecutive categories share a row while
-their tiles together fit in them (today Resource Management + Dependency Injection, and Streaming + Telemetry); the
+their tiles together fit in them (today Resource Management + Dependency Injection); the
 rule lives in `src/components/landing/Catalog.js`. A new value needs a one-line change in
 `scripts/lib/parse-index.mjs`.
 

@@ -13,10 +13,12 @@ import { resolveVersion } from './lib/version.mjs';
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const LANDING_ROOT = fileURLToPath(new URL('../', import.meta.url));
 
-/** Categories shown as two on the page: the blocks matching `where` move to a new category after the original. */
-export const CATEGORY_SPLITS = [
-  { from: 'Meta Programming', into: 'Codecs', where: (block) => / Codec$/.test(block.name) },
-];
+/**
+ * Categories shown as two on the page: the blocks matching `where` move to a new category after the original. Empty:
+ * the `###` headings of docs/index.md are the categories zio.dev/ecosystem shares with this site, and the landing page
+ * shows them as they are.
+ */
+export const CATEGORY_SPLITS = [];
 
 /**
  * Rows of docs/index.md that the /reference/ directory shows as links under another block instead of as rows of their
@@ -35,8 +37,8 @@ export const PRINCIPLE_TEXT = {
   'Cross-Platform': 'Most blocks build for JVM and Scala.js on Scala 3.9 and 3.10. The five foundation modules also build for Scala 2.13, on the JVM only.',
 };
 
-/** Category headings shown under a different name than the `###` heading in docs/index.md. */
-export const CATEGORY_RENAMES = { Streams: 'Streaming', 'Configuration & Feature Flags': 'Configuration' };
+/** Category headings shown under a different name than the `###` heading in docs/index.md. Empty, as for splits. */
+export const CATEGORY_RENAMES = {};
 
 /** Brand files the site references, copied from assets/logo at build time (never committed twice). */
 export const BRAND_ASSETS = [

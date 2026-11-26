@@ -18,34 +18,36 @@ test('build writes site.json with the version substituted and copies brand asset
   // One tile per artifact across the whole page (blocks that ship in the same artifact are collapsed).
   const artifacts = site.categories.flatMap((c) => c.blocks.map((b) => b.artifact));
   assert.equal(new Set(artifacts).size, artifacts.length);
-  // The Streams category is shown as "Streaming"; the block inside it keeps its own name.
-  // Meta Programming is split: Schema and TypeId stay, the format codecs move to "Codecs" right after it.
+  // The landing page shows the docs headings as they are: they are the categories zio.dev/ecosystem shares with this
+  // site (zio/zio website/ecosystem-categories.json), so there are no renames or splits.
   const names = site.categories.map((c) => c.name);
-  assert.equal(names[names.indexOf('Meta Programming') + 1], 'Codecs');
-  assert.deepEqual(site.categories.find((c) => c.name === 'Meta Programming').blocks.map((x) => x.name), ['Schema', 'TypeId']);
-  const codecs = site.categories.find((c) => c.name === 'Codecs');
-  assert.deepEqual(codecs.blocks.map((x) => x.name), ['Avro Codec', 'BSON Codec', 'CSV Codec', 'MessagePack Codec', 'Thrift Codec', 'TOON Codec', 'XML Codec', 'YAML Codec']);
-  assert.equal(typeof codecs.note, 'string'); // the docs note about the format modules moved with them
-  assert.deepEqual(site.categories.map((c) => c.name).filter((n) => /^Stream/.test(n)), ['Streaming']);
-  assert.deepEqual(site.categories.find((c) => c.name === 'Streaming').blocks.map((x) => x.name), ['Streams']);
-  // "Configuration & Feature Flags" is shown as "Configuration".
+  assert.deepEqual(names, [
+    'Web & APIs', 'Data Access', 'Streaming & Messaging', 'Schemas & Serialization', 'Observability', 'Configuration & CLI',
+    'Resource Management', 'Dependency Injection', 'Concurrency & Resilience', 'Types & Abstractions', 'Tooling & Testing',
+  ]);
+  const serialization = site.categories.find((c) => c.name === 'Schemas & Serialization');
+  assert.deepEqual(serialization.blocks.map((x) => x.name), [
+    'Schema', 'Avro Codec', 'BSON Codec', 'CSV Codec', 'MessagePack Codec', 'Thrift Codec', 'TOON Codec', 'XML Codec', 'YAML Codec',
+  ]);
+  assert.equal(typeof serialization.note, 'string'); // the docs note about the format modules
+  assert.deepEqual(site.categories.find((c) => c.name === 'Types & Abstractions').blocks.map((x) => x.name), ['Chunk', 'Maybe', 'Combinators', 'TypeId']);
+  // Resource Management comes before Dependency Injection, so Wire (zio-blocks-scope) folds into Scope, not the reverse.
+  assert.deepEqual(site.categories.find((c) => c.name === 'Resource Management').blocks.map((x) => x.name), ['Scope']);
   // The Cross-Platform principle is shown with a shorter text than docs/index.md has.
   assert.equal(
     site.principles.find((p) => p.name === 'Cross-Platform').text,
     'Most blocks build for JVM and Scala.js on Scala 3.9 and 3.10. The five foundation modules also build for Scala 2.13, on the JVM only.',
   );
-  assert.equal(names.includes('Configuration'), true);
-  assert.equal(names.some((n) => /Feature Flags/.test(n)), false);
   assert.equal(JSON.stringify(site).includes('@VERSION@'), false);
   // The /reference/ directory keeps the docs headings, folds the codecs into Schema and the same-artifact rows into Scope.
   const ref = Object.fromEntries(site.reference.map((g) => [g.name, g.blocks]));
-  assert.ok('Configuration & Feature Flags' in ref && 'Streams' in ref);
-  const schema = ref['Meta Programming'].find((x) => x.name === 'Schema');
-  assert.deepEqual(ref['Meta Programming'].map((x) => x.name), ['Schema', 'TypeId']);
+  assert.deepEqual(site.reference.map((g) => g.name), names);
+  const schema = ref['Schemas & Serialization'].find((x) => x.name === 'Schema');
+  assert.deepEqual(ref['Schemas & Serialization'].map((x) => x.name), ['Schema']);
   assert.equal(schema.related.length, 8);
   assert.ok(schema.related.every((r) => / Codec$/.test(r.name)));
   assert.deepEqual(ref['Resource Management'].map((x) => x.name), ['Scope']);
   assert.deepEqual(ref['Dependency Injection'].map((x) => x.name), ['Wire', 'Context']);
-  assert.deepEqual(ref['Configuration & Feature Flags'][0].related.map((r) => r.name), ['Config YAML', 'Config JSON', 'Config HOCON']);
+  assert.deepEqual(ref['Configuration & CLI'][0].related.map((r) => r.name), ['Config YAML', 'Config JSON', 'Config HOCON']);
   for (const file of BRAND_ASSETS) assert.ok(existsSync(join(out, 'static/brand', file)), file);
 });
