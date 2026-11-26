@@ -23,6 +23,9 @@ ZIO Blocks publishes every module under two names. The artifacts built with Scal
 | 3.9.x              | `zio-blocks-<module>`          | 3.9.0 LTS  |
 | 3.10.x and newer   | `zio-blocks-next-<module>`     | 3.10.0     |
 
+The 2.13.x row applies to the five foundation modules only — `chunk`, `typeid`, `maybe`, `markdown`
+and `schema` — and only on the JVM. Every other module is Scala 3 only.
+
 A Scala 3.9 build uses `zio-blocks-<module>`. A Scala 3.10 build uses `zio-blocks-next-<module>`. The reverse does not work: a Scala 3.9 compiler cannot read code compiled by Scala 3.10, so `zio-blocks-next-<module>` fails there with a "Forward incompatible TASTy file" error.
 
 ## Prerequisites
@@ -38,53 +41,53 @@ Every module lives under the `dev.zio` organization. Replace `<module>` in the a
 
 | `<module>`           | What you get                                                        | Platforms | Scala      |
 |----------------------|---------------------------------------------------------------------|-----------|------------|
-| `schema`             | `Schema` derivation, optics, validation, and the built-in JSON codec | JVM · JS  | 2.13 · 3.x |
-| `schema-avro`        | Apache Avro codec                                                   | JVM       | 2.13 · 3.x |
-| `schema-bson`        | MongoDB BSON codec                                                  | JVM       | 2.13 · 3.x |
-| `schema-csv`         | CSV codec                                                           | JVM · JS  | 2.13 · 3.x |
-| `schema-messagepack` | MessagePack codec                                                   | JVM · JS  | 2.13 · 3.x |
-| `schema-thrift`      | Apache Thrift codec                                                 | JVM       | 2.13 · 3.x |
-| `schema-toon`        | TOON codec                                                          | JVM · JS  | 2.13 · 3.x |
-| `schema-xml`         | XML codec                                                           | JVM · JS  | 2.13 · 3.x |
-| `schema-yaml`        | YAML codec                                                          | JVM · JS  | 2.13 · 3.x |
-| `typeid`             | Compile-time type identity                                          | JVM · JS  | 2.13 · 3.x |
-| `chunk`              | Immutable indexed sequences without boxing                          | JVM · JS  | 2.13 · 3.x |
-| `maybe`              | Low-allocation optional values                                      | JVM · JS  | 2.13 · 3.x |
-| `combinators`        | Tuple, `Either`, and union composition                              | JVM · JS  | 2.13 · 3.x |
-| `context`            | Type-indexed heterogeneous collections                              | JVM · JS  | 2.13 · 3.x |
-| `scope`              | Compile-time safe resource management and `Wire`                   | JVM · JS  | 2.13 · 3.x |
-| `async`              | Asynchronous effect type with direct-style `await`                  | JVM · JS  | 2.13 · 3.x |
-| `streams`            | Pull-based streams                                                  | JVM · JS  | 2.13 · 3.x |
-| `mux`                | Stream multiplexer for HTTP/2, QUIC, and WebSocket-style protocols  | JVM · JS  | 2.13 · 3.x |
-| `ringbuffer`         | Lock-free bounded ring buffers                                      | JVM · JS  | 2.13 · 3.x |
-| `config`             | Typed configuration loading                                         | JVM · JS  | 2.13 · 3.x |
-| `config-yaml`        | YAML source for `config`                                            | JVM · JS  | 2.13 · 3.x |
-| `config-json`        | JSON source for `config`                                            | JVM · JS  | 2.13 · 3.x |
-| `config-hocon`       | HOCON source for `config`                                           | JVM · JS  | 2.13 · 3.x |
-| `mediatype`          | IANA media types                                                    | JVM · JS  | 2.13 · 3.x |
-| `http-model`         | HTTP data model: URLs, headers, requests, responses                 | JVM · JS  | 2.13 · 3.x |
-| `http-model-schema`  | Schema-based typed access to the HTTP model                         | JVM · JS  | 2.13 · 3.x |
-| `endpoint`           | Typed HTTP endpoint descriptions                                    | JVM · JS  | 2.13 · 3.x |
-| `openapi`            | OpenAPI 3.1 generation                                              | JVM · JS  | 2.13 · 3.x |
-| `html`               | Type-safe HTML templates                                            | JVM · JS  | 2.13 · 3.x |
+| `schema`             | `Schema` derivation, optics, validation, and the built-in JSON codec | JVM · JS  | 2.13 (JVM) · 3.x |
+| `schema-avro`        | Apache Avro codec                                                   | JVM       | 3.x |
+| `schema-bson`        | MongoDB BSON codec                                                  | JVM       | 3.x |
+| `schema-csv`         | CSV codec                                                           | JVM · JS  | 3.x |
+| `schema-messagepack` | MessagePack codec                                                   | JVM · JS  | 3.x |
+| `schema-thrift`      | Apache Thrift codec                                                 | JVM       | 3.x |
+| `schema-toon`        | TOON codec                                                          | JVM · JS  | 3.x |
+| `schema-xml`         | XML codec                                                           | JVM · JS  | 3.x |
+| `schema-yaml`        | YAML codec                                                          | JVM · JS  | 3.x |
+| `typeid`             | Compile-time type identity                                          | JVM · JS  | 2.13 (JVM) · 3.x |
+| `chunk`              | Immutable indexed sequences without boxing                          | JVM · JS  | 2.13 (JVM) · 3.x |
+| `maybe`              | Low-allocation optional values                                      | JVM · JS  | 2.13 (JVM) · 3.x |
+| `combinators`        | Tuple, `Either`, and union composition                              | JVM · JS  | 3.x |
+| `context`            | Type-indexed heterogeneous collections                              | JVM · JS  | 3.x |
+| `scope`              | Compile-time safe resource management and `Wire`                   | JVM · JS  | 3.x |
+| `async`              | Asynchronous effect type with direct-style `await`                  | JVM · JS  | 3.x |
+| `streams`            | Pull-based streams                                                  | JVM · JS  | 3.x |
+| `mux`                | Stream multiplexer for HTTP/2, QUIC, and WebSocket-style protocols  | JVM · JS  | 3.x |
+| `ringbuffer`         | Lock-free bounded ring buffers                                      | JVM · JS  | 3.x |
+| `config`             | Typed configuration loading                                         | JVM · JS  | 3.x |
+| `config-yaml`        | YAML source for `config`                                            | JVM · JS  | 3.x |
+| `config-json`        | JSON source for `config`                                            | JVM · JS  | 3.x |
+| `config-hocon`       | HOCON source for `config`                                           | JVM · JS  | 3.x |
+| `mediatype`          | IANA media types                                                    | JVM · JS  | 3.x |
+| `http-model`         | HTTP data model: URLs, headers, requests, responses                 | JVM · JS  | 3.x |
+| `http-model-schema`  | Schema-based typed access to the HTTP model                         | JVM · JS  | 3.x |
+| `endpoint`           | Typed HTTP endpoint descriptions                                    | JVM · JS  | 3.x |
+| `openapi`            | OpenAPI 3.1 generation                                              | JVM · JS  | 3.x |
+| `html`               | Type-safe HTML templates                                            | JVM · JS  | 3.x |
 | `datastar`           | Datastar attributes, signals, and SSE events                        | JVM · JS  | 3.x        |
 | `http-htmx`          | Typed HTMX attributes                                               | JVM · JS  | 3.x        |
-| `jwt`                | JWT signing and verification                                        | JVM · JS  | 2.13 · 3.x |
-| `markdown`           | GitHub Flavored Markdown parsing and rendering                      | JVM · JS  | 2.13 · 3.x |
-| `telemetry`          | Tracing, logging, and metrics                                       | JVM · JS  | 2.13 · 3.x |
-| `telemetry-otel`     | OTLP exporters for `telemetry`                                      | JVM       | 2.13 · 3.x |
+| `jwt`                | JWT signing and verification                                        | JVM · JS  | 3.x |
+| `markdown`           | GitHub Flavored Markdown parsing and rendering                      | JVM · JS  | 2.13 (JVM) · 3.x |
+| `telemetry`          | Tracing, logging, and metrics                                       | JVM · JS  | 3.x |
+| `telemetry-otel`     | OTLP exporters for `telemetry`                                      | JVM       | 3.x |
 | `sql`                | Schema-driven SQL and a JDBC transactor                             | JVM · JS  | 3.x        |
 | `sql-zio`            | ZIO integration for `sql`                                           | JVM       | 3.x        |
 | `data-migration`     | Typed database schema migrations                                    | JVM · JS  | 3.x        |
 | `projection`         | Event-sourced projections                                           | JVM       | 3.x        |
-| `codegen`            | Scala code generation IR and emitter                                | JVM       | 2.13 · 3.x |
-| `smithy`             | Smithy IDL parser and AST                                           | JVM       | 2.13 · 3.x |
+| `codegen`            | Scala code generation IR and emitter                                | JVM       | 3.x |
+| `smithy`             | Smithy IDL parser and AST                                           | JVM       | 3.x |
 
 Modules pull in the ZIO Blocks modules they build on, so you only list the ones you use directly.
 
 ## Add a Dependency With sbt
 
-On Scala 2.13 or Scala 3.9, use the `zio-blocks-` prefix:
+On Scala 2.13 (foundation modules only) or Scala 3.9, use the `zio-blocks-` prefix:
 
 ```scala
 // ZIO Blocks schema module
@@ -114,31 +117,30 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 When one build compiles for several Scala versions, let sbt pick the prefix and the `-experimental` flag per version. Put this in `build.sbt`:
 
 ```scala
-crossScalaVersions := Seq("2.13.18", "3.3.7", "3.9.0")
+crossScalaVersions := Seq("2.13.18", "3.9.0", "3.10.0")
 scalaVersion       := crossScalaVersions.value.head
 
 val zioBlocksVersion = "@VERSION@"
 
-// Scala 3.10+ uses the zio-blocks-next-* artifacts; older versions use zio-blocks-*.
+// Scala 3.10+ uses the zio-blocks-next-* artifacts; 2.13 and 3.9 use zio-blocks-*.
 def zioBlocks(module: String) = Def.setting {
   val prefix = CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, minor)) if minor >= 9 => "zio-blocks-next"
-    case _                              => "zio-blocks"
+    case Some((3, minor)) if minor >= 10 => "zio-blocks-next"
+    case _                               => "zio-blocks"
   }
   "dev.zio" %% s"$prefix-$module" % zioBlocksVersion
 }
 
-// ZIO Blocks schema module (the zio-blocks-next- prefix on Scala 3.10+)
+// ZIO Blocks schema module (the zio-blocks-next- prefix on Scala 3.10+).
+// Only the foundation modules (chunk, typeid, maybe, markdown, schema) publish
+// Scala 2.13 artifacts; the rest, `streams` included, are Scala 3 only.
 libraryDependencies += zioBlocks("schema").value
-
-// ZIO Blocks streams module (the zio-blocks-next- prefix on Scala 3.10+)
-libraryDependencies += zioBlocks("streams").value
 
 // The zio-blocks-next-* artifacts require -experimental.
 scalacOptions ++= {
   CrossVersion.partialVersion(scalaVersion.value) match {
-    case Some((3, minor)) if minor >= 9 => Seq("-experimental")
-    case _                              => Seq.empty
+    case Some((3, minor)) if minor >= 10 => Seq("-experimental")
+    case _                               => Seq.empty
   }
 }
 ```
@@ -151,17 +153,17 @@ In a Scala.js or `crossProject` build, change `%%` to `%%%` inside `zioBlocks`.
 scala-cli may report that a module "is outdated, update to 0.017". Ignore the hint: `0.017` is a mistyped February release that Maven ranks above the current versions, and following it downgrades you.
 :::
 
-On Scala 2.13 or Scala 3.9:
+On Scala 2.13 (foundation modules only) or Scala 3.9:
 
 ```scala
-//> using scala 3.3.7
+//> using scala 3.9.0
 //> using dep dev.zio::zio-blocks-schema:@VERSION@
 ```
 
 On Scala 3.10 or newer:
 
 ```scala
-//> using scala 3.9.0
+//> using scala 3.10.0
 //> using dep dev.zio::zio-blocks-next-schema:@VERSION@
 //> using option -experimental
 ```
@@ -195,7 +197,7 @@ Book("Zionomicon", "John A. De Goes, Adam Fraser and Milad Khajavi").toJsonStrin
 
 ## Things to Know
 
-- **Scala 3 only.** `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx` have no Scala 2.13 artifacts.
+- **Scala 3 only.** Only `chunk`, `typeid`, `maybe`, `markdown` and `schema` publish Scala 2.13 artifacts, and only on the JVM. Every other module has no Scala 2.13 artifacts: the schema codecs (`schema-avro`, `schema-bson`, `schema-csv`, `schema-messagepack`, `schema-thrift`, `schema-toon`, `schema-xml`, `schema-yaml`), plus `scope`, `context`, `combinators`, `ringbuffer`, `async`, `streams`, `config`, `config-yaml`, `config-json`, `config-hocon`, `mediatype`, `http-model`, `http-model-schema`, `endpoint`, `openapi`, `html`, `jwt`, `telemetry`, `codegen`, `smithy`, `sql`, `sql-zio`, `data-migration`, `projection`, `datastar`, and `http-htmx`.
 - **JVM only.** `schema-avro`, `schema-bson`, `schema-thrift`, `codegen`, `smithy`, `telemetry-otel`, `sql-zio`, and `projection` have no Scala.js artifacts. The `sql` module's JDBC classes are also JVM-only.
 - **Third-party dependencies.** Most modules depend only on the Scala standard library. The exceptions are:
 

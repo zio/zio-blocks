@@ -159,15 +159,15 @@ addCommandAlias(
 )
 addCommandAlias(
   "asyncTestPr",
-  "++2.13.18; streamsJVM/test; streamsJS/test; ++3.9.0; streamsJVM/test; streamsJS/test; ++3.10.0; streamsJVM/test"
+  "++3.9.0; streamsJVM/test; streamsJS/test; ++3.10.0; streamsJVM/test"
 )
 addCommandAlias(
   "asyncTestNightly",
-  "asyncTestPr; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; streamsJS/testOnly zio.blocks.streams.ResourceLeakSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec"
+  "asyncTestPr; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec; streamsJS/testOnly zio.blocks.streams.ResourceLeakSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.BufferStressSpec zio.blocks.streams.ConcurrentStressSpec zio.blocks.streams.ResourceLeakSpec"
 )
 addCommandAlias(
   "asyncTestSoak",
-  "asyncTestNightly; ++2.13.18; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec"
+  "asyncTestNightly; ++3.9.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec; streamsJS/testOnly zio.blocks.streams.ReadableStreamReadersSpec; ++3.10.0; streamsJVM/testOnly zio.blocks.streams.AsyncNioReadersSpec zio.blocks.streams.NioReadersWritersSpec zio.blocks.streams.ConcurrentMapParReaderSpec zio.blocks.streams.ConcurrentMergeReaderSpec"
 )
 addCommandAlias(
   "asyncReplay",
@@ -178,65 +178,41 @@ addCommandAlias(
   "++3.9.0; project streamsJVM; coverage; test; coverageReport"
 )
 lazy val testJVMScala2Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
-    whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
+  // The 2.13 lane is the foundation set only: chunk, typeid, maybe, markdown and schema.
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; markdownJVM/test; schemaJVM/test"
 
 lazy val testJVMScala3Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; markdownJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; scaladoc-check/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; scaladoc-check-scala3/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test; scaladoc-check-jdk21/test")
 
-lazy val testJSScala2Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
-
 lazy val testJSScala3Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
+  "typeidJS/test; maybeJS/test; chunkJS/test; markdownJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
     "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test; jwtJS/test"
 
-lazy val testJS1Scala2Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
-
 lazy val testJS1Scala3Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
-
-lazy val testJS2Scala2Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; htmlJS/test; jwtJS/test"
+  "typeidJS/test; maybeJS/test; chunkJS/test; markdownJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
 
 lazy val testJS2Scala3Command =
   "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; jwtJS/test"
 
 lazy val docJVMScala2Command =
-  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
-    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
-    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
+  // The 2.13 lane is the foundation set only: chunk, typeid, maybe, markdown and schema.
+  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; markdownJVM/doc; schemaJVM/doc"
 
 lazy val docJVMScala3Command =
-  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
+  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; markdownJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc; projectionJVM/doc; jwtJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
-lazy val docJSScala2Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
-
-lazy val docJSScala2Batch1Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; asyncJS/doc"
-
-lazy val docJSScala2Batch2Command =
-  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc; jwtJS/doc"
-
 lazy val docJSScala3Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; markdownJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc; dataMigrationJS/doc; jwtJS/doc"
 
 lazy val docJSScala3Batch1Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; asyncJS/doc"
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; markdownJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; asyncJS/doc"
 
 lazy val docJSScala3Batch2Command =
   "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; jwtJS/doc"
@@ -264,13 +240,14 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
 
 commands ++= Seq(
   commandForScalaVersion("testJVM", testJVMScala2Command, testJVMScala3Command),
-  commandForScalaVersion("testJS", testJSScala2Command, testJSScala3Command),
-  commandForScalaVersion("testJS1", testJS1Scala2Command, testJS1Scala3Command),
-  commandForScalaVersion("testJS2", testJS2Scala2Command, testJS2Scala3Command),
+  // 2.13 is JVM only (see BuildHelper.Scala213FoundationVersions), so the Scala.js commands have no 2.13 arm.
+  commandForScalaVersion("testJS", "", testJSScala3Command),
+  commandForScalaVersion("testJS1", "", testJS1Scala3Command),
+  commandForScalaVersion("testJS2", "", testJS2Scala3Command),
   commandForScalaVersion("docJVM", docJVMScala2Command, docJVMScala3Command),
-  commandForScalaVersion("docJS1", docJSScala2Batch1Command, docJSScala3Batch1Command),
-  commandForScalaVersion("docJS2", docJSScala2Batch2Command, docJSScala3Batch2Command),
-  commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
+  commandForScalaVersion("docJS1", "", docJSScala3Batch1Command),
+  commandForScalaVersion("docJS2", "", docJSScala3Batch2Command),
+  commandForScalaVersion("docJS", "", docJSScala3Command)
 )
 
 lazy val root = project
@@ -343,7 +320,6 @@ lazy val root = project
     async.jvm,
     async.js,
     `async-benchmarks`,
-    `async-benchmarks-scala2`,
     `async-benchmarks-js`,
     scalaNextTests.jvm,
     scalaNextTests.js,
@@ -429,12 +405,12 @@ lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
 lazy val typeid = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(chunk)
-  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(stdSettings("zio-blocks-typeid", Scala213FoundationVersions))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.typeid"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettingsNoScala2)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
@@ -454,12 +430,12 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
 lazy val maybe = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
-  .settings(stdSettings("zio-blocks-maybe"))
+  .settings(stdSettings("zio-blocks-maybe", Scala213FoundationVersions))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.maybe"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettingsNoScala2)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
@@ -704,12 +680,12 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
-  .settings(stdSettings("zio-blocks-schema"))
+  .settings(stdSettings("zio-blocks-schema", Scala213FoundationVersions))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettingsNoScala2)
   .dependsOn(chunk)
   .dependsOn(markdown)
   .dependsOn(maybe)
@@ -929,12 +905,12 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
 
 lazy val chunk = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-chunk"))
+  .settings(stdSettings("zio-blocks-chunk", Scala213FoundationVersions))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.chunk"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettingsNoScala2)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.27" % Test,
@@ -1140,12 +1116,12 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-markdown"))
+  .settings(stdSettings("zio-blocks-markdown", Scala213FoundationVersions))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.markdown"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jsSettings(jsSettingsNoScala2)
   .dependsOn(chunk)
   .settings(
     libraryDependencies ++= Seq(
@@ -2158,24 +2134,6 @@ lazy val `async-benchmarks` = project
     // control; the repo only auto-suppresses unused warnings under `/test/`
     // paths, so silence it narrowly for the affected benchmark sources here.
     scalacOptions += "-Wconf:id=E198&src=.*AsyncBlock.*:s"
-  )
-
-// Scala-2-only JMH benchmarks for the direct-style `Async.async { ... .await ... }`
-// macro (`internal.AsyncMacros`). Kept SEPARATE from `async-benchmarks` because
-// that module is Scala-3-only (it depends on Kyo) and because Scala 2 def-macros
-// must be exercised from a DOWNSTREAM compilation unit. The gate here is
-// allocation / generated-code shape (run with `-prof gc`), not cross-runtime
-// throughput, so it deliberately pulls no Kyo / Cats Effect comparison deps.
-lazy val `async-benchmarks-scala2` = project
-  .in(file("async-benchmarks-scala2"))
-  .settings(stdSettings("zio-blocks-async-benchmarks-scala2", Seq(BuildHelper.Scala213)))
-  .dependsOn(async.jvm)
-  .enablePlugins(JmhPlugin)
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
   )
 
 // JS-native benchmark gate. JMH is JVM-only, so this is a Scala.js main that

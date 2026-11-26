@@ -25,7 +25,7 @@ Every block follows the same few principles:
 
 - **No lock-in.** No block depends on ZIO, cats-effect or any other effect system.
 - **Modular.** Each block is its own artifact, so your build contains only what you use.
-- **Cross-platform.** Most blocks build for Scala 2.13 and Scala 3, on the JVM and on Scala.js, from the same source.
+- **Cross-platform.** Most blocks build for Scala 3.9 and 3.10, on the JVM and on Scala.js, from the same source. The five foundation modules also build for Scala 2.13, on the JVM only.
 - **Checked at compile time.** Macros derive codecs, check resource lifetimes and build dependency graphs while your code compiles, so mistakes show up as compile errors.
 - **Fast.** Implementations avoid boxing and needless allocation on hot paths.
 

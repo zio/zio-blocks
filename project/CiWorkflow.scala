@@ -36,6 +36,9 @@ object CiWorkflow {
 
   private val Scalas = List("2.13.x", "3.9.x", "3.10.x")
 
+  // 2.13 is a JVM-only legacy lane (see `BuildHelper.Scala213FoundationVersions`), so Scala.js starts at 3.9.
+  private val JsScalas = Scalas.filterNot(_.startsWith("2."))
+
   // Locale data must be installed before sbt starts, or tests that format dates disagree with the
   // expectations recorded on developer machines.
   private val InstallLocaleData = SingleStep(
@@ -380,7 +383,7 @@ object CiWorkflow {
       jobTimeout = Some(50),
       strategy = Some(
         Strategy(
-          matrix = Map("java" -> List("17"), "platform" -> List("JS"), "scala" -> Scalas),
+          matrix = Map("java" -> List("17"), "platform" -> List("JS"), "scala" -> JsScalas),
           failFast = false
         )
       ),
@@ -448,6 +451,14 @@ object CiWorkflow {
             "command"            -> Json.Str("sbt ci-release")
           ),
           env = Map(
+            // `sbt ci-release` defaults to `+publishSigned`, which expands the *root* project's
+            // crossScalaVersions (3.9 only) — 3.10 and the 2.13 foundation modules would never be
+            // released. Publish each lane explicitly; on 2.13 only the five JVM modules.
+            "CI_RELEASE" -> (s"++${BuildHelper.Scala3}; publishSigned; ++${BuildHelper.Scala3Next}; publishSigned; " +
+              s"++${BuildHelper.Scala213}; " +
+              Seq("chunkJVM", "typeidJVM", "maybeJVM", "markdownJVM", "schemaJVM")
+                .map(_ + "/publishSigned")
+                .mkString("; ")),
             "PGP_PASSPHRASE"    -> "${{ secrets.PGP_PASSPHRASE }}",
             "PGP_SECRET"        -> "${{ secrets.PGP_SECRET }}",
             "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
@@ -463,12 +474,18 @@ object CiWorkflow {
    * `sbt ci-release` honours `CI_SNAPSHOT_RELEASE` instead of its default
    * `+publish`, so each job publishes exactly its lane; versions come from
    * `BuildHelper` so Scala bumps cannot desync the workflow.
+   *
+   * `publishTargets` scopes a lane that does not cover the whole build. The
+   * 2.13 lane needs it because only the foundation modules cross-build it: a
+   * bare `publish` would publish every aggregate project with a `_2.13` suffix,
+   * regardless of `crossScalaVersions`.
    */
   private def snapshotLane(
     id: String,
     name: String,
     scalaVersion: String,
-    needs: Seq[String]
+    needs: Seq[String],
+    publishTargets: Seq[String] = Seq.empty
   ): Def.Initialize[Job] = Def.setting(
     Job(
       id = id,
@@ -493,11 +510,12 @@ object CiWorkflow {
             "command"            -> Json.Str("sbt ci-release")
           ),
           env = Map(
-            "CI_SNAPSHOT_RELEASE" -> s"++$scalaVersion publish",
-            "PGP_PASSPHRASE"      -> "${{ secrets.PGP_PASSPHRASE }}",
-            "PGP_SECRET"          -> "${{ secrets.PGP_SECRET }}",
-            "SONATYPE_PASSWORD"   -> "${{ secrets.SONATYPE_PASSWORD }}",
-            "SONATYPE_USERNAME"   -> "${{ secrets.SONATYPE_USERNAME }}"
+            "CI_SNAPSHOT_RELEASE" -> (if (publishTargets.isEmpty) s"++$scalaVersion publish"
+                                      else s"++$scalaVersion; " + publishTargets.map(_ + "/publish").mkString("; ")),
+            "PGP_PASSPHRASE"    -> "${{ secrets.PGP_PASSPHRASE }}",
+            "PGP_SECRET"        -> "${{ secrets.PGP_SECRET }}",
+            "SONATYPE_PASSWORD" -> "${{ secrets.SONATYPE_PASSWORD }}",
+            "SONATYPE_USERNAME" -> "${{ secrets.SONATYPE_USERNAME }}"
           )
         )
       )
@@ -505,7 +523,15 @@ object CiWorkflow {
   )
 
   lazy val releaseSnapshot213: Def.Initialize[Job] =
-    snapshotLane("release-213", "release (Scala 2.13 snapshots)", BuildHelper.Scala213, Seq("ci"))
+    snapshotLane(
+      "release-213",
+      "release (Scala 2.13 snapshots)",
+      BuildHelper.Scala213,
+      Seq("ci"),
+      // The 2.13 lane is JVM-only and limited to the foundation modules (see
+      // `BuildHelper.Scala213FoundationVersions`); `publish` here must not touch anything else.
+      Seq("chunkJVM", "typeidJVM", "maybeJVM", "markdownJVM", "schemaJVM")
+    )
 
   lazy val releaseSnapshot39: Def.Initialize[Job] =
     snapshotLane("release-39", "release (Scala 3.9 snapshots)", BuildHelper.Scala3, Seq("release-213"))

@@ -7,12 +7,15 @@ export function groupId(name) {
 
 export const platformLabel = (block) => block.platforms.join(' · ');
 
-/** `Scala 2.13 · 3.x`, or `Scala 3 only` for a block that has no Scala 2.13 build. */
+/** Whether the block keeps a Scala 2.13 build, on the JVM only (`2.13 (JVM)`) or on every platform. */
+const hasScala213 = (block) => block.scala.some((v) => v.startsWith('2.13'));
+
+/** `Scala 2.13 · 3.x`, `Scala 2.13 (JVM) · 3.x`, or `Scala 3 only` for a block with no 2.13 build. */
 export function scalaLabel(block) {
-  return block.scala.includes('2.13') ? 'Scala ' + block.scala.join(' · ') : 'Scala 3 only';
+  return hasScala213(block) ? 'Scala ' + block.scala.join(' · ') : 'Scala 3 only';
 }
 
-export const isScala3Only = (block) => !block.scala.includes('2.13');
+export const isScala3Only = (block) => !hasScala213(block);
 
 const text = (parts) => parts.join(' ').toLowerCase();
 const relatedText = (r) => text([r.name, r.artifact, r.description]);
