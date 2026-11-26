@@ -9,7 +9,7 @@ import scoverage.ScoverageKeys._
 object BuildHelper {
   val Scala213: String   = "2.13.18"
   val Scala3: String     = "3.9.0"  // LTS
-  val Scala3Next: String = "3.10.0" // Scala Next
+  val Scala3Next: String = "3.10.1" // Scala Next
   // The Scala version pinned by the external golemcloud/golem Scala SDK (which depends on this
   // repo's schema/streams). Used only to cross-test streams/async against it (see
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
