@@ -82,7 +82,7 @@ libraryDependencies += "org.typelevel" %% "cats-effect" % "3.7.1"
 libraryDependencies += "co.fs2"        %% "fs2-core"    % "3.14.0"
 ```
 
-The `sql` module is published for Scala 3 only, so the orders model and the programs that use it are Scala 3. The bridges themselves (the resource, `Async` and stream helpers below) compile on Scala 2.13 and Scala 3. The `streams` module needs JDK 21 or newer at runtime.
+The `sql` module is published for Scala 3 only, so the orders model and the programs that use it are Scala 3. The bridges themselves (the resource, `Async` and stream helpers below) compile on Scala 3.9 and 3.10. The `streams` module needs JDK 21 or newer at runtime.
 
 This guide assumes you know your effect system, and the basics of [`Async`](../reference/async.md), [`Scope` and `Resource`](../reference/resource-management/scope.md) and [`Stream`](../reference/streams/core/stream.md).
 

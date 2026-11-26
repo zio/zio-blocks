@@ -52,7 +52,7 @@ For Scala.js, use the cross-build syntax:
 libraryDependencies += "dev.zio" %%% "zio-blocks-markdown" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 2.13.x (JVM only) and 3.x
 
 ## How They Work Together
 

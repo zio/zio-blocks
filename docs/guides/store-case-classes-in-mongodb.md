@@ -85,7 +85,7 @@ Add a field or a new status, and both functions must change in step. A missing f
 
 ## Prerequisites
 
-Add the BSON module and the MongoDB Java driver to your build. The module runs on the JVM only, and the code in this guide compiles on Scala 2.13 and Scala 3:
+Add the BSON module and the MongoDB Java driver to your build. The module runs on the JVM only, and the code in this guide compiles on Scala 3.9 and 3.10:
 
 ```scala
 // Scala 3.9

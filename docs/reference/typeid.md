@@ -73,7 +73,7 @@ For cross-platform (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-typeid" % "@VERSION"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: 2.13.x (JVM only) and 3.x.
 
 ## Creating Instances
 

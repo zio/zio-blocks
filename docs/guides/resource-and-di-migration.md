@@ -60,7 +60,7 @@ Add the `scope` module:
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
-For Scala.js, use `%%%`. The module supports Scala 2.13 and 3.x. It has no third-party dependencies (it pulls in only the ZIO Blocks `context` and `chunk` modules) and does not depend on cats-effect, ZIO or any other effect library.
+For Scala.js, use `%%%`. The module supports Scala 3.9 and 3.10. It has no third-party dependencies (it pulls in only the ZIO Blocks `context` and `chunk` modules) and does not depend on cats-effect, ZIO or any other effect library.
 
 Every ZIO Blocks snippet below starts from this import:
 
@@ -425,7 +425,7 @@ val catalog = autowire[Catalog](DbConfig("jdbc:h2:mem:bookstore"))
 
 ### You Write This
 
-`autowire[Catalog](deps*)` maps directly to `Resource.from[Catalog](wires*)`, and it works on Scala 2.13 as well as Scala 3. The module of `lazy val`s is no longer needed, and neither is the `try`/`finally`:
+`autowire[Catalog](deps*)` maps directly to `Resource.from[Catalog](wires*)`, and it works on Scala 3.9 and 3.10. The module of `lazy val`s is no longer needed, and neither is the `try`/`finally`:
 
 ```scala mdoc
 Resource
@@ -570,7 +570,7 @@ You gain:
 - **A compile-time check on escapes.** `$[A]` and `Unscoped` turn use-after-close into a compile error. None of the four source libraries offers this.
 - **Lifecycle and wiring in one model.** The constructor graph from macwire and the reverse-order cleanup from `Using`, cats-effect and ZIO come from the same `Resource`.
 - **A compile-time checked graph.** `Resource.from` reports missing dependencies and ambiguous providers at compile time, like `ZLayer.make`. In 0.0.56 a dependency cycle crashes the macro instead of producing an error (a known bug, #1767).
-- **No third-party dependencies and no effect type.** The module runs on Scala 2.13 and 3, on the JVM and Scala.js, in direct-style code.
+- **No third-party dependencies and no effect type.** The module runs on Scala 3.9 and 3.10, on the JVM and Scala.js, in direct-style code.
 
 What is different:
 
@@ -580,28 +580,12 @@ What is different:
 - **`Resource.from` values are single-use.** Build them with `def`.
 - **Case classes are `Unscoped` on Scala 3.** Model resources as plain classes so the escape check covers them.
 
-To return your own type from a scope, give it an `Unscoped` instance. On Scala 3, case classes whose fields are `Unscoped` get one automatically, and `derives Unscoped` makes it explicit; on Scala 2, derive it in the companion:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala mdoc:compile-only
-final case class StockReport(title: String, inStock: Int)
-
-object StockReport {
-  implicit val unscoped: Unscoped[StockReport] = Unscoped.derived[StockReport]
-}
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
+To return your own type from a scope, give it an `Unscoped` instance. On Scala 3, case classes whose fields are `Unscoped` get one automatically, and `derives Unscoped` makes it explicit:
 
 ```scala mdoc:silent
 final case class StockReport(title: String, inStock: Int) derives Unscoped
 ```
 
-</TabItem>
-</Tabs>
 
 Returning `StockReport` from `Scope#scoped` now compiles because it has an `Unscoped` instance:
 

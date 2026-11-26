@@ -172,7 +172,7 @@ The `await` method is enforced by the compiler to be used only inside an `Async.
 ".await may only be used directly inside an Async.async { ... } block."
 ```
 
-On Scala 2, the `@compileTimeOnly` annotation fires at the same point. Try deleting the `Async.async { … }` wrapper — the compiler will tell you immediately.
+Try deleting the `Async.async { … }` wrapper — the compiler will tell you immediately.
 :::
 
 <details>
@@ -224,28 +224,6 @@ Many real-world APIs — database drivers, network libraries, timers — signal 
 
 The example starts a background thread that completes the promise after a short delay:
 
-<Tabs groupId="scala-version" defaultValue="scala2">
-<TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.async._
-
-val result: String = Async
-  .promise[String] { c =>
-    new Thread {
-      override def run(): Unit = {
-        Thread.sleep(10)
-        c.succeed("hello from callback")
-      }
-    }.start()
-  }
-  .block
-println(s"Promise resolved: $result")
-```
-
-</TabItem>
-<TabItem value="scala3" label="Scala 3">
-
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
@@ -263,8 +241,6 @@ val result: String = Async
 println(s"Promise resolved: $result")
 ```
 
-</TabItem>
-</Tabs>
 
 Expected output:
 
@@ -272,7 +248,7 @@ Expected output:
 Promise resolved: hello from callback
 ```
 
-- `Async.promise[String] { … }` opens the promise body; on Scala 2 the `Completer[String]` arrives as an explicit parameter `c`; on Scala 3 it arrives as a context function argument retrieved with `summon[Completer[String]]`.
+- `Async.promise[String] { … }` opens the promise body; the `Completer[String]` arrives as a context function argument retrieved with `summon[Completer[String]]`.
 - We capture the completer in `c` so it can be referenced from the Thread's `run()` method — implicits and givens do not propagate across thread boundaries, so we capture explicitly.
 - Calling `c.succeed("hello from callback")` completes the promise; the first call wins and subsequent calls are no-ops.
 - The `block` call waits until the completer fires and returns the resolved value.
@@ -282,7 +258,7 @@ On Scala 3, `Async.promise[String] { (c: Completer[String]) => ... }` compiles, 
 :::
 
 <details>
-  <summary>Runnable version, the Scala 3 tab: <code>Concept5CallbackBridgingExample.scala</code></summary>
+  <summary>Runnable version: <code>Concept5CallbackBridgingExample.scala</code></summary>
 
 ```scala mdoc:embed:async-examples/src/main/scala/zio/blocks/async/gettingstarted/Concept5CallbackBridgingExample.scala:show-line-numbers
 ```

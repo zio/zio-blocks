@@ -261,7 +261,7 @@ No pull starts after the cancel, and the finalizer runs exactly once. One thing 
 
 ## Running the Same Pipeline on Scala.js
 
-Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `OrderTotalJs.totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; each snippet runs on Node 24 with Scala.js 1.22 on Scala 2.13.18 and 3.9.0.
+Everything above used only the `*Async` terminals, `Async#map` and `Async.fromCompletionStage`, so only one piece is JVM-specific: the price lookup. The pipeline itself, `OrderTotalJs.totalInCents`, does not change if we pass the lookup in as a parameter. The Scala.js code in the rest of this guide is not compiled by the docs build; each snippet runs on Node 24 with Scala.js 1.22 on Scala 3.9.0.
 
 On Scala.js, the lookup wraps a `js.Promise` with `Async.fromJsPromise`:
 

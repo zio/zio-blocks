@@ -330,7 +330,7 @@ Scope.global.scoped { scope =>
 }
 ```
 
-On Scala 2, a custom class needs an `Unscoped` instance before you can return it from `scoped`: derive one with `Unscoped.derived` or write it by hand. On Scala 3 you can also say so in the declaration with `derives`:
+A custom class needs an `Unscoped` instance before you can return it from `scoped`: derive one with `Unscoped.derived` or write it by hand, or say so in the declaration with `derives`:
 
 ```scala mdoc:compile-only
 import zio.blocks.scope._

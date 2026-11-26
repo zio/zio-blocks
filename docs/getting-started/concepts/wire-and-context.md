@@ -65,7 +65,7 @@ Every service that the macro builds on its own is created once and shared by eve
 
 ## Context: Values Looked Up by Type
 
-`Context` holds a few values of different types and returns each one by its type. The type of the context lists what it contains, here `Context[RequestId & UserId]` (written `RequestId with UserId` on Scala 2), so asking for a type it does not contain is a compile error:
+`Context` holds a few values of different types and returns each one by its type. The type of the context lists what it contains, here `Context[RequestId & UserId]`, so asking for a type it does not contain is a compile error:
 
 ```scala mdoc:silent
 import zio.blocks.context._

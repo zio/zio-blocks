@@ -432,7 +432,7 @@ println(ScalaEmitter.emit(ordersFile, EmitterConfig.default))
 println(ScalaEmitter.emit(ordersFile, EmitterConfig.scala2))
 ```
 
-Compare the two outputs. The Scala 2 version drops the trailing commas, and `Priority` becomes a sealed trait with one case object per value, because Scala 2 has no `enum`. We didn't change a single line of our mapping: the dialect is a choice we make when we emit, not when we describe the types. Both files compile, with Scala 3.9 and Scala 2.13 respectively.
+Compare the two outputs. The Scala 2 version drops the trailing commas, and `Priority` becomes a sealed trait with one case object per value, because Scala 2 has no `enum`. We didn't change a single line of our mapping: the dialect is a choice we make when we emit, not when we describe the types. Both files compile.
 
 <details>
   <summary>Runnable version, with setup from sections 3–6: <code>Concept7EmitBothDialectsExample.scala</code></summary>

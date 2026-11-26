@@ -3,9 +3,6 @@ id: html
 title: "HTML"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 `zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 3.9 and 3.10, on both the JVM and Scala.js.
 
 Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM navigation), `Css` (stylesheets), `Js` (JavaScript expressions).
@@ -662,26 +659,7 @@ elements.
 
 ### How the Constraint Is Encoded
 
-The guarantee is the same on both Scala versions, but the signature achieving it is not. Scala 3 uses a union type directly; Scala 2 has no unions, so each constrained factory takes a sealed argument trait with implicit conversions into it:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-sealed trait ListArg
-object ListArg {
-  final case class Attribute(value: Dom.Attribute) extends ListArg
-  final case class Item(value: Dom.Element.Li)     extends ListArg
-
-  implicit def fromAttribute(attribute: Dom.Attribute): ListArg = Attribute(attribute)
-  implicit def fromLi(item: Dom.Element.Li): ListArg            = Item(item)
-}
-
-def ul(effect: ListArg, effects: ListArg*): Dom.Element
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
+Each constrained factory takes a union type directly:
 
 ```scala
 def ul(
@@ -690,44 +668,26 @@ def ul(
 ): Dom.Element
 ```
 
-  </TabItem>
-</Tabs>
+Call sites are simply `ul(id := "menu", li("Home"))`. The encoding only becomes visible when you name the argument type:
 
-Call sites are identical — `ul(id := "menu", li("Home"))` compiles unchanged on both — because the Scala 2 conversions are implicit. The encoding only becomes visible when you name the argument type, which is why these traits exist at all:
+| Factory                | Argument type                             |
+| ---------------------- | ------------------------------------------ |
+| `ul(...)`, `ol(...)`   | `Dom.Attribute \| Dom.Element.Li`           |
+| `tr(...)`              | `Dom.Attribute \| Dom.Element.Cell`         |
+| `table(...)`           | `Dom.Attribute \| Dom.Element.Tr`           |
+| `select(...)`          | `Dom.Attribute \| Dom.Element.SelectChild`  |
+| `optgroup(...)`        | `Dom.Attribute \| Dom.Element.Opt`          |
+| `script(...)`          | `Dom.Attribute \| Js`                       |
+| `style(...)`           | `Dom.Attribute \| Css`                      |
 
-| Factory                | Scala 2 argument type | Scala 3 union                                  |
-| ---------------------- | --------------------- | ---------------------------------------------- |
-| `ul(...)`, `ol(...)`   | `ListArg`             | `Dom.Attribute \| Dom.Element.Li`               |
-| `tr(...)`              | `CellArg`             | `Dom.Attribute \| Dom.Element.Cell`             |
-| `table(...)`           | `RowArg`              | `Dom.Attribute \| Dom.Element.Tr`               |
-| `select(...)`          | `SelectArg`           | `Dom.Attribute \| Dom.Element.SelectChild`      |
-| `optgroup(...)`        | `OptgroupArg`         | `Dom.Attribute \| Dom.Element.Opt`              |
-| `script(...)`          | `ScriptArg`           | `Dom.Attribute \| Js`                           |
-| `style(...)`           | `StyleArg`            | `Dom.Attribute \| Css`                          |
-
-`ScriptArg` and `StyleArg` follow the same shape: they are the argument types of `script(...)` and `style(...)`.
-
-Writing a function that forwards to one of these factories is where the difference surfaces. On Scala 2 the parameter type is the argument trait; on Scala 3 it is the union:
-
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-def menu(items: ListArg*): Dom.Element = ul(items.head, items.tail: _*)
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
+Writing a function that forwards to one of these factories means naming the union type:
 
 ```scala
 def menu(items: (Dom.Attribute | Dom.Element.Li)*): Dom.Element =
   ul(items.head, items.tail*)
 ```
 
-  </TabItem>
-</Tabs>
-
-Taking `Iterable[Dom.Element.Li]` avoids the difference entirely, since `ul`, `ol`, `tr`, `table`, `optgroup` and `select` each have a collection overload that is spelled the same on both versions (`script` and `style` have none).
+Taking `Iterable[Dom.Element.Li]` is often simpler, since `ul`, `ol`, `tr`, `table`, `optgroup` and `select` each have a collection overload (`script` and `style` have none).
 
 ### Concrete Element Classes
 
@@ -819,7 +779,7 @@ val age = 30
 val elem = html"""<div id=$age class="profile">User: $name</div>"""
 ```
 
-**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3). Whitespace around the root counts too: a template that starts or ends with a newline has three top-level nodes, so begin the template with the root tag and end it right after the closing tag. A `$` inside a quoted attribute value, such as `id="user-$age"`, is not supported in 0.0.56 (a known bug); interpolate the whole value instead, as in `id=$age`:
+**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause a compile error for static templates and an exception at runtime for dynamic ones. Whitespace around the root counts too: a template that starts or ends with a newline has three top-level nodes, so begin the template with the root tag and end it right after the closing tag. A `$` inside a quoted attribute value, such as `id="user-$age"`, is not supported in 0.0.56 (a known bug); interpolate the whole value instead, as in `id=$age`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -840,7 +800,7 @@ val safe = html"<p>$userInput</p>"
 ```
 
 :::danger
-The `html""` interpolator requires a **single root element**. On Scala 3, pure-static templates with multiple roots fail at compile time. On Scala 2 or for dynamic templates, the error occurs at evaluation time. Always wrap multiple elements in a container (e.g., `<div>`).
+The `html""` interpolator requires a **single root element**. Pure-static templates with multiple roots fail at compile time; for dynamic templates the error occurs at evaluation time. Always wrap multiple elements in a container (e.g., `<div>`).
 :::
 
 ### `css""` Interpolator

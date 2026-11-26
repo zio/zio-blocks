@@ -1,7 +1,7 @@
 ---
 id: index
 title: "Execution and Compatibility"
-description: "Execution and Compatibility index: async execution, primitive lanes, platform availability, and Scala 2 support for streams."
+description: "Execution and Compatibility index: async execution, primitive lanes, platform availability, and the history of Scala 2 support for streams."
 keywords:
   - "Asynchronous Streams"
   - "Primitive Specialization"
