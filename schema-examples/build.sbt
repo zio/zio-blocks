@@ -43,7 +43,7 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "sourcecode"     % "0.4.4",
   "dev.zio"     %% "zio-sbt-source" % "0.8.10",
   // MongoDB Java driver for the store-case-classes-in-mongodb guide; 5.13.0 matches the bson 5.13.0 that schema-bson uses
-  "org.mongodb" % "mongodb-driver-sync" % "5.13.0"
+  "org.mongodb" % "mongodb-driver-sync" % "5.14.0"
 )
 
 // Examples written in Scala 3-only syntax (`@main`, `derives`, `enum`, `given`/`using`, context functions `?=>`,
