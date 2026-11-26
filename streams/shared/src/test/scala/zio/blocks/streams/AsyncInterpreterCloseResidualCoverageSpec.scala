@@ -201,6 +201,15 @@ object AsyncInterpreterCloseResidualCoverageSpec extends StreamsBaseSpec {
         _      <- runAsync(Async.cancelWithCleanup(rootClose.asInstanceOf[Pollable[Unit]]))
       } yield assertTrue(source.closes.get() == 1, gate.cancels.get() == 0)
     },
+    test("owned close leader started after a root close already exists reuses it and closes the root once") {
+      val source      = new Source()
+      val interpreter = new AsyncInterpreter(source)
+      val rootClose   = interpreter.rootCloseForTest()
+      for {
+        _ <- runAsync(interpreter.closeForTest())
+        _ <- runAsync(Async.cancelWithCleanup(rootClose.asInstanceOf[Pollable[Unit]]))
+      } yield assertTrue(source.closes.get() == 1)
+    },
     test("nested close construction and poll failures become sticky without closing root") {
       val construction = new RuntimeException("construct")
       val polling      = new RuntimeException("poll")
