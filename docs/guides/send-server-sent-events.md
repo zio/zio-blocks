@@ -35,7 +35,7 @@ In this guide, we let `ServerSentEvent` produce the wire text, stream it with `B
 Add the HTTP model to your build. It brings the streams module with it:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 
 // Scala 3.10 and newer

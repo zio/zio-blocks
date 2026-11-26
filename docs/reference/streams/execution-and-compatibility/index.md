@@ -24,9 +24,9 @@ sidebar_label: "Execution and Compatibility"
 
 [Platform Differences](./platform-differences.md) — which members are JVM-only, which are cross-platform, and what to write instead when a blocking terminal is unavailable on Scala.js. Read it before cross-building.
 
-## Scala 2 Compatibility Design Note
+## Scala 2 Compatibility (History)
 
-[Scala 2 Compatibility Design Note](./scala-2-compatibility.md) — why streams supports Scala 2.13, the hot-path constraint that shaped the approach, and why the two versions share sources rather than splitting them.
+[Scala 2 Compatibility Design Note](./scala-2-compatibility.md) — why streams used to support Scala 2.13, the hot-path constraint that shaped the approach, and how the sources were kept shared.
 
 ## See Also
 

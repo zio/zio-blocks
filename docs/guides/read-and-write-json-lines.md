@@ -45,7 +45,7 @@ In this guide, we let a `Schema` derive the JSON codec, and let the stream decid
 Add the streams and schema modules to your `build.sbt`. The streams module does not depend on the schema module, so we add both. The schema module provides `Schema` and the JSON codec:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"  % "@VERSION@"
 
 // ZIO Blocks streams module

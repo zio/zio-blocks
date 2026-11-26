@@ -43,7 +43,7 @@ For Scala.js, use `%%%` instead of `%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-yaml" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. On Scala 3.10 and newer, use the `zio-blocks-next-schema-yaml` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
+Supported Scala versions: 3.9.x and 3.10.x. On Scala 3.10 and newer, use the `zio-blocks-next-schema-yaml` module instead and add `scalacOptions += "-experimental"`, as [How to Add ZIO Blocks to Your Build](../../../getting-started/installation.md) explains.
 
 ## Introduction
 

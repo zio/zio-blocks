@@ -53,7 +53,7 @@ ZIO Blocks Streams runs the same pipeline as a direct call: `runFold` blocks the
 
 The module you add depends on your Scala version.
 
-- **Scala 2.13 and Scala 3.9:**
+- **Scala 3.9:**
 
   ```scala
   // ZIO Blocks streams module

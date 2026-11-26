@@ -53,7 +53,7 @@ In this guide, we let the schema do this work. `Schema#diff` compares any two va
 This guide builds on [Your First Schema](./your-first-schema.md): you should know how to derive a `Schema` for a case class. Add the schema module to your `build.sbt` (see [How to Add ZIO Blocks to Your Build](../getting-started/installation.md) for the full setup):
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 // Scala 3.10 and newer

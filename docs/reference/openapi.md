@@ -34,7 +34,7 @@ The OpenAPI module bridges the gap by letting you author API specs as Scala code
 ## Installation
 
 ```scala
-// Scala 2.13, and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-openapi" % "@VERSION@"
 
 // Scala 3.10 and newer

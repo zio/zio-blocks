@@ -67,7 +67,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-model-schema" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 2.13 and Scala 3.x. Scala 2.13 and Scala 3.9 use `zio-blocks-http-model-schema`. On Scala 3.10 and newer, use `zio-blocks-next-http-model-schema` and add `scalacOptions += "-experimental"`, because the `zio-blocks-next-*` artifacts are compiled with `-experimental` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
+Supported Scala versions: Scala 3.9 and 3.10. Scala 3.9 use `zio-blocks-http-model-schema`. On Scala 3.10 and newer, use `zio-blocks-next-http-model-schema` and add `scalacOptions += "-experimental"`, because the `zio-blocks-next-*` artifacts are compiled with `-experimental` (see [How to Add ZIO Blocks to Your Build](../../getting-started/installation.md)). It brings in `zio-blocks-http-model` and `zio-blocks-schema` transitively.
 
 ## How They Work Together
 

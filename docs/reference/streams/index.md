@@ -3,7 +3,7 @@ id: index
 title: "Streams"
 ---
 
-`zio.blocks.streams` is a **pull-based** streaming library for **Scala 3** (and Scala 2.13) with synchronous and asynchronous readers, typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is driven. Cross-platform terminals ending in `Async` return `Async[Either[E, Z]]`; the JVM also provides blocking terminals returning `Either[E, Z]`. The library has zero runtime dependencies beyond ZIO Blocks modules, and avoids boxing on primitive element types through JVM-type-specialized internal readers.
+`zio.blocks.streams` is a **pull-based** streaming library for **Scala 3.9 and 3.10** with synchronous and asynchronous readers, typed errors, resource safety, and primitive specialization. Streams are lazy descriptions -- nothing executes until a terminal operation is driven. Cross-platform terminals ending in `Async` return `Async[Either[E, Z]]`; the JVM also provides blocking terminals returning `Either[E, Z]`. The library has zero runtime dependencies beyond ZIO Blocks modules, and avoids boxing on primitive element types through JVM-type-specialized internal readers.
 
 ZIO Blocks Streams is built on three composable primitives:
 
@@ -59,7 +59,7 @@ For Scala.js (JavaScript/Node.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-streams" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: 3.9.x and 3.10.x.
 
 ## Why Streams?
 

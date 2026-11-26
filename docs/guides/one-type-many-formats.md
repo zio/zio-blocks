@@ -39,7 +39,7 @@ We recommend reading from top to bottom — each section builds on the previous 
 Each format lives in its own module. To follow along, add the schema module and the six format modules to your `build.sbt`:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-schema"             % "@VERSION@"
 
 // ZIO Blocks schema yaml module

@@ -13,7 +13,7 @@ ZIO Blocks MediaType is designed to be a comprehensive and efficient implementat
 - ships with 2,600+ predefined IANA media types auto-generated from the [mime-db](https://github.com/jshttp/mime-db) database
 - provides a `mediaType"..."` string interpolator with compile-time validation
 - supports wildcard and case-insensitive matching
-- is cross-platform (JVM and Scala.js) and cross-version (Scala 2.13 and 3.x)
+- is cross-platform (JVM and Scala.js) and cross-version (Scala 3.9 and 3.10)
 
 ```scala
 final case class MediaType(
@@ -86,7 +86,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-blocks-mediatype" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: 3.9.x and 3.10.x.
 
 ## Creating Instances
 

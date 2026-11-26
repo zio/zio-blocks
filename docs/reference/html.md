@@ -6,7 +6,7 @@ title: "HTML"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 2.13, 3.x, and both JVM and Scala.js platforms.
+`zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 3.9 and 3.10, on both the JVM and Scala.js.
 
 Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM navigation), `Css` (stylesheets), `Js` (JavaScript expressions).
 
@@ -91,7 +91,7 @@ For Scala.js projects, use `%%%`:
 libraryDependencies += "dev.zio" %%% "zio-blocks-html" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: 3.9.x and 3.10.x
 
 :::note
 The `html` module depends directly on `zio-blocks-schema` and `zio-blocks-chunk`. The schema dependency enables `ToJs` auto-derivation via JSON encoding — if your type has a `Schema` instance, it automatically becomes usable in `js"..."` expressions.

@@ -56,7 +56,7 @@ Declaring the requirement does not fix it either. ZIO Blocks' endpoint module ha
 Add the HTTP model, the JWT module and the config module to your `build.sbt`. The endpoint module is only needed for the `AuthType` section:
 
 ```scala
-// Scala 2.13 and Scala 3.9
+// Scala 3.9
 libraryDependencies += "dev.zio" %% "zio-blocks-http-model" % "@VERSION@"
 
 // ZIO Blocks jwt module
