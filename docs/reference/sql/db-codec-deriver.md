@@ -27,13 +27,7 @@ The structural shape of `DbCodecDeriver` is:
 ```scala
 class DbCodecDeriver(
   columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase
-) extends Deriver[DbCodec] {
-  def withFieldCodec[P, F](
-    parentTypeId: TypeId[P],
-    fieldName: String,
-    codec: DbCodec[F]
-  ): DbCodecDeriver
-}
+) extends Deriver[DbCodec]
 
 object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
   def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver
@@ -81,9 +75,9 @@ widgetCodec.columns
 
 ## Field codec overrides
 
-A `given DbCodec[FieldType]` in scope is **not** consulted for a record field. Derivation follows the field's `Schema`; non-inline nested records, sequences, and maps use the JSONB fallback regardless of any called codec. This is the usual cause of `JSONB decode error: expected '{'` when a column such as a pgvector embedding stores text like `[1,2,3]`. Forgetting the override now produces an error naming the field, the schema path, and a prefix of the offending value.
+A `given DbCodec[FieldType]` in scope is **not** consulted for a record field. Derivation follows the field's `Schema`; non-inline nested records, sequences, and maps use the JSONB fallback regardless of any called codec. This is the usual cause of `JSONB decode error: expected '{'` when a column such as a pgvector embedding stores text like `[1,2,3]`. Overrides go through the ordinary derivation builder, so they apply to nested record fields instead of the JSONB fallback.
 
-Register the field codec explicitly with `withFieldCodec`:
+Override one field of a record with `instance(parentTypeId, fieldName, codec)`:
 
 ```scala mdoc:reset
 import zio.blocks.schema.Schema
@@ -101,66 +95,36 @@ val embeddingCodec: DbCodec[Embedding] =
     Embedding(text.stripPrefix("[").stripSuffix("]").split(",").toList.map(_.toDouble))
   }(e => e.values.mkString("[", ",", "]"))
 
-val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[RowDetail], "embedding", embeddingCodec)
-val rowCodec = RowDetail.schema.deriving(deriver).derive
-
-rowCodec.columns
-```
-
-`DbCodec.derivedWith` accepts the same field overrides through the `DerivationBuilder` API and is the more concise form:
-
-```scala mdoc:compile-only
-import _root_.zio
-import zio.blocks.typeid.TypeId
-import zio.blocks.sql._
-
 val rowCodec: DbCodec[RowDetail] =
   DbCodec.derivedWith[RowDetail](
     _.instance(TypeId.of[RowDetail], "embedding", embeddingCodec)
   )
+
+rowCodec.columns
 ```
+
+Override every occurrence of a type with `instance(typeId, codec)` — for example a pgvector `Embedding`, a real SQL array, or another driver-specific column:
+
+```scala mdoc:compile-only
+val typeLevelCodec: DbCodec[RowDetail] =
+  DbCodec.derivedWith[RowDetail](
+    _.instance(TypeId.of[Embedding], embeddingCodec)
+  )
+```
+
+The term-name form wins over the type-level form for the same field. Both reach nested record fields that would otherwise use JSONB, top-level record/wrapper derivation, and single-column fields.
 
 Resolution order for a field is:
 
-1. `DbCodecDeriver.withFieldCodec` / `DbCodec.derivedWith` override for `(parent type, field name)`.
-2. A `DbTypeRegistry` mapping for the field's `TypeId` (see below).
+1. `instance(parentTypeId, fieldName, codec)` for `(parent type, field name)`.
+2. `instance(typeId, codec)` for the field's own type, including a nested record field's `TypeId`.
 3. `@Modifier.config("sql.inline", "true")` on a nested record (flatten into parent columns).
 4. JSONB for non-inline nested records, sequences, and maps.
 5. The normal single-column codec.
 
 Use this for driver-specific field types and for real SQL array columns (`DbCodec.arrayOf`); see [DbCodec](./db-codec.md#dbcodecarrayof--sql-array-columns).
 
-## Dialect type registry
-
-When a dialect has several custom types, register them once instead of
-overriding each field:
-
-```scala mdoc:compile-only
-import _root_.zio
-import zio.blocks.typeid.TypeId
-import zio.blocks.sql._
-
-val registry =
-  DbTypeRegistry.empty
-    .register(DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec))
-
-val deriver = DbCodecDeriver.withTypeRegistry(registry)
-val codec   = RowDetail.schema.deriving(deriver).derive
-```
-
-Mappings apply to record fields (including nested record/sequence fields that
-would otherwise use JSONB) and to top-level record/wrapper derivation. A
-`withFieldCodec` override takes precedence over a registry mapping. A mapping's
-codec is expected to use [`DbValue.Raw`](./db-value.md#raw--driver-specific-values)
-for the write side so driver-specific values stay parameterized. A mapping for
-a sequence field is keyed by the sequence's own `TypeId` (for example
-`TypeId.of[List[Embedding]]`), not by the element type; `deriveSequence` itself
-does not consult the registry.
-
-The registry is intentionally explicit and immutable: derivation walks a
-`Reflect` tree at runtime, so there is no implicit lookup point. See
-[ADR-002](../../adr/2026-11-22-sql-postgres-type-extension.md) for the intended
-`zio-blocks-sql-postgres` module shape and the deferred read/DDL work.
+A type-level override's codec is expected to use [`DbValue.Raw`](./db-value.md#raw--driver-specific-values) for the write side so driver-specific values stay parameterized. Registering a type once with `instance(typeId, codec)` is the dialect-extension point; no separate registry type is needed. See [ADR-002](../../adr/2026-11-22-sql-postgres-type-extension.md) for the `zio-blocks-sql-postgres` module shape and the deferred read/DDL work.
 
 ## See Also
 

@@ -819,15 +819,6 @@ object DbCodecSpec extends ZIOSpecDefault {
           codec.toDbValues(WithCustomTags(2, Tags(List("ignored")))) ==
             IndexedSeq(DbValue.DbInt(2), DbValue.DbString("override"))
         )
-      },
-      test("withFieldCodec uses the override for a nested record field instead of JSONB") {
-        val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[WithCustomTags], "tags", sentinelTagsCodec)
-        val codec   = WithCustomTags.schema.deriving(deriver).derive
-        val value   = codec.readValue(
-          new RecordReader(Map("id" -> 3, "tags" -> "not-json")),
-          IndexedSeq("id", "tags")
-        )
-        assertTrue(value == WithCustomTags(3, Tags(List("override"))))
       }
     ),
     suite("array codec")(
@@ -855,6 +846,24 @@ object DbCodecSpec extends ZIOSpecDefault {
           IndexedSeq("ids")
         )
         assertTrue(decoded.toList == List(1, 2, 3))
+      },
+      test("arrayOf fails on a NULL element for a non-optional element codec") {
+        val codec  = DbCodec.arrayOf(DbCodec[Int], "integer")
+        val result = scala.util.Try(
+          codec.readValue(new RecordReader(Map("ids" -> Array[AnyRef](null))), IndexedSeq("ids"))
+        )
+        assertTrue(
+          result.isFailure,
+          result.failed.toOption.exists(_.isInstanceOf[IllegalStateException])
+        )
+      },
+      test("arrayOf decodes NULL elements with an Option element codec") {
+        val codec   = DbCodec.arrayOf(DbCodec[Option[Int]], "integer")
+        val decoded = codec.readValue(
+          new RecordReader(Map("ids" -> Array[AnyRef](null, Int.box(2)))),
+          IndexedSeq("ids")
+        )
+        assertTrue(decoded.toList == List(None, Some(2)))
       },
       test("arrayOf decodes UUID elements from driver objects and strings") {
         val uuid1     = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
@@ -899,13 +908,11 @@ object DbCodecSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("dialect type registry")(
-      test("withTypeRegistry uses the mapping for a nested record field instead of JSONB") {
-        val registry = DbTypeRegistry.empty.register(
-          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+    suite("type-level instance overrides")(
+      test("instance(TypeId) overrides a nested record field instead of JSONB") {
+        val codec = DbCodec.derivedWith[WithEmbedding](
+          _.instance(TypeId.of[Embedding], embeddingCodec)
         )
-        val deriver = DbCodecDeriver.withTypeRegistry(registry)
-        val codec   = WithEmbedding.schema.deriving(deriver).derive
         val decoded = codec.readValue(
           new RecordReader(Map("id" -> 1, "embedding" -> "not-json")),
           IndexedSeq("id", "embedding")
@@ -917,18 +924,17 @@ object DbCodecSpec extends ZIOSpecDefault {
             IndexedSeq(DbValue.DbInt(7), DbValue.Raw("vector", expectedVector))
         )
       },
-      test("withTypeRegistry uses the mapping for a top-level record type") {
-        val registry = DbTypeRegistry.empty.register(
-          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+      test("instance(TypeId) overrides a top-level record type") {
+        val codec = DbCodec.derivedWith[Embedding](
+          _.instance(TypeId.of[Embedding], embeddingCodec)
         )
-        val codec          = Embedding.schema.deriving(DbCodecDeriver.withTypeRegistry(registry)).derive
         val expectedVector = Embedding(List(5.0, 6.0)).values.mkString("[", ",", "]")
         assertTrue(
           codec.toDbValues(Embedding(List(5.0, 6.0))) ==
             IndexedSeq(DbValue.Raw("vector", expectedVector))
         )
       },
-      test("field codec override wins over the type registry") {
+      test("a term-name override wins over a type-level override") {
         val fieldCodec = new DbCodec[Embedding] {
           val columns: IndexedSeq[String]                                              = IndexedSeq("value")
           def readValue(reader: DbResultReader, labels: IndexedSeq[String]): Embedding =
@@ -940,27 +946,15 @@ object DbCodecSpec extends ZIOSpecDefault {
           def toDbValues(value: Embedding): IndexedSeq[DbValue] =
             IndexedSeq(DbValue.DbString("field"))
         }
-        val registry = DbTypeRegistry.empty.register(
-          DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
+        val codec = DbCodec.derivedWith[WithEmbedding](
+          _.instance(TypeId.of[Embedding], embeddingCodec)
+            .instance(TypeId.of[WithEmbedding], "embedding", fieldCodec)
         )
-        val deriver = DbCodecDeriver
-          .withTypeRegistry(registry)
-          .withFieldCodec(TypeId.of[WithEmbedding], "embedding", fieldCodec)
-        val codec   = WithEmbedding.schema.deriving(deriver).derive
         val decoded = codec.readValue(
           new RecordReader(Map("id" -> 1, "embedding" -> "not-json")),
           IndexedSeq("id", "embedding")
         )
         assertTrue(decoded == WithEmbedding(1, Embedding(List(9.0))))
-      },
-      test("DbTypeRegistry.register replaces a mapping for the same type") {
-        val first    = DbTypeMapping(TypeId.of[Embedding], "vector", embeddingCodec)
-        val second   = DbTypeMapping(TypeId.of[Embedding], "halfvec", embeddingCodec)
-        val registry = DbTypeRegistry.empty.register(first).register(second)
-        assertTrue(
-          registry.get(TypeId.of[Embedding]).contains(second),
-          registry.mappings.toList == List(second)
-        )
       }
     ),
     suite("option handling")(
@@ -1317,6 +1311,33 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           error.getMessage.contains("input: \"a\\nb"),
           error.getMessage.contains("...")
+        )
+      },
+      test("jsonb fails with a clear error on SQL NULL") {
+        val codec = DbCodec.jsonb[JsonPayload]
+        val error = thrown {
+          codec.readValue(new SingleStringColumnReader("payload", null), IndexedSeq("payload"))
+        }
+        assertTrue(
+          error.isInstanceOf[IllegalStateException],
+          error.getMessage.contains("non-optional jsonb")
+        )
+      },
+      test("jsonb overload decode error names the column and input") {
+        val codec = DbCodec.jsonb[JsonPayload](_.toString, _ => throw new IllegalArgumentException("bad"))
+        val error = thrown {
+          codec.readValue(new SingleStringColumnReader("payload", "not-json"), IndexedSeq("payload"))
+        }
+        assertTrue(
+          error.getMessage.startsWith("JSONB decode error at column 'payload'"),
+          error.getMessage.contains("bad"),
+          error.getMessage.contains("input: \"not-json\"")
+        )
+      },
+      test("jsonbOption overload returns None on SQL NULL") {
+        val codec = DbCodec.jsonbOption[JsonPayload](_.toString, _ => throw new IllegalArgumentException("bad"))
+        assertTrue(
+          codec.readValue(new SingleStringColumnReader("payload", null), IndexedSeq("payload")) == None
         )
       },
       test("jsonbOption decode error names the column") {

@@ -41,6 +41,12 @@ import zio.blocks.typeid.AnnotationArg
  * of type `Option[R]`, where `R` is a case class with several fields, throws
  * instead of being stored as JSON, a known bug in 0.0.56.
  *
+ * To give a field a non-default column (a pgvector embedding, a real SQL array,
+ * a driver-specific type), override it through the derivation builder:
+ * `DbCodec.derivedWith[Row](_.instance(TypeId.of[Row], "field", codec))`, or
+ * `instance(typeId, codec)` for every occurrence of a type. The term-name form
+ * wins over the type-level form.
+ *
  * {{{
  * import zio.blocks.schema.Schema
  *
@@ -60,73 +66,10 @@ import zio.blocks.typeid.AnnotationArg
  *   [[https://zioblocks.com/reference/sql/db-codec-deriver/ DbCodecDeriver]]
  */
 class DbCodecDeriver(
-  columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase,
-  private val fieldCodecOverrides: Map[(TypeId[?], String), DbCodec[?]] = Map.empty,
-  private val typeRegistry: DbTypeRegistry = DbTypeRegistry.empty
+  columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase
 ) extends Deriver[DbCodec] {
 
   private val SqlNullType = 0
-
-  /**
-   * Returns a new deriver that consults `registry` for every record field (and
-   * top-level record/wrapper) whose `TypeId` has a [[DbTypeMapping]].
-   *
-   * This is the dialect-extension point: a PostgreSQL module can register
-   * `vector`, `jsonb`, `tsvector`, and similar types once and let ordinary
-   * derivation pick them up, instead of editing the core deriver per type.
-   * Field-specific `withFieldCodec` overrides still take precedence.
-   */
-  def withTypeRegistry(registry: DbTypeRegistry): DbCodecDeriver =
-    new DbCodecDeriver(columnNameMapper, fieldCodecOverrides, registry)
-
-  /**
-   * Returns a new deriver that uses `codec` for the field `fieldName` of
-   * records whose type is `parentTypeId`, bypassing both the normal derived
-   * codec and the JSONB fallback for nested records/sequences.
-   *
-   * This is the supported override for a struct field whose column is not the
-   * default representation — for example a pgvector `Embedding`, a real SQL
-   * array, or any driver-specific type. A `given DbCodec[FieldType]` in scope
-   * is **not** consulted automatically for fields; register it here (or with
-   * `DbCodec.derivedWith(...instance(...))`) instead.
-   *
-   * {{{
-   * import zio.blocks.schema.Schema
-   * import zio.blocks.typeid.TypeId
-   *
-   * case class Embedding(values: List[Double])
-   * object Embedding {
-   *   implicit val schema: Schema[Embedding] = Schema.derived
-   *   val codec: DbCodec[Embedding] =
-   *     DbCodec[String].transform[Embedding] { text =>
-   *       Embedding(text.stripPrefix("[").stripSuffix("]").split(",").toList.map(_.toDouble))
-   *     }(e => e.values.mkString("[", ",", "]"))
-   * }
-   *
-   * case class RowDetail(id: Int, embedding: Embedding)
-   * object RowDetail { implicit val schema: Schema[RowDetail] = Schema.derived }
-   *
-   * val deriver = DbCodecDeriver.withFieldCodec(TypeId.of[RowDetail], "embedding", Embedding.codec)
-   * val codec   = Schema.derived[RowDetail].deriving(deriver).derive
-   * }}}
-   */
-  def withFieldCodec[P, F](parentTypeId: TypeId[P], fieldName: String, codec: DbCodec[F]): DbCodecDeriver =
-    new DbCodecDeriver(
-      columnNameMapper,
-      fieldCodecOverrides.updated((parentTypeId, fieldName), codec),
-      typeRegistry
-    )
-
-  private[sql] def withFieldCodecAny(
-    parentTypeId: TypeId[?],
-    fieldName: String,
-    codec: DbCodec[?]
-  ): DbCodecDeriver =
-    new DbCodecDeriver(
-      columnNameMapper,
-      fieldCodecOverrides.updated((parentTypeId, fieldName), codec),
-      typeRegistry
-    )
 
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
@@ -198,10 +141,7 @@ class DbCodecDeriver(
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[A]] =
-    typeRegistry.getAny(typeId) match {
-      case Some(mapping) => Lazy(mapping.codec.asInstanceOf[DbCodec[A]])
-      case None          =>
-        Lazy {
+    Lazy {
           val recordBinding = binding
           val constructor   = recordBinding.constructor
           val deconstructor = recordBinding.deconstructor
@@ -244,18 +184,11 @@ class DbCodecDeriver(
               val isRecordField = field.value.isRecord
               val shouldInline  = isRecordField && (isFieldInline || inlineAllRecordFields)
 
-              fieldCodecOverrides
-                .get((typeId, field.name))
-                .orElse(typeRegistry.getAny(field.value.typeId).map(_.codec)) match {
-                case Some(overrideCodec) =>
-                  fieldCodecs(idx) = overrideCodec.asInstanceOf[DbCodec[Any]]
-                case None =>
-                  if (isRecordField && !shouldInline) {
-                    val boundReflect = toBoundReflect(field.value)
-                    fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
-                  } else {
-                    fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
-                  }
+              if (isRecordField && !shouldInline && !D.isOverridden(field.value.metadata)) {
+                val boundReflect = toBoundReflect(field.value)
+                fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
+              } else {
+                fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
               }
             }
             idx += 1
@@ -429,7 +362,6 @@ class DbCodecDeriver(
             }
           }
         }
-    }
 
   /**
    * Reuses the codec of the wrapped type, wrapping each value read and
@@ -444,27 +376,23 @@ class DbCodecDeriver(
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[A]] =
-    typeRegistry.getAny(typeId) match {
-      case Some(mapping) => Lazy(mapping.codec.asInstanceOf[DbCodec[A]])
-      case None          =>
-        D.instance(wrapped.metadata).map { wrappedCodec =>
-          val wc = wrappedCodec.asInstanceOf[DbCodec[B]]
-          new DbCodec[A] {
-            val columns: IndexedSeq[String] = wc.columns
+    D.instance(wrapped.metadata).map { wrappedCodec =>
+      val wc = wrappedCodec.asInstanceOf[DbCodec[B]]
+      new DbCodec[A] {
+        val columns: IndexedSeq[String] = wc.columns
 
-            def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A =
-              binding.wrap(wc.readValue(reader, columnLabels))
+        def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A =
+          binding.wrap(wc.readValue(reader, columnLabels))
 
-            override def readValue(reader: DbResultReader, startIndex: Int): A =
-              binding.wrap(wc.readValue(reader, startIndex))
+        override def readValue(reader: DbResultReader, startIndex: Int): A =
+          binding.wrap(wc.readValue(reader, startIndex))
 
-            def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
-              wc.writeValue(writer, startIndex, binding.unwrap(value))
+        def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+          wc.writeValue(writer, startIndex, binding.unwrap(value))
 
-            def toDbValues(value: A): IndexedSeq[DbValue] =
-              wc.toDbValues(binding.unwrap(value))
-          }
-        }
+        def toDbValues(value: A): IndexedSeq[DbValue] =
+          wc.toDbValues(binding.unwrap(value))
+      }
     }
 
   /**
@@ -867,9 +795,9 @@ class DbCodecDeriver(
 }
 
 /** The deriver that maps column names with [[SqlNameMapper.SnakeCase]]. */
-object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase, Map.empty, DbTypeRegistry.empty) {
+object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
 
   /** Returns a deriver that maps column names with `mapper`. */
   def withColumnNameMapper(mapper: SqlNameMapper): DbCodecDeriver =
-    new DbCodecDeriver(mapper, Map.empty, DbTypeRegistry.empty)
+    new DbCodecDeriver(mapper)
 }

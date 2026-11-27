@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema, SchemaError}
-import zio.blocks.schema.derive.{DerivationBuilder, InstanceOverrideByTypeAndTermName}
+import zio.blocks.schema.derive.DerivationBuilder
 import zio.blocks.schema.json.JsonCodec
 
 /**
@@ -213,15 +213,29 @@ object DbCodec extends DbCodecOpaquePriority {
     column: String,
     index: Option[Int],
     err: SchemaError
+  ): RuntimeException = jsonbDecodeError(input, column, index, err: Throwable)
+
+  private def jsonbDecodeError(
+    input: String,
+    column: String,
+    index: Option[Int],
+    cause: Throwable
   ): RuntimeException = {
     val location = index match {
       case Some(i) => s"column '$column' (index $i)"
       case None    => s"column '$column'"
     }
     new RuntimeException(
-      s"JSONB decode error at $location: $err; input: ${previewInput(input)}"
+      s"JSONB decode error at $location: $cause; input: ${previewInput(input)}",
+      cause
     )
   }
+
+  private def decodeJsonbWith[A](decode: String => A, input: String, column: String, index: Option[Int]): A =
+    try decode(input)
+    catch {
+      case scala.util.control.NonFatal(e) => throw jsonbDecodeError(input, column, index, e)
+    }
 
   /**
    * Renders a short, escaped prefix of a JSONB input for error messages. Keeps
@@ -308,37 +322,13 @@ object DbCodec extends DbCodecOpaquePriority {
    * // Vector(DbString(MUG-1), DbString(kitchen,gift))
    * }}}
    *
-   * Field overrides are forced when `derivedWith` is called, so they should be
-   * constant codecs.
-   *
    * @see
    *   [[https://zioblocks.com/reference/sql/db-codec/ DbCodec]]
    */
   inline def derivedWith[A](
     configure: DerivationBuilder[DbCodec, A] => DerivationBuilder[DbCodec, A]
-  ): DbCodec[A] = {
-    val configured = configure(builder[A])
-    val overrides  = configured.instanceOverrides
-    var deriver    = configured.deriver
-    var i          = 0
-    while (i < overrides.length) {
-      overrides(i) match {
-        case InstanceOverrideByTypeAndTermName(parentTypeId, termName, instance) =>
-          deriver = deriver match {
-            case d: DbCodecDeriver =>
-              d.withFieldCodecAny(
-                parentTypeId,
-                termName,
-                instance.force.asInstanceOf[DbCodec[?]]
-              )
-            case d => d
-          }
-        case _ => ()
-      }
-      i += 1
-    }
-    configured.copy(deriver = deriver).derive
-  }
+  ): DbCodec[A] =
+    configure(builder[A]).derive
 
   /**
    * Returns a one-column codec that stores `A` as JSON text through
@@ -365,12 +355,18 @@ object DbCodec extends DbCodecOpaquePriority {
 
       def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
         val label = columnLabels.head
-        decodeJsonb(reader.getString(label), label, None)
+        if (reader.isNull(label)) unexpectedNull("jsonb")
+        val input = reader.getString(label)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonb(input, label, None)
       }
 
       override def readValue(reader: DbResultReader, startIndex: Int): A = {
         val label = reader.columnLabel(startIndex)
-        decodeJsonb(reader.getString(startIndex), label, Some(startIndex))
+        if (reader.isNull(startIndex)) unexpectedNull("jsonb")
+        val input = reader.getString(startIndex)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonb(input, label, Some(startIndex))
       }
 
       def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
@@ -385,7 +381,31 @@ object DbCodec extends DbCodecOpaquePriority {
    * reads it back with `decode`.
    */
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A] =
-    DbCodec[String].transform[A](decode)(encode)
+    new DbCodec[A] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) unexpectedNull("jsonb")
+        val input = reader.getString(label)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonbWith(decode, input, label, None)
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): A = {
+        val label = reader.columnLabel(startIndex)
+        if (reader.isNull(startIndex)) unexpectedNull("jsonb")
+        val input = reader.getString(startIndex)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonbWith(decode, input, label, Some(startIndex))
+      }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+        writer.setString(startIndex, encode(value))
+
+      def toDbValues(value: A): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbString(encode(value)))
+    }
 
   /**
    * Returns the nullable form of `jsonb`: `None` is stored as SQL `NULL`, and
@@ -431,11 +451,39 @@ object DbCodec extends DbCodecOpaquePriority {
    * SQL `NULL`, and `NULL` reads as `None`.
    */
   def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decode(str))
-    )(
-      _.map(value => encode(value))
-    )
+    new DbCodec[Option[A]] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) None
+        else {
+          val input = reader.getString(label)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonbWith(decode, input, label, None))
+        }
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+        if (reader.isNull(startIndex)) None
+        else {
+          val input = reader.getString(startIndex)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonbWith(decode, input, reader.columnLabel(startIndex), Some(startIndex)))
+        }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+        value match {
+          case Some(v) => writer.setString(startIndex, encode(v))
+          case None    => writer.setNull(startIndex, SqlNullType)
+        }
+
+      def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+        value match {
+          case Some(v) => IndexedSeq(DbValue.DbString(encode(v)))
+          case None    => IndexedSeq(DbValue.DbNull)
+        }
+    }
 
   /**
    * Builds a `DbCodec[Array[A]]` backed by a native SQL array column.
@@ -443,7 +491,9 @@ object DbCodec extends DbCodecOpaquePriority {
    * Reads use [[DbResultReader.getArrayObjects]] and decode every element with
    * `elementCodec`; writes use `DbParamWriter.setArray` with `sqlElementType`
    * (for example `"varchar"`, `"integer"`, or `"uuid"`). A SQL `NULL` array
-   * decodes to `null`. The element codec must occupy exactly one column.
+   * decodes to `null`. A `NULL` element decoded by a non-optional primitive
+   * codec throws; use `Option[...]` as the element codec for arrays that may
+   * contain `NULL`. The element codec must occupy exactly one column.
    *
    * The derived codec for a sequence field falls back to JSONB; use this
    * factory when the column really is a SQL array:
@@ -541,6 +591,11 @@ object DbCodec extends DbCodecOpaquePriority {
       throw new UnsupportedOperationException(s"Cannot decode SQL array element as $method (element class: $cls)")
     }
 
+    private def nullElement(method: String): Nothing =
+      throw new IllegalStateException(
+        s"Encountered SQL NULL array element while decoding with $method. Use Option[...] as the element codec for arrays that may contain NULL."
+      )
+
     private def text: String = value match {
       case null      => null
       case s: String => s
@@ -550,7 +605,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getInt(index: Int): Int = value match {
       case n: java.lang.Number => n.intValue
       case s: String           => s.toInt
-      case null                => 0
+      case null                => nullElement("getInt")
       case _                   => unsupported("getInt")
     }
     def getInt(label: String): Int = getInt(1)
@@ -558,7 +613,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getLong(index: Int): Long = value match {
       case n: java.lang.Number => n.longValue
       case s: String           => s.toLong
-      case null                => 0L
+      case null                => nullElement("getLong")
       case _                   => unsupported("getLong")
     }
     def getLong(label: String): Long = getLong(1)
@@ -566,7 +621,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getDouble(index: Int): Double = value match {
       case n: java.lang.Number => n.doubleValue
       case s: String           => s.toDouble
-      case null                => 0.0
+      case null                => nullElement("getDouble")
       case _                   => unsupported("getDouble")
     }
     def getDouble(label: String): Double = getDouble(1)
@@ -574,7 +629,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getFloat(index: Int): Float = value match {
       case n: java.lang.Number => n.floatValue
       case s: String           => s.toFloat
-      case null                => 0.0f
+      case null                => nullElement("getFloat")
       case _                   => unsupported("getFloat")
     }
     def getFloat(label: String): Float = getFloat(1)
@@ -583,7 +638,7 @@ object DbCodec extends DbCodecOpaquePriority {
       case b: java.lang.Boolean => b.booleanValue
       case n: java.lang.Number  => n.intValue != 0
       case s: String            => s.toBoolean
-      case null                 => false
+      case null                 => nullElement("getBoolean")
       case _                    => unsupported("getBoolean")
     }
     def getBoolean(label: String): Boolean = getBoolean(1)
@@ -611,7 +666,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getShort(index: Int): Short = value match {
       case n: java.lang.Number => n.shortValue
       case s: String           => s.toShort
-      case null                => 0.toShort
+      case null                => nullElement("getShort")
       case _                   => unsupported("getShort")
     }
     def getShort(label: String): Short = getShort(1)
@@ -619,7 +674,7 @@ object DbCodec extends DbCodecOpaquePriority {
     def getByte(index: Int): Byte = value match {
       case n: java.lang.Number => n.byteValue
       case s: String           => s.toByte
-      case null                => 0.toByte
+      case null                => nullElement("getByte")
       case _                   => unsupported("getByte")
     }
     def getByte(label: String): Byte = getByte(1)
