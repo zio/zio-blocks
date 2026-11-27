@@ -1,5 +1,10 @@
 name: Async stream testing
 
+env:
+  COURSIER_EXTRA_MIRRORS: ${{ github.workspace }}/.github/coursier-mirrors
+  COURSIER_REPOSITORIES: 'https://maven-central.storage-download.googleapis.com/maven2/|https://repo.maven.apache.org/maven2/'
+  SBT_OPTS: -Dsbt.override.build.repos=true -Dsbt.repository.config=.github/sbt-repositories
+
 on:
   pull_request:
     paths:
