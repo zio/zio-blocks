@@ -303,7 +303,7 @@ final case class DerivationBuilder[TC[_], A](
 
     def replaceFieldInstance[A0](reflect: Reflect[G, A0], newInstance: Lazy[TC[A0]]): Reflect[G, A0] = {
       def swap[T, B](bi: BindingInstance[TC, T, B]): BindingInstance[TC, T, B] =
-        new BindingInstance(bi.binding, newInstance.asInstanceOf[Lazy[TC[B]]])
+        new BindingInstance(bi.binding, newInstance.asInstanceOf[Lazy[TC[B]]], isOverridden = true)
 
       (reflect match {
         case p: Reflect.Primitive[G, _]              => p.copy(primitiveBinding = swap(p.primitiveBinding))
@@ -368,7 +368,8 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+            val customInstance = getCustomInstance[A0](path, typeId)
+            val instance       = customInstance.getOrElse {
               val fieldsWithInstanceOverrides =
                 applyTypeAndTermNameOverrides(typeId, path, fields, (p, name) => p.field(name))
               val modifiersToPrepend = combineModifiers(path, typeId)
@@ -397,7 +398,7 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Record(
               fields,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,
@@ -427,7 +428,8 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+            val customInstance = getCustomInstance[A0](path, typeId)
+            val instance       = customInstance.getOrElse {
               val casesWithInstanceOverrides =
                 applyTypeAndTermNameOverrides(typeId, path, cases, (p, name) => p.caseOf(name))
                   .asInstanceOf[IndexedSeq[Term[G, A0, ? <: A0]]]
@@ -461,7 +463,7 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Variant(
               cases,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,
@@ -491,7 +493,8 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val instance = getCustomInstance[C[A0]](path, typeId).getOrElse(
+            val customInstance = getCustomInstance[C[A0]](path, typeId)
+            val instance       = customInstance.getOrElse(
               deriver
                 .deriveSequence(
                   element,
@@ -506,7 +509,7 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Sequence(
               element,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,
@@ -538,7 +541,8 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val instance = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
+            val customInstance = getCustomInstance[M[Key, Value]](path, typeId)
+            val instance       = customInstance.getOrElse(
               deriver
                 .deriveMap(
                   key,
@@ -555,7 +559,7 @@ final case class DerivationBuilder[TC[_], A](
               key,
               value,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,
@@ -572,7 +576,8 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
-            val instance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
+            val customInstance = getCustomInstance[DynamicValue](path, TypeId.of[DynamicValue])
+            val instance       = customInstance
               .getOrElse(
                 deriver.deriveDynamic[G](
                   Binding.bindingHasBinding.dynamic(metadata),
@@ -583,7 +588,7 @@ final case class DerivationBuilder[TC[_], A](
                 )
               )
             new Reflect.Dynamic(
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               typeId,
               doc,
               modifiers,
@@ -602,7 +607,8 @@ final case class DerivationBuilder[TC[_], A](
             storedDefaultValue: Option[DynamicValue],
             storedExamples: collection.immutable.Seq[DynamicValue]
           ): Lazy[Reflect.Primitive[G, A0]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId).getOrElse(
+            val customInstance = getCustomInstance[A0](path, typeId)
+            val instance       = customInstance.getOrElse(
               deriver
                 .derivePrimitive(
                   primitiveType,
@@ -617,7 +623,7 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Primitive(
               primitiveType,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,
@@ -647,7 +653,8 @@ final case class DerivationBuilder[TC[_], A](
                 doc,
                 modifiers
               )
-            val instance = getCustomInstance[A0](path, typeId)
+            val customInstance = getCustomInstance[A0](path, typeId)
+            val instance       = customInstance
               .getOrElse(
                 deriver.deriveWrapper(
                   wrapped,
@@ -662,7 +669,7 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Wrapper(
               wrapped,
               typeId,
-              new BindingInstance(metadata, instance),
+              new BindingInstance(metadata, instance, customInstance.isDefined),
               doc,
               modifiers,
               storedDefaultValue,

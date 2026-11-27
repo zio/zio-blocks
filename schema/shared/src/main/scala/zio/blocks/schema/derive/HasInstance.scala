@@ -30,4 +30,13 @@ trait HasInstance[F[_, _], TC[_]] {
    * while deriving, so that recursive types work.
    */
   def instance[T, A](fa: F[T, A]): Lazy[TC[A]]
+
+  /**
+   * Returns whether the instance stored in `fa` came from an explicit
+   * `DerivationBuilder.instance(...)` override rather than from the deriver.
+   * Derivers use it to keep a default representation (for example JSONB for a
+   * nested record field) while still honoring a user-supplied codec for that
+   * node. Implementations that cannot distinguish the two return `false`.
+   */
+  def isOverridden[T, A](fa: F[T, A]): Boolean = false
 }
