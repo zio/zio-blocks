@@ -37,9 +37,193 @@ const sidebars = {
   // The reference sidebar, reached from the "Reference" navbar item: the block groups sit at its top level, with no
   // "ZIO Blocks" wrapper category.
   sidebar: [
+          {
+            type: "category",
+            label: "Web & APIs",
+            link: { type: "doc", id: "reference/web-and-http/index" },
+            items: [
+              "reference/media-type",
+              {
+                type: "category",
+                label: "HTTP Model",
+                link: { type: "doc", id: "reference/http-model/index" },
+                items: [
+                  "reference/http-model/model",
+                  "reference/http-model/headers",
+                  "reference/http-model/server-sent-event",
+                  "reference/http-model/schema",
+                  "reference/http-model/schema-codecs",
+                ]
+              },
+              {
+                type: "category",
+                label: "Endpoint",
+                link: { type: "doc", id: "reference/endpoint/index" },
+                items: [
+                  "reference/endpoint/endpoint",
+                  "reference/endpoint/bulk-creation",
+                  "reference/endpoint/http-codec",
+                  "reference/endpoint/route-pattern",
+                  "reference/endpoint/path-codec",
+                  "reference/endpoint/segment-codec",
+                  "reference/endpoint/auth-type",
+                  "reference/endpoint/route-tree",
+                ]
+              },
+              "reference/openapi",
+              "reference/jwt",
+              "reference/html",
+             {
+                type: "category",
+                label: "Datastar",
+               link: { type: "doc", id: "reference/datastar/index" },
+               items: [
+                 "reference/datastar/signals",
+                 "reference/datastar/attributes",
+                 "reference/datastar/events",
+                 "reference/datastar/sse",
+               ]
+             },
+              {
+                type: "category",
+                label: "HTMX",
+                link: { type: "doc", id: "reference/htmx/index" },
+                items: [
+                  "reference/htmx/hx-swap",
+                  "reference/htmx/hx-trigger",
+                  "reference/htmx/hx-target",
+                  "reference/htmx/hx-params",
+                  "reference/htmx/hx-url-update",
+                  "reference/htmx/hx-encoding",
+                  "reference/htmx/hx-sync",
+                  "reference/htmx/attribute-values",
+                  "reference/htmx/response-headers",
+                ]
+              },
+            ],
+          },
+          {
+            type: "category",
+            label: "Data Access",
+            link: { type: "doc", id: "reference/persistence/index" },
+            items: [
+            {
+              type: "category",
+              label: "SQL Module",
+              link: { type: "doc", id: "reference/sql/index" },
+              items: [
+                {
+                  type: "category",
+                  label: "Core Types",
+                  collapsed: true,
+                  items: [
+                    "reference/sql/db-codec",
+                    "reference/sql/frag",
+                    "reference/sql/table",
+                    "reference/sql/repo",
+                    "reference/sql/transactor",
+                    "reference/sql/db-con",
+                    "reference/sql/db-tx",
+                  ],
+                },
+                {
+                  type: "category",
+                  label: "Query Builder",
+                  collapsed: true,
+                  items: [
+                    "reference/sql/sql-query",
+                    "reference/sql/rel",
+                    "reference/sql/dump",
+                  ],
+                },
+                {
+                  type: "category",
+                  label: "Supporting Types",
+                  collapsed: true,
+                  items: [
+                    "reference/sql/db-value",
+                    "reference/sql/db-param",
+                    "reference/sql/sql-dialect",
+                    "reference/sql/sql-logger",
+                    "reference/sql/sql-name-mapper",
+                    "reference/sql/table-metadata",
+                    "reference/sql/ddl",
+                    "reference/sql/db-connection",
+                    "reference/sql/db-result-reader",
+                    "reference/sql/db-param-writer",
+                    "reference/sql/db-codec-deriver",
+                    "reference/sql/transactor-zio",
+                  ],
+                },
+              ],
+            },
+                "reference/sql-zio",
+                "reference/data-migration",
+                {
+                  type: "category",
+                  label: "Projection",
+                  link: { type: "doc", id: "reference/projection/index" },
+                  items: [
+                    "reference/projection/projection",
+                    "reference/projection/projection-engine",
+                    {
+                      type: "category",
+                      label: "Stores",
+                      collapsed: true,
+                      items: [
+                        "reference/projection/event-store",
+                        "reference/projection/projection-store",
+                      ],
+                    },
+                    "reference/projection/migration",
+                    "reference/projection/testing",
+                  ],
+                },
+            ],
+          },
+          {
+            type: "category",
+            label: "Streaming & Messaging",
+            link: { type: "doc", id: "reference/streams/index" },
+            items: [
+              {
+                type: "category",
+                label: "Core Types",
+                collapsed: true,
+                link: { type: "doc", id: "reference/streams/core/index" },
+                items: [
+                  "reference/streams/core/stream",
+                  "reference/streams/core/pipeline",
+                  "reference/streams/core/sink",
+                ]
+              },
+              {
+                type: "category",
+                label: "Low-Level Primitives",
+                collapsed: true,
+                link: { type: "doc", id: "reference/streams/primitives/index" },
+                items: [
+                  "reference/streams/primitives/reader",
+                  "reference/streams/primitives/writer",
+                ]
+              },
+              {
+                type: "category",
+                label: "Execution and Compatibility",
+                collapsed: true,
+                link: { type: "doc", id: "reference/streams/execution-and-compatibility/index" },
+                items: [
+                  "reference/streams/execution-and-compatibility/async-execution",
+                  "reference/streams/execution-and-compatibility/zero-boxing",
+                  "reference/streams/execution-and-compatibility/platform-differences",
+                  "reference/streams/execution-and-compatibility/scala-2-compatibility",
+                ]
+              },
+            ]
+          },
          {
            type: "category",
-           label: "Meta Programming",
+           label: "Schemas & Serialization",
            link: { type: "doc", id: "reference/meta-programming/index" },
            items: [
              {
@@ -148,183 +332,11 @@ const sidebars = {
                  "reference/schema/syntax",
                ]
              },
-             "reference/typeid",
-           ]
-         },
-         {
-           type: "category",
-           label: "Resource Management",
-           link: { type: "doc", id: "reference/resource-management/index" },
-           items: [
-             "reference/resource-management/scope",
-             "reference/resource-management/resource",
-             "reference/resource-management/unscoped",
-             "reference/resource-management/defer-handle",
-             "reference/resource-management/finalizer",
-             "reference/resource-management/finalization",
-           ]
-         },
-         {
-           type: "category",
-           label: "Dependency Injection",
-           link: { type: "doc", id: "reference/dependency-injection/index" },
-           items: [
-             "reference/resource-management/wire",
-             "reference/context",
-           ]
-         },
-         {
-           type: "category",
-           label: "Configuration & Feature Flags",
-           link: { type: "doc", id: "reference/config/index" },
-           items: [
-             "reference/config/config-source",
-             "reference/config/config-decoder",
-             "reference/config/errors",
-             "reference/config/flags",
-             "reference/config/rollout",
-             "reference/config/formats",
            ]
          },
           {
             type: "category",
-            label: "Web & HTTP",
-            link: { type: "doc", id: "reference/web-and-http/index" },
-            items: [
-              "reference/media-type",
-              {
-                type: "category",
-                label: "HTTP Model",
-                link: { type: "doc", id: "reference/http-model/index" },
-                items: [
-                  "reference/http-model/model",
-                  "reference/http-model/headers",
-                  "reference/http-model/server-sent-event",
-                  "reference/http-model/schema",
-                  "reference/http-model/schema-codecs",
-                ]
-              },
-              {
-                type: "category",
-                label: "Endpoint",
-                link: { type: "doc", id: "reference/endpoint/index" },
-                items: [
-                  "reference/endpoint/endpoint",
-                  "reference/endpoint/bulk-creation",
-                  "reference/endpoint/http-codec",
-                  "reference/endpoint/route-pattern",
-                  "reference/endpoint/path-codec",
-                  "reference/endpoint/segment-codec",
-                  "reference/endpoint/auth-type",
-                  "reference/endpoint/route-tree",
-                ]
-              },
-              "reference/openapi",
-              "reference/jwt",
-              "reference/html",
-             {
-                type: "category",
-                label: "Datastar",
-               link: { type: "doc", id: "reference/datastar/index" },
-               items: [
-                 "reference/datastar/signals",
-                 "reference/datastar/attributes",
-                 "reference/datastar/events",
-                 "reference/datastar/sse",
-               ]
-             },
-              {
-                type: "category",
-                label: "HTMX",
-                link: { type: "doc", id: "reference/htmx/index" },
-                items: [
-                  "reference/htmx/hx-swap",
-                  "reference/htmx/hx-trigger",
-                  "reference/htmx/hx-target",
-                  "reference/htmx/hx-params",
-                  "reference/htmx/hx-url-update",
-                  "reference/htmx/hx-encoding",
-                  "reference/htmx/hx-sync",
-                  "reference/htmx/attribute-values",
-                  "reference/htmx/response-headers",
-                ]
-              },
-            ],
-          },
-          {
-            type: "category",
-            label: "Data Types",
-            link: { type: "doc", id: "reference/data-types/index" },
-            items: [
-              "reference/chunk",
-              "reference/maybe",
-              "reference/combinators",
-            ]
-          },
-          {
-            type: "category",
-            label: "Concurrency",
-            link: { type: "doc", id: "reference/concurrency/index" },
-            items: [
-              "reference/async",
-              "reference/mux",
-              {
-                type: "category",
-                label: "RingBuffer",
-                link: { type: "doc", id: "reference/ringbuffer/index" },
-                items: [
-                  "reference/ringbuffer/spsc",
-                  "reference/ringbuffer/spmc",
-                  "reference/ringbuffer/mpsc",
-                  "reference/ringbuffer/mpmc",
-                  "reference/ringbuffer/advanced",
-                ]
-              },
-            ],
-          },
-          {
-            type: "category",
-            label: "Streams",
-            link: { type: "doc", id: "reference/streams/index" },
-            items: [
-              {
-                type: "category",
-                label: "Core Types",
-                collapsed: true,
-                link: { type: "doc", id: "reference/streams/core/index" },
-                items: [
-                  "reference/streams/core/stream",
-                  "reference/streams/core/pipeline",
-                  "reference/streams/core/sink",
-                ]
-              },
-              {
-                type: "category",
-                label: "Low-Level Primitives",
-                collapsed: true,
-                link: { type: "doc", id: "reference/streams/primitives/index" },
-                items: [
-                  "reference/streams/primitives/reader",
-                  "reference/streams/primitives/writer",
-                ]
-              },
-              {
-                type: "category",
-                label: "Execution and Compatibility",
-                collapsed: true,
-                link: { type: "doc", id: "reference/streams/execution-and-compatibility/index" },
-                items: [
-                  "reference/streams/execution-and-compatibility/async-execution",
-                  "reference/streams/execution-and-compatibility/zero-boxing",
-                  "reference/streams/execution-and-compatibility/platform-differences",
-                  "reference/streams/execution-and-compatibility/scala-2-compatibility",
-                ]
-              },
-            ]
-          },
-          {
-            type: "category",
-            label: "Telemetry",
+            label: "Observability",
             link: { type: "doc", id: "reference/telemetry/index" },
             items: [
               {
@@ -398,88 +410,76 @@ const sidebars = {
               },
             ]
           },
+         {
+           type: "category",
+           label: "Configuration & CLI",
+           link: { type: "doc", id: "reference/config/index" },
+           items: [
+             "reference/config/config-source",
+             "reference/config/config-decoder",
+             "reference/config/errors",
+             "reference/config/flags",
+             "reference/config/rollout",
+             "reference/config/formats",
+           ]
+         },
+         {
+           type: "category",
+           label: "Resource Management",
+           link: { type: "doc", id: "reference/resource-management/index" },
+           items: [
+             "reference/resource-management/scope",
+             "reference/resource-management/resource",
+             "reference/resource-management/unscoped",
+             "reference/resource-management/defer-handle",
+             "reference/resource-management/finalizer",
+             "reference/resource-management/finalization",
+           ]
+         },
+         {
+           type: "category",
+           label: "Dependency Injection",
+           link: { type: "doc", id: "reference/dependency-injection/index" },
+           items: [
+             "reference/resource-management/wire",
+             "reference/context",
+           ]
+         },
           {
             type: "category",
-            label: "Persistence",
-            link: { type: "doc", id: "reference/persistence/index" },
+            label: "Concurrency & Resilience",
+            link: { type: "doc", id: "reference/concurrency/index" },
             items: [
-            {
-              type: "category",
-              label: "SQL Module",
-              link: { type: "doc", id: "reference/sql/index" },
-              items: [
-                {
-                  type: "category",
-                  label: "Core Types",
-                  collapsed: true,
-                  items: [
-                    "reference/sql/db-codec",
-                    "reference/sql/frag",
-                    "reference/sql/table",
-                    "reference/sql/repo",
-                    "reference/sql/transactor",
-                    "reference/sql/db-con",
-                    "reference/sql/db-tx",
-                  ],
-                },
-                {
-                  type: "category",
-                  label: "Query Builder",
-                  collapsed: true,
-                  items: [
-                    "reference/sql/sql-query",
-                    "reference/sql/rel",
-                    "reference/sql/dump",
-                  ],
-                },
-                {
-                  type: "category",
-                  label: "Supporting Types",
-                  collapsed: true,
-                  items: [
-                    "reference/sql/db-value",
-                    "reference/sql/db-param",
-                    "reference/sql/sql-dialect",
-                    "reference/sql/sql-logger",
-                    "reference/sql/sql-name-mapper",
-                    "reference/sql/table-metadata",
-                    "reference/sql/ddl",
-                    "reference/sql/db-connection",
-                    "reference/sql/db-result-reader",
-                    "reference/sql/db-param-writer",
-                    "reference/sql/db-codec-deriver",
-                    "reference/sql/transactor-zio",
-                  ],
-                },
-              ],
-            },
-                "reference/sql-zio",
-                "reference/data-migration",
-                {
-                  type: "category",
-                  label: "Projection",
-                  link: { type: "doc", id: "reference/projection/index" },
-                  items: [
-                    "reference/projection/projection",
-                    "reference/projection/projection-engine",
-                    {
-                      type: "category",
-                      label: "Stores",
-                      collapsed: true,
-                      items: [
-                        "reference/projection/event-store",
-                        "reference/projection/projection-store",
-                      ],
-                    },
-                    "reference/projection/migration",
-                    "reference/projection/testing",
-                  ],
-                },
+              "reference/async",
+              "reference/mux",
+              {
+                type: "category",
+                label: "RingBuffer",
+                link: { type: "doc", id: "reference/ringbuffer/index" },
+                items: [
+                  "reference/ringbuffer/spsc",
+                  "reference/ringbuffer/spmc",
+                  "reference/ringbuffer/mpsc",
+                  "reference/ringbuffer/mpmc",
+                  "reference/ringbuffer/advanced",
+                ]
+              },
             ],
           },
           {
             type: "category",
-            label: "Tooling & Codegen",
+            label: "Types & Abstractions",
+            link: { type: "doc", id: "reference/data-types/index" },
+            items: [
+              "reference/chunk",
+              "reference/maybe",
+              "reference/combinators",
+              "reference/typeid",
+            ]
+          },
+          {
+            type: "category",
+            label: "Tooling & Testing",
             link: { type: "doc", id: "reference/tooling-and-codegen/index" },
             items: [
               {

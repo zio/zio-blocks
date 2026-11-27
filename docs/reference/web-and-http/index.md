@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Web & HTTP"
-description: "Introduction to the Web & HTTP blocks of ZIO Blocks: HTTP data model, endpoint descriptions, OpenAPI, JWT, HTML templating, Datastar and HTMX."
+title: "Web & APIs"
+description: "Introduction to the Web & APIs blocks of ZIO Blocks: HTTP data model, endpoint descriptions, OpenAPI, JWT, HTML templating, Datastar and HTMX."
 ---
 
 ## Introduction

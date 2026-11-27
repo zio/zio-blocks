@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Tooling & Codegen"
-description: "Introduction to the Tooling & Codegen blocks of ZIO Blocks: Code Generation, Docs (Markdown) and Smithy."
+title: "Tooling & Testing"
+description: "Introduction to the Tooling & Testing blocks of ZIO Blocks: Code Generation, Docs (Markdown) and Smithy."
 ---
 
 ## Introduction

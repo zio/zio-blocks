@@ -6,8 +6,9 @@ import {renderCode, renderInline} from '../../lib/inline.mjs';
 import {titleCase} from '../../lib/title-case.mjs';
 import prismThemes from '../../prism-themes';
 
-// JSON is built into the Schema block; every block in the "Codecs" category adds one more format.
-const codecs = site.categories.find((c) => c.name === 'Codecs')?.blocks.map((b) => b.name.replace(/ Codec$/, '')) ?? [];
+// JSON is built into the Schema block; every codec block (named "<Format> Codec", in Schemas & Serialization) adds
+// one more format.
+const codecs = site.categories.flatMap((c) => c.blocks).filter((b) => / Codec$/.test(b.name)).map((b) => b.name.replace(/ Codec$/, ''));
 const formats = ['JSON', ...codecs];
 
 function Code({source, lang}) {

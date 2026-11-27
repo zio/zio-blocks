@@ -129,7 +129,8 @@ test('every deep-dive panel shows its own install snippet', () => {
 test('schema panel lists the format chips derived from the catalog', () => {
   const s = sec('deep-dives');
   const chips = [...s.matchAll(/<li class="lp-chip"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
-  const codecs = site.categories.find((c) => c.name === 'Codecs').blocks.map((b) => b.name.replace(/ Codec$/, ''));
+  const codecs = site.categories.flatMap((c) => c.blocks).filter((b) => / Codec$/.test(b.name)).map((b) => b.name.replace(/ Codec$/, ''));
+  assert.ok(codecs.length >= 8);
   assert.deepEqual(chips, ['JSON', ...codecs]);
 });
 
@@ -165,11 +166,11 @@ test('consecutive small categories share a row while their tiles fit in three co
   const s = sec('catalog');
   const rows = s.split('<div class="lp-row"').slice(1).map((chunk) => [...chunk.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((h) => text(h[1])));
   assert.deepEqual(rows.find((r) => r.includes('Resource Management')), ['Resource Management', 'Dependency Injection']);
-  assert.deepEqual(rows.find((r) => r.includes('Streaming')), ['Streaming', 'Telemetry']);
   assert.deepEqual(rows.flat(), site.categories.map((c) => titleCase(c.name)));
   const size = new Map(site.categories.map((c) => [titleCase(c.name), c.blocks.length]));
   for (const r of rows) if (r.length > 1) assert.ok(r.reduce((n, name) => n + size.get(name), 0) <= 3, r.join(' + '));
-  assert.equal(rows.filter((r) => r.length > 1).length, 2);
+  // Streaming & Messaging (one tile) sits between Data Access and Schemas & Serialization, which fill their rows.
+  assert.equal(rows.filter((r) => r.length > 1).length, 1);
 });
 
 test('catalog has no filter controls, counter, empty-state message or buttons', () => {
