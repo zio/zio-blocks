@@ -92,7 +92,8 @@ object ScaladocSnippets {
     "http-model-schema"  -> "zio.http.schema",
     "markdown"           -> "zio.blocks.docs",
     "otel"               -> "zio.blocks.telemetry.otel",
-    "schema-messagepack" -> "zio.blocks.schema.msgpack"
+    "schema-messagepack" -> "zio.blocks.schema.msgpack",
+    "sql-zio"            -> "zio.blocks.sql"
   )
 
   /**
@@ -110,18 +111,8 @@ object ScaladocSnippets {
    * The import that the wrapper of an example of a module gets when
    * `needsModuleImport` says so: the module's package, from `modulePackage`, as
    * in `zio.blocks.streams._` or `zio.http._`.
-   *
-   * `sql` is the exception: `sql-zio` shares its checker's classpath, and a
-   * plain `zio.blocks.sql._` would bring the package `zio.blocks.sql.zio` into
-   * scope as `zio`, so an example's own `import zio.blocks.schema._` would
-   * fail. Its examples get `zio.blocks.sql.{zio => _, _}` and compile as for a
-   * user without `sql-zio`.
    */
-  def moduleImport(sourcePath: String): String =
-    moduleOf(sourcePath) match {
-      case "sql" => "zio.blocks.sql.{zio => _, _}"
-      case _     => modulePackage(sourcePath) + "._"
-    }
+  def moduleImport(sourcePath: String): String = modulePackage(sourcePath) + "._"
 
   /**
    * The name of the wrapper object for the example at `line` of `sourcePath`.

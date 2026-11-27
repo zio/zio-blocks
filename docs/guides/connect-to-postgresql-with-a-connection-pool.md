@@ -132,9 +132,6 @@ def bookstoreTransactor(pool: DataSource): JdbcTransactor =
   JdbcTransactor.postgres(pool)
 ```
 
-:::note
-The `Schema` and `scope` imports, used later on this page, come before `import zio.blocks.sql.*` on purpose. When the `sql-zio` module is also on the classpath, `zio.blocks.sql.*` brings its subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and every `import zio.blocks...` after it fails to compile. Keeping `import zio.blocks.sql.*` last avoids this.
-:::
 
 `JdbcTransactor.postgres(pool)` is shorthand for `JdbcTransactor.fromDataSource(pool, SqlDialect.PostgreSQL)` and does nothing else: it runs no setup statements on the connections and changes none of their settings. Each `JdbcTransactor#connect` or `JdbcTransactor#transact` call borrows one connection with `DataSource#getConnection` and closes it at the end of the block, which returns it to the pool.
 

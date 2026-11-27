@@ -525,7 +525,7 @@ ZIO Blocks has the `zio-blocks-sql-zio` module, which provides `TransactorZIO`. 
 ```scala mdoc:reset:silent
 import zio.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql.*
 
 case class Patient(patientId: Long, name: String, birthYear: Int, phone: Option[String])
@@ -552,7 +552,7 @@ val bornBefore1990: ZIO[TransactorZIO, Throwable, List[Patient]] =
 val program = (countPatients zip bornBefore1990).provide(transactorLayer)
 ```
 
-Keep `import zio.blocks.sql.*` after every other `zio` import, as above: once `sql-zio` is on the classpath, it brings the subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and a later `import zio.blocks...` fails to compile.
+`TransactorZIO` lives in `zio.blocks.sql`, the same package as the core module, so the imports above are all you need.
 
 Quill's `ctx.transaction` inside a ZIO program becomes `TransactorZIO#transact`. `TransactorZIO#transact` opens and closes the connection for you, and `TransactorZIO#transactZIO` takes a block that returns a `ZIO` and closes the connection even when the fiber is interrupted. [How to Use the sql Module from a ZIO Application](./sql-from-zio.md) covers layers, services, retries and mixing database writes with other effects, and [TransactorZIO](../reference/sql/transactor-zio.md) lists every method.
 

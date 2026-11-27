@@ -31,7 +31,7 @@ import zio.blocks.sql.*
  * such as `CREATE TABLE IF NOT EXISTS`.
  *
  * {{{
- * import zio.blocks.sql.{zio => _, _}
+ * import zio.blocks.sql._
  *
  * class CreateInvoices(transactor: Transactor) extends TinyMigrator(transactor) {
  *   def run()(using tx: DbTx): Unit = {

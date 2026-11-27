@@ -36,8 +36,6 @@ import zio.blocks.sql.*
  * [[pendingCount]] right before it.
  *
  * {{{
- * import zio.blocks.sql.{zio => _, _}
- *
  * // Every writer to the source table has stopped before this point
  * def cutOver[A, B](migrator: LargeMigrator[A, B, Long, Long]): Unit = {
  *   migrator.fence()

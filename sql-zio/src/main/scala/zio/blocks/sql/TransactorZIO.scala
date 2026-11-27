@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.sql.zio
+package zio.blocks.sql
 
 import zio._
-import zio.blocks.sql._
 import java.sql.Connection
 
 /**
@@ -45,10 +44,6 @@ import java.sql.Connection
  * } yield names
  * // program succeeds with List(Ada, Grace)
  * }}}
- *
- * `import zio.blocks.sql._` also imports this package under the name `zio`,
- * hiding the root `zio` package for the rest of the scope: a known bug in
- * 0.0.56. Put it after every other `zio` import, or write `_root_.zio`.
  *
  * @param connectionFactory
  *   opens a new JDBC connection; called once per `connect`, `transact`,

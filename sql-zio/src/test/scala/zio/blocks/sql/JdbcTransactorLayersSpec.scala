@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.sql.zio
+package zio.blocks.sql
 
 import _root_.zio.*
 import _root_.zio.blocks.maybe.Maybe
-import _root_.zio.blocks.sql.*
 import _root_.zio.test.*
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
