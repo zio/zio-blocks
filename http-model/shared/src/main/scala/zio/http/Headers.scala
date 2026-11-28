@@ -34,6 +34,11 @@ import zio.blocks.chunk.Chunk
  * return a new `Headers` and throw `IllegalArgumentException` on an invalid
  * name or value (see [[Headers.validateName]] and [[Headers.validateValue]]).
  *
+ * The class is sealed: its concrete representations (an eager array, an overlay
+ * of one appended entry, and a byte-slice view) are private to this file and
+ * all behave the same. `add` on an overlay runs in constant time, while the
+ * other representations materialise an eager array.
+ *
  * {{{
  * val headers = Headers("Content-Type" -> "application/json", "content-length" -> "512")
  *
@@ -48,16 +53,30 @@ import zio.blocks.chunk.Chunk
  * @see
  *   [[https://zioblocks.com/reference/http-model/headers/ Header]]
  * @see
- *   [[https://zioblocks.com/reference/http-model/model/#headers Headers]]
+ *   [[https://zioblocks.com/reference/http-model/headers/ Headers]]
  */
-final class Headers private[http] (
-  private val names: Array[String],
-  private val rawValues: Array[String],
-  private val parsed: Array[AnyRef],
-  val size: Int
-) {
+sealed abstract class Headers private[http] () {
 
-  private def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
+  /** The number of header fields, including duplicate names. */
+  def size: Int
+
+  /** The lower-case name of the entry at `i`. */
+  private[http] def nameAt(i: Int): String
+
+  /** The raw value of the entry at `i`. */
+  private[http] def valueAt(i: Int): String
+
+  /**
+   * Parses the value of the entry at `i` with `headerCodec`, caching the result
+   * in that entry for the same codec instance. Returns `None` when the value
+   * does not parse.
+   */
+  private[http] def typedAt[A](i: Int, headerCodec: Header.Codec[A]): Option[A]
+
+  /** Appends an already validated, lower-case name and value. */
+  private[http] def addValidated(lowerName: String, value: String): Headers
+
+  private[http] def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
     left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
 
   /** Whether there are no header fields. */
@@ -92,17 +111,10 @@ final class Headers private[http] (
     val target = headerCodec.name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
-      if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            return Some(cached.value.asInstanceOf[A])
-          case _ =>
-        }
-        headerCodec.parse(rawValues(i)) match {
-          case Right(value) =>
-            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-            return Some(value)
-          case Left(_) => // skip unparseable, continue scanning
+      if (nameAt(i) == target) {
+        typedAt(i, headerCodec) match {
+          case some @ Some(_) => return some
+          case None           => ()
         }
       }
       i += 1
@@ -133,7 +145,7 @@ final class Headers private[http] (
     val target = name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
-      if (names(i) == target) return Some(rawValues(i))
+      if (nameAt(i) == target) return Some(valueAt(i))
       i += 1
     }
     None
@@ -151,7 +163,7 @@ final class Headers private[http] (
     val target = name.toLowerCase(Locale.ROOT)
     var i      = size - 1
     while (i >= 0) {
-      if (names(i) == target) return Some(rawValues(i))
+      if (nameAt(i) == target) return Some(valueAt(i))
       i -= 1
     }
     None
@@ -170,7 +182,7 @@ final class Headers private[http] (
     val builder = Chunk.newBuilder[String]
     var i       = 0
     while (i < size) {
-      if (names(i) == target) builder += rawValues(i)
+      if (nameAt(i) == target) builder += valueAt(i)
       i += 1
     }
     builder.result()
@@ -197,19 +209,7 @@ final class Headers private[http] (
     val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
-      if (names(i) == target) {
-        parsed(i) match {
-          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
-            builder += cached.value.asInstanceOf[A]
-          case _ =>
-            headerCodec.parse(rawValues(i)) match {
-              case Right(value) =>
-                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
-                builder += value
-              case Left(_) => // skip unparseable entries
-            }
-        }
-      }
+      if (nameAt(i) == target) typedAt(i, headerCodec).foreach(builder += _)
       i += 1
     }
     builder.result()
@@ -265,15 +265,7 @@ final class Headers private[http] (
   def add(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
-    val newSize      = size + 1
-    val newNames     = new Array[String](newSize)
-    val newRawValues = new Array[String](newSize)
-    val newParsed    = new Array[AnyRef](newSize)
-    System.arraycopy(names, 0, newNames, 0, size)
-    System.arraycopy(rawValues, 0, newRawValues, 0, size)
-    newNames(size) = name.toLowerCase(Locale.ROOT)
-    newRawValues(size) = value
-    new Headers(newNames, newRawValues, newParsed, newSize)
+    addValidated(name.toLowerCase(Locale.ROOT), value)
   }
 
   /**
@@ -290,7 +282,8 @@ final class Headers private[http] (
     val builder   = HeadersBuilder.make(size)
     var i         = 0
     while (i < size) {
-      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
+      val entryName = nameAt(i)
+      if (entryName != lowerName) builder.add(entryName, valueAt(i))
       i += 1
     }
     builder.add(lowerName, value)
@@ -318,7 +311,8 @@ final class Headers private[http] (
     val builder   = HeadersBuilder.make(size)
     var i         = 0
     while (i < size) {
-      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
+      val entryName = nameAt(i)
+      if (entryName != lowerName) builder.add(entryName, valueAt(i))
       i += 1
     }
     builder.build()
@@ -335,7 +329,7 @@ final class Headers private[http] (
     val target = name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
-      if (names(i) == target) return true
+      if (nameAt(i) == target) return true
       i += 1
     }
     false
@@ -349,7 +343,7 @@ final class Headers private[http] (
     val builder = List.newBuilder[(String, String)]
     var i       = 0
     while (i < size) {
-      builder += ((names(i), rawValues(i)))
+      builder += ((nameAt(i), valueAt(i)))
       i += 1
     }
     builder.result()
@@ -375,12 +369,12 @@ final class Headers private[http] (
     val builder = HeadersBuilder.make(size + other.size)
     var i       = 0
     while (i < size) {
-      builder.add(names(i), rawValues(i))
+      builder.add(nameAt(i), valueAt(i))
       i += 1
     }
     i = 0
     while (i < other.size) {
-      builder.add(other.names(i), other.rawValues(i))
+      builder.add(other.nameAt(i), other.valueAt(i))
       i += 1
     }
     builder.build()
@@ -399,7 +393,7 @@ final class Headers private[http] (
     val builder = Chunk.newBuilder[(String, String)]
     var i       = 0
     while (i < size) {
-      builder += ((names(i), rawValues(i)))
+      builder += ((nameAt(i), valueAt(i)))
       i += 1
     }
     builder.result()
@@ -415,9 +409,9 @@ final class Headers private[http] (
     var i  = 0
     while (i < size) {
       if (i > 0) sb.append(", ")
-      sb.append(names(i))
+      sb.append(nameAt(i))
       sb.append(": ")
-      sb.append(rawValues(i))
+      sb.append(valueAt(i))
       i += 1
     }
     sb.append(')')
@@ -427,10 +421,12 @@ final class Headers private[http] (
 
 /** Creates [[Headers]] and checks header names and values. */
 object Headers {
-  private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
+  private[http] final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
+
+  private[http] final val Utf8 = "UTF-8"
 
   /** A `Headers` with no entries. */
-  val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
+  val empty: Headers = new Eager(Array.empty[String], Array.empty[String], Array.empty[AnyRef])
 
   /**
    * Checks that `name` is a valid header name: a non-empty HTTP token of ASCII
@@ -477,6 +473,71 @@ object Headers {
     Right(())
   }
 
+  /**
+   * Builds a `Headers` that reads its entries straight from `bytes`, without
+   * copying or decoding them. `nameOffsets(i)` and `nameLengths(i)` locate the
+   * raw name of entry `i`; `valueOffsets(i)` and `valueLengths(i)` locate its
+   * raw value. All four arrays must have the same length, `size`.
+   *
+   * Header names must be ASCII tokens (the rule [[validateName]] enforces) and
+   * are matched case-insensitively over the bytes; their original letter case
+   * is not preserved when the names are materialised. Values are UTF-8 and must
+   * not contain CR or LF (the rule [[validateValue]] enforces). Nothing is
+   * decoded until a name or value is materialised.
+   *
+   * The caller transfers ownership of `bytes` and the offset arrays: they must
+   * not be modified after this call, because `Headers` reads them in place.
+   *
+   * @return
+   *   `Right` with a slice-backed `Headers`, or `Left` with a message when the
+   *   slices are inconsistent or a name or value is invalid
+   */
+  def fromSlices(
+    bytes: Array[Byte],
+    nameOffsets: Array[Int],
+    nameLengths: Array[Int],
+    valueOffsets: Array[Int],
+    valueLengths: Array[Int]
+  ): Either[String, Headers] = {
+    val size = nameOffsets.length
+    if (
+      nameLengths.length != size ||
+      valueOffsets.length != size ||
+      valueLengths.length != size
+    ) return Left("Header slice arrays must have the same length")
+
+    var i = 0
+    while (i < size) {
+      val nameOffset = nameOffsets(i)
+      val nameLength = nameLengths(i)
+      if (nameOffset < 0 || nameLength < 0 || nameOffset > bytes.length - nameLength)
+        return Left("Header name slice out of bounds")
+      if (nameLength == 0) return Left("Header name cannot be empty")
+
+      var j = 0
+      while (j < nameLength) {
+        if (!isTokenByte(bytes(nameOffset + j))) return Left("Invalid header name")
+        j += 1
+      }
+
+      val valueOffset = valueOffsets(i)
+      val valueLength = valueLengths(i)
+      if (valueOffset < 0 || valueLength < 0 || valueOffset > bytes.length - valueLength)
+        return Left("Header value slice out of bounds")
+
+      var k = 0
+      while (k < valueLength) {
+        val c = bytes(valueOffset + k) & 0xff
+        if (c == '\r' || c == '\n') return Left("Header value cannot contain CR or LF")
+        k += 1
+      }
+
+      i += 1
+    }
+
+    Right(new Slices(bytes, nameOffsets, nameLengths, valueOffsets, valueLengths))
+  }
+
   /** Throws `IllegalArgumentException` where [[validateName]] gives `Left`. */
   private[http] def validateNameOrThrow(name: String): Unit =
     validateName(name) match {
@@ -499,6 +560,22 @@ object Headers {
       c == '*' || c == '+' || c == '-' || c == '.' || c == '^' || c == '_' ||
       c == '`' || c == '|' || c == '~'
 
+  private def isTokenByte(b: Byte): Boolean = isTokenChar((b & 0xff).toChar)
+
+  /** Copies `headers` into an [[Eager]] without re-validating its entries. */
+  private[http] def materialize(headers: Headers): Eager = {
+    val size   = headers.size
+    val names  = new Array[String](size)
+    val values = new Array[String](size)
+    var i      = 0
+    while (i < size) {
+      names(i) = headers.nameAt(i)
+      values(i) = headers.valueAt(i)
+      i += 1
+    }
+    new Eager(names, values, new Array[AnyRef](size))
+  }
+
   /**
    * Creates a `Headers` from name and value pairs, in order, storing each name
    * in lower case.
@@ -515,6 +592,280 @@ object Headers {
     val builder = HeadersBuilder.make(pairs.size)
     pairs.foreach { case (k, v) => builder.add(k, v) }
     builder.build()
+  }
+}
+
+/**
+ * A `Headers` backed by three parallel arrays, one entry per index. It is the
+ * representation produced by [[Headers.empty]], [[HeadersBuilder#build]] and
+ * every operation that has to rebuild the collection.
+ */
+private[http] final class Eager private[http] (
+  private val names: Array[String],
+  private val rawValues: Array[String],
+  private val parsed: Array[AnyRef]
+) extends Headers {
+
+  override val size: Int = names.length
+
+  private[http] def nameAt(i: Int): String = names(i)
+
+  private[http] def valueAt(i: Int): String = rawValues(i)
+
+  private[http] def typedAt[A](i: Int, headerCodec: Header.Codec[A]): Option[A] =
+    parsed(i) match {
+      case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+        Some(cached.value.asInstanceOf[A])
+      case _ =>
+        headerCodec.parse(rawValues(i)) match {
+          case Right(value) =>
+            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+            Some(value)
+          case Left(_) => None
+        }
+    }
+
+  private[http] def addValidated(lowerName: String, value: String): Headers = {
+    val newSize      = size + 1
+    val newNames     = new Array[String](newSize)
+    val newRawValues = new Array[String](newSize)
+    val newParsed    = new Array[AnyRef](newSize)
+    System.arraycopy(names, 0, newNames, 0, size)
+    System.arraycopy(rawValues, 0, newRawValues, 0, size)
+    newNames(size) = lowerName
+    newRawValues(size) = value
+    new Eager(newNames, newRawValues, newParsed)
+  }
+}
+
+/**
+ * A `Headers` made of a parent plus one appended entry. Appending is constant
+ * time: it wraps the current collection instead of copying it. Reads walk the
+ * parent chain first, so first-match order is the same as an [[Eager]].
+ */
+private[http] final class Overlay private[http] (
+  private val parent: Headers,
+  private val name: String,
+  private val value: String
+) extends Headers {
+
+  override val size: Int = parent.size + 1
+
+  private var parsedEntry: Headers.ParsedValue = null
+
+  private lazy val eager: Eager = Headers.materialize(this)
+
+  private[http] def nameAt(i: Int): String =
+    if (i < parent.size) parent.nameAt(i) else name
+
+  private[http] def valueAt(i: Int): String =
+    if (i < parent.size) parent.valueAt(i) else value
+
+  private[http] def typedAt[A](i: Int, headerCodec: Header.Codec[A]): Option[A] =
+    if (i < parent.size) parent.typedAt(i, headerCodec)
+    else
+      parsedEntry match {
+        case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+          Some(cached.value.asInstanceOf[A])
+        case _ =>
+          headerCodec.parse(value) match {
+            case Right(parsed) =>
+              parsedEntry = new Headers.ParsedValue(headerCodec, parsed.asInstanceOf[AnyRef])
+              Some(parsed)
+            case Left(_) => None
+          }
+      }
+
+  private[http] def addValidated(lowerName: String, value: String): Headers =
+    new Overlay(this, lowerName, value)
+
+  override def get[A](headerCodec: Header.Codec[A]): Option[A] = {
+    val fromParent = parent.get(headerCodec)
+    if (fromParent.isDefined) fromParent
+    else if (headerCodec.name.toLowerCase(Locale.ROOT) == name) typedAt(parent.size, headerCodec)
+    else None
+  }
+
+  override def rawGet(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target     = name.toLowerCase(Locale.ROOT)
+    val fromParent = parent.rawGet(target)
+    if (fromParent.isDefined) fromParent
+    else if (target == this.name) Some(value)
+    else None
+  }
+
+  override def rawGetLast(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    if (target == this.name) Some(value) else parent.rawGetLast(target)
+  }
+
+  override def rawGetAll(name: String): Chunk[String] = {
+    Headers.validateNameOrThrow(name)
+    val target  = name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[String]
+    builder ++= parent.rawGetAll(target)
+    if (target == this.name) builder += value
+    builder.result()
+  }
+
+  override def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
+    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[A]
+    builder ++= parent.getAll(headerCodec)
+    if (target == name) typedAt(parent.size, headerCodec).foreach(builder += _)
+    builder.result()
+  }
+
+  override def has(name: String): Boolean = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    target == this.name || parent.has(target)
+  }
+
+  override def set(name: String, value: String): Headers = eager.set(name, value)
+
+  override def remove(name: String): Headers = eager.remove(name)
+
+  override def ++(other: Headers): Headers = eager ++ other
+
+  override def toList: List[(String, String)] = eager.toList
+
+  override def toChunk: Chunk[(String, String)] = eager.toChunk
+
+  override def equals(that: Any): Boolean = eager.equals(that)
+
+  override def hashCode: Int = eager.hashCode
+
+  override def toString: String = eager.toString
+}
+
+/**
+ * A `Headers` that reads names and values directly from a byte array. Names are
+ * compared as ASCII bytes, case-insensitively, so lookups do not decode them;
+ * values are decoded only when a caller needs the string.
+ * [[Headers.fromSlices]] is the only way to build one.
+ */
+private[http] final class Slices private[http] (
+  private val bytes: Array[Byte],
+  private val nameOffsets: Array[Int],
+  private val nameLengths: Array[Int],
+  private val valueOffsets: Array[Int],
+  private val valueLengths: Array[Int]
+) extends Headers {
+
+  override val size: Int = nameOffsets.length
+
+  private var parsed: Array[AnyRef] = null
+
+  private[http] def nameAt(i: Int): String =
+    new String(bytes, nameOffsets(i), nameLengths(i), Headers.Utf8).toLowerCase(Locale.ROOT)
+
+  private[http] def valueAt(i: Int): String =
+    new String(bytes, valueOffsets(i), valueLengths(i), Headers.Utf8)
+
+  private[http] def typedAt[A](i: Int, headerCodec: Header.Codec[A]): Option[A] = {
+    if (parsed eq null) parsed = new Array[AnyRef](size)
+    parsed(i) match {
+      case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+        Some(cached.value.asInstanceOf[A])
+      case _ =>
+        headerCodec.parse(valueAt(i)) match {
+          case Right(value) =>
+            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+            Some(value)
+          case Left(_) => None
+        }
+    }
+  }
+
+  private[http] def addValidated(lowerName: String, value: String): Headers =
+    new Overlay(this, lowerName, value)
+
+  private def nameMatches(i: Int, lowerTarget: String): Boolean = {
+    val length = nameLengths(i)
+    if (length != lowerTarget.length) return false
+    val offset = nameOffsets(i)
+    var j      = 0
+    while (j < length) {
+      val c      = bytes(offset + j) & 0xff
+      val folded = if (c >= 'A' && c <= 'Z') c + ('a' - 'A') else c
+      if (folded.toChar != lowerTarget.charAt(j)) return false
+      j += 1
+    }
+    true
+  }
+
+  override def get[A](headerCodec: Header.Codec[A]): Option[A] = {
+    val target = headerCodec.name.toLowerCase(Locale.ROOT)
+    var i      = 0
+    while (i < size) {
+      if (nameMatches(i, target)) {
+        typedAt(i, headerCodec) match {
+          case some @ Some(_) => return some
+          case None           => ()
+        }
+      }
+      i += 1
+    }
+    None
+  }
+
+  override def rawGet(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    var i      = 0
+    while (i < size) {
+      if (nameMatches(i, target)) return Some(valueAt(i))
+      i += 1
+    }
+    None
+  }
+
+  override def rawGetLast(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    var i      = size - 1
+    while (i >= 0) {
+      if (nameMatches(i, target)) return Some(valueAt(i))
+      i -= 1
+    }
+    None
+  }
+
+  override def rawGetAll(name: String): Chunk[String] = {
+    Headers.validateNameOrThrow(name)
+    val target  = name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[String]
+    var i       = 0
+    while (i < size) {
+      if (nameMatches(i, target)) builder += valueAt(i)
+      i += 1
+    }
+    builder.result()
+  }
+
+  override def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
+    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[A]
+    var i       = 0
+    while (i < size) {
+      if (nameMatches(i, target)) typedAt(i, headerCodec).foreach(builder += _)
+      i += 1
+    }
+    builder.result()
+  }
+
+  override def has(name: String): Boolean = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    var i      = 0
+    while (i < size) {
+      if (nameMatches(i, target)) return true
+      i += 1
+    }
+    false
   }
 }
 
@@ -586,7 +937,7 @@ final class HeadersBuilder private (
     val p = new Array[AnyRef](len)
     System.arraycopy(names, 0, n, 0, len)
     System.arraycopy(rawValues, 0, v, 0, len)
-    new Headers(n, v, p, len)
+    new Eager(n, v, p)
   }
 }
 
