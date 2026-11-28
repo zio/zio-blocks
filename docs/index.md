@@ -466,7 +466,6 @@ libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 ```scala
 import zio.blocks.schema._
 import zio.blocks.sql._
-import zio.blocks.sql.zio._
 
 case class Product(id: Long, name: String, price: Double)
 object Product:

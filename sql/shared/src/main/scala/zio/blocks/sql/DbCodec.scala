@@ -202,10 +202,69 @@ object DbCodec extends DbCodecOpaquePriority {
   // Matches java.sql.Types.NULL (0); kept local so shared sources stay free of java.sql.
   private val SqlNullType = 0
 
-  private def decodeJsonb[A](input: String)(using jsonCodec: JsonCodec[A]): A =
+  private def decodeJsonb[A](input: String, column: String, index: Option[Int])(using jsonCodec: JsonCodec[A]): A =
     decodeJsonbEither[A](input) match {
       case Right(value) => value
-      case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
+      case Left(err)    => throw jsonbDecodeError(input, column, index, err)
+    }
+
+  private def jsonbDecodeError(
+    input: String,
+    column: String,
+    index: Option[Int],
+    err: SchemaError
+  ): RuntimeException = jsonbDecodeError(input, column, index, err: Throwable)
+
+  private def jsonbDecodeError(
+    input: String,
+    column: String,
+    index: Option[Int],
+    cause: Throwable
+  ): RuntimeException = {
+    val location = index match {
+      case Some(i) => s"column '$column' (index $i)"
+      case None    => s"column '$column'"
+    }
+    new RuntimeException(
+      s"JSONB decode error at $location: $cause; input: ${previewInput(input)}",
+      cause
+    )
+  }
+
+  private def decodeJsonbWith[A](decode: String => A, input: String, column: String, index: Option[Int]): A =
+    try decode(input)
+    catch {
+      case scala.util.control.NonFatal(e) => throw jsonbDecodeError(input, column, index, e)
+    }
+
+  /**
+   * Renders a short, escaped prefix of a JSONB input for error messages. Keeps
+   * the message single-line and bounded regardless of payload size.
+   */
+  private def previewInput(input: String, maxChars: Int = 80): String =
+    if (input == null) "null"
+    else {
+      val sb        = new StringBuilder("\"")
+      var i         = 0
+      var truncated = false
+      while (i < input.length && !truncated) {
+        if (sb.length >= maxChars) truncated = true
+        else {
+          input.charAt(i) match {
+            case '"'                           => sb.append("\\\"")
+            case '\\'                          => sb.append("\\\\")
+            case '\n'                          => sb.append("\\n")
+            case '\r'                          => sb.append("\\r")
+            case '\t'                          => sb.append("\\t")
+            case c if c < ' ' || c == '\u007f' => sb.append(f"\\u${c.toInt}%04x")
+            case c                             => sb.append(c)
+          }
+          i += 1
+        }
+      }
+      if (i < input.length) sb.append("...")
+      sb.append("\"")
+      sb.toString
     }
 
   /** Decodes a JSON column value, returning the decode error as a `Left`. */
@@ -291,36 +350,389 @@ object DbCodec extends DbCodecOpaquePriority {
    * }}}
    */
   def jsonb[A](using jsonCodec: JsonCodec[A]): DbCodec[A] =
-    DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
+    new DbCodec[A] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) unexpectedNull("jsonb")
+        val input = reader.getString(label)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonb(input, label, None)
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): A = {
+        val label = reader.columnLabel(startIndex)
+        if (reader.isNull(startIndex)) unexpectedNull("jsonb")
+        val input = reader.getString(startIndex)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonb(input, label, Some(startIndex))
+      }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+        writer.setString(startIndex, jsonCodec.encodeToString(value))
+
+      def toDbValues(value: A): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbString(jsonCodec.encodeToString(value)))
+    }
 
   /**
    * Returns a one-column codec that stores `A` as the text `encode` returns and
    * reads it back with `decode`.
    */
   def jsonb[A](encode: A => String, decode: String => A): DbCodec[A] =
-    DbCodec[String].transform[A](decode)(encode)
+    new DbCodec[A] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) unexpectedNull("jsonb")
+        val input = reader.getString(label)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonbWith(decode, input, label, None)
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): A = {
+        val label = reader.columnLabel(startIndex)
+        if (reader.isNull(startIndex)) unexpectedNull("jsonb")
+        val input = reader.getString(startIndex)
+        if (input == null || reader.wasNull) unexpectedNull("jsonb")
+        decodeJsonbWith(decode, input, label, Some(startIndex))
+      }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+        writer.setString(startIndex, encode(value))
+
+      def toDbValues(value: A): IndexedSeq[DbValue] =
+        IndexedSeq(DbValue.DbString(encode(value)))
+    }
 
   /**
    * Returns the nullable form of `jsonb`: `None` is stored as SQL `NULL`, and
    * `NULL` reads as `None`.
    */
   def jsonbOption[A](using jsonCodec: JsonCodec[A]): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decodeJsonb[A](str))
-    )(
-      _.map(value => jsonCodec.encodeToString(value))
-    )
+    new DbCodec[Option[A]] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) None
+        else {
+          val input = reader.getString(label)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonb(input, label, None))
+        }
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+        if (reader.isNull(startIndex)) None
+        else {
+          val input = reader.getString(startIndex)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonb(input, reader.columnLabel(startIndex), Some(startIndex)))
+        }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+        value match {
+          case Some(v) => writer.setString(startIndex, jsonCodec.encodeToString(v))
+          case None    => writer.setNull(startIndex, SqlNullType)
+        }
+
+      def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+        value match {
+          case Some(v) => IndexedSeq(DbValue.DbString(jsonCodec.encodeToString(v)))
+          case None    => IndexedSeq(DbValue.DbNull)
+        }
+    }
 
   /**
    * Returns the nullable form of `jsonb(encode, decode)`: `None` is stored as
    * SQL `NULL`, and `NULL` reads as `None`.
    */
   def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]] =
-    DbCodec[Option[String]].transform[Option[A]](
-      _.map(str => decode(str))
-    )(
-      _.map(value => encode(value))
-    )
+    new DbCodec[Option[A]] {
+      val columns: IndexedSeq[String] = IndexedSeq("value")
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
+        val label = columnLabels.head
+        if (reader.isNull(label)) None
+        else {
+          val input = reader.getString(label)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonbWith(decode, input, label, None))
+        }
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+        if (reader.isNull(startIndex)) None
+        else {
+          val input = reader.getString(startIndex)
+          if (input == null || reader.wasNull) None
+          else Some(decodeJsonbWith(decode, input, reader.columnLabel(startIndex), Some(startIndex)))
+        }
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+        value match {
+          case Some(v) => writer.setString(startIndex, encode(v))
+          case None    => writer.setNull(startIndex, SqlNullType)
+        }
+
+      def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+        value match {
+          case Some(v) => IndexedSeq(DbValue.DbString(encode(v)))
+          case None    => IndexedSeq(DbValue.DbNull)
+        }
+    }
+
+  /**
+   * Builds a `DbCodec[Array[A]]` backed by a native SQL array column.
+   *
+   * Reads use [[DbResultReader.getArrayObjects]] and decode every element with
+   * `elementCodec`; writes use `DbParamWriter.setArray` with `sqlElementType`
+   * (for example `"varchar"`, `"integer"`, or `"uuid"`). A SQL `NULL` array
+   * decodes to `null`. A `NULL` element decoded by a non-optional primitive
+   * codec throws; use `Option[...]` as the element codec for arrays that may
+   * contain `NULL`. The element codec must occupy exactly one column.
+   *
+   * The derived codec for a sequence field falls back to JSONB; use this
+   * factory when the column really is a SQL array:
+   *
+   * {{{
+   * val tagsCodec: DbCodec[Array[String]] =
+   *   DbCodec.arrayOf(DbCodec[String], "varchar")
+   * }}}
+   *
+   * @param elementCodec
+   *   codec for a single element; must be single-column
+   * @param sqlElementType
+   *   dialect element type name passed to `Connection.createArrayOf`
+   */
+  def arrayOf[A](elementCodec: DbCodec[A], sqlElementType: String)(using
+    scala.reflect.ClassTag[A]
+  ): DbCodec[Array[A]] = {
+    if (elementCodec.columnCount != 1)
+      throw new UnsupportedOperationException(
+        s"DbCodec.arrayOf requires a single-column element codec (got ${elementCodec.columnCount} columns)."
+      )
+    new DbCodec[Array[A]] {
+      val columns: IndexedSeq[String] = elementCodec.columns
+
+      private def decode(elements: Array[AnyRef]): Array[A] =
+        if (elements == null) null
+        else {
+          val out = Array.ofDim[A](elements.length)
+          var i   = 0
+          while (i < elements.length) {
+            out(i) = elementCodec.readValue(new ScalarReader(elements(i)), 1)
+            i += 1
+          }
+          out
+        }
+
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Array[A] =
+        decode(reader.getArrayObjects(columnLabels.head))
+
+      override def readValue(reader: DbResultReader, startIndex: Int): Array[A] =
+        decode(reader.getArrayObjects(startIndex))
+
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: Array[A]): Unit =
+        if (value == null) writer.setNull(startIndex, SqlNullType)
+        else
+          writer.setArray(startIndex, sqlElementType, value.toIndexedSeq.map(a => singleElementObject(elementCodec, a)))
+
+      def toDbValues(value: Array[A]): IndexedSeq[DbValue] =
+        if (value == null) IndexedSeq(DbValue.DbNull)
+        else
+          IndexedSeq(DbValue.DbArray(sqlElementType, value.toIndexedSeq.map(a => singleElementObject(elementCodec, a))))
+    }
+  }
+
+  private def singleElementObject[A](codec: DbCodec[A], value: A): Any = {
+    val values = codec.toDbValues(value)
+    if (values.size != 1)
+      throw new IllegalArgumentException(
+        s"DbCodec.arrayOf element codec produced ${values.size} values; exactly one is required."
+      )
+    dbValueObject(values.head)
+  }
+
+  private[sql] def dbValueObject(value: DbValue): Any = value match {
+    case DbValue.DbNull             => null
+    case DbValue.DbInt(v)           => v
+    case DbValue.DbLong(v)          => v
+    case DbValue.DbDouble(v)        => v
+    case DbValue.DbFloat(v)         => v
+    case DbValue.DbBoolean(v)       => v
+    case DbValue.DbString(v)        => v
+    case DbValue.DbBigDecimal(v)    => v.bigDecimal
+    case DbValue.DbBytes(v)         => v
+    case DbValue.DbShort(v)         => v
+    case DbValue.DbByte(v)          => v
+    case DbValue.DbChar(v)          => v.toString
+    case DbValue.DbLocalDate(v)     => v
+    case DbValue.DbLocalDateTime(v) => v
+    case DbValue.DbLocalTime(v)     => v
+    case DbValue.DbInstant(v)       => v
+    case DbValue.DbDuration(v)      => v
+    case DbValue.DbUUID(v)          => v
+    case DbValue.DbArray(_, elems)  => elems.toArray
+    case DbValue.Raw(_, v)          => v
+  }
+
+  /**
+   * Adapts one already-decoded SQL array element to [[DbResultReader]] so the
+   * element codec's normal `readValue` logic (including custom codecs) can
+   * decode it. Values are boxed JVM objects as returned by the driver.
+   */
+  private final class ScalarReader(value: Any) extends DbResultReader {
+    private def unsupported(method: String): Nothing = {
+      val cls = if (value == null) "null" else value.getClass.getName
+      throw new UnsupportedOperationException(s"Cannot decode SQL array element as $method (element class: $cls)")
+    }
+
+    private def nullElement(method: String): Nothing =
+      throw new IllegalStateException(
+        s"Encountered SQL NULL array element while decoding with $method. Use Option[...] as the element codec for arrays that may contain NULL."
+      )
+
+    private def text: String = value match {
+      case null      => null
+      case s: String => s
+      case v         => v.toString
+    }
+
+    def getInt(index: Int): Int = value match {
+      case n: java.lang.Number => n.intValue
+      case s: String           => s.toInt
+      case null                => nullElement("getInt")
+      case _                   => unsupported("getInt")
+    }
+    def getInt(label: String): Int = getInt(1)
+
+    def getLong(index: Int): Long = value match {
+      case n: java.lang.Number => n.longValue
+      case s: String           => s.toLong
+      case null                => nullElement("getLong")
+      case _                   => unsupported("getLong")
+    }
+    def getLong(label: String): Long = getLong(1)
+
+    def getDouble(index: Int): Double = value match {
+      case n: java.lang.Number => n.doubleValue
+      case s: String           => s.toDouble
+      case null                => nullElement("getDouble")
+      case _                   => unsupported("getDouble")
+    }
+    def getDouble(label: String): Double = getDouble(1)
+
+    def getFloat(index: Int): Float = value match {
+      case n: java.lang.Number => n.floatValue
+      case s: String           => s.toFloat
+      case null                => nullElement("getFloat")
+      case _                   => unsupported("getFloat")
+    }
+    def getFloat(label: String): Float = getFloat(1)
+
+    def getBoolean(index: Int): Boolean = value match {
+      case b: java.lang.Boolean => b.booleanValue
+      case n: java.lang.Number  => n.intValue != 0
+      case s: String            => s.toBoolean
+      case null                 => nullElement("getBoolean")
+      case _                    => unsupported("getBoolean")
+    }
+    def getBoolean(label: String): Boolean = getBoolean(1)
+
+    def getString(index: Int): String    = text
+    def getString(label: String): String = text
+
+    def getBigDecimal(index: Int): java.math.BigDecimal = value match {
+      case bd: java.math.BigDecimal => bd
+      case bd: scala.BigDecimal     => bd.bigDecimal
+      case n: java.lang.Number      => new java.math.BigDecimal(n.toString)
+      case s: String                => new java.math.BigDecimal(s)
+      case null                     => null
+      case _                        => unsupported("getBigDecimal")
+    }
+    def getBigDecimal(label: String): java.math.BigDecimal = getBigDecimal(1)
+
+    def getBytes(index: Int): Array[Byte] = value match {
+      case a: Array[Byte] => a
+      case null           => null
+      case _              => unsupported("getBytes")
+    }
+    def getBytes(label: String): Array[Byte] = getBytes(1)
+
+    def getShort(index: Int): Short = value match {
+      case n: java.lang.Number => n.shortValue
+      case s: String           => s.toShort
+      case null                => nullElement("getShort")
+      case _                   => unsupported("getShort")
+    }
+    def getShort(label: String): Short = getShort(1)
+
+    def getByte(index: Int): Byte = value match {
+      case n: java.lang.Number => n.byteValue
+      case s: String           => s.toByte
+      case null                => nullElement("getByte")
+      case _                   => unsupported("getByte")
+    }
+    def getByte(label: String): Byte = getByte(1)
+
+    def getLocalDate(index: Int): java.time.LocalDate = value match {
+      case d: java.time.LocalDate => d
+      case s: String              => java.time.LocalDate.parse(s)
+      case null                   => null
+      case _                      => unsupported("getLocalDate")
+    }
+    def getLocalDate(label: String): java.time.LocalDate = getLocalDate(1)
+
+    def getLocalDateTime(index: Int): java.time.LocalDateTime = value match {
+      case d: java.time.LocalDateTime => d
+      case s: String                  => java.time.LocalDateTime.parse(s)
+      case null                       => null
+      case _                          => unsupported("getLocalDateTime")
+    }
+    def getLocalDateTime(label: String): java.time.LocalDateTime = getLocalDateTime(1)
+
+    def getLocalTime(index: Int): java.time.LocalTime = value match {
+      case t: java.time.LocalTime => t
+      case s: String              => java.time.LocalTime.parse(s)
+      case null                   => null
+      case _                      => unsupported("getLocalTime")
+    }
+    def getLocalTime(label: String): java.time.LocalTime = getLocalTime(1)
+
+    def getInstant(index: Int): java.time.Instant = value match {
+      case i: java.time.Instant => i
+      case s: String            => java.time.Instant.parse(s)
+      case null                 => null
+      case _                    => unsupported("getInstant")
+    }
+    def getInstant(label: String): java.time.Instant = getInstant(1)
+
+    def getDuration(index: Int): java.time.Duration = value match {
+      case d: java.time.Duration => d
+      case s: String             => java.time.Duration.parse(s)
+      case null                  => null
+      case _                     => unsupported("getDuration")
+    }
+    def getDuration(label: String): java.time.Duration = getDuration(1)
+
+    def getUUID(index: Int): java.util.UUID = value match {
+      case u: java.util.UUID => u
+      case s: String         => java.util.UUID.fromString(s)
+      case null              => null
+      case _                 => unsupported("getUUID")
+    }
+    def getUUID(label: String): java.util.UUID = getUUID(1)
+
+    def columnLabel(index: Int): String         = "value"
+    def hasColumn(label: String): Boolean       = label == "value"
+    def wasNull: Boolean                        = value == null
+    override def isNull(index: Int): Boolean    = value == null
+    override def isNull(label: String): Boolean = value == null
+  }
 
   /**
    * Derives a `DbCodec[A]` with [[DbCodecDeriver]], which names columns with
@@ -764,6 +1176,52 @@ trait DbResultReader {
   def getArray(label: String): Array[String] =
     throw new UnsupportedOperationException("DbResultReader does not support getArray(label)")
 
+  /**
+   * Reads the array column at the given 1-based `index` as untyped JVM element
+   * objects.
+   *
+   * This is the read path used by [[DbCodec.arrayOf]]. The default adapts
+   * [[getArray]] (string elements) for backwards compatibility; backends with
+   * native array support should override it to return the driver's element
+   * objects (for example boxed `Integer` and `String` values from JDBC).
+   *
+   * @return
+   *   the column's elements; a SQL `NULL` array decodes to `null`
+   */
+  def getArrayObjects(index: Int): Array[AnyRef] = {
+    val values = getArray(index)
+    if (values == null) null
+    else {
+      val out = new Array[AnyRef](values.length)
+      var i   = 0
+      while (i < values.length) {
+        out(i) = values(i)
+        i += 1
+      }
+      out
+    }
+  }
+
+  /**
+   * Label-based variant of [[getArrayObjects]].
+   *
+   * @return
+   *   the column's elements; a SQL `NULL` array decodes to `null`
+   */
+  def getArrayObjects(label: String): Array[AnyRef] = {
+    val values = getArray(label)
+    if (values == null) null
+    else {
+      val out = new Array[AnyRef](values.length)
+      var i   = 0
+      while (i < values.length) {
+        out(i) = values(i)
+        i += 1
+      }
+      out
+    }
+  }
+
   /** Returns the label of the 1-based column `index`. */
   def columnLabel(index: Int): String
 
@@ -877,4 +1335,22 @@ trait DbParamWriter {
    * `elementType`.
    */
   def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit
+
+  /**
+   * Binds a driver-specific value produced by [[DbValue.Raw]].
+   *
+   * `sqlType` is the dialect-specific SQL type name carried by the `Raw` value
+   * (for example `"vector"` or `"jsonb"`). JDBC implementations bind `value`
+   * with `PreparedStatement.setObject(index, value, Types.OTHER)` so the value
+   * stays parameterized; drivers that understand `Types.OTHER` infer the
+   * concrete type from the object.
+   *
+   * The default throws [[UnsupportedOperationException]] so existing custom
+   * writers keep compiling. Only the backends that can bind driver-specific
+   * objects need to override it.
+   */
+  def setRaw(index: Int, sqlType: String, value: Any): Unit =
+    throw new UnsupportedOperationException(
+      s"DbParamWriter does not support raw driver-specific binding for SQL type '$sqlType'"
+    )
 }

@@ -190,6 +190,8 @@ productCodec.columns
 productCodec.columnCount
 ```
 
+The `DbCodec.derivedWith` form of `instance(parentTypeId, fieldName, codec)` overrides single-column fields and nested record fields; a nested record field no longer silently falls back to JSONB when an override is supplied. The type-level `instance(typeId, codec)` overload also reaches nested record fields. A `given DbCodec[FieldType]` in scope is not consulted automatically for a field — see [DbCodecDeriver](./db-codec-deriver.md#field-codec-overrides).
+
 ### `DbCodec.jsonb` — JSONB column codec
 
 `DbCodec.jsonb` creates a `DbCodec[A]` that stores and retrieves a value of type `A` as a JSON string in a single database column. Two overloads are available: one using an implicit `JsonCodec[A]` for the encode/decode pair, and one accepting explicit functions.
@@ -224,6 +226,8 @@ val codec: DbCodec[Address] = DbCodec.jsonb[Address]
 codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
 ```
+
+A decode failure reports the offending column, the schema error (including its path), and a short escaped prefix of the input, for example `JSONB decode error at column 'embedding' (index 2): ...; input: "[1.0,2.0..."`. This makes the common "a driver-specific column is being decoded as JSONB" mistake identifiable from the exception alone. Callers that can propagate failure as a value can use the in-package `decodeJsonbEither` step instead.
 
 Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonCodec`:
 
@@ -266,6 +270,51 @@ nullableCodec.toDbValues(Some(Address("Elm St", "LA")))
 
 nullableCodec.toDbValues(None)
 ```
+
+### `DbCodec.arrayOf` — SQL array columns
+
+A sequence field in a derived record falls back to a single JSONB column (see [DbCodecDeriver](./db-codec-deriver.md)). When the database column is a real SQL array, build an explicit array codec instead:
+
+```scala
+object DbCodec {
+  def arrayOf[A](
+    elementCodec: DbCodec[A],
+    sqlElementType: String
+  )(using scala.reflect.ClassTag[A]): DbCodec[Array[A]]
+}
+```
+
+Reads call `DbResultReader#getArrayObjects` and decode every element through `elementCodec`; writes call `DbParamWriter#setArray` with `sqlElementType` (the name passed to `Connection.createArrayOf`). A SQL `NULL` array decodes to `null`, and the element codec must occupy exactly one column.
+
+```scala mdoc:compile-only
+import _root_.zio
+import zio.blocks.sql._
+
+val tagsCodec: DbCodec[Array[String]]   = DbCodec.arrayOf(DbCodec[String], "varchar")
+val idsCodec: DbCodec[Array[Int]]       = DbCodec.arrayOf(DbCodec[Int], "integer")
+val uuidCodec: DbCodec[java.util.UUID] =
+  DbCodec[String].transform[java.util.UUID](java.util.UUID.fromString)(_.toString)
+val uuidsCodec: DbCodec[Array[java.util.UUID]] = DbCodec.arrayOf(uuidCodec, "uuid")
+```
+
+Wrap the array codec in a field-level override when a record field is a SQL array:
+
+```scala mdoc:compile-only
+import _root_.zio
+import zio.blocks.schema.Schema
+import zio.blocks.typeid.TypeId
+import zio.blocks.sql._
+
+case class Product(id: Int, tags: Array[String])
+object Product { implicit val schema: Schema[Product] = Schema.derived }
+
+val codec: DbCodec[Product] =
+  DbCodec.derivedWith[Product](
+    _.instance(TypeId.of[Product], "tags", DbCodec.arrayOf(DbCodec[String], "varchar"))
+  )
+```
+
+The `sql` module's unit tests exercise this at the codec/JDBC-adapter level. `PgArrayCodecSpec` performs a real `varchar[]`/`integer[]` round trip against PostgreSQL when `PG_ARRAY_INTEGRATION=1` is set (manual integration run).
 
 ### `DbCodec.derivedOpaque` — Opaque type derivation
 

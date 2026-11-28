@@ -26,7 +26,11 @@ import zio.blocks.schema.binding.{Binding, HasBinding}
  * into a `Reflect` that carries this metadata, so a [[Deriver]] reads a child's
  * instance with `Deriver#instance` and its binding with `Deriver#binding`.
  */
-final case class BindingInstance[TC[_], T, A](binding: Binding[T, A], instance: Lazy[TC[A]])
+final case class BindingInstance[TC[_], T, A](
+  binding: Binding[T, A],
+  instance: Lazy[TC[A]],
+  isOverridden: Boolean = false
+)
 
 /** The `HasBinding` and `HasInstance` instances of [[BindingInstance]]. */
 object BindingInstance {
@@ -47,6 +51,8 @@ object BindingInstance {
     type F[A, B] = BindingInstance[TC, A, B]
     new HasInstance[F, TC] {
       def instance[A, B](fa: F[A, B]): Lazy[TC[B]] = fa.instance
+
+      override def isOverridden[A, B](fa: F[A, B]): Boolean = fa.isOverridden
     }
   }
 }

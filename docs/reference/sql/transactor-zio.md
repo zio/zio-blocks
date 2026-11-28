@@ -10,7 +10,7 @@ keywords:
 `TransactorZIO` is the ZIO-integrated database transactor from the `zio-blocks-sql-zio` module. It builds on a [`JdbcTransactor`](./transactor.md) — the synchronous JDBC transactor from the core `sql` module — and lifts connection and transaction lifecycle management into the ZIO effect system: `connect` and `transact` delegate to the `JdbcTransactor`, while `connectZIO` and `transactZIO` open their own connections from the same connection factory. The module targets Scala 3 and runs on JVM only.
 
 :::info
-This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`, extension methods that need `import zio.blocks.sql.zio.*`), see the [ZIO Integration](../sql-zio.md) page instead — it covers both integration styles and when to reach for each.
+This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`, extension methods that need `import zio.blocks.sql.*`), see the [ZIO Integration](../sql-zio.md) page instead — it covers both integration styles and when to reach for each.
 :::
 
 `TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`TransactorZIO#connect`, `TransactorZIO#transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`TransactorZIO#connectZIO`, `TransactorZIO#transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
@@ -54,7 +54,7 @@ The following example demonstrates all four execution modes — a read with `Tra
 import zio._
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql._
 
 case class User(id: Int, name: String, email: String)
@@ -158,7 +158,7 @@ object TransactorZIO {
 The following shows how to wrap a pre-existing `DataSource` with a PostgreSQL dialect:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql._
 
 val dataSource: javax.sql.DataSource = ???
@@ -179,7 +179,7 @@ object TransactorZIO {
 The following creates a transactor on a SQLite database file, which every call opens again:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql._
 
 val tx: TransactorZIO =
@@ -203,7 +203,7 @@ object TransactorZIO {
 The following creates a PostgreSQL transactor with explicit credentials:
 
 ```scala mdoc:compile-only
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql._
 
 val tx: TransactorZIO = TransactorZIO.fromUrl(
@@ -228,7 +228,7 @@ The following shows how to compose the layer with a ZIO program that reads `Tran
 
 ```scala mdoc:compile-only
 import zio._
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.maybe.Maybe
 import zio.blocks.sql._
 
@@ -268,7 +268,7 @@ Inside the block, `DbCon` is available as a given, so every [`Frag`](./frag.md) 
 
 ```scala mdoc:compile-only
 import zio._
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.sql._
 
@@ -309,7 +309,7 @@ Because `DbTx` extends `DbCon`, any method that works inside `connect` also work
 
 ```scala mdoc:compile-only
 import zio._
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
 import zio.blocks.sql._
@@ -345,7 +345,7 @@ Inside the body, `DbCon` is available as a given. `connectZIO` only wraps the co
 
 ```scala mdoc:compile-only
 import zio._
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.sql._
 
@@ -387,7 +387,7 @@ The two-argument overload sets the isolation level and the read-only flag, like 
 
 ```scala mdoc:compile-only
 import zio._
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.schema.Schema
 import zio.blocks.maybe.Maybe
 import zio.blocks.sql._

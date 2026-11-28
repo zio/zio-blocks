@@ -39,7 +39,7 @@ import zio.blocks.sql.Frag.*
  * `IllegalArgumentException` otherwise; `enqueue` with no keys checks nothing.
  *
  * {{{
- * import zio.blocks.sql.{zio => _, _}
+ * import zio.blocks.sql._
  *
  * QueueTable.dequeueSQLTemplate("orders_q", 100)(using Dialect.Postgres)
  * // SELECT id FROM orders_q ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED

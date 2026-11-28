@@ -42,10 +42,19 @@ trait DbParamWriter {
   def setUUID(index: Int, value: java.util.UUID): Unit
   def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit
 
+  // Driver-specific values (DbValue.Raw)
+  def setRaw(index: Int, sqlType: String, value: Any): Unit
+
   // Null handling
   def setNull(index: Int, sqlType: Int): Unit
 }
 ```
+
+`setRaw` is the write side of [`DbValue.Raw`](./db-value.md#raw--driver-specific-values). The JDBC implementation binds the value with `PreparedStatement.setObject(index, value, Types.OTHER)`, so driver-specific objects such as a PostgreSQL `PGobject` (pgvector, jsonb, ...) stay parameterized. The default implementation throws `UnsupportedOperationException`; custom writers only need to override it when they support driver-specific objects.
+
+:::caution
+`setRaw` passes the value to the driver unchanged. It is not a way to inject SQL and should not be used for values that have a standard `DbValue` representation.
+:::
 
 ## Usage
 

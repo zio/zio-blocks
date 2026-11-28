@@ -577,7 +577,7 @@ ZIO users add the `zio-blocks-sql-zio` module, which provides `TransactorZIO`. I
 ```scala mdoc:reset:silent
 import zio.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.sql.TransactorZIO
 import zio.blocks.sql.*
 
 case class Book(id: Long, title: String, author: String, year: Int, isbn: Option[String])
@@ -593,7 +593,7 @@ val countBooks: Task[Long] = xa.connect(books.count)
 val addBook: Task[Int]     = xa.transact(books.insert(Book(5L, "Zionomicon", "John A. De Goes", 2024, None)))
 ```
 
-Keep `import zio.blocks.sql.*` after every other `zio` import, as above: once `sql-zio` is on the classpath, it brings the subpackage `zio.blocks.sql.zio` into scope under the name `zio`, and a later `import zio.blocks...` fails to compile. `TransactorZIO.layer(url, dialect)` provides the transactor as a `ZLayer`. [How to Use the sql Module from a ZIO Application](./sql-from-zio.md) covers layers and mixing database writes with other effects, and [TransactorZIO](../reference/sql/transactor-zio.md) lists every method.
+`TransactorZIO` lives in `zio.blocks.sql`, the same package as the core module. `TransactorZIO.layer(url, dialect)` provides the transactor as a `ZLayer`. [How to Use the sql Module from a ZIO Application](./sql-from-zio.md) covers layers and mixing database writes with other effects, and [TransactorZIO](../reference/sql/transactor-zio.md) lists every method.
 
 cats-effect users don't get an integration module: ZIO Blocks has no counterpart to doobie's `Transactor[IO]` or Magnum's `TransactorCats`. Wrap each `JdbcTransactor#connect` or `JdbcTransactor#transact` call in `IO.blocking` yourself:
 

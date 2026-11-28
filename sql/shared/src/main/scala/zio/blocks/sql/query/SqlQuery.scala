@@ -456,6 +456,7 @@ object SqlQuery {
     case _: DbValue.DbDuration      => "Duration"
     case _: DbValue.DbUUID          => "UUID"
     case _: DbValue.DbArray         => "Array"
+    case r: DbValue.Raw             => r.sqlType
   }
 }
 

@@ -98,4 +98,37 @@ object DbValue {
    * `varchar`; the JDBC backend binds it with `Connection#createArrayOf`.
    */
   final case class DbArray(elementType: String, elements: IndexedSeq[Any]) extends DbValue
+
+  /**
+   * Driver-specific value that cannot be expressed as one of the standard
+   * [[DbValue]] variants.
+   *
+   * `Raw` stays a bound parameter: the JDBC writer binds it with
+   * `PreparedStatement.setObject(index, value, Types.OTHER)`, so the value is
+   * never inlined into the SQL text. The [[sqlType]] name is metadata, but
+   * [[SqlDialect.typeName]] returns it verbatim and DDL generation splices it
+   * into the column type position, so it must be a constant type name and never
+   * derived from untrusted input. JDBC drivers that understand `Types.OTHER`
+   * infer the concrete type from `value` (for example a PostgreSQL `PGobject`
+   * such as a pgvector value).
+   *
+   * '''Trust boundary.''' The value is passed to the JDBC driver as-is. It must
+   * be a driver-understood object (or a `String` in the driver's text format),
+   * never raw SQL. Use `Raw` only for values that have no standard `DbValue`
+   * representation, and prefer the standard variants everywhere else. In
+   * particular, do not replace normal `DbParam` binding with `Raw` and do not
+   * use `SqlLiteral` to inline such values into the SQL text.
+   *
+   * {{{
+   * // e.g. a org.postgresql.util.PGobject with type "vector"
+   * val vec: Any = "[1.0,2.0,3.0]"
+   * sql"INSERT INTO items (embedding) VALUES (${DbValue.Raw("vector", vec)})"
+   * }}}
+   *
+   * @param sqlType
+   *   the dialect-specific SQL type name, e.g. `"vector"` or `"jsonb"`
+   * @param value
+   *   the driver-specific value passed to `PreparedStatement.setObject`
+   */
+  final case class Raw(sqlType: String, value: Any) extends DbValue
 }

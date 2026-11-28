@@ -279,6 +279,42 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
       finally sqlArray.free()
   }
 
+  override def getArrayObjects(index: Int): Array[AnyRef] = {
+    val sqlArray = underlying.getArray(index)
+    recordWasNull(index)
+    if (sqlArray == null) null
+    else
+      try toObjectArray(sqlArray.getArray())
+      finally sqlArray.free()
+  }
+
+  override def getArrayObjects(label: String): Array[AnyRef] = {
+    val sqlArray = underlying.getArray(label)
+    recordLabelWasNull(label)
+    if (sqlArray == null) null
+    else
+      try toObjectArray(sqlArray.getArray())
+      finally sqlArray.free()
+  }
+
+  /**
+   * Boxes a JDBC array's raw Java array into `Array[AnyRef]`. `java.sql.Array`
+   * implementations may return either an object array or a primitive array;
+   * reflective access handles both without driver-specific casts.
+   */
+  private def toObjectArray(raw: AnyRef): Array[AnyRef] =
+    if (raw == null) null
+    else {
+      val length = java.lang.reflect.Array.getLength(raw)
+      val out    = new Array[AnyRef](length)
+      var i      = 0
+      while (i < length) {
+        out(i) = java.lang.reflect.Array.get(raw, i).asInstanceOf[AnyRef]
+        i += 1
+      }
+      out
+    }
+
   def columnLabel(index: Int): String = underlying.getMetaData.getColumnLabel(index)
 
   def hasColumn(label: String): Boolean = availableColumns.contains(label)

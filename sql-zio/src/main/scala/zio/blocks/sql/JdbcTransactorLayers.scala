@@ -14,21 +14,19 @@
  * limitations under the License.
  */
 
-package zio.blocks.sql.zio
+package zio.blocks.sql
 
 import javax.sql.DataSource
 
 import zio.*
-import zio.blocks.sql.*
 
 /**
  * Layers of the synchronous [[zio.blocks.sql.Transactor]], built from a
  * `DataSource` in the environment, for code that uses `Transactor` inside a ZIO
  * application. They extend the `JdbcTransactor` companion, so they need
- * `import zio.blocks.sql.zio._`.
+ * `import zio.blocks.sql._`.
  *
  * {{{
- * import zio.blocks.sql.zio._
  * import zio._
  * import zio.blocks.sql._
  *

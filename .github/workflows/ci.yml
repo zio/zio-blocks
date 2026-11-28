@@ -189,9 +189,13 @@ jobs:
       run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
     - name: Run Scala 3 tests and docs (JDK 17)
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java == 17) }}
+      env:
+        PG_ARRAY_INTEGRATION: "1"
       run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
     - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
+      env:
+        PG_ARRAY_INTEGRATION: "1"
       run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
     - name: Run Scala 3 config adapter coverage (JDK 25, scoped)
       if: ${{ (matrix.scala == '3.9.x') && (matrix.java >= 25) }}

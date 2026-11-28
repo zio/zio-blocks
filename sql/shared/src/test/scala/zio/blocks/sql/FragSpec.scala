@@ -19,6 +19,31 @@ package zio.blocks.sql
 import zio.test.*
 
 object FragSpec extends ZIOSpecDefault {
+
+  /** Writer stub whose setters fail unless a test overrides them. */
+  private abstract class StubParamWriter extends DbParamWriter {
+    private def unsupported(name: String): Nothing                                 = throw new UnsupportedOperationException(name)
+    def setInt(index: Int, value: Int): Unit                                       = unsupported("setInt")
+    def setLong(index: Int, value: Long): Unit                                     = unsupported("setLong")
+    def setDouble(index: Int, value: Double): Unit                                 = unsupported("setDouble")
+    def setFloat(index: Int, value: Float): Unit                                   = unsupported("setFloat")
+    def setBoolean(index: Int, value: Boolean): Unit                               = unsupported("setBoolean")
+    def setString(index: Int, value: String): Unit                                 = unsupported("setString")
+    def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit               = unsupported("setBigDecimal")
+    def setBytes(index: Int, value: Array[Byte]): Unit                             = unsupported("setBytes")
+    def setShort(index: Int, value: Short): Unit                                   = unsupported("setShort")
+    def setByte(index: Int, value: Byte): Unit                                     = unsupported("setByte")
+    def setLocalDate(index: Int, value: java.time.LocalDate): Unit                 = unsupported("setLocalDate")
+    def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit         = unsupported("setLocalDateTime")
+    def setLocalTime(index: Int, value: java.time.LocalTime): Unit                 = unsupported("setLocalTime")
+    def setInstant(index: Int, value: java.time.Instant): Unit                     = unsupported("setInstant")
+    def setDuration(index: Int, value: java.time.Duration): Unit                   = unsupported("setDuration")
+    def setUUID(index: Int, value: java.util.UUID): Unit                           = unsupported("setUUID")
+    def setNull(index: Int, sqlType: Int): Unit                                    = unsupported("setNull")
+    def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit =
+      unsupported("setArray")
+  }
+
   def spec = suite("FragSpec")(
     suite("sql interpolator")(
       test("basic interpolation without params") {
@@ -168,6 +193,20 @@ object FragSpec extends ZIOSpecDefault {
         assertTrue(
           offset == IndexedSeq(DbValue.DbNull, DbValue.DbString("x"), DbValue.DbNull),
           slots(1) == DbValue.DbInt(1)
+        )
+      },
+      test("Raw routes to setRaw with the SQL type and value at the bound position") {
+        var captured: (Int, String, Any) = null
+        val writer                       = new StubParamWriter {
+          override def setRaw(index: Int, sqlType: String, value: Any): Unit =
+            captured = (index, sqlType, value)
+        }
+        val payload = new Object
+        Frag.writeParams(writer, IndexedSeq(DbValue.Raw("vector", payload)), 3)
+        assertTrue(
+          captured._1 == 3,
+          captured._2 == "vector",
+          captured._3.asInstanceOf[AnyRef] eq payload
         )
       }
     )

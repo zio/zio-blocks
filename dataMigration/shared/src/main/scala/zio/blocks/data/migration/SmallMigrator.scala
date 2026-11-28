@@ -35,7 +35,7 @@ import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Repo, Transactor}
  * {{{
  * import zio.blocks.schema._
  * import zio.blocks.schema.migration.Migration
- * import zio.blocks.sql.{zio => _, _}
+ * import zio.blocks.sql._
  *
  * case class ProductV1(id: Long, name: String)
  * case class ProductV2(id: Long, name: String, stock: Int)

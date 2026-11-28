@@ -644,8 +644,6 @@ lazy val projection = crossProject(JVMPlatform)
 lazy val `sql-zio` = project
   .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala3Next)))
   .dependsOn(sql.jvm)
-  .settings(buildInfoSettings("zio.blocks.sql.zio"))
-  .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio"          % "2.1.27",
@@ -1473,9 +1471,7 @@ lazy val `scaladoc-check` = project
 
 // Compiles the Scaladoc examples of the Scala-3-only modules listed in `scaladocCheckedScala3Modules`
 // the way `scaladoc-check` does for the others (same settings, same package rule), on 3.9.x and
-// 3.10.x only. `sql` examples get `import zio.blocks.sql.{zio => _, _}` (see
-// `ScaladocSnippets.moduleImport`), because `sql-zio` shares this classpath. The extractor's unit
-// tests run in `scaladoc-check`. Not published.
+// 3.10.x only. The extractor's unit tests run in `scaladoc-check`. Not published.
 lazy val scaladocCheckedScala3Modules: Seq[Project] =
   Seq(
     sql.jvm,

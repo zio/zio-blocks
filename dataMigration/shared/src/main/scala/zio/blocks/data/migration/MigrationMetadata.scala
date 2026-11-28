@@ -26,7 +26,7 @@ import zio.blocks.sql.Frag.*
  * want an audit trail or to skip aggregates that are already done.
  *
  * {{{
- * import zio.blocks.sql.{zio => _, _}
+ * import zio.blocks.sql._
  *
  * def record(customerId: String)(using con: DbCon): Option[DataVersion] = {
  *   MigrationMetadata.markDone("customer", customerId, DataVersion(1, 2, 0))

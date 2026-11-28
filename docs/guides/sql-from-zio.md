@@ -76,18 +76,13 @@ libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 
 `sql` and `sql-zio` are published for Scala 3 only and run on the JVM. Run your application on JDK 21 or newer.
 
-We import ZIO, the ZIO integration and the `sql` module:
+We import ZIO, `Schema` and the `sql` module; the ZIO integration lives in `zio.blocks.sql` as well:
 
 ```scala mdoc:silent
 import zio.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.zio.*
 import zio.blocks.sql.*
 ```
-
-:::warning[Put `import zio.blocks.sql.*` last]
-Once `sql-zio` is on the classpath, `import zio.blocks.sql.*` brings the subpackage `zio.blocks.sql.zio` into scope under the name `zio`. After it, `zio` no longer means the root `zio` package, so every later import that starts with `zio`, such as `import zio.blocks.sql.zio.*` or `import zio.blocks.schema.Schema`, fails with `value blocks is not a member of zio.blocks.sql.zio`, and so does a fully qualified name such as `zio.Duration`. This also breaks existing files that compiled before you added `sql-zio`. Put `import zio.blocks.sql.*` after every other `zio` import, as above, or write `_root_.zio` where you need the root package after it.
-:::
 
 This page runs its effects inside mdoc, so we use a small helper that runs an effect and returns its result. In an application, `ZIOAppDefault#run` does this for you:
 
@@ -191,7 +186,7 @@ val databaseLayer: ZLayer[Any, Throwable, TransactorZIO] =
 
 `HikariDataSource` connects in its constructor, so `databaseLayer` fails at startup when the database is unreachable, and the pool closes when the application stops. The rest of this guide only depends on `TransactorZIO`, so swapping `transactorLayer` for `databaseLayer` is the only change it needs to run on PostgreSQL.
 
-`sql-zio` also adds `JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer`, which turn a `DataSource` layer into a layer of the synchronous `Transactor`. They are extension methods defined in `zio.blocks.sql.zio`, so they need `import zio.blocks.sql.zio.*`. A `Transactor` runs its body on the calling thread, so you would have to wrap each call in `ZIO.attemptBlocking` yourself; prefer `TransactorZIO` in ZIO code.
+`sql-zio` also adds `JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer`, which turn a `DataSource` layer into a layer of the synchronous `Transactor`. They are extension methods on `JdbcTransactor`, so they come with `import zio.blocks.sql.*`. A `Transactor` runs its body on the calling thread, so you would have to wrap each call in `ZIO.attemptBlocking` yourself; prefer `TransactorZIO` in ZIO code.
 
 ## Write a ZIO Service on the Transactor
 

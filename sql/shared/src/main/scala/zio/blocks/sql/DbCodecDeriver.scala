@@ -41,6 +41,12 @@ import zio.blocks.typeid.AnnotationArg
  * of type `Option[R]`, where `R` is a case class with several fields, throws
  * instead of being stored as JSON, a known bug in 0.0.56.
  *
+ * To give a field a non-default column (a pgvector embedding, a real SQL array,
+ * a driver-specific type), override it through the derivation builder:
+ * `DbCodec.derivedWith[Row](_.instance(TypeId.of[Row], "field", codec))`, or
+ * `instance(typeId, codec)` for every occurrence of a type. The term-name form
+ * wins over the type-level form.
+ *
  * {{{
  * import zio.blocks.schema.Schema
  *
@@ -59,7 +65,9 @@ import zio.blocks.typeid.AnnotationArg
  * @see
  *   [[https://zioblocks.com/reference/sql/db-codec-deriver/ DbCodecDeriver]]
  */
-class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
+class DbCodecDeriver(
+  columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase
+) extends Deriver[DbCodec] {
 
   private val SqlNullType = 0
 
@@ -132,227 +140,228 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[A],
     examples: Seq[A]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[A]] = Lazy {
-    val recordBinding = binding
-    val constructor   = recordBinding.constructor
-    val deconstructor = recordBinding.deconstructor
-    val len           = fields.length
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[A]] =
+    Lazy {
+          val recordBinding = binding
+          val constructor   = recordBinding.constructor
+          val deconstructor = recordBinding.deconstructor
+          val len           = fields.length
 
-    val fieldNames     = new Array[String](len)
-    val fieldCodecs    = new Array[DbCodec[Any]](len)
-    val fieldTransient = new Array[Boolean](len)
+          val fieldNames     = new Array[String](len)
+          val fieldCodecs    = new Array[DbCodec[Any]](len)
+          val fieldTransient = new Array[Boolean](len)
 
-    val reflects = new Array[Reflect[F, ?]](len)
-    var idx      = 0
-    while (idx < len) {
-      reflects(idx) = fields(idx).value
-      idx += 1
-    }
-    val registers: IndexedSeq[Register[Any]] =
-      scala.collection.immutable.ArraySeq.unsafeWrapArray(
-        Reflect.Record.registers(reflects.asInstanceOf[Array[Reflect[F, ?]]])
-      )
-
-    val inlineAllRecordFields = modifiers.exists {
-      case m: Modifier.config => m.key == "sql.inline_fields" && m.value == "true"
-      case _                  => false
-    }
-
-    idx = 0
-    while (idx < len) {
-      val field       = fields(idx)
-      val isTransient = field.modifiers.exists(_.isInstanceOf[Modifier.transient])
-      fieldTransient(idx) = isTransient
-
-      if (!isTransient) {
-        val renamed = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
-        fieldNames(idx) = renamed.getOrElse(columnNameMapper(field.name))
-
-        val isFieldInline = field.modifiers.exists {
-          case m: Modifier.config => m.key == "sql.inline" && m.value == "true"
-          case _                  => false
-        }
-        val isRecordField = field.value.isRecord
-        val shouldInline  = isRecordField && (isFieldInline || inlineAllRecordFields)
-
-        if (isRecordField && !shouldInline) {
-          val boundReflect = toBoundReflect(field.value)
-          fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
-        } else {
-          fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
-        }
-      }
-      idx += 1
-    }
-
-    val activeFieldIndices: Array[Int] = (0 until len).filter(i => !fieldTransient(i)).toArray
-    val allColumns: IndexedSeq[String] = {
-      val builder = IndexedSeq.newBuilder[String]
-      var fi      = 0
-      while (fi < activeFieldIndices.length) {
-        val i         = activeFieldIndices(fi)
-        val codec     = fieldCodecs(i)
-        val fieldName = fieldNames(i)
-        if (codec.columnCount == 1) {
-          builder += fieldName
-        } else {
-          val cols = codec.columns
-          var ci   = 0
-          while (ci < cols.length) {
-            builder += fieldName + "_" + cols(ci)
-            ci += 1
+          val reflects = new Array[Reflect[F, ?]](len)
+          var idx      = 0
+          while (idx < len) {
+            reflects(idx) = fields(idx).value
+            idx += 1
           }
-        }
-        fi += 1
-      }
-      builder.result()
-    }
+          val registers: IndexedSeq[Register[Any]] =
+            scala.collection.immutable.ArraySeq.unsafeWrapArray(
+              Reflect.Record.registers(reflects.asInstanceOf[Array[Reflect[F, ?]]])
+            )
 
-    // Starting column offset of each active field within `allColumns`, computed
-    // once at construction: field column counts are static, so label slicing
-    // below needs no per-row offset arithmetic.
-    val fieldLabelOffsets: Array[Int] = {
-      val offsets = new Array[Int](activeFieldIndices.length)
-      var acc     = 0
-      var fi      = 0
-      while (fi < activeFieldIndices.length) {
-        offsets(fi) = acc
-        acc += fieldCodecs(activeFieldIndices(fi)).columnCount
-        fi += 1
-      }
-      offsets
-    }
-
-    new DbCodec[A] {
-      val columns: IndexedSeq[String] = allColumns
-
-      // Per-schema pool: each derived record codec gets its own ThreadLocal so
-      // nested (inlined) record decodes reuse distinct registers. If a decode
-      // ever re-enters this codec (recursive schema), the pooled instance is in
-      // use and a fresh one is allocated instead.
-      private val regsPool: ThreadLocal[Registers] = new ThreadLocal[Registers] {
-        override def initialValue(): Registers = Registers(constructor.usedRegisters)
-      }
-
-      override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
-        // When the supplied labels sit at result positions 1..columnCount in
-        // order, decode positionally via the index-based overload — no per-row
-        // label slicing. Falls back to label-based field decoding when the
-        // caller supplied reordered or renamed labels, which is the only path
-        // that still slices.
-        var aligned = columnLabels.length == columnCount
-        var i       = 0
-        while (aligned && i < columnCount) {
-          aligned = reader.hasColumn(columnLabels(i)) && reader.columnLabel(i + 1) == columnLabels(i)
-          i += 1
-        }
-        if (aligned) readValue(reader, 1) else readByLabels(reader, columnLabels)
-      }
-
-      private def readByLabels(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
-        val regs = borrowRegs()
-        // Fresh slices per call, partitioned by the precomputed
-        // `fieldLabelOffsets`: field fi owns
-        // `columnLabels.slice(offset(fi), offset(fi) + columnCount(fi))`.
-        // Never cached: slicing is cheap and a cache would pin a whole labels
-        // array per thread.
-        val slices = new Array[IndexedSeq[String]](activeFieldIndices.length)
-        var si     = 0
-        while (si < activeFieldIndices.length) {
-          val count  = fieldCodecs(activeFieldIndices(si)).columnCount
-          val offset = fieldLabelOffsets(si)
-          slices(si) = columnLabels.slice(offset, offset + count)
-          si += 1
-        }
-        try {
-          var fi = 0
-          while (fi < activeFieldIndices.length) {
-            val i          = activeFieldIndices(fi)
-            val codec      = fieldCodecs(i)
-            val fieldValue = codec.readValue(reader, slices(fi))
-            registers(i).set(regs, 0, fieldValue)
-            fi += 1
+          val inlineAllRecordFields = modifiers.exists {
+            case m: Modifier.config => m.key == "sql.inline_fields" && m.value == "true"
+            case _                  => false
           }
-          var ti = 0
-          while (ti < len) {
-            if (fieldTransient(ti)) {
-              fields(ti).value.getDefaultValue(F) match {
-                case Some(dv) => registers(ti).set(regs, 0, dv)
-                case None     =>
+
+          idx = 0
+          while (idx < len) {
+            val field       = fields(idx)
+            val isTransient = field.modifiers.exists(_.isInstanceOf[Modifier.transient])
+            fieldTransient(idx) = isTransient
+
+            if (!isTransient) {
+              val renamed = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
+              fieldNames(idx) = renamed.getOrElse(columnNameMapper(field.name))
+
+              val isFieldInline = field.modifiers.exists {
+                case m: Modifier.config => m.key == "sql.inline" && m.value == "true"
+                case _                  => false
+              }
+              val isRecordField = field.value.isRecord
+              val shouldInline  = isRecordField && (isFieldInline || inlineAllRecordFields)
+
+              if (isRecordField && !shouldInline && !D.isOverridden(field.value.metadata)) {
+                val boundReflect = toBoundReflect(field.value)
+                fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
+              } else {
+                fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
               }
             }
-            ti += 1
+            idx += 1
           }
-          constructor.construct(regs, 0)
-        } finally regs.endUse()
-      }
 
-      override def readValue(reader: DbResultReader, startIndex: Int): A = {
-        val regs = borrowRegs()
-        try {
-          var colIdx = startIndex
-          var fi     = 0
-          while (fi < activeFieldIndices.length) {
-            val i          = activeFieldIndices(fi)
-            val codec      = fieldCodecs(i)
-            val fieldValue = codec.readValue(reader, colIdx)
-            registers(i).set(regs, 0, fieldValue)
-            colIdx += codec.columnCount
-            fi += 1
+          val activeFieldIndices: Array[Int] = (0 until len).filter(i => !fieldTransient(i)).toArray
+          val allColumns: IndexedSeq[String] = {
+            val builder = IndexedSeq.newBuilder[String]
+            var fi      = 0
+            while (fi < activeFieldIndices.length) {
+              val i         = activeFieldIndices(fi)
+              val codec     = fieldCodecs(i)
+              val fieldName = fieldNames(i)
+              if (codec.columnCount == 1) {
+                builder += fieldName
+              } else {
+                val cols = codec.columns
+                var ci   = 0
+                while (ci < cols.length) {
+                  builder += fieldName + "_" + cols(ci)
+                  ci += 1
+                }
+              }
+              fi += 1
+            }
+            builder.result()
           }
-          var ti = 0
-          while (ti < len) {
-            if (fieldTransient(ti)) {
-              fields(ti).value.getDefaultValue(F) match {
-                case Some(dv) => registers(ti).set(regs, 0, dv)
-                case None     =>
+
+          // Starting column offset of each active field within `allColumns`, computed
+          // once at construction: field column counts are static, so label slicing
+          // below needs no per-row offset arithmetic.
+          val fieldLabelOffsets: Array[Int] = {
+            val offsets = new Array[Int](activeFieldIndices.length)
+            var acc     = 0
+            var fi      = 0
+            while (fi < activeFieldIndices.length) {
+              offsets(fi) = acc
+              acc += fieldCodecs(activeFieldIndices(fi)).columnCount
+              fi += 1
+            }
+            offsets
+          }
+
+          new DbCodec[A] {
+            val columns: IndexedSeq[String] = allColumns
+
+            // Per-schema pool: each derived record codec gets its own ThreadLocal so
+            // nested (inlined) record decodes reuse distinct registers. If a decode
+            // ever re-enters this codec (recursive schema), the pooled instance is in
+            // use and a fresh one is allocated instead.
+            private val regsPool: ThreadLocal[Registers] = new ThreadLocal[Registers] {
+              override def initialValue(): Registers = Registers(constructor.usedRegisters)
+            }
+
+            override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+              // When the supplied labels sit at result positions 1..columnCount in
+              // order, decode positionally via the index-based overload — no per-row
+              // label slicing. Falls back to label-based field decoding when the
+              // caller supplied reordered or renamed labels, which is the only path
+              // that still slices.
+              var aligned = columnLabels.length == columnCount
+              var i       = 0
+              while (aligned && i < columnCount) {
+                aligned = reader.hasColumn(columnLabels(i)) && reader.columnLabel(i + 1) == columnLabels(i)
+                i += 1
+              }
+              if (aligned) readValue(reader, 1) else readByLabels(reader, columnLabels)
+            }
+
+            private def readByLabels(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+              val regs = borrowRegs()
+              // Fresh slices per call, partitioned by the precomputed
+              // `fieldLabelOffsets`: field fi owns
+              // `columnLabels.slice(offset(fi), offset(fi) + columnCount(fi))`.
+              // Never cached: slicing is cheap and a cache would pin a whole labels
+              // array per thread.
+              val slices = new Array[IndexedSeq[String]](activeFieldIndices.length)
+              var si     = 0
+              while (si < activeFieldIndices.length) {
+                val count  = fieldCodecs(activeFieldIndices(si)).columnCount
+                val offset = fieldLabelOffsets(si)
+                slices(si) = columnLabels.slice(offset, offset + count)
+                si += 1
+              }
+              try {
+                var fi = 0
+                while (fi < activeFieldIndices.length) {
+                  val i          = activeFieldIndices(fi)
+                  val codec      = fieldCodecs(i)
+                  val fieldValue = codec.readValue(reader, slices(fi))
+                  registers(i).set(regs, 0, fieldValue)
+                  fi += 1
+                }
+                var ti = 0
+                while (ti < len) {
+                  if (fieldTransient(ti)) {
+                    fields(ti).value.getDefaultValue(F) match {
+                      case Some(dv) => registers(ti).set(regs, 0, dv)
+                      case None     =>
+                    }
+                  }
+                  ti += 1
+                }
+                constructor.construct(regs, 0)
+              } finally regs.endUse()
+            }
+
+            override def readValue(reader: DbResultReader, startIndex: Int): A = {
+              val regs = borrowRegs()
+              try {
+                var colIdx = startIndex
+                var fi     = 0
+                while (fi < activeFieldIndices.length) {
+                  val i          = activeFieldIndices(fi)
+                  val codec      = fieldCodecs(i)
+                  val fieldValue = codec.readValue(reader, colIdx)
+                  registers(i).set(regs, 0, fieldValue)
+                  colIdx += codec.columnCount
+                  fi += 1
+                }
+                var ti = 0
+                while (ti < len) {
+                  if (fieldTransient(ti)) {
+                    fields(ti).value.getDefaultValue(F) match {
+                      case Some(dv) => registers(ti).set(regs, 0, dv)
+                      case None     =>
+                    }
+                  }
+                  ti += 1
+                }
+                constructor.construct(regs, 0)
+              } finally regs.endUse()
+            }
+
+            @inline
+            private def borrowRegs(): Registers = {
+              val pooled = regsPool.get()
+              if (pooled.isInUse) Registers(constructor.usedRegisters)
+              else {
+                pooled.startUse()
+                pooled
               }
             }
-            ti += 1
+
+            def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit = {
+              val regs = Registers(deconstructor.usedRegisters)
+              deconstructor.deconstruct(regs, 0, value)
+              var colIdx = startIndex
+              var fi     = 0
+              while (fi < activeFieldIndices.length) {
+                val i     = activeFieldIndices(fi)
+                val codec = fieldCodecs(i)
+                codec.writeValue(writer, colIdx, registers(i).get(regs, 0))
+                colIdx += codec.columnCount
+                fi += 1
+              }
+            }
+
+            def toDbValues(value: A): IndexedSeq[DbValue] = {
+              val regs = Registers(deconstructor.usedRegisters)
+              deconstructor.deconstruct(regs, 0, value)
+              val builder = IndexedSeq.newBuilder[DbValue]
+              var fi      = 0
+              while (fi < activeFieldIndices.length) {
+                val i     = activeFieldIndices(fi)
+                val codec = fieldCodecs(i)
+                builder ++= codec.toDbValues(registers(i).get(regs, 0))
+                fi += 1
+              }
+              builder.result()
+            }
           }
-          constructor.construct(regs, 0)
-        } finally regs.endUse()
-      }
-
-      @inline
-      private def borrowRegs(): Registers = {
-        val pooled = regsPool.get()
-        if (pooled.isInUse) Registers(constructor.usedRegisters)
-        else {
-          pooled.startUse()
-          pooled
         }
-      }
-
-      def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit = {
-        val regs = Registers(deconstructor.usedRegisters)
-        deconstructor.deconstruct(regs, 0, value)
-        var colIdx = startIndex
-        var fi     = 0
-        while (fi < activeFieldIndices.length) {
-          val i     = activeFieldIndices(fi)
-          val codec = fieldCodecs(i)
-          codec.writeValue(writer, colIdx, registers(i).get(regs, 0))
-          colIdx += codec.columnCount
-          fi += 1
-        }
-      }
-
-      def toDbValues(value: A): IndexedSeq[DbValue] = {
-        val regs = Registers(deconstructor.usedRegisters)
-        deconstructor.deconstruct(regs, 0, value)
-        val builder = IndexedSeq.newBuilder[DbValue]
-        var fi      = 0
-        while (fi < activeFieldIndices.length) {
-          val i     = activeFieldIndices(fi)
-          val codec = fieldCodecs(i)
-          builder ++= codec.toDbValues(registers(i).get(regs, 0))
-          fi += 1
-        }
-        builder.result()
-      }
-    }
-  }
 
   /**
    * Reuses the codec of the wrapped type, wrapping each value read and

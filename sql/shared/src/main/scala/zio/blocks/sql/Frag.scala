@@ -729,6 +729,7 @@ object Frag {
         case DbValue.DbDuration(v)      => writer.setDuration(idx, v)
         case DbValue.DbUUID(v)          => writer.setUUID(idx, v)
         case DbValue.DbArray(t, elems)  => writer.setArray(idx, t, elems)
+        case DbValue.Raw(t, v)          => writer.setRaw(idx, t, v)
       }
       i += 1
     }

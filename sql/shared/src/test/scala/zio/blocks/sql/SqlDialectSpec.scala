@@ -109,6 +109,11 @@ object SqlDialectSpec extends ZIOSpecDefault {
           SqlDialect.PostgreSQL.typeName(DbValue.DbArray("varchar", IndexedSeq("a"))) == "TEXT[]"
         )
       },
+      test("Raw renders its driver-specific SQL type name") {
+        assertTrue(
+          SqlDialect.PostgreSQL.typeName(DbValue.Raw("vector", "[1,2,3]")) == "vector"
+        )
+      },
       test("paramPlaceholder(1) -> ?") {
         assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(1) == "?")
       },

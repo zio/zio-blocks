@@ -53,3 +53,19 @@ DbParam[Instant].toDbValue(instant)
 DbParam[Option[Int]].toDbValue(Some(7))
 DbParam[Option[Int]].toDbValue(None)
 ```
+
+## Driver-specific values
+
+For a value that has no standard `DbValue` representation (for example a PostgreSQL `PGobject` or a pgvector value), interpolate a [`DbValue.Raw`](./db-value.md#raw--driver-specific-values) directly. It is still bound as a `?` parameter through `DbParamWriter#setRaw`, not inlined into the SQL text:
+
+```scala
+import zio.blocks.sql._
+
+val vec = new org.postgresql.util.PGobject()
+vec.setType("vector")
+vec.setValue("[1.0,2.0,3.0]")
+
+val frag = sql"INSERT INTO items (embedding) VALUES (${DbValue.Raw("vector", vec)})"
+```
+
+Use `Raw` only for values that cannot be expressed as a standard `DbValue`; normal Scala values should go through their `DbParam`/`DbCodec` instances.

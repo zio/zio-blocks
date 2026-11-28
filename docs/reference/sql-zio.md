@@ -30,18 +30,13 @@ scalacOptions += "-experimental"
 
 ## Imports
 
-The examples import ZIO, the ZIO integration and the `sql` module, in this order:
+The examples import ZIO, `Schema` and the `sql` module; the ZIO integration (`TransactorZIO` and the `JdbcTransactor` layer extensions) lives in `zio.blocks.sql` too:
 
 ```scala mdoc:silent
 import zio._
 import zio.blocks.schema.Schema
-import zio.blocks.sql.zio._
 import zio.blocks.sql._
 ```
-
-:::warning[Put `import zio.blocks.sql._` last]
-With `sql-zio` on the classpath, `zio.blocks.sql` has a subpackage named `zio`: this module's package, `zio.blocks.sql.zio`. After `import zio.blocks.sql._`, the name `zio` means that subpackage instead of the root `zio` package, so any later import or name that starts with `zio`, such as `import zio.blocks.schema.Schema`, fails with `value blocks is not a member of zio.blocks.sql.zio`. Put `import zio.blocks.sql._` after every other `zio` import, or write `_root_.zio` where you need the root package after it.
-:::
 
 We run the effects on this page with a small helper; in an application, `ZIOAppDefault#run` does this for you:
 
@@ -150,7 +145,7 @@ For a connection pool, build the transactor with `TransactorZIO.fromDataSource` 
 
 ### `JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer`
 
-`JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer` turn a layer of a `javax.sql.DataSource` into a layer of the synchronous [`Transactor`](./sql/transactor.md), with the PostgreSQL or SQLite dialect. They are extension methods defined in `zio.blocks.sql.zio`, so they need `import zio.blocks.sql.zio._`.
+`JdbcTransactor.postgresLayer` and `JdbcTransactor.sqliteLayer` turn a layer of a `javax.sql.DataSource` into a layer of the synchronous [`Transactor`](./sql/transactor.md), with the PostgreSQL or SQLite dialect. They are extension methods on `JdbcTransactor`, so they come with `import zio.blocks.sql._`.
 
 A `Transactor` runs its body on the calling thread, so each call must be wrapped in `ZIO.attemptBlocking`; otherwise the JDBC call blocks one of ZIO's main threads. Here the `DataSource` is SQLite's own `SQLiteDataSource`:
 
