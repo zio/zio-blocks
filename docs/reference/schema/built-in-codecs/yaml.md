@@ -477,7 +477,7 @@ println(codec.encodeToString(Price(BigDecimal("49.99"), 2)))
 
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes a named key in the YAML mapping, and the key is the field name converted to kebab-case, so `zipCode` is written as `zip-code`:
+Case classes (records) are fully supported. Each field becomes a named key in the YAML mapping. By default, the key is the field name converted to kebab-case, so `zipCode` is written as `zip-code`:
 
 ```scala mdoc:silent:reset
 import zio.blocks.schema._
@@ -496,7 +496,64 @@ val codec = Address.schema.derive(YamlFormat)
 println(codec.encodeToString(Address("Unter den Linden 1", "Berlin", "10117")))
 ```
 
-A known bug in 0.0.56: the derived codec always uses kebab-case keys and ignores field modifiers, so `@Modifier.rename` has no effect and a `@Modifier.transient` field is written and read. A YAML file with camelCase keys cannot be decoded into a case class with this codec. The JSON codec honours the same modifiers.
+A known bug in 0.0.56: `@Modifier.transient` is ignored, so a transient field is written and read. The JSON codec honours this modifier.
+
+### Field Name Mapping
+
+By default, `YamlCodecDeriver` maps record field names to **kebab-case** (e.g. `firstName` → `first-name`). You can customize this with `withFieldNameMapper`, which accepts any `NameMapper`:
+
+```scala mdoc:silent:reset
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+// Preserve Scala field names as-is
+val identity = YamlCodecDeriver.withFieldNameMapper(NameMapper.Identity)
+// firstName → firstName
+
+// Convert to snake_case
+val snake = YamlCodecDeriver.withFieldNameMapper(NameMapper.SnakeCase)
+// firstName → first_name
+
+// Convert to kebab-case (the default)
+val kebab = YamlCodecDeriver.withFieldNameMapper(NameMapper.KebabCase)
+// firstName → first-name
+
+// Custom transformation
+val upper = YamlCodecDeriver.withFieldNameMapper(NameMapper.Custom(_.toUpperCase))
+// firstName → FIRSTNAME
+
+case class User(firstName: String, emailAddress: String)
+
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
+
+val codec = User.schema.derive(snake)
+```
+
+```scala mdoc
+println(codec.encodeToString(User("Ada", "ada@example.com")))
+```
+
+A record-level `@Modifier.fieldNaming(...)` annotation overrides the deriver default for that record, and a field-level `@Modifier.rename(...)` overrides the mapping for a single field:
+
+```scala mdoc:silent:reset
+import zio.blocks.schema._
+import zio.blocks.schema.yaml._
+
+@Modifier.fieldNaming("snake_case")
+case class Account(firstName: String, @Modifier.rename("login") userName: String)
+
+object Account {
+  implicit val schema: Schema[Account] = Schema.derived
+}
+
+val codec = Account.schema.derive(YamlFormat)
+```
+
+```scala mdoc
+println(codec.encodeToString(Account("Ada", "ada")))
+```
 
 ### Variant Type Support
 

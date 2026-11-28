@@ -56,24 +56,33 @@ import scala.util.control.NonFatal
  */
 object YamlFormat extends BinaryFormat("application/yaml", YamlCodecDeriver)
 
-/** The default [[YamlCodecDeriver]], which [[YamlFormat]] uses. */
-object YamlCodecDeriver extends YamlCodecDeriver
+/**
+ * The default [[YamlCodecDeriver]], which [[YamlFormat]] uses. Applies
+ * [[NameMapper.KebabCase]] to field names, matching the historical YAML
+ * behavior.
+ */
+object YamlCodecDeriver extends YamlCodecDeriver(NameMapper.KebabCase)
 
 /**
- * Derives a [[YamlCodec]] from a schema; [[YamlFormat]] uses it. A record
- * becomes a mapping whose keys are the field names in kebab-case (`maxSurge`
- * becomes `max-surge`). A missing field takes its default value, and a missing
- * `Option` field becomes `None`, even when its default is a `Some`; a `None`
- * field is left out when encoding. An `Option` value is written as its content,
- * or `null` for a `None` outside a record. A collection becomes a sequence, a
- * map becomes a mapping, and a sealed trait or enum becomes a mapping with one
- * key, the case name, whose value is the case's encoding.
+ * Derives a [[YamlCodec]] from a schema; [[YamlFormat]] uses it. By default, a
+ * record becomes a mapping whose keys are the field names in kebab-case
+ * (`maxSurge` becomes `max-surge`). Use [[withFieldNameMapper]] to select a
+ * different [[NameMapper]]. A record-level `@Modifier.fieldNaming` overrides
+ * the deriver's mapper, and a field-level `@Modifier.rename` overrides the
+ * mapped name for that field.
  *
- * Known bugs in 0.0.56: field modifiers such as `@Modifier.rename` and
- * `@Modifier.transient` are ignored; a case with no fields is written as
- * `Name: {}`, and a plain `Name` does not decode; and the field codecs of some
- * records, such as recursive ones, are cached per thread and reused by a later
- * derivation of the same type, including its instance overrides.
+ * A missing field takes its default value, and a missing `Option` field becomes
+ * `None`, even when its default is a `Some`; a `None` field is left out when
+ * encoding. An `Option` value is written as its content, or `null` for a `None`
+ * outside a record. A collection becomes a sequence, a map becomes a mapping,
+ * and a sealed trait or enum becomes a mapping with one key, the case name,
+ * whose value is the case's encoding.
+ *
+ * Known bugs in 0.0.56: `@Modifier.transient` is ignored; a case with no fields
+ * is written as `Name: {}`, and a plain `Name` does not decode; and the field
+ * codecs of some records, such as recursive ones, are cached per thread and
+ * reused by a later derivation of the same type, including its instance
+ * overrides.
  *
  * {{{
  * import zio.blocks.schema._
@@ -97,8 +106,21 @@ object YamlCodecDeriver extends YamlCodecDeriver
  * @see
  *   [[https://zioblocks.com/reference/schema/built-in-codecs/yaml/ YAML]]
  */
-class YamlCodecDeriver extends Deriver[YamlCodec] {
+class YamlCodecDeriver(fieldNameMapper: NameMapper = NameMapper.KebabCase) extends Deriver[YamlCodec] {
   import YamlCodec._
+
+  /**
+   * Updates the [[YamlCodecDeriver]] instance with the specified field name
+   * mapper. The field name mapper defines how field names should be transformed
+   * during encoding and decoding.
+   *
+   * @param fieldNameMapper
+   *   The [[NameMapper]] to apply for transforming field names.
+   * @return
+   *   A new instance of [[YamlCodecDeriver]] with the updated field name
+   *   mapper.
+   */
+  def withFieldNameMapper(fieldNameMapper: NameMapper): YamlCodecDeriver = new YamlCodecDeriver(fieldNameMapper)
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -156,9 +178,16 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[YamlCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-      val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-      var fieldInfos    =
+      val recordBinding                       = binding.asInstanceOf[Binding.Record[A]]
+      val isRecursive                         = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+      var resolvedFieldNameMapper: NameMapper = null
+      modifiers.foreach {
+        case m: Modifier.fieldNaming =>
+          if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = NameMapper.fromString(m.strategy)
+        case _ =>
+      }
+      if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = fieldNameMapper
+      var fieldInfos =
         if (isRecursive) recursiveRecordCache.get.get(typeId)
         else null
       val deriveCodecs = fieldInfos eq null
@@ -171,15 +200,20 @@ class YamlCodecDeriver extends Deriver[YamlCodec] {
         while (idx < len) {
           val field        = fields(idx)
           val fieldReflect = field.value
-          val name         = field.name
+          var name: String = null
+          field.modifiers.foreach {
+            case m: Modifier.rename => if (name eq null) name = m.name
+            case _                  =>
+          }
+          if (name eq null) name = resolvedFieldNameMapper(field.name)
           fieldInfos(idx) = new FieldInfo(
-            name = NameMapper.KebabCase.apply(name),
+            name = name,
             defaultValue = getDefaultValue(fieldReflect),
             codec = D.instance(fieldReflect.metadata).force.asInstanceOf[YamlCodec[Any]],
             offset = offset,
             typeTag = Reflect.typeTag(fieldReflect),
             isOptional = fieldReflect.typeId.isOption,
-            span = new DynamicOptic.Node.Field(name)
+            span = new DynamicOptic.Node.Field(field.name)
           )
           offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
           idx += 1
