@@ -565,7 +565,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.4.0" % Test,
-      "org.postgresql" % "postgresql"  % "42.7.14"  % Test
+      "org.postgresql" % "postgresql"  % "42.7.15"  % Test
     )
   )
 
@@ -581,7 +581,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
-      "org.postgresql" % "postgresql"  % "42.7.14"  % Test
+      "org.postgresql" % "postgresql"  % "42.7.15"  % Test
     )
   )
   .jsSettings(jsSettings)
@@ -1608,7 +1608,7 @@ lazy val `sql-benchmarks` = project
       // Real-world cross-library comparison: same Postgres server, same data —
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.
-      "org.postgresql" % "postgresql"       % "42.7.14",
+      "org.postgresql" % "postgresql"       % "42.7.15",
       "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC7",
       "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC7"
     ),
