@@ -84,6 +84,11 @@ sealed trait Optic[S, A] { self =>
    */
   def focus: Reflect.Bound[A]
 
+  // Built once per optic, so the expressions built from it share them instead of
+  // allocating a Schema (and its codec cache) per call.
+  private[schema] lazy val sourceSchema: Schema[S] = new Schema(source)
+  private[schema] lazy val focusSchema: Schema[A]  = new Schema(focus)
+
   /**
    * Composes this optic with a lens on its focus. The result focuses on the
    * lens's focus `B` inside every part this optic focuses on. It is a [[Lens]]
@@ -249,10 +254,10 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic equals
    * the literal `that`. Evaluate it on an `S` with `SchemaExpr#eval`.
    */
-  final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
+  final def ===(that: A): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.literal(that),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.literal(that)(this.focusSchema),
       SchemaExpr.RelationalOperator.Equal
     )
 
@@ -262,8 +267,8 @@ sealed trait Optic[S, A] { self =>
    */
   final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.optic(that.toDynamic, that.sourceSchema),
       SchemaExpr.RelationalOperator.Equal
     )
 
@@ -273,8 +278,8 @@ sealed trait Optic[S, A] { self =>
    */
   final def >(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.optic(that.toDynamic, that.sourceSchema),
       SchemaExpr.RelationalOperator.GreaterThan
     )
 
@@ -282,9 +287,9 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic is
    * greater than the literal `that`.
    */
-  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.literal(that),
+  final def >(that: A): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.literal(that)(this.focusSchema),
     SchemaExpr.RelationalOperator.GreaterThan
   )
 
@@ -293,8 +298,8 @@ sealed trait Optic[S, A] { self =>
    * greater than or equal to the focus of `that`.
    */
   final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.optic(that.toDynamic, that.sourceSchema),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
@@ -302,9 +307,9 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic is
    * greater than or equal to the literal `that`.
    */
-  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.literal(that),
+  final def >=(that: A): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.literal(that)(this.focusSchema),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
@@ -314,8 +319,8 @@ sealed trait Optic[S, A] { self =>
    */
   final def <(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.optic(that.toDynamic, that.sourceSchema),
       SchemaExpr.RelationalOperator.LessThan
     )
 
@@ -323,9 +328,9 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
    * than the literal `that`.
    */
-  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.literal(that),
+  final def <(that: A): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.literal(that)(this.focusSchema),
     SchemaExpr.RelationalOperator.LessThan
   )
 
@@ -335,8 +340,8 @@ sealed trait Optic[S, A] { self =>
    */
   final def <=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.optic(that.toDynamic, that.sourceSchema),
       SchemaExpr.RelationalOperator.LessThanOrEqual
     )
 
@@ -344,9 +349,9 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic is less
    * than or equal to the literal `that`.
    */
-  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.literal(that),
+  final def <=(that: A): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.literal(that)(this.focusSchema),
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
@@ -356,8 +361,8 @@ sealed trait Optic[S, A] { self =>
    */
   final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.optic(that.toDynamic, that.sourceSchema),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
@@ -365,10 +370,10 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] that is true where the focus of this optic differs
    * from the literal `that`.
    */
-  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
+  final def !=(that: A): SchemaExpr[S, Boolean] =
     SchemaExpr.relational(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-      SchemaExpr.literal(that),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+      SchemaExpr.literal(that)(this.focusSchema),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
@@ -377,8 +382,8 @@ sealed trait Optic[S, A] { self =>
    * and the focus of `that`.
    */
   final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.optic(that.toDynamic, that.sourceSchema),
     SchemaExpr.LogicalOperator.And
   )
 
@@ -388,7 +393,7 @@ sealed trait Optic[S, A] { self =>
    */
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.logical(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
       SchemaExpr.literal(that),
       SchemaExpr.LogicalOperator.And
     )
@@ -398,8 +403,8 @@ sealed trait Optic[S, A] { self =>
    * and the focus of `that`.
    */
   final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
-    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
+    SchemaExpr.optic(that.toDynamic, that.sourceSchema),
     SchemaExpr.LogicalOperator.Or
   )
 
@@ -409,7 +414,7 @@ sealed trait Optic[S, A] { self =>
    */
   final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.logical(
-      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(this.toDynamic, this.sourceSchema),
       SchemaExpr.literal(that),
       SchemaExpr.LogicalOperator.Or
     )
@@ -418,14 +423,14 @@ sealed trait Optic[S, A] { self =>
    * Builds a [[SchemaExpr]] for the negation of this optic's `Boolean` focus.
    */
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.not(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
+    SchemaExpr.not(SchemaExpr.optic(this.toDynamic, this.sourceSchema))
 
   /**
    * Builds a [[SchemaExpr]] for this optic's `String` focus followed by the
    * literal `that`.
    */
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
-    SchemaExpr.stringConcat(SchemaExpr.optic(this.toDynamic, new Schema(this.source)), SchemaExpr.literal(that))
+    SchemaExpr.stringConcat(SchemaExpr.optic(this.toDynamic, this.sourceSchema), SchemaExpr.literal(that))
 
   /**
    * Builds a [[SchemaExpr]] that is true where this optic's `String` focus
@@ -433,14 +438,14 @@ sealed trait Optic[S, A] { self =>
    * (`java.util.regex.Pattern.matches`).
    */
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
-    SchemaExpr.stringRegexMatch(SchemaExpr.literal(that), SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
+    SchemaExpr.stringRegexMatch(SchemaExpr.literal(that), SchemaExpr.optic(this.toDynamic, this.sourceSchema))
 
   /**
    * Builds a [[SchemaExpr]] for this optic's numeric focus plus the literal
    * `that`.
    */
   final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Add,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -451,7 +456,7 @@ sealed trait Optic[S, A] { self =>
    * `that`.
    */
   final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Subtract,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -462,7 +467,7 @@ sealed trait Optic[S, A] { self =>
    * `that`.
    */
   final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Multiply,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -473,7 +478,7 @@ sealed trait Optic[S, A] { self =>
    * literal `that`.
    */
   final def /(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Divide,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -484,7 +489,7 @@ sealed trait Optic[S, A] { self =>
    * divided by the literal `that`.
    */
   final def %(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Modulo,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -495,7 +500,7 @@ sealed trait Optic[S, A] { self =>
    * of the literal `that`.
    */
   final def pow(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Pow,
     isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
@@ -507,7 +512,7 @@ sealed trait Optic[S, A] { self =>
    * and the literal `that`.
    */
   final def &(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.And
   )
@@ -517,7 +522,7 @@ sealed trait Optic[S, A] { self =>
    * and the literal `that`.
    */
   final def |(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.Or
   )
@@ -527,7 +532,7 @@ sealed trait Optic[S, A] { self =>
    * integral focus and the literal `that`.
    */
   final def ^(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.Xor
   )
@@ -539,7 +544,7 @@ sealed trait Optic[S, A] { self =>
    * bug).
    */
   final def <<(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.LeftShift
   )
@@ -550,7 +555,7 @@ sealed trait Optic[S, A] { self =>
    * shifted as a `Long`, so a shift by 32 to 63 gives 0 or -1 (a known bug).
    */
   final def >>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.RightShift
   )
@@ -564,7 +569,7 @@ sealed trait Optic[S, A] { self =>
    * (a known bug).
    */
   final def >>>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
-    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(this.toDynamic, this.sourceSchema),
     SchemaExpr.literal(that)(ev.schema),
     SchemaExpr.BitwiseOperator.UnsignedRightShift
   )
@@ -575,14 +580,14 @@ sealed trait Optic[S, A] { self =>
    */
   final def unary_~(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = {
     val _ = ev
-    SchemaExpr.bitwiseNot(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
+    SchemaExpr.bitwiseNot(SchemaExpr.optic(this.toDynamic, this.sourceSchema))
   }
 
   /**
    * Builds a [[SchemaExpr]] for the length of this optic's `String` focus.
    */
   final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
-    SchemaExpr.stringLength(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
+    SchemaExpr.stringLength(SchemaExpr.optic(this.toDynamic, this.sourceSchema))
 
   /**
    * Returns this optic with its focus type changed to `B`, which `ev` proves is
