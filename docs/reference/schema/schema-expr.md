@@ -125,6 +125,8 @@ val named: SchemaExpr[Product, Boolean]     = Product.name === "Widget"
 // (e.g., stock > price — contrived, but shows the syntax)
 ```
 
+A literal is described by the optic's own focus schema, the one the record's schema gives that field. So comparing a field whose type is a Scala 3 opaque type or a newtype needs no `Schema` for that type, and an implicit `Schema` in scope where the comparison is written is not used.
+
 ### Via Logical Operators on Optics
 
 The `&&`, `||`, and `!` (unary) operators on boolean-focused optics create `SchemaExpr.Logical` and `SchemaExpr.Not` nodes:
