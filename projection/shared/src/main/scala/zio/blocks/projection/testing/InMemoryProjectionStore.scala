@@ -21,6 +21,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.projection.{EntityPath, FieldUpdate, ProjectionStore}
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.blocks.sql.SqlNameMapper
+import scala.collection.immutable.VectorMap
 
 /**
  * A [[zio.blocks.projection.ProjectionStore]] kept in memory, for tests.
@@ -52,7 +53,7 @@ import zio.blocks.sql.SqlNameMapper
  *   its ID field
  */
 class InMemoryProjectionStore[A: Schema: EntityPath] private (
-  private val mapRef: Ref[Map[String, A]],
+  private val mapRef: Ref[VectorMap[String, A]],
   private val seqRef: Ref[Long],
   private val hashRef: Ref[Option[String]]
 ) extends ProjectionStore[A] {
@@ -146,6 +147,33 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
     case other                        => DynamicValue.Primitive(PrimitiveValue.String(other.toString))
   }
 
+  private def isAppendValue(v: Any): Boolean = v match {
+    case null                       => true
+    case None                       => true
+    case Some(x)                    => isAppendValue(x)
+    case _: String                  => true
+    case _: Int                     => true
+    case _: Long                    => true
+    case _: Double                  => true
+    case _: Float                   => true
+    case _: java.lang.Boolean       => true
+    case _: Boolean                 => true
+    case _: Byte                    => true
+    case _: Short                   => true
+    case _: Char                    => true
+    case _: BigDecimal              => true
+    case _: java.math.BigDecimal    => true
+    case _: BigInt                  => true
+    case _: java.math.BigInteger    => true
+    case _: java.time.Instant       => true
+    case _: java.time.LocalDate     => true
+    case _: java.time.LocalDateTime => true
+    case _: java.time.LocalTime     => true
+    case _: java.time.Duration      => true
+    case _: java.util.UUID          => true
+    case _                          => false
+  }
+
   private def getLong(dv: DynamicValue): Long = dv match {
     case DynamicValue.Primitive(pv) =>
       pv match {
@@ -198,13 +226,22 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
 
   private def decDV(dv: DynamicValue, by: Long): DynamicValue = incDV(dv, -by)
 
+  private def validateAppendField(field: String): Unit = {
+    val orig = snakeToOriginal.getOrElse(field, field)
+    if (!snakeToOriginal.values.exists(_ == orig) && !snakeToOriginal.contains(field))
+      throw new IllegalArgumentException(
+        s"unknown field '$field' not in ${snakeToOriginal.values.toList.sorted.mkString(",")}"
+      )
+  }
+
   private def applyUpdatesToRecord(
     record: DynamicValue,
     updates: Chunk[FieldUpdate]
   ): Either[zio.blocks.schema.SchemaError, DynamicValue] =
     record match {
       case DynamicValue.Record(fields) =>
-        var current = fields
+        var current                                      = fields
+        var error: Option[zio.blocks.schema.SchemaError] = None
         updates.foreach {
           case FieldUpdate.Set(field, value) =>
             val orig  = snakeToOriginal.getOrElse(field, field)
@@ -212,6 +249,37 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
             val idx   = current.indexWhere(_._1 == orig)
             if (idx >= 0) current = current.updated(idx, (orig, dvVal))
             else current = current :+ (orig -> dvVal)
+          case FieldUpdate.Append(field, value) =>
+            if (error.isEmpty) {
+              if (!isAppendValue(value)) {
+                error = Some(
+                  zio.blocks.schema.SchemaError(
+                    s"Append supports primitive JSON values only, got ${value.getClass.getName}"
+                  )
+                )
+              } else {
+                val orig = snakeToOriginal.getOrElse(field, field)
+                val idx  = current.indexWhere(_._1 == orig)
+                if (idx >= 0) {
+                  val appended = current(idx)._2 match {
+                    case DynamicValue.Sequence(elements) =>
+                      Some(DynamicValue.Sequence(elements :+ anyToDynamicValue(value)))
+                    case DynamicValue.Null =>
+                      Some(DynamicValue.Sequence(Chunk(anyToDynamicValue(value))))
+                    case other =>
+                      error = Some(
+                        zio.blocks.schema.SchemaError(
+                          s"cannot append to field '$field': expected a sequence but got $other"
+                        )
+                      )
+                      None
+                  }
+                  appended.foreach(nv => current = current.updated(idx, (orig, nv)))
+                } else {
+                  error = Some(zio.blocks.schema.SchemaError(s"unknown field '$field'"))
+                }
+              }
+            }
           case FieldUpdate.Increment(field, by) =>
             val orig = snakeToOriginal.getOrElse(field, field)
             val idx  = current.indexWhere(_._1 == orig)
@@ -251,7 +319,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
               }
             }
         }
-        Right(DynamicValue.Record(current))
+        error match {
+          case Some(e) => Left(e)
+          case None    => Right(DynamicValue.Record(current))
+        }
       case other =>
         Left(zio.blocks.schema.SchemaError(s"Expected Record but got $other"))
     }
@@ -298,6 +369,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
       DynamicValue.Primitive(PrimitiveValue.String(entityId))
     } else if (reflect.isOption || reflect.isMaybe) {
       DynamicValue.Null
+    } else if (reflect.isSequence) {
+      DynamicValue.Sequence(Chunk.empty)
+    } else if (reflect.isMap) {
+      DynamicValue.Map(Chunk.empty)
     } else {
       reflect.asPrimitive match {
         case Some(p) =>
@@ -361,7 +436,10 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
   def updateFields(entityId: String, updates: Chunk[FieldUpdate]): Task[Unit] =
     if (updates.isEmpty) ZIO.unit
     else
-      mapRef.modify { m =>
+      ZIO.attempt(updates.foreach {
+        case FieldUpdate.Append(field, _) => validateAppendField(field)
+        case _                            => ()
+      }) *> mapRef.modify { m =>
         m.get(entityId) match {
           case Some(cur) =>
             applyUpdatesToA(cur, updates) match {
@@ -389,11 +467,14 @@ class InMemoryProjectionStore[A: Schema: EntityPath] private (
 
   /** Removes every row, and keeps the watermark and the schema hash. */
   def truncate: Task[Unit] =
-    mapRef.set(Map.empty)
+    mapRef.set(VectorMap.empty)
 
   /** Reads the row of `entityId`. */
   def findById(entityId: String): Task[Option[A]] =
     mapRef.get.map(_.get(entityId))
+
+  def findAll: Task[Chunk[A]] =
+    mapRef.get.map(m => Chunk.fromIterable(m.values))
 
   /** Reads the watermark, `0` in a new store. */
   def getLastProcessedSeq: Task[Long] =
@@ -420,7 +501,7 @@ object InMemoryProjectionStore {
    */
   def make[A: Schema: EntityPath]: Task[InMemoryProjectionStore[A]] =
     for {
-      map  <- Ref.make(Map.empty[String, A])
+      map  <- Ref.make(VectorMap.empty[String, A])
       seq  <- Ref.make(0L)
       hash <- Ref.make(Option.empty[String])
     } yield new InMemoryProjectionStore[A](map, seq, hash)
@@ -442,7 +523,7 @@ object InMemoryProjectionStore {
     hash: Option[String] = None
   ): Task[InMemoryProjectionStore[A]] =
     for {
-      mapRef  <- Ref.make(map)
+      mapRef  <- Ref.make(VectorMap.from(map))
       seqRef  <- Ref.make(seq)
       hashRef <- Ref.make(hash)
     } yield new InMemoryProjectionStore[A](mapRef, seqRef, hashRef)

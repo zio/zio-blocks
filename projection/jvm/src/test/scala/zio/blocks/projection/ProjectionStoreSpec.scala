@@ -75,6 +75,18 @@ object ProjectionStoreSpec extends ZIOSpecDefault {
     implicit val entityPath: EntityPath[OptionalEntity] = EntityPath.derived[OptionalEntity]
   }
 
+  case class Tagged(@Modifier.id id: String, name: String, tags: List[String])
+  object Tagged {
+    implicit val schema: Schema[Tagged]         = Schema.derived[Tagged]
+    implicit val entityPath: EntityPath[Tagged] = EntityPath.derived[Tagged]
+  }
+
+  case class Scored(@Modifier.id id: String, scores: List[Int], flags: List[Boolean])
+  object Scored {
+    implicit val schema: Schema[Scored]         = Schema.derived[Scored]
+    implicit val entityPath: EntityPath[Scored] = EntityPath.derived[Scored]
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -234,6 +246,63 @@ object ProjectionStoreSpec extends ZIOSpecDefault {
             _   <- store.delete("del")
             res <- store.findById("del")
           } yield assertTrue(res.isEmpty)
+        }
+      }
+    ),
+    suite("findAll")(
+      test("findAll orders rows by entity id") {
+        withStoreSimple[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val c = User("c", "C", "c@b.com", 3L, 3L, active = true)
+          for {
+            _    <- store.insert(b)
+            _    <- store.insert(a)
+            _    <- store.insert(c)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b, c))
+        }
+      },
+      test("findAll reflects upserts") {
+        withStoreSimple[User] { store =>
+          val u  = User("u1", "Old", "old@b.com", 1L, 1L, active = true)
+          val u2 = u.copy(name = "New", age = 42L)
+          for {
+            _    <- store.insert(u)
+            _    <- store.upsert(u2)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(u2))
+        }
+      },
+      test("findAll returns empty chunk after truncate") {
+        withStoreSimple[User] { store =>
+          for {
+            _    <- store.insert(User("u1", "A", "a@b.com", 1L, 1L, active = true))
+            _    <- store.truncate
+            rows <- store.findAll
+          } yield assertTrue(rows.isEmpty)
+        }
+      },
+      test("findAllIfMaterialized does not create an unmaterialized database") {
+        ZIO.scoped {
+          for {
+            dir    <- ZIO.attempt(java.nio.file.Files.createTempDirectory("proj-unmaterialized"))
+            path    = dir.resolve("never.db").toString
+            cache  <- TransactorCache.make()
+            store  <- SQLiteProjectionStore.make[User](path, cache)
+            rows   <- store.findAllIfMaterialized
+            exists <- ZIO.attempt(java.nio.file.Files.exists(java.nio.file.Paths.get(path)))
+            _      <- ZIO.attempt(java.nio.file.Files.deleteIfExists(dir)).ignore
+          } yield assertTrue(rows.isEmpty, !exists)
+        }
+      },
+      test("findAllIfMaterialized returns rows after a write") {
+        withStoreSimple[User] { store =>
+          val u = User("u1", "A", "a@b.com", 1L, 1L, active = true)
+          for {
+            _    <- store.insert(u)
+            rows <- store.findAllIfMaterialized
+          } yield assertTrue(rows.contains(Chunk(u)))
         }
       }
     ),
@@ -525,6 +594,80 @@ object ProjectionStoreSpec extends ZIOSpecDefault {
             _   <- store.updateFields("1", Chunk(fu))
             res <- store.findById("1")
           } yield assertTrue(fu.field == "score", res.exists(_.score == 15L))
+        }
+      }
+    ),
+    suite("append field")(
+      test("appends an element to an existing JSON array column") {
+        withStoreSimple[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", List("a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "b")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "b")))
+        }
+      },
+      test("appending to a missing row creates a default row and appends") {
+        withStoreSimple[Tagged] { store =>
+          for {
+            _   <- store.updateFields("new", Chunk(FieldUpdate.Append("tags", "first")))
+            res <- store.findById("new")
+          } yield assertTrue(res.exists(_.tags == List("first")))
+        }
+      },
+      test("appending twice appends twice") {
+        withStoreSimple[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "a")))
+        }
+      },
+      test("appends typed int and boolean elements as JSON values") {
+        withStoreSimple[Scored] { store =>
+          for {
+            _   <- store.insert(Scored("s1", List(1), List(true)))
+            _   <- store.updateFields("s1", Chunk(FieldUpdate.Append("scores", 2)))
+            _   <- store.updateFields("s1", Chunk(FieldUpdate.Append("flags", false)))
+            res <- store.findById("s1")
+          } yield assertTrue(res.exists(_.scores == List(1, 2)), res.exists(_.flags == List(true, false)))
+        }
+      },
+      test("unknown append field fails the allowlist validation") {
+        withStoreSimple[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("missing", "x"))).exit
+          } yield assertTrue(res.isFailure)
+        }
+      },
+      test("appending to a non-array column fails instead of corrupting it") {
+        withStoreSimple[User] { store =>
+          for {
+            _   <- store.insert(User("u1", "Alice", "a@b.com", 1L, 1L, active = true))
+            res <- store.updateFields("u1", Chunk(FieldUpdate.Append("name", "x"))).exit
+            row <- store.findById("u1")
+          } yield assertTrue(res.isFailure, row.exists(_.name == "Alice"))
+        }
+      },
+      test("appending an unsupported value fails instead of stringifying it") {
+        withStoreSimple[Tagged] { store =>
+          case class NotJson(value: String)
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", NotJson("x")))).exit
+            row <- store.findById("t1")
+          } yield assertTrue(res.isFailure, row.exists(_.tags.isEmpty))
+        }
+      },
+      test("findAll decodes rows containing list columns") {
+        withStoreSimple[Tagged] { store =>
+          for {
+            _    <- store.insert(Tagged("t1", "T", List("a", "b")))
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(Tagged("t1", "T", List("a", "b"))))
         }
       }
     ),

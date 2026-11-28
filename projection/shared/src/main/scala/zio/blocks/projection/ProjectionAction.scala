@@ -24,8 +24,18 @@ import zio.blocks.chunk.Chunk
  * for the event, and the actions that need a row ID use the event's
  * `ctx.entityId`.
  *
- * `ProjectionAction[+A]` is covariant in `A`, so the three actions without a
- * row are `ProjectionAction[Nothing]` and fit any projection.
+ * `ProjectionAction[+A]` is covariant in `A`, so actions that do not carry a
+ * row (`AppendField`, `Delete`, `Truncate`, `Noop`) are
+ * `ProjectionAction[Nothing]` and fit any projection.
+ *
+ * Each variant represents a distinct operation on projected data:
+ *   - `Insert`: Add a new entity
+ *   - `Upsert`: Add or update an entity
+ *   - `Update`: Modify specific fields of an existing entity
+ *   - `AppendField`: Atomically append one element to a JSON-array field
+ *   - `Delete`: Remove an entity (sentinel — no payload)
+ *   - `Truncate`: Remove all entities (sentinel — no payload)
+ *   - `Noop`: No operation (sentinel — no payload)
  *
  * @tparam A
  *   the row type of the projection
@@ -47,6 +57,13 @@ enum ProjectionAction[+A] {
    * first if it is missing (see `ProjectionStore#updateFields`).
    */
   case Update[A](modifications: Chunk[FieldUpdate]) extends ProjectionAction[A]
+
+  /**
+   * Appends `value` to the JSON-array field `field` of the row `entityId`,
+   * creating the row first if it is missing. The append is atomic and is not
+   * idempotent.
+   */
+  case AppendField(entityId: String, field: String, value: Any) extends ProjectionAction[Nothing]
 
   /** Deletes the row of `ctx.entityId`, if there is one. */
   case Delete extends ProjectionAction[Nothing]
@@ -75,4 +92,11 @@ object ProjectionAction {
 
   /** The `Noop` sentinel action. */
   val noop: ProjectionAction[Nothing] = ProjectionAction.Noop
+
+  /**
+   * Append `value` to `field` on `entityId` (see
+   * [[ProjectionAction.AppendField]]).
+   */
+  def appendField(entityId: String, field: String, value: Any): ProjectionAction[Nothing] =
+    ProjectionAction.AppendField(entityId, field, value)
 }

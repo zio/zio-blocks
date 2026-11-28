@@ -19,6 +19,7 @@ package zio.blocks.projection
 import zio.*
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
+import zio.blocks.schema.json.Json
 import zio.blocks.sql.*
 
 /**
@@ -82,7 +83,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
 ) extends ProjectionStore[A] {
 
   private val entityPath = summon[EntityPath[A]]
-  private val table      = Table.derived[A]
+  private val table      = ProjectionTable.tableFor[A]
   private val tblName    = table.name
   private val allCols    = table.columns.mkString(", ")
   private val codec      = table.codec
@@ -100,6 +101,13 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       throw new IllegalArgumentException(s"unknown field '$field' not in ${table.columns.mkString(",")}")
     else if (!field.matches("[a-zA-Z_][a-zA-Z0-9_]*"))
       throw new IllegalArgumentException(s"invalid field name '$field'")
+
+  private def validateAppendField(field: String): Unit = {
+    validateField(field)
+    val isJsonArray = table.columnsMeta.exists(c => c.name == field && c.dbValue == DbValue.DbString("[]"))
+    if (!isJsonArray)
+      throw new IllegalArgumentException(s"field '$field' is not a JSON-array column")
+  }
 
   private def validateColumnName(name: String): Unit =
     require(name.matches("[a-zA-Z_][a-zA-Z0-9_]*"), s"invalid column name $name")
@@ -189,6 +197,48 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       case dur: java.time.Duration      => writer.setDuration(idx, dur)
       case uuid: java.util.UUID         => writer.setUUID(idx, uuid)
       case other                        => writer.setString(idx, other.toString)
+    }
+
+  /**
+   * Render a runtime value as a JSON literal so `json_insert` embeds a JSON
+   * string/number/boolean instead of relying on SQLite's implicit parameter
+   * conversion (which would turn a Boolean into 0/1).
+   */
+  private def jsonFragment(value: Any): String =
+    value match {
+      case null                 => "null"
+      case None                 => "null"
+      case Some(v)              => jsonFragment(v)
+      case s: String            => Json.String(s).print
+      case c: Char              => Json.String(c.toString).print
+      case b: Boolean           => Json.Boolean(b).print
+      case b: java.lang.Boolean => Json.Boolean(b.booleanValue).print
+      case i: Int               => Json.Number(BigDecimal(i)).print
+      case l: Long              => Json.Number(BigDecimal(l)).print
+      case sh: Short            => Json.Number(BigDecimal(sh.toInt)).print
+      case by: Byte             => Json.Number(BigDecimal(by.toInt)).print
+      case d: Double            =>
+        if (d.isNaN || d.isInfinite)
+          throw new IllegalArgumentException("Append does not support NaN or infinite numbers")
+        else Json.Number(BigDecimal(d)).print
+      case f: Float =>
+        if (f.isNaN || f.isInfinite)
+          throw new IllegalArgumentException("Append does not support NaN or infinite numbers")
+        else Json.Number(BigDecimal(f.toDouble)).print
+      case bd: BigDecimal               => Json.Number(bd).print
+      case jbd: java.math.BigDecimal    => Json.Number(BigDecimal(jbd)).print
+      case bi: BigInt                   => Json.Number(BigDecimal(bi)).print
+      case jbi: java.math.BigInteger    => Json.Number(BigDecimal(jbi)).print
+      case inst: java.time.Instant      => Json.String(inst.toString).print
+      case ld: java.time.LocalDate      => Json.String(ld.toString).print
+      case ldt: java.time.LocalDateTime => Json.String(ldt.toString).print
+      case lt: java.time.LocalTime      => Json.String(lt.toString).print
+      case dur: java.time.Duration      => Json.String(dur.toString).print
+      case uuid: java.util.UUID         => Json.String(uuid.toString).print
+      case other                        =>
+        throw new IllegalArgumentException(
+          s"Append supports primitive JSON values only, got ${other.getClass.getName}"
+        )
     }
 
   /**
@@ -289,6 +339,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             case FieldUpdate.Decrement(f, _) => validateField(f)
             case FieldUpdate.Max(f, _)       => validateField(f)
             case FieldUpdate.Min(f, _)       => validateField(f)
+            case FieldUpdate.Append(f, _)    => validateAppendField(f)
           }
           ZIO.attemptBlocking {
             tx.transact {
@@ -318,6 +369,21 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                   try {
                     val pw = ps.paramWriter
                     writeAny(pw, 1, value)
+                    pw.setString(2, entityId)
+                    ps.executeUpdate()
+                    ()
+                  } finally ps.close()
+                case FieldUpdate.Append(field, value) =>
+                  val col = quoted(field)
+                  // json_insert(..., '$[#]', ?) appends to a JSON array. Treat
+                  // NULL or the empty-string default as an empty array; any
+                  // other malformed JSON value fails loudly in SQLite.
+                  val sql =
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = json_insert(COALESCE(NULLIF($col, ''), '[]'), '$$[#]', json(?)) WHERE ${quoted(validatedIdColumn)} = ?"
+                  val ps = conn.prepareStatement(sql)
+                  try {
+                    val pw = ps.paramWriter
+                    pw.setString(1, jsonFragment(value))
                     pw.setString(2, entityId)
                     ps.executeUpdate()
                     ()
@@ -433,6 +499,36 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             } finally ps.close()
           }
         }
+      }
+
+  def findAll: Task[Chunk[A]] =
+    ensureTables *>
+      cache.get(path).flatMap { tx =>
+        ZIO.attemptBlocking {
+          tx.connect {
+            val con  = summon[DbCon]
+            val conn = con.connection
+            val sql  = s"SELECT $allCols FROM $validatedTblName ORDER BY $validatedIdColumn ASC"
+            val ps   = conn.prepareStatement(sql)
+            try {
+              val rs   = ps.executeQuery()
+              val rows = scala.collection.mutable.ListBuffer.empty[A]
+              try {
+                while (rs.next()) rows += codec.readValue(rs.reader, 1)
+              } finally rs.close()
+              Chunk.fromIterable(rows)
+            } finally ps.close()
+          }
+        }
+      }
+
+  override def findAllIfMaterialized: Task[Option[Chunk[A]]] =
+    ZIO
+      .attempt(java.nio.file.Files.exists(java.nio.file.Paths.get(path)))
+      .catchAll(_ => ZIO.succeed(false))
+      .flatMap {
+        case false => ZIO.none
+        case true  => findAll.map(Some(_))
       }
 
   /** Reads the watermark from `_projection_meta`, or `0` if it has no row. */

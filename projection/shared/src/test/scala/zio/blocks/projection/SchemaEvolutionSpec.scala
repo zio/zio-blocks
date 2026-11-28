@@ -43,6 +43,18 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
     implicit val entityPath: EntityPath[UserV2] = EntityPath.derived[UserV2]
   }
 
+  case class TaggedV1(@Modifier.id id: String, tags: List[String])
+  object TaggedV1 {
+    implicit val schema: Schema[TaggedV1]         = Schema.derived[TaggedV1]
+    implicit val entityPath: EntityPath[TaggedV1] = EntityPath.derived[TaggedV1]
+  }
+
+  case class TaggedV2(@Modifier.id id: String, tags: List[String], note: String)
+  object TaggedV2 {
+    implicit val schema: Schema[TaggedV2]         = Schema.derived[TaggedV2]
+    implicit val entityPath: EntityPath[TaggedV2] = EntityPath.derived[TaggedV2]
+  }
+
   // Swapped field order
   case class UserSwapped(@Modifier.id id: String, age: Long, name: String)
   object UserSwapped {
@@ -413,6 +425,17 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           r1     <- store.findById("u1")
           rStale <- store.findById("stale")
         } yield assertTrue(!shortcut, rebuildResult, r1.exists(_.name == "Alice"), rStale.isEmpty)
+      },
+      test("migration shortcut handles row types with list columns") {
+        for {
+          store <- InMemoryProjectionStore.make[TaggedV2]
+          _     <- store.upsert(TaggedV2("t1", List("a"), "old"))
+          _     <- store.updateSchemaHash("old-hash")
+          mig    = Migration.newBuilder[TaggedV1, TaggedV2].addField(_.note, literal("n")).build
+          cur    = SchemaHash.compute[TaggedV2]
+          res   <- SchemaEvolution.tryMigrationShortcut(store, Some(mig), cur)
+          r     <- store.findById("t1")
+        } yield assertTrue(res, r.exists(_.note == "old"))
       },
       test("registerMigration stores migration for spec") {
         for {

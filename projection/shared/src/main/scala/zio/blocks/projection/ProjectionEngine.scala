@@ -17,11 +17,10 @@
 package zio.blocks.projection
 
 import zio.*
+import zio.blocks.chunk.Chunk
 import zio.blocks.projection.testing.InMemoryProjectionStore
 import zio.blocks.schema.Schema
 import zio.stream.ZStream
-
-import scala.util.Try
 
 // ---------------------------------------------------------------------------
 // Config
@@ -182,6 +181,9 @@ object ProjectionEngineConfig {
  *   registered schema migrations
  * @param evolutionSem
  *   semaphore guarding rebuilds
+ * @param shardCreationSem
+ *   semaphore guarding shard creation, so two fibers cannot create and cache
+ *   separate stores for the same routing key
  */
 final class ProjectionEngine private[projection] (
   private val specs: List[Projection[_]],
@@ -192,7 +194,8 @@ final class ProjectionEngine private[projection] (
   private val shardsRef: Ref[Map[String, Map[String, ProjectionStore[_]]]],
   private val pendingRebuildRef: Ref[Map[String, Boolean]],
   private val migrationRegistry: Ref[Map[String, zio.blocks.schema.migration.Migration[?, ?]]],
-  private val evolutionSem: Semaphore
+  private val evolutionSem: Semaphore,
+  private val shardCreationSem: Semaphore
 ) {
 
   /**
@@ -314,73 +317,187 @@ final class ProjectionEngine private[projection] (
 
   // Factory for shards: uses same store type as primary (SQLite on JVM, else InMemory)
   private def getOrCreateShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] = {
-    val specName = spec.name
+    val specName                                                                                = spec.name
+    def cached(outer: Map[String, Map[String, ProjectionStore[_]]]): Option[ProjectionStore[A]] =
+      outer.get(specName).flatMap(_.get(routingKey)).map(_.asInstanceOf[ProjectionStore[A]])
+
     shardsRef.get.flatMap { outer =>
-      outer.get(specName).flatMap(_.get(routingKey)) match {
-        case Some(cached) => ZIO.succeed(cached.asInstanceOf[ProjectionStore[A]])
-        case None         =>
-          val create: Task[ProjectionStore[A]] = {
-            implicit val schema: Schema[A] = spec.schema
-            implicit val ep: EntityPath[A] =
-              spec.entityPath.getOrElse(EntityPath[A](specName, "id"))
-            // If primary is SQLite, create SQLite shard with sanitized path
-            val primary = primaryStores.get(specName)
-            if (primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) {
-              val base      = spec.entityPath.map(_.basePath).getOrElse("projections")
-              val sanitized = routingKey.replaceAll("[^a-zA-Z0-9_-]", "_").take(64)
-              val shardPath = s"$base/${specName}_shard_$sanitized.db"
-              SQLiteProjectionStore.make[A](shardPath, cache)
-            } else InMemoryProjectionStore.make[A]
-          }
-          create.flatMap { newStore =>
-            shardsRef.update { outer2 =>
-              val inner = outer2.getOrElse(specName, Map.empty)
-              outer2.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
-            }.as(newStore)
+      cached(outer) match {
+        case Some(store) => ZIO.succeed(store)
+        case None        =>
+          // Re-check under the lock: two fibers must not create separate stores
+          // for the same key (for InMemory shards the loser's rows would vanish
+          // when the last cache write wins).
+          shardCreationSem.withPermit {
+            shardsRef.get.flatMap { outer2 =>
+              cached(outer2) match {
+                case Some(store) => ZIO.succeed(store)
+                case None        =>
+                  val create: Task[ProjectionStore[A]] = {
+                    implicit val schema: Schema[A] = spec.schema
+                    implicit val ep: EntityPath[A] =
+                      spec.entityPath.getOrElse(EntityPath[A](specName, "id"))
+                    // If primary is SQLite, create SQLite shard with sanitized path
+                    val primary = primaryStores.get(specName)
+                    if (primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) {
+                      SQLiteProjectionStore.make[A](shardStorePath(spec, routingKey), cache)
+                    } else InMemoryProjectionStore.make[A]
+                  }
+                  create.flatMap { newStore =>
+                    ensureShardSchemaCurrent(spec, newStore) *>
+                      shardsRef.update { outer3 =>
+                        val inner = outer3.getOrElse(specName, Map.empty)
+                        outer3.updated(specName, inner.updated(routingKey, newStore.asInstanceOf[ProjectionStore[_]]))
+                      }
+                        .as(newStore)
+                  }
+              }
+            }
           }
       }
     }
   }
 
-  // Chooses the store for an event: the primary store, or, for a cross-entity projection, the shard of the event's
-  // routing key (its entity ID when no `routedBy` function applies to the event). Creating a shard does not open its
-  // file, so the fallback to the primary store below is never reached: a shard that cannot be opened makes the action
-  // fail, and the event is logged as `apply failed` and skipped
+  /**
+   * Validate a newly opened shard against the current schema hash.
+   *
+   * Shards are created lazily by routed writes and are not part of the primary
+   * schema-evolution rebuild. On first open the hash is recorded; on a later
+   * open an additive schema change is repaired with the registered migration
+   * shortcut, while any other mismatch fails the routed write instead of
+   * writing into a stale-schema shard. A full shard-registry rebuild is
+   * intentionally not attempted here (see
+   * `docs/reference/projection/migration.md`).
+   */
+  private[projection] def ensureShardSchemaCurrent[A](
+    spec: Projection[A],
+    store: ProjectionStore[A]
+  ): Task[Unit] = {
+    val current = currentHashFor(spec)
+    store.getSchemaHash.flatMap {
+      case None =>
+        store.updateSchemaHash(current)
+      case Some(stored) if stored == current =>
+        ZIO.unit
+      case Some(stored) =>
+        migrationRegistry.get.flatMap { regs =>
+          SchemaEvolution.tryMigrationShortcutForSpec(spec, store, regs.get(spec.name), current).flatMap {
+            case true  => ZIO.unit
+            case false =>
+              ZIO.fail(
+                new IllegalStateException(
+                  s"shard schema hash mismatch for ${spec.name}: stored $stored, current $current. " +
+                    "Shard stores are not rebuilt automatically; delete the shard databases or run a manual rebuild."
+                )
+              )
+          }
+        }
+    }
+  }
+
+  /**
+   * Compute the on-disk store path for a shard.
+   *
+   * The file name keeps a short, filesystem-safe prefix of the routing key for
+   * humans, then appends a SHA-256-derived suffix over the exact spec name and
+   * raw routing key. The hash makes distinct keys distinct even when their
+   * sanitized prefixes collide (`alice/x` vs `alice_x`) or when the prefix is
+   * truncated. Length is bounded independently of the routing-key length.
+   *
+   * Exposed at package scope so tests can pin the encoding without creating a
+   * database.
+   */
+  private[projection] def shardStorePath(spec: Projection[_], routingKey: String): String = {
+    val base      = spec.entityPath.map(_.basePath).getOrElse("projections")
+    val sanitized = routingKey.map(c => if (isSafeShardChar(c)) c else '_').take(24)
+    val digest    = java.security.MessageDigest
+      .getInstance("SHA-256")
+      .digest(s"${spec.name}\u0000$routingKey".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+    val hash = digest.take(8).map(b => "%02x".format(b & 0xff)).mkString
+    s"$base/${spec.name.take(48)}_shard_${sanitized}_$hash.db"
+  }
+
+  private def isSafeShardChar(c: Char): Boolean =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
+
+  /**
+   * Open an existing shard for reading without creating it.
+   *
+   * In-memory shards only exist in [[shardsRef]]; once evicted they are
+   * unreachable. SQLite shards are opened only when the backing file already
+   * exists, so a read cannot create an empty shard database.
+   *
+   * A shard that exists on disk is validated with [[ensureShardSchemaCurrent]]
+   * before it is returned, using the same policy as a routed write. A
+   * stale-schema shard therefore fails the read instead of returning stale
+   * rows, and is not handed back to be cached in [[shardsRef]].
+   */
+  private def shardStoreForRead[A](spec: Projection[A], routingKey: String): Task[Option[ProjectionStore[A]]] = {
+    val primary = primaryStores.get(spec.name)
+    if (!primary.exists(_.isInstanceOf[SQLiteProjectionStore[_]])) ZIO.none
+    else {
+      val path = shardStorePath(spec, routingKey)
+      ZIO
+        .attempt(java.nio.file.Files.exists(java.nio.file.Paths.get(path)))
+        .catchAll(_ => ZIO.succeed(false))
+        .flatMap {
+          case false => ZIO.none
+          case true  =>
+            implicit val schema: Schema[A] = spec.schema
+            implicit val ep: EntityPath[A] =
+              spec.entityPath.getOrElse(EntityPath[A](spec.name, "id"))
+            SQLiteProjectionStore
+              .make[A](path, cache)
+              .flatMap(store => ensureShardSchemaCurrent(spec, store).as(Some(store)))
+        }
+    }
+  }
+
+  // Cross-entity routing policy: extraction errors, blank keys, and shard
+  // creation failures fail the event so the watermark is not advanced and the
+  // error is visible in the log. Silent fallback to the primary store is
+  // deliberately not allowed: it would put routed rows in the wrong read model.
+  private def openShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] =
+    getOrCreateShard(spec, routingKey).catchAll { e =>
+      ZIO.logError(
+        s"ProjectionEngine[${spec.name}] failed to open shard for routing key '$routingKey': ${e.getMessage}"
+      ) *> ZIO.fail(e)
+    }
+
   private def resolveTargetStore[A](
     spec: Projection[A],
     event: Any,
     ctx: ProjectionContext,
     sourceName: String
-  ): Task[ProjectionStore[A]] = {
-    // Use ctx fallback to ensure parameter is not unused
-    val fallbackEntityId = ctx.entityId
+  ): Task[ProjectionStore[A]] =
     spec.scope match {
       case ProjectionScope.Global =>
         ZIO.succeed(primaryStoreFor(spec))
       case ProjectionScope.CrossEntity(extractor) =>
-        val routingKeyAttempt: Option[String] = {
-          val fromBinding = spec.bindings.find(_.sourceName == sourceName).flatMap { b =>
-            b.routing match {
-              case rm: RoutingMode.RoutedBy[?] =>
-                Try(rm.asInstanceOf[RoutingMode.RoutedBy[Any]].extractAny(event)).toOption
-              case _ => None
-            }
-          }
-          fromBinding.orElse(Try(extractor(event)).toOption).orElse(Some(fallbackEntityId))
-        }
-        routingKeyAttempt match {
-          case Some(key) =>
-            getOrCreateShard(spec, key).catchAll { _ =>
-              ZIO.succeed(primaryStoreFor(spec))
-            }
+        ZIO.attempt(spec.routingKey(event, ctx, sourceName)).flatMap {
+          case Some(key) if key != null && key.trim.nonEmpty => openShard(spec, key)
+          case Some(_)                                       =>
+            ZIO.fail(
+              new IllegalArgumentException(
+                s"routing key extraction returned a blank key for ${event.getClass.getSimpleName}"
+              )
+            )
           case None =>
-            ZIO.succeed(primaryStoreFor(spec))
+            // `routeToAll`, and a source without a binding, have no key of their
+            // own. A cross-entity projection still places such an event in a
+            // shard: the key the scope's `routedBy` extractor reads from it, or
+            // else its entity ID (see `Projection.routeToAll`). A throwing
+            // extractor falls back the same way.
+            ZIO
+              .attempt(extractor(event))
+              .map(key => if (key != null && key.trim.nonEmpty) key else ctx.entityId)
+              .catchAll(_ => ZIO.succeed(ctx.entityId))
+              .flatMap(key => openShard(spec, key))
         }
       case _ =>
         // PerEntity or default: use primary
         ZIO.succeed(primaryStoreFor(spec))
     }
-  }
 
   private def applyAction[A](
     store: ProjectionStore[A],
@@ -388,12 +505,14 @@ final class ProjectionEngine private[projection] (
     ctx: ProjectionContext
   ): Task[Unit] =
     action match {
-      case ProjectionAction.Insert(v)    => store.insert(v)
-      case ProjectionAction.Upsert(v)    => store.upsert(v)
-      case ProjectionAction.Update(mods) => store.updateFields(ctx.entityId, mods)
-      case ProjectionAction.Delete       => store.delete(ctx.entityId)
-      case ProjectionAction.Truncate     => store.truncate
-      case ProjectionAction.Noop         => ZIO.unit
+      case ProjectionAction.Insert(v)                           => store.insert(v)
+      case ProjectionAction.Upsert(v)                           => store.upsert(v)
+      case ProjectionAction.Update(mods)                        => store.updateFields(ctx.entityId, mods)
+      case ProjectionAction.AppendField(entityId, field, value) =>
+        store.updateFields(entityId, Chunk(FieldUpdate.Append(field, value)))
+      case ProjectionAction.Delete   => store.delete(ctx.entityId)
+      case ProjectionAction.Truncate => store.truncate
+      case ProjectionAction.Noop     => ZIO.unit
     }
 
   private def processBatch[A](
@@ -600,10 +719,11 @@ final class ProjectionEngine private[projection] (
    * Queries the projection for the entity with the given id.
    *
    * Ensures any pending lazy rebuild for `spec` is applied before reading. For
-   * cross-entity projections, also searches the shards this engine has opened
-   * if the primary store has no match. The engine opens a shard when it routes
-   * an event to it, so after a restart a row kept in a shard is not found until
-   * a new event goes to that shard, which is a known bug.
+   * a `CrossEntity` projection the primary store is searched first, then every
+   * currently cached (warm) shard by entity id. The routing key is not used and
+   * cold shards are not opened, so after a restart or eviction a row kept in a
+   * shard is not found this way; use [[queryShard]] when the routing key is
+   * known.
    *
    * @param spec
    *   the projection to query; it must be one this engine runs, or the task
@@ -657,6 +777,98 @@ final class ProjectionEngine private[projection] (
       case Some(store) => store.asInstanceOf[ProjectionStore[A]].findById(entityId)
       case None        => ZIO.succeed(None)
     }
+
+  /**
+   * Read every row from the projection's primary store.
+   *
+   * For a `Global` or `PerEntity` projection this is the whole read model. For
+   * a `CrossEntity` projection it only contains rows that were written to the
+   * primary store (normally none, because routed events go to shards); use
+   * [[queryShard]] to read routed rows.
+   *
+   * Applies any pending lazy rebuild before reading.
+   *
+   * @param spec
+   *   the projection to read
+   * @tparam A
+   *   the projection entity type
+   * @return
+   *   all rows in deterministic store order (see `ProjectionStore.findAll`)
+   */
+  def queryAll[A](spec: Projection[A]): Task[Chunk[A]] =
+    ensureRebuiltIfPending(spec) *> primaryStoreFor(spec).findAll
+
+  /**
+   * Read every row from the primary store of the projection named `specName`.
+   *
+   * Like [[queryByName]], it does not run a pending lazy rebuild, does not
+   * search shards, and does not check the type `A`; an unknown name returns an
+   * empty chunk.
+   *
+   * @param specName
+   *   the name of the projection to read
+   * @tparam A
+   *   the row type the caller expects
+   * @return
+   *   all rows in deterministic store order, or an empty chunk for an unknown
+   *   name
+   */
+  def queryAllByName[A](specName: String): Task[Chunk[A]] =
+    primaryStores.get(specName) match {
+      case Some(store) => store.asInstanceOf[ProjectionStore[A]].findAll
+      case None        => ZIO.succeed(Chunk.empty)
+    }
+
+  /**
+   * Read every row from the shard addressed by `routingKey`.
+   *
+   * This is the read path that uses the routing key directly, unlike [[query]]
+   * which looks rows up by entity id across the primary and warm shards. If the
+   * shard does not exist, an empty chunk is returned without creating an empty
+   * shard database. In-memory shards that are not currently cached are
+   * unreachable; SQLite shards are reopened from disk when their file exists. A
+   * reopened shard is schema-validated before its rows are returned, so a
+   * stale-schema shard fails the read rather than yielding stale rows.
+   *
+   * @param spec
+   *   the cross-entity projection to read
+   * @param routingKey
+   *   the key extracted by `.routedBy` when the events were written
+   * @tparam A
+   *   the projection entity type
+   * @return
+   *   all rows in the shard, in deterministic store order
+   */
+  def queryShard[A](spec: Projection[A], routingKey: String): Task[Chunk[A]] =
+    shardsRef.get.flatMap { outer =>
+      outer.get(spec.name).flatMap(_.get(routingKey)) match {
+        case Some(store) => store.asInstanceOf[ProjectionStore[A]].findAll
+        case None        =>
+          shardStoreForRead(spec, routingKey).flatMap {
+            case None        => ZIO.succeed(Chunk.empty)
+            case Some(store) =>
+              store.findAllIfMaterialized.flatMap {
+                case None       => ZIO.succeed(Chunk.empty)
+                case Some(rows) =>
+                  shardsRef.update { outer2 =>
+                    val inner = outer2.getOrElse(spec.name, Map.empty)
+                    outer2.updated(spec.name, inner.updated(routingKey, store.asInstanceOf[ProjectionStore[_]]))
+                  }
+                    .as(rows)
+              }
+          }
+      }
+    }
+
+  /**
+   * Snapshot of the currently materialized shard stores, keyed by spec name and
+   * then by routing key.
+   *
+   * Only warm shards are listed. Unlike [[storesMap]], which exposes primaries,
+   * this includes stores created by routed writes and by successful
+   * [[queryShard]] lookups.
+   */
+  def shardsMap: UIO[Map[String, Map[String, ProjectionStore[_]]]] = shardsRef.get
 
   /**
    * The sequence number of the last event the projection has applied, which is
@@ -798,6 +1010,7 @@ object ProjectionEngine {
       pendingRef    <- Ref.make(Map.empty[String, Boolean])
       migReg        <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem           <- Semaphore.make(1)
+      shardSem      <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
                            val spec = specAny.asInstanceOf[Projection[Any]]
@@ -823,7 +1036,8 @@ object ProjectionEngine {
       shardsRef,
       pendingRef,
       migReg,
-      sem
+      sem,
+      shardSem
     )
 
   /**
@@ -837,9 +1051,10 @@ object ProjectionEngine {
    *
    * When the primary store of a cross-entity projection is a
    * [[SQLiteProjectionStore]], the engine creates each shard as
-   * `<basePath>/<name>_shard_<key>.db`, relative to the working directory,
-   * wherever the primary store's file is. The key is cut to 64 characters, and
-   * characters other than letters, digits, `_` and `-` become `_`. With any
+   * `<basePath>/<name>_shard_<sanitized-key>_<hash>.db`, relative to the
+   * working directory, wherever the primary store's file is. The key keeps at
+   * most 24 safe characters and is followed by a short SHA-256 hash of the spec
+   * name and the exact key, so different keys never share a file. With any
    * other primary store, shards are in-memory stores.
    *
    * @param specs
@@ -867,7 +1082,19 @@ object ProjectionEngine {
       pendingRef <- Ref.make(Map.empty[String, Boolean])
       migReg     <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem        <- Semaphore.make(1)
-    } yield new ProjectionEngine(specs, stores, eventStores, cache, config, shardsRef, pendingRef, migReg, sem)
+      shardSem   <- Semaphore.make(1)
+    } yield new ProjectionEngine(
+      specs,
+      stores,
+      eventStores,
+      cache,
+      config,
+      shardsRef,
+      pendingRef,
+      migReg,
+      sem,
+      shardSem
+    )
 
   /**
    * Like [[makeWithStores]] in that it takes event stores, but it creates the
@@ -897,6 +1124,7 @@ object ProjectionEngine {
       pendingRef    <- Ref.make(Map.empty[String, Boolean])
       migReg        <- Ref.make(Map.empty[String, zio.blocks.schema.migration.Migration[?, ?]])
       sem           <- Semaphore.make(1)
+      shardSem      <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
                            val spec = specAny.asInstanceOf[Projection[Any]]
@@ -921,7 +1149,8 @@ object ProjectionEngine {
       shardsRef,
       pendingRef,
       migReg,
-      sem
+      sem,
+      shardSem
     )
 
   private def createStoreForSpec(

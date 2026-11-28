@@ -77,6 +77,12 @@ object InMemorySpec extends ZIOSpecDefault {
     implicit val entityPath: EntityPath[OptionalEntity] = EntityPath.derived[OptionalEntity]
   }
 
+  case class Tagged(@Modifier.id id: String, name: String, tags: List[String])
+  object Tagged {
+    implicit val schema: Schema[Tagged]         = Schema.derived[Tagged]
+    implicit val entityPath: EntityPath[Tagged] = EntityPath.derived[Tagged]
+  }
+
   case class UserCreated(name: String, email: String)
   object UserCreated {
     implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
@@ -168,6 +174,61 @@ object InMemorySpec extends ZIOSpecDefault {
             _   <- store.upsert(u2)
             res <- store.findById("u1")
           } yield assertTrue(res.contains(u2), res.get.name == "New", res.get.age == 99L)
+        }
+      }
+    ),
+    suite("findAll")(
+      test("findAll returns empty chunk for an empty store") {
+        withStore[User] { store =>
+          store.findAll.map(rows => assertTrue(rows.isEmpty))
+        }
+      },
+      test("findAll preserves insertion order") {
+        withStore[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val c = User("c", "C", "c@b.com", 3L, 3L, active = true)
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.insert(c)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b, c))
+        }
+      },
+      test("upsert keeps the original insertion position") {
+        withStore[User] { store =>
+          val a  = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b  = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          val b2 = b.copy(name = "B2")
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.upsert(b2)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(a, b2))
+        }
+      },
+      test("delete then re-insert moves the row to the end") {
+        withStore[User] { store =>
+          val a = User("a", "A", "a@b.com", 1L, 1L, active = true)
+          val b = User("b", "B", "b@b.com", 2L, 2L, active = false)
+          for {
+            _    <- store.insert(a)
+            _    <- store.insert(b)
+            _    <- store.delete("a")
+            _    <- store.insert(a)
+            rows <- store.findAll
+          } yield assertTrue(rows == Chunk(b, a))
+        }
+      },
+      test("truncate empties findAll") {
+        withStore[User] { store =>
+          for {
+            _    <- store.insert(User("a", "A", "a@b.com", 1L, 1L, active = true))
+            _    <- store.truncate
+            rows <- store.findAll
+          } yield assertTrue(rows.isEmpty)
         }
       }
     ),
@@ -404,6 +465,66 @@ object InMemorySpec extends ZIOSpecDefault {
             res <- store.findById("s1")
           } yield assertTrue(res.exists(_.count == 8L))
         }
+      }
+    ),
+    suite("append field")(
+      test("appends an element to an existing list") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", List("a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "b")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "b")))
+        }
+      },
+      test("appending to a missing row creates it with the appended element") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.updateFields("new", Chunk(FieldUpdate.Append("tags", "first")))
+            res <- store.findById("new")
+          } yield assertTrue(res.exists(_.tags == List("first")))
+        }
+      },
+      test("appending twice is not idempotent") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            _   <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", "a")))
+            res <- store.findById("t1")
+          } yield assertTrue(res.exists(_.tags == List("a", "a")))
+        }
+      },
+      test("unknown append field fails") {
+        withStore[Tagged] { store =>
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("missing", "x"))).either
+          } yield assertTrue(res.isLeft)
+        }
+      },
+      test("appending to a non-sequence field fails") {
+        withStore[User] { store =>
+          for {
+            _   <- store.insert(User("u1", "Alice", "a@b.com", 1L, 1L, active = true))
+            res <- store.updateFields("u1", Chunk(FieldUpdate.Append("name", "x"))).either
+            row <- store.findById("u1")
+          } yield assertTrue(res.isLeft, row.exists(_.name == "Alice"))
+        }
+      },
+      test("appending an unsupported value fails instead of stringifying it") {
+        withStore[Tagged] { store =>
+          case class NotJson(value: String)
+          for {
+            _   <- store.insert(Tagged("t1", "T", Nil))
+            res <- store.updateFields("t1", Chunk(FieldUpdate.Append("tags", NotJson("x")))).either
+            row <- store.findById("t1")
+          } yield assertTrue(res.isLeft, row.exists(_.tags.isEmpty))
+        }
+      },
+      test("FieldUpdate.append helper constructs Append") {
+        val update = FieldUpdate.append("tags", "x")
+        assertTrue(update == FieldUpdate.Append("tags", "x"))
       }
     ),
     suite("meta operations")(

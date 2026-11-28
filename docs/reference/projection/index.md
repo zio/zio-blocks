@@ -113,8 +113,8 @@ The types below are the ones you meet when you use the library, grouped by the p
 - `Projection[A]`: The declaration of how events become the read model `A`: which sources to listen to, how to route their events, and what each event does. It does nothing until an engine runs it.
 - `Handler[E, A]`: The function that turns an event `E` into a `ProjectionAction[A]`. It only describes the change.
 - `ProjectionContext`: The metadata a handler receives together with an event, such as the entity ID.
-- `ProjectionAction`: What a handler returns: an insert, an upsert, an update, a delete, a truncate or nothing.
-- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value or incrementing a counter. See [Aggregating Fields](./projection.md#aggregating-fields).
+- `ProjectionAction`: What a handler returns: an insert, an upsert, an update, an append to a list field, a delete, a truncate or nothing.
+- `FieldUpdate`: A change to one field of a row, used by an update action, such as setting a value, incrementing a counter, or appending to a list. See [Aggregating Fields](./projection.md#aggregating-fields) and [Appending to List Fields](./projection.md#appending-to-list-fields).
 - `ProjectionScope`: How the data of a `Projection` is split across `ProjectionStore`s. It is worked out from how the projection is built and is not set directly. It is one of three: one row for each entity ID (the default), one store for each routing key, called a shard, or one shared store for the whole projection. See [Projection Scope](./projection.md#projection-scope).
 
 #### Sources and routing

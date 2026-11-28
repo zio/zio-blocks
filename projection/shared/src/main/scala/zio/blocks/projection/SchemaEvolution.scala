@@ -17,9 +17,10 @@
 package zio.blocks.projection
 
 import zio.*
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicOptic, Schema}
 import zio.blocks.schema.migration.{Migration, MigrationAction}
-import zio.blocks.sql.{SqlDialect, Table}
+import zio.blocks.sql.SqlDialect
 
 /**
  * Settings for the functions of [[SchemaEvolution]] that take one.
@@ -167,12 +168,14 @@ object SchemaEvolution {
     ctx: ProjectionContext
   ): Task[Unit] =
     action match {
-      case ProjectionAction.Insert(v)    => store.insert(v).catchAll(_ => store.upsert(v))
-      case ProjectionAction.Upsert(v)    => store.upsert(v)
-      case ProjectionAction.Update(mods) => store.updateFields(ctx.entityId, mods)
-      case ProjectionAction.Delete       => store.delete(ctx.entityId)
-      case ProjectionAction.Truncate     => store.truncate
-      case ProjectionAction.Noop         => ZIO.unit
+      case ProjectionAction.Insert(v)                           => store.insert(v).catchAll(_ => store.upsert(v))
+      case ProjectionAction.Upsert(v)                           => store.upsert(v)
+      case ProjectionAction.Update(mods)                        => store.updateFields(ctx.entityId, mods)
+      case ProjectionAction.AppendField(entityId, field, value) =>
+        store.updateFields(entityId, Chunk(FieldUpdate.Append(field, value)))
+      case ProjectionAction.Delete   => store.delete(ctx.entityId)
+      case ProjectionAction.Truncate => store.truncate
+      case ProjectionAction.Noop     => ZIO.unit
     }
 
   // ---------------------------------------------------------------------------
@@ -214,7 +217,7 @@ object SchemaEvolution {
         if (!isSimpleAddFieldMigration(m.asInstanceOf[Migration[?, ?]])) ZIO.succeed(false)
         else {
           val addActions = m.dynamicMigration.actions.collect { case a: MigrationAction.AddField => a }
-          val table      = Table.derived[A]
+          val table      = ProjectionTable.tableFor[A]
           val colMetaMap = table.columnsMeta.map(c => c.name -> c).toMap
           ZIO
             .foreachDiscard(addActions) { action =>

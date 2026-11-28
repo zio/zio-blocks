@@ -63,6 +63,8 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
   object CountInc { implicit val schema: Schema[CountInc] = Schema.derived[CountInc] }
   case class RepoCreated(ownerId: String, repoName: String)
   object RepoCreated { implicit val schema: Schema[RepoCreated] = Schema.derived[RepoCreated] }
+  case class AuditRecorded(note: String)
+  object AuditRecorded { implicit val schema: Schema[AuditRecorded] = Schema.derived[AuditRecorded] }
 
   // Simple Order global model
   case class OrderSummary(
@@ -76,6 +78,14 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
   }
   case class OrderPlaced(item: String)
   object OrderPlaced { implicit val schema: Schema[OrderPlaced] = Schema.derived[OrderPlaced] }
+
+  case class Tagged(@Modifier.id id: String, tags: List[String])
+  object Tagged {
+    implicit val schema: Schema[Tagged]         = Schema.derived[Tagged]
+    implicit val entityPath: EntityPath[Tagged] = EntityPath.derived[Tagged]
+  }
+  case class TagAdded(tag: String)
+  object TagAdded { implicit val schema: Schema[TagAdded] = Schema.derived[TagAdded] }
 
   // ---------------------------------------------------------------------------
   // In-memory EventStore stub for tests
@@ -601,6 +611,353 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("read APIs")(
+      test("queryAll returns every primary row") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("events")
+                     .routeToSelf
+                     .on[UserCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("events"  -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _    <- engine.start
+            _    <- hub.append("u1", UserCreated("Alice", "a@b.com"))
+            _    <- hub.append("u2", UserCreated("Bob", "b@b.com"))
+            rows <- pollUntil(engine.queryAll(spec).map(r => Option.when(r.size == 2)(r)))
+          } yield assertTrue(rows.exists(_.map(_.name).toSet == Set("Alice", "Bob")))
+        }
+      },
+      test("queryShard returns all rows for a routing key") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _     <- engine.start
+            _     <- hub.append("r1", RepoCreated("alice", "repo-1"))
+            _     <- hub.append("r2", RepoCreated("alice", "repo-2"))
+            _     <- hub.append("r3", RepoCreated("bob", "repo-3"))
+            alice <- pollUntil(engine.queryShard(spec, "alice").map(rows => Option.when(rows.size == 2)(rows)))
+            bob   <- pollUntil(engine.queryShard(spec, "bob").map(rows => Option.when(rows.nonEmpty)(rows)))
+          } yield assertTrue(
+            alice.exists(_.map(_.id).toSet == Set("r1", "r2")),
+            bob.exists(_.map(_.id).toSet == Set("r3"))
+          )
+        }
+      },
+      test("queryShard on an unwritten key returns empty without materializing a shard") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _      <- engine.start
+            _      <- hub.append("r1", RepoCreated("alice", "repo-1"))
+            _      <- Live.live(ZIO.sleep(200.millis))
+            empty  <- engine.queryShard(spec, "nobody")
+            shards <- engine.shardsMap
+          } yield assertTrue(empty.isEmpty, !shards.get("users").exists(_.contains("nobody")))
+        }
+      }
+    ),
+    suite("shard creation")(
+      test("two sources first writing the same routing key share one shard") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hubA  <- InMemEventStore.make[Any]
+            hubB  <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("a")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+                     .from("b")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("a"       -> hubA.asInstanceOf[EventStore[Any]], "b" -> hubB.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _ <- engine.start
+            _ <- ZIO.collectAllPar(
+                   List(
+                     hubA.append("r1", RepoCreated("alice", "repo-1")),
+                     hubB.append("r2", RepoCreated("alice", "repo-2"))
+                   )
+                 )
+            rows <- pollUntil(engine.queryShard(spec, "alice").map(r => Option.when(r.size == 2)(r)))
+          } yield assertTrue(rows.exists(_.map(_.id).toSet == Set("r1", "r2")))
+        }
+      }
+    ),
+    suite("shard schema evolution")(
+      test("a freshly created shard records the current schema hash") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _     <- engine.start
+            _     <- hub.append("r1", RepoCreated("alice", "repo-1"))
+            shard <- pollUntil(engine.shardsMap.map(_.get("users").flatMap(_.get("alice"))))
+            hash  <- ZIO.foreach(shard)(_.getSchemaHash)
+          } yield assertTrue(hash.flatten.contains(SchemaHash.compute[User]))
+        }
+      },
+      test("ensureShardSchemaCurrent stamps a shard with no stored hash") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            _      <- engine.ensureShardSchemaCurrent(spec, store)
+            hash   <- store.getSchemaHash
+          } yield assertTrue(hash.contains(SchemaHash.compute[User]))
+        }
+      },
+      test("ensureShardSchemaCurrent rejects a stale shard instead of accepting it") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            _      <- store.updateSchemaHash("stale")
+            result <- engine.ensureShardSchemaCurrent(spec, store).exit
+            hash   <- store.getSchemaHash
+          } yield assertTrue(result.isFailure, hash.contains("stale"))
+        }
+      }
+    ),
+    suite("routing failures")(
+      test("extractor failure fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](e =>
+                       if (e.repoName == "bad") throw new RuntimeException("extractor boom") else e.ownerId
+                     )
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("alice", "bad"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+            read    <- engine.query(spec, "r1")
+          } yield assertTrue(primary.isEmpty, seq == 0L, read.isEmpty)
+        }
+      },
+      test("blank routing key fails the event without writing to the primary store") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _       <- engine.start
+            _       <- hub.append("r1", RepoCreated("  ", "no-owner"))
+            _       <- Live.live(ZIO.sleep(300.millis))
+            primary <- store.findAll
+            seq     <- engine.getLastProcessedSeq(spec)
+          } yield assertTrue(primary.isEmpty, seq == 0L)
+        }
+      },
+      test("routeToAll events in a cross-entity projection are still placed in a shard") {
+        ZIO.scoped {
+          for {
+            cache  <- TransactorCache.make()
+            store  <- InMemoryProjectionStore.make[User]
+            repos  <- InMemEventStore.make[Any]
+            audits <- InMemEventStore.make[Any]
+            spec    = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+                     .from("audits")
+                     .routeToAll
+                     .on[AuditRecorded]
+                     .insert((e, ctx) => User(ctx.entityId, e.note, "audit", 0L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map(
+                          "repos"  -> repos.asInstanceOf[EventStore[Any]],
+                          "audits" -> audits.asInstanceOf[EventStore[Any]]
+                        ),
+                        cache
+                      )
+            _ <- engine.start
+            _ <- repos.append("r1", RepoCreated("alice", "repo-1"))
+            _ <- pollUntil(engine.queryShard(spec, "alice").map(rows => Option.when(rows.nonEmpty)(rows)))
+            // Appended live so the shared watermark cannot skip it. The scope
+            // extractor (`_.ownerId`) throws on this event type, so the
+            // documented placement falls back to the event's entity ID.
+            _       <- audits.append("a1", AuditRecorded("created"))
+            audit   <- pollUntil(engine.queryShard(spec, "a1").map(rows => Option.when(rows.nonEmpty)(rows)))
+            primary <- store.findAll
+          } yield assertTrue(
+            audit.exists(_.map(_.name) == Chunk("created")),
+            primary.isEmpty
+          )
+        }
+      }
+    ),
+    suite("appendField")(
+      test("appendField handler appends to a list field") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[Tagged]
+            hub   <- InMemEventStore.make[Any]
+            spec   = Projection[Tagged]("tagged")
+                     .from("events")
+                     .routeToSelf
+                     .on[TagAdded]
+                     .appendField("tags")((e, _) => e.tag)
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("events"  -> hub.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _    <- engine.start
+            _    <- hub.append("t1", TagAdded("scala"))
+            _    <- hub.append("t1", TagAdded("zio"))
+            rows <- pollUntil(engine.query(spec, "t1").map(_.filter(_.tags.size == 2)))
+          } yield assertTrue(rows.exists(_.tags == List("scala", "zio")))
+        }
+      }
+    ),
+    suite("shard paths")(
+      test("sanitized-prefix collisions produce distinct deterministic paths") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            slash   = engine.shardStorePath(spec, "alice/x")
+            under   = engine.shardStorePath(spec, "alice_x")
+            again   = engine.shardStorePath(spec, "alice/x")
+          } yield assertTrue(slash != under, slash == again)
+        }
+      },
+      test("long keys that share a truncated prefix produce distinct paths") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            prefix  = "a" * 200
+            first   = engine.shardStorePath(spec, prefix + "x")
+            second  = engine.shardStorePath(spec, prefix + "y")
+          } yield assertTrue(first != second)
+        }
+      },
+      test("shard file names are filesystem-safe and length-bounded") {
+        ZIO.scoped {
+          for {
+            cache <- TransactorCache.make()
+            store <- InMemoryProjectionStore.make[User]
+            spec   = Projection[User]("users")
+                     .from("repos")
+                     .routedBy[RepoCreated](_.ownerId)
+                     .on[RepoCreated]
+                     .insert((e, ctx) => User(ctx.entityId, e.repoName, e.ownerId, 0L))
+            engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map.empty, cache)
+            path    = engine.shardStorePath(spec, "../evil key/" + ("z" * 500))
+            name    = path.split('/').last
+          } yield assertTrue(name.length <= 120, name.matches("[a-zA-Z0-9_.-]+"), !path.contains("evil key"))
+        }
+      }
+    ),
     suite("global")(
       test("global projection single file") {
         ZIO.scoped {
@@ -701,6 +1058,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
                              def delete(entityId: String): Task[Unit]           = baseStore.delete(entityId)
                              def truncate: Task[Unit]                           = baseStore.truncate
                              def findById(entityId: String): Task[Option[User]] = baseStore.findById(entityId)
+                             def findAll: Task[Chunk[User]]                     = baseStore.findAll
                              def getLastProcessedSeq: Task[Long]                = baseStore.getLastProcessedSeq
                              def updateLastProcessedSeq(seq: Long): Task[Unit]  = baseStore.updateLastProcessedSeq(seq)
                              def getSchemaHash: Task[Option[String]]            = baseStore.getSchemaHash

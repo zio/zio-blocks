@@ -21,6 +21,8 @@ trait ProjectionStore[A] {
   def delete(entityId: String): Task[Unit]
   def truncate: Task[Unit]
   def findById(entityId: String): Task[Option[A]]
+  def findAll: Task[Chunk[A]]
+  def findAllIfMaterialized: Task[Option[Chunk[A]]]
 
   // Watermark and schema hash
   def getLastProcessedSeq: Task[Long]
@@ -37,6 +39,8 @@ trait ProjectionStore[A] {
 :::note
 You rarely call these methods yourself: the engine does. You create a store to pass to `ProjectionEngine.makeWithStores`, or implement the trait for another database.
 :::
+
+`findAll` returns every row in a deterministic order: `InMemoryProjectionStore` keeps insertion order, and `SQLiteProjectionStore` orders by the entity ID column. `findAllIfMaterialized` is the same read, but returns `None` instead of creating a table or database file when the store has never been written; the engine uses it for `queryShard`, so reading a shard that does not exist leaves no empty file behind. Both calls materialize the whole result: there is no cursor or streaming variant, which suits bounded read models rather than unbounded tables.
 
 ## Motivation
 

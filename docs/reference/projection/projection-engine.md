@@ -35,6 +35,10 @@ final class ProjectionEngine private[projection] (
   def start: ZIO[Scope, Nothing, Unit]
   def query[A](spec: Projection[A], entityId: String): Task[Option[A]]
   def queryByName[A](specName: String, entityId: String): Task[Option[A]]
+  def queryAll[A](spec: Projection[A]): Task[Chunk[A]]
+  def queryAllByName[A](specName: String): Task[Chunk[A]]
+  def queryShard[A](spec: Projection[A], routingKey: String): Task[Chunk[A]]
+  def shardsMap: UIO[Map[String, Map[String, ProjectionStore[_]]]] // the shards this engine has opened
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long]
   def storesMap: Map[String, ProjectionStore[_]] // the primary store of each projection, by name; no shards
   def eventStoresMap: Map[String, EventStore[_]] // the event stores, by source name
@@ -234,7 +238,8 @@ The engine logs an event that fails and goes on with the next one. An event fail
 
 - its handler throws;
 - no handler matches it, which is logged at debug level only;
-- the store rejects the action.
+- the store rejects the action;
+- for a cross-entity projection, the routing key extractor throws or returns a blank key, or the engine cannot open the shard the event belongs to. The engine never writes the routed row to the primary store instead.
 
 The watermark moves only after an event succeeds. So the next event that succeeds moves it past the failed one, and the failed event is never retried.
 :::
@@ -248,14 +253,18 @@ Nothing connects catch-up to the live fiber, and the watermark is saved in a sep
 Avoid appending events while the engine starts, and prefer actions that give the same row when applied twice, such as `Upsert` or `FieldUpdate.Set`.
 :::
 
-### Reading Rows — `query`, `queryByName` and `getLastProcessedSeq`
+### Reading Rows — `query`, `queryAll`, `queryShard` and the Watermark
 
-Three methods read from the stores of a projection:
+These methods read from the stores of a projection:
 
 ```scala
 final class ProjectionEngine {
   def query[A](spec: Projection[A], entityId: String): Task[Option[A]]
   def queryByName[A](specName: String, entityId: String): Task[Option[A]]
+  def queryAll[A](spec: Projection[A]): Task[Chunk[A]]
+  def queryAllByName[A](specName: String): Task[Chunk[A]]
+  def queryShard[A](spec: Projection[A], routingKey: String): Task[Chunk[A]]
+  def shardsMap: UIO[Map[String, Map[String, ProjectionStore[_]]]] // the shards this engine has opened
   def getLastProcessedSeq[A](spec: Projection[A]): Task[Long]
 }
 ```
@@ -263,6 +272,10 @@ final class ProjectionEngine {
 - `query` returns the row with the ID `entityId`, or `None`. If the projection is waiting for a [lazy rebuild](./migration.md#rebuilding-later--lazyrebuild), the query first runs the rebuild and waits for it, and a failed rebuild fails the query. Without an event store, the projection is just unmarked, with no rebuild. The query then reads the primary store.
 - For a cross-entity projection only, when the primary store has no such row, `query` searches the shards this engine has opened, in no particular order, and returns the first match. The engine opens a shard when it routes an event to it, and a read error in a shard counts as no match.
 - `queryByName` reads only the primary store of the projection named `specName`, and returns `None` for an unknown name. It neither runs a pending rebuild nor searches shards, and the type `A` is not checked: the caller chooses it.
+- `queryAll` returns every row of the primary store. For a `Global` or `PerEntity` projection that is the whole read model. For a cross-entity projection it contains only the rows written to the primary store, normally none, because routed events go to shards: use `queryShard` for those. A pending lazy rebuild runs first, as it does for `query`.
+- `queryAllByName` is `queryAll` for a projection chosen by name. Like `queryByName`, it neither runs a pending rebuild nor checks the type, and an unknown name returns an empty chunk.
+- `queryShard` returns every row of the shard addressed by `routingKey`. When the shard does not exist it returns `Chunk.empty` instead of creating an empty shard database. An in-memory shard can only be read while the engine has it open; a SQLite shard is reopened from its file when the file exists. This is the efficient collection read for a cross-entity projection.
+- `shardsMap` is a snapshot of the shards the engine currently has open, keyed by projection name and then routing key, for diagnostics. It is not a list of every shard file on disk.
 - `getLastProcessedSeq` returns the watermark. It is kept in the primary store, also for a cross-entity projection, and `0` means that no event was applied yet.
 
 Events appended after `start` are applied by the live fibers, so a query right after an append can still return `None`. Poll until the row appears. This function appends an event and asks again every 20 milliseconds until the new row is there:
