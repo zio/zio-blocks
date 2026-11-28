@@ -15,6 +15,13 @@ object BuildHelper {
   // `golemStreamsAsyncVersion` in build.sbt) — zio-blocks itself has no Golem-specific code.
   val Scala3Golem: String = "3.8.3"
 
+  // Maven Central rate-limits parallel CI jobs with HTTP 429, so CI resolves through
+  // Google's Maven Central mirror. The fallback uses repo.maven.apache.org because the
+  // coursier mirror rewrites repo1.maven.org to Google; using repo1 here would turn the
+  // fallback back into the mirror.
+  val MavenCentralMirror   = "https://maven-central.storage-download.googleapis.com/maven2/"
+  val MavenCentralFallback = "https://repo.maven.apache.org/maven2/"
+
   /**
    * The legacy Scala 2.13 lane.
    *

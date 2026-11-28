@@ -1,0 +1,11 @@
+# Coursier mirror file for CI, exported as COURSIER_EXTRA_MIRRORS.
+#
+# Maven Central rate-limits the parallel CI matrix (HTTP 429). Resolve through
+# Google's Maven Central mirror; Maven Central stays available as an explicit
+# fallback via COURSIER_REPOSITORIES and .github/sbt-repositories.
+#
+# In properties files the default mirror type is `tree`; `maven` replaces the
+# repository root, which is what we want for Central.
+central.from=https://repo1.maven.org/maven2;https://repo1.maven.org/maven2/
+central.to=https://maven-central.storage-download.googleapis.com/maven2
+central.type=maven

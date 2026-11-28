@@ -3,7 +3,9 @@
 
 name: CI
 env:
-  SBT_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE
+  SBT_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE -Dsbt.override.build.repos=true -Dsbt.repository.config=.github/sbt-repositories
+  COURSIER_EXTRA_MIRRORS: ${{ github.workspace }}/.github/coursier-mirrors
+  COURSIER_REPOSITORIES: https://maven-central.storage-download.googleapis.com/maven2/|https://repo.maven.apache.org/maven2/
 'on':
   workflow_dispatch: {}
   release:

@@ -39,8 +39,17 @@ inThisBuild(
     // JVM flags go through SBT_OPTS rather than JDK_JAVA_OPTIONS: the latter makes `java -version`
     // print a NOTE containing commas, which breaks cache key validation in setup-sbt and
     // coursier/cache-action.
+    // Maven Central rate-limits the parallel CI matrix (HTTP 429). Resolve through
+    // Google's Maven Central mirror, keeping Maven Central as a fallback; the mirror
+    // file also covers the `cs install --contrib sbt` lookup inside
+    // coursier/setup-action, which build-level resolvers cannot reach.
     ciWorkflowEnv := Map(
-      "SBT_OPTS" -> "-XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE"
+      "SBT_OPTS" -> (
+        "-XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE" +
+          " -Dsbt.override.build.repos=true -Dsbt.repository.config=.github/sbt-repositories"
+      ),
+      "COURSIER_EXTRA_MIRRORS" -> "${{ github.workspace }}/.github/coursier-mirrors",
+      "COURSIER_REPOSITORIES"  -> s"$MavenCentralMirror|$MavenCentralFallback"
     ),
     // Scala Steward launches sbt with the repo's .jvmopts removed
     // (scala-steward-action defaults ignore-opts-files to true), so without
