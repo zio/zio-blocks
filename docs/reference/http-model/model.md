@@ -5,7 +5,7 @@ title: "HTTP Model"
 
 `zio-blocks-http-model` is a **runtime-independent HTTP data model** for building HTTP clients and servers. It provides immutable types representing all HTTP concepts: requests, responses, headers, URLs, paths, query parameters, methods, status codes, versions, cookies, and forms.
 
-Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`, `Version`, `Scheme`, `Path`, `QueryParams`, `ContentType`, `RequestCookie`, `ResponseCookie`, `Form`.
+Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`, `Version`, `Scheme`, `Path`, `QueryParams`, `ContentType`, `RequestCookie`, `ResponseCookie`, `Form`, `Target`.
 
 Here is a high-level overview of the core types and their relationships:
 
@@ -634,6 +634,40 @@ val params = QueryParams("id" -> "1", "id" -> "2", "id" -> "3")
 val firstId = params.getFirst("id")   // Some("1") (first value)
 val allIds = params.get("id")         // Some(Chunk("1", "2", "3"))
 ```
+
+---
+
+## Target
+
+`Target` holds the raw text of a request target, such as `/api/orders/42?page=2`, and parses it on demand. A router can read its path segments without building a `Path` or parsing the query string:
+
+```scala
+final class Target private (val raw: String) {
+  def url: URL
+  def path: Path
+  def queryParams: QueryParams
+  def fragment: Option[String]
+  def segmentCount: Int
+  def segment(i: Int): String
+}
+```
+
+### Parsing Targets
+
+`Target.parse` accepts exactly the strings `URL.parse` accepts. `Target.fromURL` renders a `URL` back to text, so it may re-render it:
+
+```scala mdoc:compile-only
+import zio.http._
+
+val target = Target.parse("/api/orders/42?page=2#items").toOption.get
+
+val count = target.segmentCount                // 3
+val id = target.segment(2)                     // "42"
+val page = target.queryParams.getFirst("page") // Some("2")
+val url = target.url                           // parses the URL on first access
+```
+
+Segment access decodes like `Path.fromEncoded`, so `%2F` stays inside its segment and `+` stays a plus sign.
 
 ---
 
